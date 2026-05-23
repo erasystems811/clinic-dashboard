@@ -76,7 +76,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-sidebar flex flex-col hidden md:flex shrink-0">
+      <aside className="w-56 border-r border-border bg-sidebar flex flex-col shrink-0">
         {/* Header — hospital identity */}
         <div className="h-16 flex items-center px-4 border-b border-border shrink-0 gap-3">
           <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center shrink-0">

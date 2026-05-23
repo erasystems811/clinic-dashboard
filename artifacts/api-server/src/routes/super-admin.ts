@@ -39,6 +39,11 @@ function hashPassword(password: string, salt: string): string {
   return crypto.scryptSync(password, salt, 64).toString("hex");
 }
 
+function parseToneJson(raw: string | null): string[] {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return raw ? [raw] : []; }
+}
+
 function requireSuperAdmin(req: any, res: any, next: any) {
   const token = req.headers["x-super-admin-token"] as string;
   if (!token || !verifyToken(token)) {
@@ -159,7 +164,7 @@ const UpdateSettingsBody = z.object({
   pipelinePostTreatmentDays: z.number().int().min(1).optional(),
   pipelineDormantDays: z.number().int().min(1).optional(),
   language: z.string().optional(),
-  tone: z.string().optional(),
+  tone: z.array(z.string()).optional(),
   clinicDescription: z.string().optional(),
 });
 
@@ -170,7 +175,11 @@ router.get("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, id));
   if (!settings) { res.status(404).json({ error: "Not found" }); return; }
 
-  res.json({ ...settings, departments: JSON.parse(settings.departments ?? "[]") });
+  res.json({
+    ...settings,
+    departments: JSON.parse(settings.departments ?? "[]"),
+    tone: parseToneJson(settings.tone),
+  });
 });
 
 router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -180,9 +189,10 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   const parsed = UpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { departments, ...rest } = parsed.data;
+  const { departments, tone, ...rest } = parsed.data;
   const updates: Record<string, any> = { ...rest };
   if (departments !== undefined) updates.departments = JSON.stringify(departments);
+  if (tone !== undefined) updates.tone = JSON.stringify(tone);
 
   const [settings] = await db
     .update(hospitalSettingsTable)
@@ -191,7 +201,11 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
     .returning();
 
   if (!settings) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ ...settings, departments: JSON.parse(settings.departments ?? "[]") });
+  res.json({
+    ...settings,
+    departments: JSON.parse(settings.departments ?? "[]"),
+    tone: parseToneJson(settings.tone),
+  });
 });
 
 // ── Hospital Modules ───────────────────────────────────────────────────────────

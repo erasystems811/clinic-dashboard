@@ -63,7 +63,7 @@ export interface HospitalSettings {
   pipelinePostTreatmentDays: number | null;
   pipelineDormantDays: number | null;
   language: string | null;
-  tone: string | null;
+  tone: string[] | null;
   clinicDescription: string | null;
 }
 

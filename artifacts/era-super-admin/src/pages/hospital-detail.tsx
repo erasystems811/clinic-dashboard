@@ -88,7 +88,7 @@ export default function HospitalDetail({ id }: Props) {
   const [postTreatmentDays, setPostTreatmentDays] = useState("");
   const [dormantDays, setDormantDays] = useState("");
   const [language, setLanguage] = useState("");
-  const [tone, setTone] = useState("");
+  const [tones, setTones] = useState<string[]>([]);
   const [clinicDescription, setClinicDescription] = useState("");
 
   // Modules form
@@ -114,7 +114,7 @@ export default function HospitalDetail({ id }: Props) {
       setPostTreatmentDays(s.pipelinePostTreatmentDays?.toString() ?? "");
       setDormantDays(s.pipelineDormantDays?.toString() ?? "");
       setLanguage(s.language ?? "");
-      setTone(s.tone ?? "");
+      setTones(s.tone ?? []);
       setClinicDescription(s.clinicDescription ?? "");
       setApptEnabled(m.appointmentsEnabled);
       setFeedbackEnabled(m.feedbackEnabled);
@@ -161,7 +161,7 @@ export default function HospitalDetail({ id }: Props) {
         pipelinePostTreatmentDays: postTreatmentDays ? parseInt(postTreatmentDays) : null,
         pipelineDormantDays: dormantDays ? parseInt(dormantDays) : null,
         language: language || null,
-        tone: tone || null,
+        tone: tones.length > 0 ? tones : null,
         clinicDescription: clinicDescription || null,
       });
       flash("Settings saved");
@@ -495,31 +495,77 @@ export default function HospitalDetail({ id }: Props) {
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Language">
-              <select
-                value={language}
-                onChange={e => setLanguage(e.target.value)}
-                className={inputCls()}
-              >
-                <option value="">Default</option>
-                <option value="en">English</option>
-                <option value="ar">Arabic</option>
-                <option value="fr">French</option>
-              </select>
-            </Field>
-            <Field label="Communication Tone">
-              <select
-                value={tone}
-                onChange={e => setTone(e.target.value)}
-                className={inputCls()}
-              >
-                <option value="">Default</option>
-                <option value="formal">Formal</option>
-                <option value="friendly">Friendly</option>
-                <option value="clinical">Clinical</option>
-              </select>
-            </Field>
+          <Field label="Language">
+            <select
+              value={language}
+              onChange={e => setLanguage(e.target.value)}
+              className={inputCls()}
+            >
+              <option value="">Default</option>
+              <option value="en">English</option>
+              <option value="ar">Arabic</option>
+              <option value="fr">French</option>
+            </select>
+          </Field>
+
+          {/* Communication Tone — multi-select, max 4 */}
+          <div className="space-y-2">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Communication Tone</p>
+              <p className="text-xs text-muted-foreground">
+                Select up to 4 tones that define how this hospital communicates with patients.
+                {tones.length > 0 && <span className="ml-1 text-primary font-medium">{tones.length}/4 selected</span>}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: "Formal", label: "Formal", sub: "Strict and corporate" },
+                { value: "Warm", label: "Warm", sub: "Caring and personal" },
+                { value: "Friendly", label: "Friendly", sub: "Casual and modern" },
+                { value: "Empathetic", label: "Empathetic", sub: "Deeply understanding, for sensitive departments" },
+                { value: "Encouraging", label: "Encouraging", sub: "Motivating and uplifting" },
+                { value: "Reassuring", label: "Reassuring", sub: "Calming, reduces anxiety" },
+                { value: "Jovial", label: "Jovial", sub: "Light-hearted and cheerful" },
+              ].map(t => {
+                const selected = tones.includes(t.value);
+                const atMax = tones.length >= 4 && !selected;
+                return (
+                  <button
+                    key={t.value}
+                    type="button"
+                    disabled={atMax}
+                    onClick={() => {
+                      if (selected) {
+                        setTones(prev => prev.filter(x => x !== t.value));
+                      } else if (tones.length < 4) {
+                        setTones(prev => [...prev, t.value]);
+                      }
+                    }}
+                    className={`flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-lg border text-left transition-all ${
+                      selected
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : atMax
+                        ? "border-border bg-muted/20 text-muted-foreground/40 cursor-not-allowed"
+                        : "border-border hover:border-primary/40 hover:bg-muted/40 text-muted-foreground"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${
+                        selected ? "bg-primary border-primary" : "border-muted-foreground/40"
+                      }`}>
+                        {selected && (
+                          <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 10 10">
+                            <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
+                      <span className="text-sm font-semibold">{t.label}</span>
+                    </div>
+                    <p className="text-xs leading-snug pl-5.5 opacity-70">{t.sub}</p>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <Field label="Clinic Description" hint="Used for AI-generated messages">

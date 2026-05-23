@@ -12,7 +12,7 @@ import {
 import type { CallTask } from "@workspace/api-client-react";
 import {
   Phone, CheckCircle, Clock, Loader2, MessageSquare, Bot, PhoneCall,
-  Send, RefreshCw, Pencil, ChevronDown, ChevronUp,
+  Send, RefreshCw, Pencil, ChevronDown, ChevronUp, Flag,
 } from "lucide-react";
 
 function formatDate(iso: string) {

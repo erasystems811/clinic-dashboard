@@ -133,16 +133,6 @@ export function Layout({ children }: LayoutProps) {
             </button>
           )}
 
-          {/* Switch Role */}
-          <button
-            onClick={logoutRole}
-            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium w-full text-left text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors mb-1"
-            title="Switch to a different role"
-          >
-            <GitBranch className="w-4 h-4" />
-            Switch Role
-          </button>
-
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center border border-border shrink-0">
               <span className="text-xs font-medium">

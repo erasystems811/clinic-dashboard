@@ -6,20 +6,42 @@ import { z } from "zod/v4";
 
 const router = Router();
 
-// ── In-memory session store ──────────────────────────────────────────────────
-const sessions = new Set<string>();
+// ── Stateless HMAC token auth (survives server restarts) ─────────────────────
+const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function getSecret(): string {
+  return process.env.SUPER_ADMIN_PASSWORD ?? "EraAdmin2024!";
+}
+
+function signToken(username: string): string {
+  const expiry = Date.now() + TOKEN_TTL_MS;
+  const payload = `${username}:${expiry}`;
+  const sig = crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
+}
+
+function verifyToken(token: string): boolean {
+  try {
+    const decoded = Buffer.from(token, "base64url").toString("utf8");
+    const lastColon = decoded.lastIndexOf(":");
+    const payload = decoded.slice(0, lastColon);
+    const sig = decoded.slice(lastColon + 1);
+    const expiryStr = payload.split(":")[1];
+    if (Date.now() > parseInt(expiryStr, 10)) return false;
+    const expected = crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
+    return crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
+  } catch {
+    return false;
+  }
+}
 
 function hashPassword(password: string, salt: string): string {
   return crypto.scryptSync(password, salt, 64).toString("hex");
 }
 
-function makeToken(): string {
-  return crypto.randomBytes(32).toString("hex");
-}
-
 function requireSuperAdmin(req: any, res: any, next: any) {
   const token = req.headers["x-super-admin-token"] as string;
-  if (!token || !sessions.has(token)) {
+  if (!token || !verifyToken(token)) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
@@ -36,14 +58,11 @@ router.post("/super-admin/auth/login", (req, res): void => {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
-  const token = makeToken();
-  sessions.add(token);
-  res.json({ token });
+  res.json({ token: signToken(username) });
 });
 
-router.post("/super-admin/auth/logout", requireSuperAdmin, (req, res): void => {
-  const token = req.headers["x-super-admin-token"] as string;
-  sessions.delete(token);
+router.post("/super-admin/auth/logout", (req, res): void => {
+  // Stateless — client just drops the token
   res.json({ ok: true });
 });
 

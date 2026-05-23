@@ -157,7 +157,7 @@ export default function PatientHistory() {
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${stageClass}`}>
                     {patient.stage}
                   </span>
-                  {patient.department && (
+                  {patient.stage === "In Care" && patient.department && (
                     <span className="text-xs px-2.5 py-1 rounded-full border border-border bg-muted text-muted-foreground flex items-center gap-1">
                       <Stethoscope className="w-3 h-3" />
                       {patient.department}

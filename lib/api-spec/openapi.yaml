@@ -729,6 +729,9 @@ components:
       properties:
         reason:
           type: string
+        actionType:
+          type: string
+          description: "automated_message | manual_text | manual_call"
 
     QueueEntry:
       type: object

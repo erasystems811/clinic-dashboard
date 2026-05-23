@@ -13,7 +13,15 @@ import {
   getListQueueQueryKey,
 } from "@workspace/api-client-react";
 import type { Patient } from "@workspace/api-client-react";
-import { Search, Stethoscope, Flag, Loader2, CheckCircle, Info } from "lucide-react";
+import { Search, Stethoscope, Flag, Loader2, CheckCircle, Info, Bot, MessageSquare, PhoneCall } from "lucide-react";
+
+const FOLLOWUP_TYPES = [
+  { value: "automated_message", label: "Automated Message", sub: "AI generates a check-in message", icon: Bot, color: "text-violet-400", active: "border-violet-500 bg-violet-500/10 text-violet-400" },
+  { value: "manual_text", label: "Manual Text", sub: "Staff composes a personal text", icon: MessageSquare, color: "text-blue-400", active: "border-blue-500 bg-blue-500/10 text-blue-400" },
+  { value: "manual_call", label: "Manual Call", sub: "Staff makes a direct phone call", icon: PhoneCall, color: "text-primary", active: "border-primary bg-primary/10 text-primary" },
+] as const;
+
+type FollowupType = typeof FOLLOWUP_TYPES[number]["value"];
 
 const TREATMENT_TYPES = [
   { value: "medication_only", label: "Medication Only", sub: "Patient self-administers at home" },
@@ -54,6 +62,7 @@ export default function NurseStation() {
   const [flagSearch, setFlagSearch] = useState("");
   const [flaggedPatient, setFlaggedPatient] = useState<Patient | null>(null);
   const [flagReason, setFlagReason] = useState("");
+  const [flagActionType, setFlagActionType] = useState<FollowupType>("manual_call");
   const [form, setForm] = useState<TreatmentForm>(EMPTY_FORM);
 
   const { data: searchResults = [], isFetching: searching } = useListPatients(
@@ -87,6 +96,7 @@ export default function NurseStation() {
         setFlaggedPatient(null);
         setFlagSearch("");
         setFlagReason("");
+        setFlagActionType("manual_call");
       },
       onError: () => toast({ title: "Failed to flag patient", variant: "destructive" }),
     },
@@ -130,7 +140,7 @@ export default function NurseStation() {
   const handleFlag = (e: React.FormEvent) => {
     e.preventDefault();
     if (!flaggedPatient) return;
-    flagMissed.mutate({ id: flaggedPatient.id, data: { reason: flagReason } });
+    flagMissed.mutate({ id: flaggedPatient.id, data: { reason: flagReason, actionType: flagActionType } });
   };
 
   const inCareResults = flagSearchResults.filter(p => p.stage === "In Care");
@@ -415,8 +425,31 @@ export default function NurseStation() {
                     required
                   />
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Follow-up Method *</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {FOLLOWUP_TYPES.map(ft => {
+                      const Icon = ft.icon;
+                      const isSelected = flagActionType === ft.value;
+                      return (
+                        <button
+                          key={ft.value}
+                          type="button"
+                          onClick={() => setFlagActionType(ft.value)}
+                          className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center text-xs transition-colors ${
+                            isSelected ? ft.active : "border-border hover:border-border/60 text-muted-foreground"
+                          }`}
+                        >
+                          <Icon className={`w-4 h-4 ${isSelected ? "" : ft.color}`} />
+                          <span className="font-semibold">{ft.label}</span>
+                          <span className="leading-snug opacity-80">{ft.sub}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="outline" onClick={() => setFlaggedPatient(null)}>Cancel</Button>
+                  <Button type="button" variant="outline" onClick={() => { setFlaggedPatient(null); setFlagActionType("manual_call"); }}>Cancel</Button>
                   <Button type="submit" variant="destructive" disabled={flagMissed.isPending}>
                     {flagMissed.isPending ? "Flagging..." : "Flag & Create Follow-up Task"}
                   </Button>

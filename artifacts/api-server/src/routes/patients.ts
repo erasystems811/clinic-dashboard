@@ -60,6 +60,7 @@ const TreatmentPlanBody = z.object({
 
 const FlagMissedBody = z.object({
   reason: z.string().min(1),
+  actionType: z.enum(["automated_message", "manual_text", "manual_call"]).optional(),
 });
 
 function serializePatient(p: typeof patientsTable.$inferSelect) {
@@ -394,7 +395,7 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
     phone: patient.phone,
     whatsappNumber: patient.whatsappNumber ?? undefined,
     reason: parsed.data.reason,
-    actionType: "manual_call",
+    actionType: parsed.data.actionType ?? "manual_call",
   }).returning();
 
   await db.insert(activityTable).values({

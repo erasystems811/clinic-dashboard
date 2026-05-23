@@ -336,7 +336,8 @@ export const FlagMissedTreatmentParams = zod.object({
 })
 
 export const FlagMissedTreatmentBody = zod.object({
-  "reason": zod.string()
+  "reason": zod.string(),
+  "actionType": zod.string().optional().describe('automated_message | manual_text | manual_call')
 })
 
 export const FlagMissedTreatmentResponse = zod.object({

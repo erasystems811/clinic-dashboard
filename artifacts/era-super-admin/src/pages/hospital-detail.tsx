@@ -114,7 +114,7 @@ export default function HospitalDetail({ id }: Props) {
       setPostTreatmentDays(s.pipelinePostTreatmentDays?.toString() ?? "");
       setDormantDays(s.pipelineDormantDays?.toString() ?? "");
       setLanguage(s.language ?? "");
-      setTones(s.tone ?? []);
+      setTones(Array.isArray(s.tone) ? s.tone : []);
       setClinicDescription(s.clinicDescription ?? "");
       setApptEnabled(m.appointmentsEnabled);
       setFeedbackEnabled(m.feedbackEnabled);

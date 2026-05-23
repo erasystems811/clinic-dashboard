@@ -9,4 +9,5 @@
 export type ListAppointmentsParams = {
 patientId?: number;
 date?: string;
+status?: string;
 };

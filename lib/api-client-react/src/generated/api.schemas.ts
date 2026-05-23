@@ -13,9 +13,14 @@ export interface Patient {
   id: number;
   firstName: string;
   lastName: string;
-  dateOfBirth: string;
+  /** @nullable */
+  dateOfBirth?: string | null;
+  /** @nullable */
+  nationalId?: string | null;
   email: string;
   phone: string;
+  /** @nullable */
+  whatsappNumber?: string | null;
   /** @nullable */
   age?: number | null;
   /** @nullable */
@@ -54,9 +59,11 @@ export interface Patient {
 export interface PatientInput {
   firstName: string;
   lastName: string;
-  dateOfBirth: string;
+  dateOfBirth?: string;
+  nationalId?: string;
   email: string;
   phone: string;
+  whatsappNumber?: string;
   age?: number;
   gender?: string;
   stage?: string;
@@ -70,8 +77,10 @@ export interface PatientUpdate {
   firstName?: string;
   lastName?: string;
   dateOfBirth?: string;
+  nationalId?: string;
   email?: string;
   phone?: string;
+  whatsappNumber?: string;
   age?: number;
   gender?: string;
   stage?: string;
@@ -160,6 +169,15 @@ export interface AppointmentInput {
   notes?: string;
 }
 
+export interface AppointmentUpdate {
+  /** scheduled | completed | no_show | rescheduled */
+  status?: string;
+  scheduledAt?: string;
+  title?: string;
+  doctor?: string;
+  notes?: string;
+}
+
 export interface DashboardSummary {
   totalPatients: number;
   newPatientsThisMonth: number;
@@ -190,6 +208,7 @@ search?: string;
 export type ListAppointmentsParams = {
 patientId?: number;
 date?: string;
+status?: string;
 };
 
 export type ListActivityParams = {

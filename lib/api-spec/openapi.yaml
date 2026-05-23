@@ -250,13 +250,17 @@ paths:
     get:
       operationId: listAppointments
       tags: [appointments]
-      summary: List all appointments
+      summary: List appointments (excludes completed by default)
       parameters:
         - name: patientId
           in: query
           schema:
             type: integer
         - name: date
+          in: query
+          schema:
+            type: string
+        - name: status
           in: query
           schema:
             type: string
@@ -286,6 +290,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Appointment"
+
+  /appointments/{id}:
+    patch:
+      operationId: updateAppointment
+      tags: [appointments]
+      summary: Update appointment status (no_show, completed, rescheduled, scheduled)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppointmentUpdate"
+      responses:
+        "200":
+          description: Updated appointment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Appointment"
+        "404":
+          description: Not found
 
   /dashboard/summary:
     get:
@@ -395,7 +426,7 @@ components:
 
     Patient:
       type: object
-      required: [id, firstName, lastName, dateOfBirth, stage, email, phone, createdAt]
+      required: [id, firstName, lastName, stage, email, phone, createdAt]
       properties:
         id:
           type: integer
@@ -404,11 +435,15 @@ components:
         lastName:
           type: string
         dateOfBirth:
-          type: string
+          type: ["string", "null"]
+        nationalId:
+          type: ["string", "null"]
         email:
           type: string
         phone:
           type: string
+        whatsappNumber:
+          type: ["string", "null"]
         age:
           type: ["integer", "null"]
         gender:
@@ -447,7 +482,7 @@ components:
 
     PatientInput:
       type: object
-      required: [firstName, lastName, dateOfBirth, email, phone]
+      required: [firstName, lastName, email, phone]
       properties:
         firstName:
           type: string
@@ -455,9 +490,13 @@ components:
           type: string
         dateOfBirth:
           type: string
+        nationalId:
+          type: string
         email:
           type: string
         phone:
+          type: string
+        whatsappNumber:
           type: string
         age:
           type: integer
@@ -483,9 +522,13 @@ components:
           type: string
         dateOfBirth:
           type: string
+        nationalId:
+          type: string
         email:
           type: string
         phone:
+          type: string
+        whatsappNumber:
           type: string
         age:
           type: integer
@@ -629,6 +672,21 @@ components:
           type: string
         duration:
           type: integer
+        doctor:
+          type: string
+        notes:
+          type: string
+
+    AppointmentUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          description: "scheduled | completed | no_show | rescheduled"
+        scheduledAt:
+          type: string
+        title:
+          type: string
         doctor:
           type: string
         notes:

@@ -9,6 +9,7 @@
 export * from './activityItem';
 export * from './appointment';
 export * from './appointmentInput';
+export * from './appointmentUpdate';
 export * from './callOutcomeInput';
 export * from './callTask';
 export * from './dashboardSummary';

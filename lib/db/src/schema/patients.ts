@@ -6,9 +6,11 @@ export const patientsTable = pgTable("patients", {
   id: serial("id").primaryKey(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
-  dateOfBirth: text("date_of_birth").notNull(),
+  dateOfBirth: text("date_of_birth"),
+  nationalId: text("national_id"),
   email: text("email").notNull(),
   phone: text("phone").notNull(),
+  whatsappNumber: text("whatsapp_number"),
   age: integer("age"),
   gender: text("gender"),
   stage: text("stage").notNull().default("Booked"),
@@ -48,6 +50,7 @@ export const queueTable = pgTable("queue", {
   patientId: integer("patient_id").notNull(),
   patientName: text("patient_name").notNull(),
   position: integer("position").notNull(),
+  appointmentId: integer("appointment_id"),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,17 +1,39 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
-import { db, appointmentsTable, activityTable } from "@workspace/db";
-import {
-  ListAppointmentsQueryParams,
-  ListAppointmentsResponse,
-  CreateAppointmentBody,
-  ListAppointmentsResponseItem,
-} from "@workspace/api-zod";
+import { eq, and, ne, sql } from "drizzle-orm";
+import { db, appointmentsTable, activityTable, callTasksTable, patientsTable } from "@workspace/db";
+import { z } from "zod/v4";
 
 const router: IRouter = Router();
 
+const ListAppointmentsQuery = z.object({
+  patientId: z.coerce.number().int().optional(),
+  date: z.string().optional(),
+  status: z.string().optional(),
+});
+
+const CreateAppointmentBody = z.object({
+  patientId: z.number().int(),
+  title: z.string().min(1),
+  scheduledAt: z.string().min(1),
+  duration: z.number().int().optional(),
+  doctor: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+const UpdateAppointmentBody = z.object({
+  status: z.string().optional(),
+  scheduledAt: z.string().optional(),
+  title: z.string().optional(),
+  doctor: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+function serializeAppointment(a: typeof appointmentsTable.$inferSelect) {
+  return { ...a, duration: a.duration ?? 30 };
+}
+
 router.get("/appointments", async (req, res): Promise<void> => {
-  const query = ListAppointmentsQueryParams.safeParse(req.query);
+  const query = ListAppointmentsQuery.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
     return;
@@ -19,16 +41,19 @@ router.get("/appointments", async (req, res): Promise<void> => {
 
   let dbQuery = db.select().from(appointmentsTable).$dynamic();
 
+  // By default exclude completed appointments; only show scheduled + no_show + rescheduled
+  if (query.data.status) {
+    dbQuery = dbQuery.where(eq(appointmentsTable.status, query.data.status));
+  } else {
+    dbQuery = dbQuery.where(ne(appointmentsTable.status, "completed"));
+  }
+
   if (query.data.patientId) {
     dbQuery = dbQuery.where(eq(appointmentsTable.patientId, query.data.patientId));
   }
 
   const appointments = await dbQuery.orderBy(appointmentsTable.scheduledAt);
-
-  res.json(ListAppointmentsResponse.parse(appointments.map(a => ({
-    ...a,
-    duration: a.duration ?? 30,
-  }))));
+  res.json(appointments.map(serializeAppointment));
 });
 
 router.post("/appointments", async (req, res): Promise<void> => {
@@ -38,20 +63,77 @@ router.post("/appointments", async (req, res): Promise<void> => {
     return;
   }
 
-  const [appt] = await db.insert(appointmentsTable).values(parsed.data).returning();
+  // Look up patient name
+  const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, parsed.data.patientId));
+  const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "Unknown";
+
+  const [appt] = await db.insert(appointmentsTable).values({
+    ...parsed.data,
+    patientName,
+  }).returning();
 
   await db.insert(activityTable).values({
     type: "appointment_scheduled",
-    description: `Appointment scheduled for ${appt.patientName}: ${appt.title}`,
+    description: `Appointment scheduled for ${patientName}: ${appt.title}`,
     patientId: appt.patientId,
-    patientName: appt.patientName,
+    patientName,
     metadata: appt.scheduledAt,
   });
 
-  res.status(201).json(ListAppointmentsResponseItem.parse({
-    ...appt,
-    duration: appt.duration ?? 30,
-  }));
+  res.status(201).json(serializeAppointment(appt));
+});
+
+// PATCH /appointments/:id — update status (no_show, completed, rescheduled, scheduled)
+router.patch("/appointments/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const parsed = UpdateAppointmentBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [appt] = await db
+    .update(appointmentsTable)
+    .set(parsed.data)
+    .where(eq(appointmentsTable.id, id))
+    .returning();
+
+  if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+
+  // If marking no_show → create a call task
+  if (parsed.data.status === "no_show") {
+    const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, appt.patientId));
+    if (patient) {
+      await db.insert(callTasksTable).values({
+        patientId: patient.id,
+        patientName: `${patient.firstName} ${patient.lastName}`,
+        phone: patient.whatsappNumber ?? patient.phone,
+        reason: `No-show for appointment: ${appt.title} on ${new Date(appt.scheduledAt).toLocaleDateString()}`,
+      });
+    }
+
+    await db.insert(activityTable).values({
+      type: "no_show",
+      description: `No-show recorded for ${appt.patientName}: ${appt.title}`,
+      patientId: appt.patientId,
+      patientName: appt.patientName,
+      metadata: appt.scheduledAt,
+    });
+  }
+
+  if (parsed.data.status === "rescheduled") {
+    await db.insert(activityTable).values({
+      type: "appointment_rescheduled",
+      description: `Appointment rescheduled for ${appt.patientName}: ${appt.title}`,
+      patientId: appt.patientId,
+      patientName: appt.patientName,
+      metadata: parsed.data.scheduledAt ?? appt.scheduledAt,
+    });
+  }
+
+  res.json(serializeAppointment(appt));
 });
 
 export default router;

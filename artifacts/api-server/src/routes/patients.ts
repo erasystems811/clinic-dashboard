@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, sql } from "drizzle-orm";
-import { db, patientsTable, activityTable, queueTable, callTasksTable } from "@workspace/db";
+import { db, patientsTable, activityTable, queueTable, callTasksTable, appointmentsTable } from "@workspace/db";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
@@ -167,6 +167,7 @@ router.delete("/patients/:id", async (req, res): Promise<void> => {
 });
 
 // POST /patients/:id/checkin — receptionist checks patient in → saves preQueueStage + adds to queue
+// If patient has an appointment within 30 mins of now, they jump to position 1
 router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -174,29 +175,70 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   const [existing] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  const now = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
+
   const [patient] = await db
     .update(patientsTable)
-    .set({ stage: "Queued", preQueueStage: existing.stage, checkedInAt: now })
+    .set({ stage: "Queued", preQueueStage: existing.stage, checkedInAt: nowIso })
     .where(eq(patientsTable.id, id))
     .returning();
 
-  // Get next queue position
+  const patientName = `${patient.firstName} ${patient.lastName}`;
+
+  // Auto-complete any scheduled appointment for this patient
+  const scheduledAppts = await db
+    .select()
+    .from(appointmentsTable)
+    .where(eq(appointmentsTable.patientId, id));
+
+  let matchedAppointmentId: number | null = null;
+  let hasTimedAppointment = false;
+
+  for (const appt of scheduledAppts) {
+    if (appt.status !== "scheduled") continue;
+    const apptTime = new Date(appt.scheduledAt);
+    const diffMins = (apptTime.getTime() - now.getTime()) / 60000;
+    // Mark as completed (checked in)
+    await db.update(appointmentsTable).set({ status: "completed" }).where(eq(appointmentsTable.id, appt.id));
+    matchedAppointmentId = appt.id;
+    // Prioritize if appointment is within 30 mins (before or after)
+    if (Math.abs(diffMins) <= 30) {
+      hasTimedAppointment = true;
+    }
+  }
+
+  // Get current queue count
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(queueTable);
-  const position = Number(count) + 1;
+  const currentCount = Number(count);
+
+  let position: number;
+  if (hasTimedAppointment && currentCount > 0) {
+    // Shift everyone else down by 1 and insert at position 1
+    const existing_queue = await db.select().from(queueTable).orderBy(queueTable.position);
+    for (const entry of existing_queue) {
+      await db.update(queueTable).set({ position: entry.position + 1 }).where(eq(queueTable.id, entry.id));
+    }
+    position = 1;
+  } else {
+    position = currentCount + 1;
+  }
 
   await db.insert(queueTable).values({
     patientId: patient.id,
-    patientName: `${patient.firstName} ${patient.lastName}`,
+    patientName,
     position,
+    appointmentId: matchedAppointmentId ?? undefined,
   });
+
+  const priorityNote = hasTimedAppointment ? " (priority — appointment time)" : "";
 
   await db.insert(activityTable).values({
     type: "checkin",
-    description: `${patient.firstName} ${patient.lastName} checked in — added to queue (position ${position})`,
+    description: `${patientName} checked in — added to queue at position ${position}${priorityNote}`,
     patientId: patient.id,
-    patientName: `${patient.firstName} ${patient.lastName}`,
-    metadata: now,
+    patientName,
+    metadata: nowIso,
   });
 
   res.json(serializePatient(patient));

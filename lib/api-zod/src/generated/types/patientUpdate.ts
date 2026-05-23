@@ -10,8 +10,10 @@ export interface PatientUpdate {
   firstName?: string;
   lastName?: string;
   dateOfBirth?: string;
+  nationalId?: string;
   email?: string;
   phone?: string;
+  whatsappNumber?: string;
   age?: number;
   gender?: string;
   stage?: string;

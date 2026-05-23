@@ -23,6 +23,7 @@ import type {
   ActivityItem,
   Appointment,
   AppointmentInput,
+  AppointmentUpdate,
   CallOutcomeInput,
   CallTask,
   DashboardSummary,
@@ -880,7 +881,7 @@ export const getListAppointmentsUrl = (params?: ListAppointmentsParams,) => {
 }
 
 /**
- * @summary List all appointments
+ * @summary List appointments (excludes completed by default)
  */
 export const listAppointments = async (params?: ListAppointmentsParams, options?: RequestInit): Promise<Appointment[]> => {
 
@@ -927,7 +928,7 @@ export type ListAppointmentsQueryError = ErrorType<unknown>
 
 
 /**
- * @summary List all appointments
+ * @summary List appointments (excludes completed by default)
  */
 
 export function useListAppointments<TData = Awaited<ReturnType<typeof listAppointments>>, TError = ErrorType<unknown>>(
@@ -1017,6 +1018,78 @@ export const useCreateAppointment = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateAppointmentMutationOptions(options));
+    }
+
+export const getUpdateAppointmentUrl = (id: number,) => {
+
+
+
+
+  return `/api/appointments/${id}`
+}
+
+/**
+ * @summary Update appointment status (no_show, completed, rescheduled, scheduled)
+ */
+export const updateAppointment = async (id: number,
+    appointmentUpdate: AppointmentUpdate, options?: RequestInit): Promise<Appointment> => {
+
+  return customFetch<Appointment>(getUpdateAppointmentUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      appointmentUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateAppointmentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAppointment>>, TError,{id: number;data: BodyType<AppointmentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAppointment>>, TError,{id: number;data: BodyType<AppointmentUpdate>}, TContext> => {
+
+const mutationKey = ['updateAppointment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAppointment>>, {id: number;data: BodyType<AppointmentUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateAppointment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAppointmentMutationResult = NonNullable<Awaited<ReturnType<typeof updateAppointment>>>
+    export type UpdateAppointmentMutationBody = BodyType<AppointmentUpdate>
+    export type UpdateAppointmentMutationError = ErrorType<void>
+
+    /**
+ * @summary Update appointment status (no_show, completed, rescheduled, scheduled)
+ */
+export const useUpdateAppointment = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAppointment>>, TError,{id: number;data: BodyType<AppointmentUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateAppointment>>,
+        TError,
+        {id: number;data: BodyType<AppointmentUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateAppointmentMutationOptions(options));
     }
 
 export const getGetDashboardSummaryUrl = () => {

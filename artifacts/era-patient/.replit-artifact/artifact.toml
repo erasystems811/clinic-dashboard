@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Era Patient"
+version = "1.0.0"
+id = "artifacts/era-patient"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20518
+
+[services.development]
+run = "pnpm --filter @workspace/era-patient run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/era-patient", "run", "build" ]
+publicDir = "artifacts/era-patient/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20518"
+BASE_PATH = "/"

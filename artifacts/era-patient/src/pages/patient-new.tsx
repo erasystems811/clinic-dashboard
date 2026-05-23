@@ -32,7 +32,6 @@ export default function NewPatient() {
     age: "",
     gender: "",
     stage: "Booked",
-    notes: "",
   });
 
   const field = (key: keyof typeof form) =>
@@ -153,16 +152,6 @@ export default function NewPatient() {
                 <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" value={form.stage} onChange={field("stage")}>
                   {stages?.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                 </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Clinical Notes</label>
-                <textarea
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="Add any relevant initial clinical notes..."
-                  value={form.notes}
-                  onChange={field("notes")}
-                />
               </div>
 
               <div className="flex justify-end gap-4 pt-4 border-t border-border">

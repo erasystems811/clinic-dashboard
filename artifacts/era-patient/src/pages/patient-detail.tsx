@@ -226,7 +226,7 @@ export default function PatientDetail() {
 
           {/* Main panel */}
           <Card className="md:col-span-2">
-            <CardHeader><CardTitle>Clinical Information</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Treatment Information</CardTitle></CardHeader>
             <CardContent className="space-y-5">
               {patient.treatmentPlan && (
                 <div>
@@ -239,12 +239,6 @@ export default function PatientDetail() {
                   </div>
                 </div>
               )}
-              <div>
-                <h3 className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">Clinical Notes</h3>
-                <div className="bg-secondary/30 p-4 rounded-md border border-border min-h-[120px] whitespace-pre-wrap text-sm">
-                  {patient.notes || "No notes recorded."}
-                </div>
-              </div>
 
               {/* Appointment quick-list */}
               <div>

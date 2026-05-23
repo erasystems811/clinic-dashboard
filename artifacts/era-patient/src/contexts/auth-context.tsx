@@ -17,7 +17,7 @@ interface AuthContextValue {
 const USERS: Record<string, { password: string; role: Role; displayName: string }> = {
   receptionist: { password: "recep1234", role: "receptionist", displayName: "Receptionist" },
   nurse: { password: "nurse1234", role: "nurse", displayName: "Nurse" },
-  admin: { password: "admin1234", role: "admin", displayName: "Dr. Doe (Admin)" },
+  admin: { password: "admin1234", role: "admin", displayName: "Admin" },
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);

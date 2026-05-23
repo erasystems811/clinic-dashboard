@@ -7,7 +7,7 @@ export interface HospitalSession {
   id: number;
   name: string;
   username: string;
-  token: string; // empty string for staff (nurse/receptionist)
+  token: string; // empty for staff (nurse/receptionist)
 }
 
 export interface HospitalConfig {
@@ -28,19 +28,12 @@ interface AuthContextValue {
   hospital: HospitalSession | null;
   hospitalConfig: HospitalConfig | null;
   user: User | null;
-  /** Look up a hospital by username without a password — returns name for display */
-  lookupHospital: (username: string) => Promise<{ id: number; name: string; username: string; departments: string[]; modules: HospitalConfig["modules"] }>;
-  /** Admin logs in with hospital credentials — establishes full hospital session */
+  /** Admin: hospital username + password → full session */
   loginAdmin: (hospitalUsername: string, hospitalPassword: string) => Promise<void>;
-  /** Nurse / Receptionist log in after hospital lookup — no hospital password needed */
-  loginStaff: (role: "nurse" | "receptionist", password: string, hospitalInfo: { id: number; name: string; username: string; departments: string[]; modules: HospitalConfig["modules"] }) => boolean;
+  /** Staff: e.g. "GISD NURSE" + password → validated via API */
+  loginStaff: (username: string, password: string) => Promise<void>;
   logout: () => void;
 }
-
-const STAFF_CREDENTIALS: Record<"nurse" | "receptionist", { password: string; displayName: string }> = {
-  receptionist: { password: "recep1234", displayName: "Receptionist" },
-  nurse: { password: "nurse1234", displayName: "Nurse" },
-};
 
 const HOSPITAL_KEY = "era_hospital_session";
 const CONFIG_KEY = "era_hospital_config";
@@ -69,13 +62,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user ? localStorage.setItem(USER_KEY, JSON.stringify(user)) : localStorage.removeItem(USER_KEY);
   }, [user]);
 
-  const lookupHospital = async (username: string) => {
-    const res = await fetch(`/api/hospital/lookup/${encodeURIComponent(username.trim().toLowerCase())}`);
-    if (!res.ok) throw new Error("Hospital not found");
-    return res.json();
-  };
-
-  /** Admin: hospital credentials authenticate them and set full session */
   const loginAdmin = async (hospitalUsername: string, hospitalPassword: string): Promise<void> => {
     const res = await fetch("/api/auth/hospital-login", {
       method: "POST",
@@ -84,36 +70,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: "Login failed" }));
-      throw new Error(err.error ?? "Invalid hospital credentials");
+      throw new Error(err.error ?? "Invalid credentials");
     }
     const data = await res.json();
-    const session: HospitalSession = { id: data.id, name: data.name, username: data.username, token: data.token };
-    setHospital(session);
+    setHospital({ id: data.id, name: data.name, username: data.username, token: data.token });
 
     const cfgRes = await fetch("/api/hospital/config", {
       headers: { "x-hospital-token": data.token },
     });
-    if (cfgRes.ok) {
-      setHospitalConfig(await cfgRes.json());
-    } else {
-      setHospitalConfig({ departments: [], modules: { appointmentsEnabled: true, feedbackEnabled: true } });
-    }
-
+    setHospitalConfig(cfgRes.ok
+      ? await cfgRes.json()
+      : { departments: [], modules: { appointmentsEnabled: true, feedbackEnabled: true } }
+    );
     setUser({ username: "admin", role: "admin", displayName: "Admin" });
   };
 
-  /** Nurse / Receptionist: password check only; hospital info comes from the public lookup */
-  const loginStaff = (
-    role: "nurse" | "receptionist",
-    password: string,
-    hospitalInfo: { id: number; name: string; username: string; departments: string[]; modules: HospitalConfig["modules"] }
-  ): boolean => {
-    const entry = STAFF_CREDENTIALS[role];
-    if (!entry || entry.password !== password) return false;
-    setHospital({ id: hospitalInfo.id, name: hospitalInfo.name, username: hospitalInfo.username, token: "" });
-    setHospitalConfig({ departments: hospitalInfo.departments, modules: hospitalInfo.modules });
-    setUser({ username: role, role, displayName: entry.displayName });
-    return true;
+  const loginStaff = async (username: string, password: string): Promise<void> => {
+    const res = await fetch("/api/staff/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: username.trim(), password }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Invalid credentials" }));
+      throw new Error(err.error ?? "Invalid credentials");
+    }
+    const data = await res.json();
+    setHospital({ id: data.hospital.id, name: data.hospital.name, username: data.hospital.username, token: "" });
+    setHospitalConfig({ departments: data.departments, modules: data.modules });
+    const displayName = data.role === "nurse" ? "Nurse" : "Receptionist";
+    setUser({ username: data.role, role: data.role, displayName });
   };
 
   const logout = () => {
@@ -123,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ hospital, hospitalConfig, user, lookupHospital, loginAdmin, loginStaff, logout }}>
+    <AuthContext.Provider value={{ hospital, hospitalConfig, user, loginAdmin, loginStaff, logout }}>
       {children}
     </AuthContext.Provider>
   );

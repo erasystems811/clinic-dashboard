@@ -20,6 +20,7 @@ import CallTasks from "@/pages/call-tasks";
 import FeedbackAdmin from "@/pages/feedback-admin";
 import FeedbackForm from "@/pages/feedback-form";
 import WellnessAdmin from "@/pages/wellness-admin";
+import Settings from "@/pages/settings";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,7 @@ function ProtectedRouter() {
       {role === "admin" && <Route path="/activity" component={ActivityLog} />}
       {role === "admin" && feedbackEnabled && <Route path="/feedback-admin" component={FeedbackAdmin} />}
       {role === "admin" && <Route path="/wellness" component={WellnessAdmin} />}
+      {role === "admin" && <Route path="/settings" component={Settings} />}
 
       {/* Receptionist routes */}
       {role === "receptionist" && <Route path="/queue" component={QueueManagement} />}

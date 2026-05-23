@@ -127,10 +127,12 @@ export function Layout({ children }: LayoutProps) {
 
         <div className="p-4 border-t border-border shrink-0">
           {role === "admin" && (
-            <button className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium w-full text-left text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors mb-2">
-              <Settings className="w-4 h-4" />
-              Settings
-            </button>
+            <Link href="/settings">
+              <button className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium w-full text-left text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors mb-2">
+                <Settings className="w-4 h-4" />
+                Settings
+              </button>
+            </Link>
           )}
 
           <div className="flex items-center gap-3 px-3 py-2">

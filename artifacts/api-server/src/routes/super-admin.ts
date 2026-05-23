@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { eq } from "drizzle-orm";
 import crypto from "node:crypto";
-import { db, hospitalsTable, hospitalSettingsTable, hospitalModulesTable } from "@workspace/db";
+import { db, hospitalsTable, hospitalSettingsTable, hospitalModulesTable, hospitalStaffCredentialsTable } from "@workspace/db";
 import { z } from "zod/v4";
 
 const router = Router();
@@ -139,6 +139,18 @@ router.post("/super-admin/hospitals", requireSuperAdmin, async (req, res): Promi
   await db.insert(hospitalSettingsTable).values({ hospitalId: hospital.id });
   await db.insert(hospitalModulesTable).values({ hospitalId: hospital.id });
 
+  // Auto-generate staff credentials from hospital name (first word = prefix)
+  const prefix = name.trim().split(/\s+/)[0].toUpperCase();
+  const nurseSalt = crypto.randomBytes(16).toString("hex");
+  const recepSalt = crypto.randomBytes(16).toString("hex");
+  await db.insert(hospitalStaffCredentialsTable).values({
+    hospitalId: hospital.id,
+    nurseUsername: `${prefix} NURSE`,
+    nursePasswordHash: `${nurseSalt}:${hashPassword("nurse1234", nurseSalt)}`,
+    receptionistUsername: `${prefix} RECEPTIONIST`,
+    receptionistPasswordHash: `${recepSalt}:${hashPassword("recep1234", recepSalt)}`,
+  });
+
   res.status(201).json(hospital);
 });
 
@@ -264,6 +276,85 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
 
   if (!modules) { res.status(404).json({ error: "Not found" }); return; }
   res.json(modules);
+});
+
+// ── Staff login (public — nurse/receptionist authenticate with their username + password) ──
+router.post("/staff/login", async (req, res): Promise<void> => {
+  const { username, password } = req.body ?? {};
+  if (!username || !password) { res.status(400).json({ error: "Missing credentials" }); return; }
+
+  const usernameUpper = username.trim().toUpperCase();
+
+  // Search all hospitals for matching nurse or receptionist username
+  const allCreds = await db.select().from(hospitalStaffCredentialsTable);
+  let matchedCreds = null;
+  let matchedRole: "nurse" | "receptionist" | null = null;
+
+  for (const creds of allCreds) {
+    if (creds.nurseUsername.toUpperCase() === usernameUpper) {
+      matchedCreds = creds; matchedRole = "nurse"; break;
+    }
+    if (creds.receptionistUsername.toUpperCase() === usernameUpper) {
+      matchedCreds = creds; matchedRole = "receptionist"; break;
+    }
+  }
+
+  if (!matchedCreds || !matchedRole) { res.status(401).json({ error: "Invalid credentials" }); return; }
+
+  const hashField = matchedRole === "nurse" ? matchedCreds.nursePasswordHash : matchedCreds.receptionistPasswordHash;
+  const [salt, storedHash] = hashField.split(":");
+  if (hashPassword(password, salt) !== storedHash) { res.status(401).json({ error: "Invalid credentials" }); return; }
+
+  const [hospital] = await db.select().from(hospitalsTable).where(eq(hospitalsTable.id, matchedCreds.hospitalId));
+  if (!hospital || !hospital.active) { res.status(403).json({ error: "Account inactive" }); return; }
+
+  const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, hospital.id));
+  const [modules] = await db.select().from(hospitalModulesTable).where(eq(hospitalModulesTable.hospitalId, hospital.id));
+
+  res.json({
+    role: matchedRole,
+    hospital: { id: hospital.id, name: hospital.name, username: hospital.username },
+    departments: JSON.parse(settings?.departments ?? "[]"),
+    modules: {
+      appointmentsEnabled: modules?.appointmentsEnabled ?? true,
+      feedbackEnabled: modules?.feedbackEnabled ?? true,
+    },
+  });
+});
+
+// ── Staff credentials (admin can read + update nurse/receptionist passwords) ──
+router.get("/hospital/staff-credentials", async (req, res): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const [creds] = await db.select().from(hospitalStaffCredentialsTable).where(eq(hospitalStaffCredentialsTable.hospitalId, hospitalId));
+  if (!creds) { res.status(404).json({ error: "Not found" }); return; }
+
+  res.json({ nurseUsername: creds.nurseUsername, receptionistUsername: creds.receptionistUsername });
+});
+
+router.put("/hospital/staff-credentials", async (req, res): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { nursePassword, receptionistPassword } = req.body ?? {};
+  const updates: Record<string, string> = {};
+
+  if (nursePassword) {
+    const salt = crypto.randomBytes(16).toString("hex");
+    updates.nursePasswordHash = `${salt}:${hashPassword(nursePassword, salt)}`;
+  }
+  if (receptionistPassword) {
+    const salt = crypto.randomBytes(16).toString("hex");
+    updates.receptionistPasswordHash = `${salt}:${hashPassword(receptionistPassword, salt)}`;
+  }
+
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No updates provided" }); return; }
+
+  await db.update(hospitalStaffCredentialsTable).set(updates).where(eq(hospitalStaffCredentialsTable.hospitalId, hospitalId));
+  res.json({ ok: true });
 });
 
 // ── Public hospital lookup (for staff login — returns name + config, no auth needed)

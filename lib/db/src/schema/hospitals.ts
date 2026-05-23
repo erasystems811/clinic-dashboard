@@ -42,3 +42,15 @@ export const hospitalModulesTable = pgTable("hospital_modules", {
 });
 
 export type HospitalModules = typeof hospitalModulesTable.$inferSelect;
+
+export const hospitalStaffCredentialsTable = pgTable("hospital_staff_credentials", {
+  id: serial("id").primaryKey(),
+  hospitalId: integer("hospital_id").notNull().unique(),
+  nurseUsername: text("nurse_username").notNull(),
+  nursePasswordHash: text("nurse_password_hash").notNull(),
+  receptionistUsername: text("receptionist_username").notNull(),
+  receptionistPasswordHash: text("receptionist_password_hash").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type HospitalStaffCredentials = typeof hospitalStaffCredentialsTable.$inferSelect;

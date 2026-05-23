@@ -266,6 +266,31 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
   res.json(modules);
 });
 
+// ── Public hospital lookup (for staff login — returns name + config, no auth needed)
+router.get("/hospital/lookup/:username", async (req, res): Promise<void> => {
+  const username = req.params.username?.toLowerCase();
+  const [hospital] = await db
+    .select()
+    .from(hospitalsTable)
+    .where(eq(hospitalsTable.username, username));
+
+  if (!hospital || !hospital.active) { res.status(404).json({ error: "Hospital not found" }); return; }
+
+  const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, hospital.id));
+  const [modules] = await db.select().from(hospitalModulesTable).where(eq(hospitalModulesTable.hospitalId, hospital.id));
+
+  res.json({
+    id: hospital.id,
+    name: hospital.name,
+    username: hospital.username,
+    departments: JSON.parse(settings?.departments ?? "[]"),
+    modules: {
+      appointmentsEnabled: modules?.appointmentsEnabled ?? true,
+      feedbackEnabled: modules?.feedbackEnabled ?? true,
+    },
+  });
+});
+
 // ── Hospital Login (used by era-patient to validate hospital admin credentials)
 router.post("/auth/hospital-login", async (req, res): Promise<void> => {
   const { username, password } = req.body ?? {};

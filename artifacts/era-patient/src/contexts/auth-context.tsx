@@ -7,7 +7,7 @@ export interface HospitalSession {
   id: number;
   name: string;
   username: string;
-  token: string;
+  token: string; // empty string for staff (nurse/receptionist)
 }
 
 export interface HospitalConfig {
@@ -28,10 +28,12 @@ interface AuthContextValue {
   hospital: HospitalSession | null;
   hospitalConfig: HospitalConfig | null;
   user: User | null;
-  /** Admin logs in with hospital credentials — that IS the admin login */
+  /** Look up a hospital by username without a password — returns name for display */
+  lookupHospital: (username: string) => Promise<{ id: number; name: string; username: string; departments: string[]; modules: HospitalConfig["modules"] }>;
+  /** Admin logs in with hospital credentials — establishes full hospital session */
   loginAdmin: (hospitalUsername: string, hospitalPassword: string) => Promise<void>;
-  /** Nurse / Receptionist log in with just their role password */
-  loginStaff: (role: "nurse" | "receptionist", password: string) => boolean;
+  /** Nurse / Receptionist log in after hospital lookup — no hospital password needed */
+  loginStaff: (role: "nurse" | "receptionist", password: string, hospitalInfo: { id: number; name: string; username: string; departments: string[]; modules: HospitalConfig["modules"] }) => boolean;
   logout: () => void;
 }
 
@@ -67,7 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user ? localStorage.setItem(USER_KEY, JSON.stringify(user)) : localStorage.removeItem(USER_KEY);
   }, [user]);
 
-  /** Admin: hospital credentials authenticate them and establish the hospital context */
+  const lookupHospital = async (username: string) => {
+    const res = await fetch(`/api/hospital/lookup/${encodeURIComponent(username.trim().toLowerCase())}`);
+    if (!res.ok) throw new Error("Hospital not found");
+    return res.json();
+  };
+
+  /** Admin: hospital credentials authenticate them and set full session */
   const loginAdmin = async (hospitalUsername: string, hospitalPassword: string): Promise<void> => {
     const res = await fetch("/api/auth/hospital-login", {
       method: "POST",
@@ -94,10 +102,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({ username: "admin", role: "admin", displayName: "Admin" });
   };
 
-  /** Nurse / Receptionist: simple password check, no hospital step */
-  const loginStaff = (role: "nurse" | "receptionist", password: string): boolean => {
+  /** Nurse / Receptionist: password check only; hospital info comes from the public lookup */
+  const loginStaff = (
+    role: "nurse" | "receptionist",
+    password: string,
+    hospitalInfo: { id: number; name: string; username: string; departments: string[]; modules: HospitalConfig["modules"] }
+  ): boolean => {
     const entry = STAFF_CREDENTIALS[role];
     if (!entry || entry.password !== password) return false;
+    setHospital({ id: hospitalInfo.id, name: hospitalInfo.name, username: hospitalInfo.username, token: "" });
+    setHospitalConfig({ departments: hospitalInfo.departments, modules: hospitalInfo.modules });
     setUser({ username: role, role, displayName: entry.displayName });
     return true;
   };
@@ -109,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ hospital, hospitalConfig, user, loginAdmin, loginStaff, logout }}>
+    <AuthContext.Provider value={{ hospital, hospitalConfig, user, lookupHospital, loginAdmin, loginStaff, logout }}>
       {children}
     </AuthContext.Provider>
   );

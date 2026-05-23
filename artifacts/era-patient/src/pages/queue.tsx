@@ -11,7 +11,6 @@ import {
   useDequeuePatient,
   useCreatePatient,
   useCreateAppointment,
-  useListDepartments,
   getListQueueQueryKey,
   getListPatientsQueryKey,
   getListAppointmentsQueryKey,
@@ -43,7 +42,6 @@ const EMPTY_APT_FORM = {
   title: "",
   date: "",
   time: "",
-  department: "",
   duration: "30",
 };
 
@@ -66,7 +64,6 @@ export default function QueueManagement() {
     { search: aptSearch },
     { enabled: aptSearch.trim().length >= 2 }
   );
-  const { data: departments = [] } = useListDepartments({});
 
   const checkin = useCheckinPatient({
     mutation: {
@@ -147,7 +144,6 @@ export default function QueueManagement() {
         title: aptForm.title,
         scheduledAt: `${aptForm.date}T${aptForm.time}:00`,
         duration: parseInt(aptForm.duration) || 30,
-        department: aptForm.department || undefined,
       },
     });
   };
@@ -266,30 +262,15 @@ export default function QueueManagement() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Department</label>
-                  <select
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    value={aptForm.department}
-                    onChange={(e) => setAptForm(f => ({ ...f, department: e.target.value }))}
-                  >
-                    <option value="">Select dept.</option>
-                    {departments.map(d => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Duration (min)</label>
-                  <Input
-                    type="number"
-                    min={10}
-                    max={180}
-                    value={aptForm.duration}
-                    onChange={(e) => setAptForm(f => ({ ...f, duration: e.target.value }))}
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Duration (min)</label>
+                <Input
+                  type="number"
+                  min={10}
+                  max={180}
+                  value={aptForm.duration}
+                  onChange={(e) => setAptForm(f => ({ ...f, duration: e.target.value }))}
+                />
               </div>
 
               <div className="flex gap-2 justify-end pt-1">
@@ -348,13 +329,13 @@ export default function QueueManagement() {
                     <Clock className="w-3 h-3" />
                     {waitTime(entry.addedAt)}
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer shrink-0" title="Tick when doctor calls patient in">
+                  <label className="flex items-center gap-2 cursor-pointer shrink-0" title="Tick when patient is called in">
                     <input
                       type="checkbox"
                       className="w-4 h-4 accent-primary cursor-pointer"
                       onChange={(e) => {
                         if (e.target.checked) {
-                          if (confirm(`Mark ${entry.patientName} as called in by doctor?`)) {
+                          if (confirm(`Mark ${entry.patientName} as called in?`)) {
                             dequeue.mutate({ id: entry.patientId });
                           } else {
                             e.target.checked = false;

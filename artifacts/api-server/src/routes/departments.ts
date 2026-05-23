@@ -6,18 +6,17 @@ import { eq } from "drizzle-orm";
 const router: IRouter = Router();
 
 const DEFAULT_DEPARTMENTS = [
-  "General Practice",
-  "Cardiology",
-  "Dermatology",
-  "Endocrinology",
-  "Gastroenterology",
-  "Neurology",
-  "Oncology",
-  "Orthopedics",
+  "General Consultation",
+  "Fertility & Reproductive Health",
+  "Surgery (pre and post op care)",
+  "Chronic Disease Management",
+  "Maternity & Antenatal",
   "Pediatrics",
-  "Psychiatry",
-  "Pulmonology",
-  "Urology",
+  "Oncology (cancer care)",
+  "Physiotherapy & Rehabilitation",
+  "Mental Health & Psychiatry",
+  "Cardiology",
+  "Dental",
 ];
 
 const CreateDepartmentBody = z.object({ name: z.string().min(1) });
@@ -38,7 +37,6 @@ router.get("/departments", async (req, res): Promise<void> => {
 router.post("/departments", async (req, res): Promise<void> => {
   const parsed = CreateDepartmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-
   const [dept] = await db.insert(departmentsTable).values(parsed.data).returning();
   res.status(201).json({ ...dept, createdAt: dept.createdAt.toISOString() });
 });

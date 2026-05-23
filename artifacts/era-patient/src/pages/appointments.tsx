@@ -64,7 +64,6 @@ function AppointmentCard({ apt, onNoShow, onReschedule, showActions }: {
         <div className="text-sm font-medium text-primary mb-1">{apt.title}</div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{format(new Date(apt.scheduledAt), "h:mm a")} ({apt.duration ?? 30} min)</span>
-          {apt.department && <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{apt.department}</span>}
         </div>
       </div>
 

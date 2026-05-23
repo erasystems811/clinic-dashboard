@@ -103,7 +103,7 @@ export default function Patients() {
                       <TableRow
                         key={patient.id}
                         className="cursor-pointer hover:bg-muted/30 group"
-                        onClick={() => window.location.href = `${import.meta.env.BASE_URL}patients/${patient.id}/history`.replace('//', '/')}
+                        onClick={() => setLocation(`/patients/${patient.id}/history`)}
                       >
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">

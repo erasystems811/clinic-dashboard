@@ -89,7 +89,7 @@ export default function WellnessAdmin() {
                 </p>
                 <textarea
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[300px] resize-none focus:outline-none focus:ring-2 focus:ring-ring font-mono leading-relaxed"
-                  placeholder="Write the wellness newsletter content here...&#10;&#10;Tip: Include health tips, reminders about treatment adherence, seasonal wellness advice, and any doctor-recommended guidance."
+                  placeholder="Write the wellness newsletter content here...&#10;&#10;Tip: Include health tips, reminders about treatment adherence, seasonal wellness advice, and any clinical guidance from the care team."
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                 />

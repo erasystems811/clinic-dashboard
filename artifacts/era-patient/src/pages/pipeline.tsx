@@ -90,7 +90,7 @@ export default function Pipeline() {
                           )}
                           <div className="flex items-center text-xs text-muted-foreground gap-1.5">
                             <User className="w-3 h-3" />
-                            <span className="truncate">{patient.doctor || 'Unassigned'}</span>
+                            <span className="truncate">{patient.department || 'No department'}</span>
                           </div>
                           {patient.nextAppointment && (
                             <div className="flex items-center text-xs text-muted-foreground gap-1.5">

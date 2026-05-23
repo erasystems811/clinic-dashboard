@@ -32,8 +32,8 @@ interface TreatmentForm {
   treatmentPlan: string;
   treatmentType: string;
   medicationTiming: string[];
+  hospitalTiming: string[];
   treatmentDurationDays: string;
-  diagnosis: string;
   department: string;
 }
 
@@ -41,8 +41,8 @@ const EMPTY_FORM: TreatmentForm = {
   treatmentPlan: "",
   treatmentType: "",
   medicationTiming: [],
+  hospitalTiming: [],
   treatmentDurationDays: "",
-  diagnosis: "",
   department: "",
 };
 
@@ -92,7 +92,7 @@ export default function NurseStation() {
     },
   });
 
-  const toggleTiming = (val: string) =>
+  const toggleMedTiming = (val: string) =>
     setForm(f => ({
       ...f,
       medicationTiming: f.medicationTiming.includes(val)
@@ -100,17 +100,28 @@ export default function NurseStation() {
         : [...f.medicationTiming, val],
     }));
 
+  const toggleHospitalTiming = (val: string) =>
+    setForm(f => ({
+      ...f,
+      hospitalTiming: f.hospitalTiming.includes(val)
+        ? f.hospitalTiming.filter(t => t !== val)
+        : [...f.hospitalTiming, val],
+    }));
+
   const handleSubmitPlan = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatient) return;
+    const allTiming = [
+      ...form.medicationTiming.map(t => `med:${t}`),
+      ...form.hospitalTiming.map(t => `hosp:${t}`),
+    ];
     logPlan.mutate({
       id: selectedPatient.id,
       data: {
         treatmentPlan: form.treatmentPlan,
         treatmentType: form.treatmentType,
-        medicationTiming: form.medicationTiming.join(",") || undefined,
+        medicationTiming: allTiming.join(",") || undefined,
         treatmentDurationDays: parseInt(form.treatmentDurationDays),
-        diagnosis: form.diagnosis || undefined,
         department: form.department || undefined,
       },
     });
@@ -238,17 +249,21 @@ export default function NurseStation() {
                   </div>
                 </div>
 
+                {/* Medication timing — home doses */}
                 {(form.treatmentType === "medication_only" || form.treatmentType === "combination") && (
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Medication Timing</label>
-                    <div className="flex flex-wrap gap-2">
+                  <div className="space-y-2 p-3.5 rounded-lg border border-border bg-muted/20">
+                    <div>
+                      <p className="text-sm font-medium">Medication Timing</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">When the patient takes medication at home</p>
+                    </div>
+                    <div className="flex flex-wrap gap-x-5 gap-y-2">
                       {TIMING_OPTIONS.map(t => (
                         <label key={t.value} className="flex items-center gap-1.5 cursor-pointer text-sm">
                           <input
                             type="checkbox"
                             className="w-4 h-4 accent-primary"
                             checked={form.medicationTiming.includes(t.value)}
-                            onChange={() => toggleTiming(t.value)}
+                            onChange={() => toggleMedTiming(t.value)}
                           />
                           {t.label}
                         </label>
@@ -257,25 +272,38 @@ export default function NurseStation() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Duration (days) *</label>
-                    <Input
-                      type="number" min={1}
-                      value={form.treatmentDurationDays}
-                      onChange={e => setForm(f => ({ ...f, treatmentDurationDays: e.target.value }))}
-                      placeholder="e.g. 14"
-                      required
-                    />
+                {/* Hospital visit timing — injections / clinic procedures */}
+                {(form.treatmentType === "come_to_hospital" || form.treatmentType === "combination") && (
+                  <div className="space-y-2 p-3.5 rounded-lg border border-primary/20 bg-primary/5">
+                    <div>
+                      <p className="text-sm font-medium">Hospital Visit Timing</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">When the patient must come in for injections or procedures</p>
+                    </div>
+                    <div className="flex flex-wrap gap-x-5 gap-y-2">
+                      {TIMING_OPTIONS.map(t => (
+                        <label key={t.value} className="flex items-center gap-1.5 cursor-pointer text-sm">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 accent-primary"
+                            checked={form.hospitalTiming.includes(t.value)}
+                            onChange={() => toggleHospitalTiming(t.value)}
+                          />
+                          {t.label}
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Diagnosis</label>
-                    <Input
-                      value={form.diagnosis}
-                      onChange={e => setForm(f => ({ ...f, diagnosis: e.target.value }))}
-                      placeholder="e.g. Type 2 Diabetes"
-                    />
-                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Duration (days) *</label>
+                  <Input
+                    type="number" min={1}
+                    value={form.treatmentDurationDays}
+                    onChange={e => setForm(f => ({ ...f, treatmentDurationDays: e.target.value }))}
+                    placeholder="e.g. 14"
+                    required
+                  />
                 </div>
 
                 {/* Department — used by automated messages */}

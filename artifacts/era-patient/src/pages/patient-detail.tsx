@@ -1,11 +1,17 @@
+import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 import { 
   useGetPatient, 
   getGetPatientQueryKey,
   useListAppointments,
   getListAppointmentsQueryKey,
-  useDeletePatient
+  useDeletePatient,
+  useCheckinPatient,
+  useDequeuePatient,
+  useLogTreatmentPlan,
+  getListActivityQueryKey
 } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -13,6 +19,19 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { 
   ArrowLeft, 
   Calendar as CalendarIcon, 
@@ -21,7 +40,11 @@ import {
   Mail, 
   Phone, 
   Trash2, 
-  User 
+  User,
+  ClipboardList,
+  CheckCircle,
+  Activity,
+  Heart
 } from "lucide-react";
 import {
   AlertDialog,
@@ -41,6 +64,13 @@ export default function PatientDetail() {
   const patientId = parseInt(id, 10);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const [treatmentPlanOpen, setTreatmentPlanOpen] = useState(false);
+  const [tpTreatmentPlan, setTpTreatmentPlan] = useState("");
+  const [tpDiagnosis, setTpDiagnosis] = useState("");
+  const [tpDoctor, setTpDoctor] = useState("");
+  const [tpReminderDays, setTpReminderDays] = useState("7");
 
   const { data: patient, isLoading } = useGetPatient(patientId, {
     query: { 
@@ -60,6 +90,9 @@ export default function PatientDetail() {
   );
 
   const deletePatient = useDeletePatient();
+  const checkinPatient = useCheckinPatient();
+  const dequeuePatient = useDequeuePatient();
+  const logTreatmentPlan = useLogTreatmentPlan();
 
   const handleDelete = () => {
     deletePatient.mutate(
@@ -71,6 +104,66 @@ export default function PatientDetail() {
         },
         onError: () => {
           toast({ title: "Error", description: "Failed to delete patient.", variant: "destructive" });
+        }
+      }
+    );
+  };
+
+  const handleCheckIn = () => {
+    checkinPatient.mutate({ id: patientId }, {
+      onSuccess: () => {
+        toast({ title: "Patient checked in", description: "Patient has been moved to Queued." });
+        queryClient.invalidateQueries({ queryKey: getGetPatientQueryKey(patientId) });
+      },
+      onError: () => {
+        toast({ title: "Error", description: "Failed to check in patient.", variant: "destructive" });
+      }
+    });
+  };
+
+  const handleDequeue = () => {
+    if (confirm("Confirm marking this patient as called in by doctor?")) {
+      dequeuePatient.mutate({ id: patientId }, {
+        onSuccess: () => {
+          toast({ title: "Patient called in", description: "Patient has been moved to In Care." });
+          queryClient.invalidateQueries({ queryKey: getGetPatientQueryKey(patientId) });
+        },
+        onError: () => {
+          toast({ title: "Error", description: "Failed to call in patient.", variant: "destructive" });
+        }
+      });
+    }
+  };
+
+  const handleLogTreatmentPlan = () => {
+    if (!tpTreatmentPlan) {
+      toast({ title: "Validation Error", description: "Treatment plan is required.", variant: "destructive" });
+      return;
+    }
+
+    logTreatmentPlan.mutate(
+      { 
+        id: patientId, 
+        data: {
+          treatmentPlan: tpTreatmentPlan,
+          diagnosis: tpDiagnosis || undefined,
+          doctor: tpDoctor || undefined,
+          reminderIntervalDays: parseInt(tpReminderDays, 10) || 7
+        } 
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Treatment plan logged", description: "Reminders have been scheduled." });
+          queryClient.invalidateQueries({ queryKey: getGetPatientQueryKey(patientId) });
+          queryClient.invalidateQueries({ queryKey: getListActivityQueryKey() });
+          setTreatmentPlanOpen(false);
+          setTpTreatmentPlan("");
+          setTpDiagnosis("");
+          setTpDoctor("");
+          setTpReminderDays("7");
+        },
+        onError: () => {
+          toast({ title: "Error", description: "Failed to log treatment plan.", variant: "destructive" });
         }
       }
     );
@@ -114,6 +207,8 @@ export default function PatientDetail() {
       </Layout>
     );
   }
+
+  const showWellnessNote = !patient.treatmentPlan && (patient.stage === 'Booked' || patient.stage === 'Dormant');
 
   return (
     <Layout>
@@ -166,7 +261,109 @@ export default function PatientDetail() {
                   {patient.firstName[0]}{patient.lastName[0]}
                 </div>
                 <h2 className="text-2xl font-bold">{patient.firstName} {patient.lastName}</h2>
-                <Badge className="mt-2" variant="secondary">{patient.stage}</Badge>
+                <Badge className="mt-2 mb-2" variant="secondary">{patient.stage}</Badge>
+                
+                {showWellnessNote && (
+                  <div className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-1 rounded-full mt-2 border border-emerald-200 dark:border-emerald-800">
+                    <Heart className="w-3 h-3" />
+                    <span>Receiving wellness newsletter</span>
+                  </div>
+                )}
+                
+                {patient.stage === 'Booked' && (
+                  <Button 
+                    className="w-full mt-4" 
+                    onClick={handleCheckIn}
+                    disabled={checkinPatient.isPending}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Check In
+                  </Button>
+                )}
+
+                {patient.stage === 'Queued' && (
+                  <div className="w-full mt-4 p-3 border border-primary/30 bg-primary/5 rounded-lg flex items-center gap-3">
+                    <Checkbox 
+                      id="dequeue-checkbox" 
+                      onCheckedChange={(checked) => {
+                        if (checked) handleDequeue();
+                      }} 
+                    />
+                    <label 
+                      htmlFor="dequeue-checkbox" 
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-primary"
+                    >
+                      Called in by doctor
+                    </label>
+                  </div>
+                )}
+                
+                {!patient.treatmentPlan && (patient.stage === 'In Care' || patient.stage === 'Queued') && (
+                  <Dialog open={treatmentPlanOpen} onOpenChange={setTreatmentPlanOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full mt-4 border-primary/50 text-primary hover:bg-primary/10">
+                        <Activity className="w-4 h-4 mr-2" />
+                        Log Treatment Plan
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[500px]">
+                      <DialogHeader>
+                        <DialogTitle>Log Treatment Plan</DialogTitle>
+                        <DialogDescription>
+                          Record the patient's treatment plan. This will automatically schedule follow-up reminders.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="tp">Treatment Plan <span className="text-destructive">*</span></Label>
+                          <Textarea 
+                            id="tp" 
+                            value={tpTreatmentPlan} 
+                            onChange={(e) => setTpTreatmentPlan(e.target.value)} 
+                            placeholder="Detailed treatment plan..." 
+                            className="min-h-[100px]"
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="diag">Diagnosis (Optional)</Label>
+                          <Input 
+                            id="diag" 
+                            value={tpDiagnosis} 
+                            onChange={(e) => setTpDiagnosis(e.target.value)} 
+                            placeholder="Primary diagnosis" 
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="doc">Doctor (Optional)</Label>
+                            <Input 
+                              id="doc" 
+                              value={tpDoctor} 
+                              onChange={(e) => setTpDoctor(e.target.value)} 
+                              placeholder="Doctor's name" 
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="rem">Reminder Interval (Days)</Label>
+                            <Input 
+                              id="rem" 
+                              type="number" 
+                              value={tpReminderDays} 
+                              onChange={(e) => setTpReminderDays(e.target.value)} 
+                              min="1"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setTreatmentPlanOpen(false)}>Cancel</Button>
+                        <Button onClick={handleLogTreatmentPlan} disabled={logTreatmentPlan.isPending || !tpTreatmentPlan}>
+                          Save & Schedule
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
               
               <div className="py-6 space-y-4">
@@ -214,6 +411,18 @@ export default function PatientDetail() {
                 </TabsList>
                 
                 <TabsContent value="overview" className="space-y-6">
+                  {patient.treatmentPlan && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2 text-primary">
+                        <ClipboardList className="w-4 h-4" />
+                        TREATMENT PLAN
+                      </h3>
+                      <div className="bg-primary/5 p-4 rounded-md border border-primary/20 whitespace-pre-wrap text-sm">
+                        {patient.treatmentPlan}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <h3 className="text-sm font-semibold text-muted-foreground mb-2 text-primary">DIAGNOSIS</h3>
                     <div className="bg-secondary/30 p-4 rounded-md border border-border">

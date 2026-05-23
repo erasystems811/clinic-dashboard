@@ -25,7 +25,6 @@ paths:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -131,6 +130,75 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  /patients/{id}/checkin:
+    post:
+      operationId: checkinPatient
+      tags: [patients]
+      summary: Receptionist checks patient in — moves to Queued
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Patient checked in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "404":
+          description: Not found
+
+  /patients/{id}/dequeue:
+    post:
+      operationId: dequeuePatient
+      tags: [patients]
+      summary: Receptionist marks patient as called in by doctor — removes from queue
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Patient dequeued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "404":
+          description: Not found
+
+  /patients/{id}/treatment-plan:
+    post:
+      operationId: logTreatmentPlan
+      tags: [patients]
+      summary: Nurse logs treatment plan — moves patient to In Care and starts reminders
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TreatmentPlanInput"
+      responses:
+        "200":
+          description: Treatment plan logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "404":
+          description: Not found
 
   /pipeline/stages:
     get:
@@ -250,6 +318,7 @@ components:
           type: string
         stage:
           type: string
+          description: "Booked | Queued | In Care | Post Treatment | Post Care | Dormant"
         diagnosis:
           type: ["string", "null"]
         doctor:
@@ -258,6 +327,12 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+        treatmentPlan:
+          type: ["string", "null"]
+        checkedInAt:
+          type: ["string", "null"]
+        treatmentStartedAt:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -265,7 +340,7 @@ components:
 
     PatientInput:
       type: object
-      required: [firstName, lastName, dateOfBirth, email, phone, stage]
+      required: [firstName, lastName, dateOfBirth, email, phone]
       properties:
         firstName:
           type: string
@@ -311,6 +386,20 @@ components:
           type: string
         notes:
           type: string
+
+    TreatmentPlanInput:
+      type: object
+      required: [treatmentPlan]
+      properties:
+        treatmentPlan:
+          type: string
+        diagnosis:
+          type: string
+        doctor:
+          type: string
+        reminderIntervalDays:
+          type: integer
+          default: 7
 
     PipelineStage:
       type: object

@@ -18,3 +18,4 @@ export * from './patient';
 export * from './patientInput';
 export * from './patientUpdate';
 export * from './pipelineStage';
+export * from './treatmentPlanInput';

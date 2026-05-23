@@ -13,6 +13,7 @@ export interface Patient {
   dateOfBirth: string;
   email: string;
   phone: string;
+  /** Booked | Queued | In Care | Post Treatment | Post Care | Dormant */
   stage: string;
   /** @nullable */
   diagnosis?: string | null;
@@ -22,6 +23,12 @@ export interface Patient {
   nextAppointment?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  treatmentPlan?: string | null;
+  /** @nullable */
+  checkedInAt?: string | null;
+  /** @nullable */
+  treatmentStartedAt?: string | null;
   createdAt: string;
   /** @nullable */
   updatedAt?: string | null;

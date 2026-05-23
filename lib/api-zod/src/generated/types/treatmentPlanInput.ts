@@ -6,15 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface PatientInput {
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
-  email: string;
-  phone: string;
-  stage?: string;
+export interface TreatmentPlanInput {
+  treatmentPlan: string;
   diagnosis?: string;
   doctor?: string;
-  nextAppointment?: string;
-  notes?: string;
+  reminderIntervalDays?: number;
 }

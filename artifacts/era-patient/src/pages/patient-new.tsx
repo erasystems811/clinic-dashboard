@@ -64,7 +64,7 @@ export default function NewPatient() {
       dateOfBirth: "",
       email: "",
       phone: "",
-      stage: "New Inquiry",
+      stage: "Booked",
       doctor: "",
       diagnosis: "",
       notes: "",
@@ -206,13 +206,7 @@ export default function NewPatient() {
                           <SelectContent>
                             {stages?.map(stage => (
                               <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>
-                            )) || (
-                              <>
-                                <SelectItem value="New Inquiry">New Inquiry</SelectItem>
-                                <SelectItem value="Consultation">Consultation</SelectItem>
-                                <SelectItem value="Treatment">Treatment</SelectItem>
-                              </>
-                            )}
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />

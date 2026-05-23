@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, sql } from "drizzle-orm";
+import { eq, ilike, or } from "drizzle-orm";
 import { db, patientsTable, activityTable } from "@workspace/db";
 import {
   ListPatientsQueryParams,
@@ -11,9 +11,24 @@ import {
   UpdatePatientResponse,
   DeletePatientParams,
   ListPatientsResponse,
+  CheckinPatientParams,
+  CheckinPatientResponse,
+  DequeuePatientParams,
+  DequeuePatientResponse,
+  LogTreatmentPlanParams,
+  LogTreatmentPlanBody,
+  LogTreatmentPlanResponse,
 } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+function serializePatient(p: typeof patientsTable.$inferSelect) {
+  return {
+    ...p,
+    createdAt: p.createdAt.toISOString(),
+    updatedAt: p.updatedAt?.toISOString() ?? null,
+  };
+}
 
 router.get("/patients", async (req, res): Promise<void> => {
   const query = ListPatientsQueryParams.safeParse(req.query);
@@ -39,11 +54,7 @@ router.get("/patients", async (req, res): Promise<void> => {
   }
 
   const patients = await dbQuery.orderBy(patientsTable.createdAt);
-  res.json(ListPatientsResponse.parse(patients.map(p => ({
-    ...p,
-    createdAt: p.createdAt.toISOString(),
-    updatedAt: p.updatedAt?.toISOString() ?? null,
-  }))));
+  res.json(ListPatientsResponse.parse(patients.map(serializePatient)));
 });
 
 router.post("/patients", async (req, res): Promise<void> => {
@@ -53,7 +64,8 @@ router.post("/patients", async (req, res): Promise<void> => {
     return;
   }
 
-  const [patient] = await db.insert(patientsTable).values(parsed.data).returning();
+  const data = { ...parsed.data, stage: parsed.data.stage ?? "Booked" };
+  const [patient] = await db.insert(patientsTable).values(data).returning();
 
   await db.insert(activityTable).values({
     type: "patient_created",
@@ -62,11 +74,7 @@ router.post("/patients", async (req, res): Promise<void> => {
     patientName: `${patient.firstName} ${patient.lastName}`,
   });
 
-  res.status(201).json(GetPatientResponse.parse({
-    ...patient,
-    createdAt: patient.createdAt.toISOString(),
-    updatedAt: patient.updatedAt?.toISOString() ?? null,
-  }));
+  res.status(201).json(GetPatientResponse.parse(serializePatient(patient)));
 });
 
 router.get("/patients/:id", async (req, res): Promise<void> => {
@@ -78,17 +86,12 @@ router.get("/patients/:id", async (req, res): Promise<void> => {
   }
 
   const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, params.data.id));
-
   if (!patient) {
     res.status(404).json({ error: "Patient not found" });
     return;
   }
 
-  res.json(GetPatientResponse.parse({
-    ...patient,
-    createdAt: patient.createdAt.toISOString(),
-    updatedAt: patient.updatedAt?.toISOString() ?? null,
-  }));
+  res.json(GetPatientResponse.parse(serializePatient(patient)));
 });
 
 router.patch("/patients/:id", async (req, res): Promise<void> => {
@@ -126,11 +129,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
     });
   }
 
-  res.json(UpdatePatientResponse.parse({
-    ...patient,
-    createdAt: patient.createdAt.toISOString(),
-    updatedAt: patient.updatedAt?.toISOString() ?? null,
-  }));
+  res.json(UpdatePatientResponse.parse(serializePatient(patient)));
 });
 
 router.delete("/patients/:id", async (req, res): Promise<void> => {
@@ -142,7 +141,6 @@ router.delete("/patients/:id", async (req, res): Promise<void> => {
   }
 
   const [patient] = await db.delete(patientsTable).where(eq(patientsTable.id, params.data.id)).returning();
-
   if (!patient) {
     res.status(404).json({ error: "Patient not found" });
     return;
@@ -156,6 +154,131 @@ router.delete("/patients/:id", async (req, res): Promise<void> => {
   });
 
   res.sendStatus(204);
+});
+
+// POST /patients/:id/checkin — receptionist checks patient in → Queued
+router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const params = CheckinPatientParams.safeParse({ id: parseInt(raw, 10) });
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [existing] = await db.select().from(patientsTable).where(eq(patientsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Patient not found" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const [patient] = await db
+    .update(patientsTable)
+    .set({ stage: "Queued", checkedInAt: now })
+    .where(eq(patientsTable.id, params.data.id))
+    .returning();
+
+  await db.insert(activityTable).values({
+    type: "checkin",
+    description: `${patient.firstName} ${patient.lastName} checked in — added to queue`,
+    patientId: patient.id,
+    patientName: `${patient.firstName} ${patient.lastName}`,
+    metadata: now,
+  });
+
+  res.json(CheckinPatientResponse.parse(serializePatient(patient)));
+});
+
+// POST /patients/:id/dequeue — receptionist removes patient from queue (doctor calls them in)
+router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const params = DequeuePatientParams.safeParse({ id: parseInt(raw, 10) });
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const [existing] = await db.select().from(patientsTable).where(eq(patientsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Patient not found" });
+    return;
+  }
+
+  const [patient] = await db
+    .update(patientsTable)
+    .set({ stage: "In Care" })
+    .where(eq(patientsTable.id, params.data.id))
+    .returning();
+
+  await db.insert(activityTable).values({
+    type: "dequeued",
+    description: `${patient.firstName} ${patient.lastName} called in by doctor — removed from queue`,
+    patientId: patient.id,
+    patientName: `${patient.firstName} ${patient.lastName}`,
+  });
+
+  res.json(DequeuePatientResponse.parse(serializePatient(patient)));
+});
+
+// POST /patients/:id/treatment-plan — nurse logs treatment plan → In Care + reminders
+router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const params = LogTreatmentPlanParams.safeParse({ id: parseInt(raw, 10) });
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const parsed = LogTreatmentPlanBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [existing] = await db.select().from(patientsTable).where(eq(patientsTable.id, params.data.id));
+  if (!existing) {
+    res.status(404).json({ error: "Patient not found" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const updateData: Partial<typeof patientsTable.$inferSelect> = {
+    treatmentPlan: parsed.data.treatmentPlan,
+    stage: "In Care",
+    treatmentStartedAt: now,
+  };
+  if (parsed.data.diagnosis) updateData.diagnosis = parsed.data.diagnosis;
+  if (parsed.data.doctor) updateData.doctor = parsed.data.doctor;
+
+  const [patient] = await db
+    .update(patientsTable)
+    .set(updateData)
+    .where(eq(patientsTable.id, params.data.id))
+    .returning();
+
+  const intervalDays = parsed.data.reminderIntervalDays ?? 7;
+  const patientName = `${patient.firstName} ${patient.lastName}`;
+
+  // Log treatment plan + create scheduled reminders in activity feed
+  await db.insert(activityTable).values({
+    type: "treatment_plan_logged",
+    description: `Treatment plan logged for ${patientName} — moved to In Care`,
+    patientId: patient.id,
+    patientName,
+    metadata: parsed.data.treatmentPlan,
+  });
+
+  // Schedule 3 reminder entries (simulated automation)
+  const reminders = [1, 2, 3].map((n) => ({
+    type: "treatment_reminder",
+    description: `Treatment reminder ${n} scheduled for ${patientName} (in ${n * intervalDays} days)`,
+    patientId: patient.id,
+    patientName,
+    metadata: `day_${n * intervalDays}`,
+  }));
+  await db.insert(activityTable).values(reminders);
+
+  res.json(LogTreatmentPlanResponse.parse(serializePatient(patient)));
 });
 
 export default router;

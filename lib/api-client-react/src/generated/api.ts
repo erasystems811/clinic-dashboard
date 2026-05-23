@@ -31,7 +31,8 @@ import type {
   Patient,
   PatientInput,
   PatientUpdate,
-  PipelineStage
+  PipelineStage,
+  TreatmentPlanInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -55,7 +56,6 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const healthCheck = async ( options?: RequestInit): Promise<HealthStatus> => {
@@ -496,6 +496,218 @@ export const useDeletePatient = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeletePatientMutationOptions(options));
+    }
+
+export const getCheckinPatientUrl = (id: number,) => {
+
+
+
+
+  return `/api/patients/${id}/checkin`
+}
+
+/**
+ * @summary Receptionist checks patient in — moves to Queued
+ */
+export const checkinPatient = async (id: number, options?: RequestInit): Promise<Patient> => {
+
+  return customFetch<Patient>(getCheckinPatientUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getCheckinPatientMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkinPatient>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkinPatient>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['checkinPatient'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkinPatient>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  checkinPatient(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckinPatientMutationResult = NonNullable<Awaited<ReturnType<typeof checkinPatient>>>
+
+    export type CheckinPatientMutationError = ErrorType<void>
+
+    /**
+ * @summary Receptionist checks patient in — moves to Queued
+ */
+export const useCheckinPatient = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkinPatient>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof checkinPatient>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCheckinPatientMutationOptions(options));
+    }
+
+export const getDequeuePatientUrl = (id: number,) => {
+
+
+
+
+  return `/api/patients/${id}/dequeue`
+}
+
+/**
+ * @summary Receptionist marks patient as called in by doctor — removes from queue
+ */
+export const dequeuePatient = async (id: number, options?: RequestInit): Promise<Patient> => {
+
+  return customFetch<Patient>(getDequeuePatientUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getDequeuePatientMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dequeuePatient>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof dequeuePatient>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['dequeuePatient'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof dequeuePatient>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  dequeuePatient(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DequeuePatientMutationResult = NonNullable<Awaited<ReturnType<typeof dequeuePatient>>>
+
+    export type DequeuePatientMutationError = ErrorType<void>
+
+    /**
+ * @summary Receptionist marks patient as called in by doctor — removes from queue
+ */
+export const useDequeuePatient = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof dequeuePatient>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof dequeuePatient>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDequeuePatientMutationOptions(options));
+    }
+
+export const getLogTreatmentPlanUrl = (id: number,) => {
+
+
+
+
+  return `/api/patients/${id}/treatment-plan`
+}
+
+/**
+ * @summary Nurse logs treatment plan — moves patient to In Care and starts reminders
+ */
+export const logTreatmentPlan = async (id: number,
+    treatmentPlanInput: TreatmentPlanInput, options?: RequestInit): Promise<Patient> => {
+
+  return customFetch<Patient>(getLogTreatmentPlanUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      treatmentPlanInput,)
+  }
+);}
+
+
+
+
+export const getLogTreatmentPlanMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logTreatmentPlan>>, TError,{id: number;data: BodyType<TreatmentPlanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof logTreatmentPlan>>, TError,{id: number;data: BodyType<TreatmentPlanInput>}, TContext> => {
+
+const mutationKey = ['logTreatmentPlan'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof logTreatmentPlan>>, {id: number;data: BodyType<TreatmentPlanInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  logTreatmentPlan(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LogTreatmentPlanMutationResult = NonNullable<Awaited<ReturnType<typeof logTreatmentPlan>>>
+    export type LogTreatmentPlanMutationBody = BodyType<TreatmentPlanInput>
+    export type LogTreatmentPlanMutationError = ErrorType<void>
+
+    /**
+ * @summary Nurse logs treatment plan — moves patient to In Care and starts reminders
+ */
+export const useLogTreatmentPlan = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof logTreatmentPlan>>, TError,{id: number;data: BodyType<TreatmentPlanInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof logTreatmentPlan>>,
+        TError,
+        {id: number;data: BodyType<TreatmentPlanInput>},
+        TContext
+      > => {
+      return useMutation(getLogTreatmentPlanMutationOptions(options));
     }
 
 export const getListPipelineStagesUrl = () => {

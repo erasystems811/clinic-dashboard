@@ -6,25 +6,37 @@ import { eq } from "drizzle-orm";
 const router: IRouter = Router();
 
 const DEFAULT_DEPARTMENTS = [
-  "General Consultation",
-  "Fertility & Reproductive Health",
-  "Surgery (pre and post op care)",
-  "Chronic Disease Management",
-  "Maternity & Antenatal",
+  "General Practice",
+  "Fertility and Reproductive Health",
+  "Surgery",
+  "Maternity and Antenatal",
   "Pediatrics",
-  "Oncology (cancer care)",
-  "Physiotherapy & Rehabilitation",
-  "Mental Health & Psychiatry",
+  "Oncology",
+  "Physiotherapy and Rehabilitation",
+  "Mental Health and Psychiatry",
   "Cardiology",
   "Dental",
+  "Orthopaedics",
+  "Urology",
+  "Gastroenterology",
+  "Ophthalmology and Eye",
+  "Dermatology",
+  "Endocrinology",
+  "Radiology",
+  "Chronic Disease Management",
+  "Emergency and Trauma",
+  "ENT",
+  "Neurology",
 ];
 
 const CreateDepartmentBody = z.object({ name: z.string().min(1) });
 
 async function ensureDepartmentsExist() {
   const existing = await db.select().from(departmentsTable);
-  if (existing.length === 0) {
-    await db.insert(departmentsTable).values(DEFAULT_DEPARTMENTS.map(name => ({ name })));
+  const existingNames = new Set(existing.map(d => d.name));
+  const missing = DEFAULT_DEPARTMENTS.filter(n => !existingNames.has(n));
+  if (missing.length > 0) {
+    await db.insert(departmentsTable).values(missing.map(name => ({ name })));
   }
 }
 

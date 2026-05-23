@@ -5,12 +5,36 @@ import { api, Hospital, HospitalSettings, HospitalModules } from "@/lib/api";
 import {
   Building2, Save, Loader2, AlertCircle, ChevronLeft,
   Settings, Puzzle, Shield, ToggleLeft, ToggleRight, RefreshCw,
-  Eye, EyeOff, KeyRound
+  Eye, EyeOff, KeyRound, Plus, X
 } from "lucide-react";
 
 interface Props { id: number; }
 
 type Tab = "general" | "settings" | "modules";
+
+const PREDEFINED_DEPARTMENTS = [
+  "General Practice",
+  "Fertility and Reproductive Health",
+  "Surgery",
+  "Maternity and Antenatal",
+  "Pediatrics",
+  "Oncology",
+  "Physiotherapy and Rehabilitation",
+  "Mental Health and Psychiatry",
+  "Cardiology",
+  "Dental",
+  "Orthopaedics",
+  "Urology",
+  "Gastroenterology",
+  "Ophthalmology and Eye",
+  "Dermatology",
+  "Endocrinology",
+  "Radiology",
+  "Chronic Disease Management",
+  "Emergency and Trauma",
+  "ENT",
+  "Neurology",
+];
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -59,7 +83,8 @@ export default function HospitalDetail({ id }: Props) {
   const [showPassword, setShowPassword] = useState(false);
 
   // Settings form
-  const [departments, setDepartments] = useState("");
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [customDeptInput, setCustomDeptInput] = useState("");
   const [postTreatmentDays, setPostTreatmentDays] = useState("");
   const [dormantDays, setDormantDays] = useState("");
   const [language, setLanguage] = useState("");
@@ -82,18 +107,15 @@ export default function HospitalDetail({ id }: Props) {
       setHospital(h);
       setSettings(s);
       setModules(m);
-      // Populate general
       setName(h.name);
       setSubStatus(h.subscriptionStatus);
       setActive(h.active);
-      // Populate settings
-      setDepartments((s.departments ?? []).join(", "));
+      setDepartments(s.departments ?? []);
       setPostTreatmentDays(s.pipelinePostTreatmentDays?.toString() ?? "");
       setDormantDays(s.pipelineDormantDays?.toString() ?? "");
       setLanguage(s.language ?? "");
       setTone(s.tone ?? "");
       setClinicDescription(s.clinicDescription ?? "");
-      // Populate modules
       setApptEnabled(m.appointmentsEnabled);
       setFeedbackEnabled(m.feedbackEnabled);
     } catch (e: any) {
@@ -134,9 +156,8 @@ export default function HospitalDetail({ id }: Props) {
     setSaving(true);
     setError("");
     try {
-      const depts = departments.split(",").map(d => d.trim()).filter(Boolean);
       await api.updateSettings(id, {
-        departments: depts,
+        departments,
         pipelinePostTreatmentDays: postTreatmentDays ? parseInt(postTreatmentDays) : null,
         pipelineDormantDays: dormantDays ? parseInt(dormantDays) : null,
         language: language || null,
@@ -165,6 +186,26 @@ export default function HospitalDetail({ id }: Props) {
       setSaving(false);
     }
   };
+
+  const toggleDepartment = (dept: string) => {
+    setDepartments(prev =>
+      prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
+    );
+  };
+
+  const addCustomDept = () => {
+    const trimmed = customDeptInput.trim();
+    if (!trimmed || departments.includes(trimmed)) return;
+    setDepartments(prev => [...prev, trimmed]);
+    setCustomDeptInput("");
+  };
+
+  const removeCustomDept = (dept: string) => {
+    setDepartments(prev => prev.filter(d => d !== dept));
+  };
+
+  // Custom departments are those not in the predefined list
+  const customDepts = departments.filter(d => !PREDEFINED_DEPARTMENTS.includes(d));
 
   const tabs: { key: Tab; label: string; icon: typeof Settings }[] = [
     { key: "general", label: "General", icon: Shield },
@@ -267,7 +308,7 @@ export default function HospitalDetail({ id }: Props) {
         </div>
       )}
 
-      {/* Tab Content */}
+      {/* ── GENERAL TAB ── */}
       {tab === "general" && (
         <div className="rounded-xl bg-card border border-border p-6 space-y-5 max-w-lg">
           <h2 className="font-semibold text-foreground">Account Details</h2>
@@ -341,21 +382,97 @@ export default function HospitalDetail({ id }: Props) {
         </div>
       )}
 
+      {/* ── SETTINGS TAB ── */}
       {tab === "settings" && settings && (
-        <div className="rounded-xl bg-card border border-border p-6 space-y-5 max-w-lg">
+        <div className="rounded-xl bg-card border border-border p-6 space-y-6 max-w-2xl">
           <h2 className="font-semibold text-foreground">Hospital Settings</h2>
 
-          <Field label="Departments" hint="Comma-separated list of departments">
-            <input
-              type="text"
-              value={departments}
-              onChange={e => setDepartments(e.target.value)}
-              className={inputCls()}
-              placeholder="Cardiology, Oncology, Pediatrics"
-            />
-          </Field>
+          {/* Departments */}
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Departments</p>
+              <p className="text-xs text-muted-foreground">
+                Select which departments are active for this hospital. These appear in the Nurse Station when logging a treatment plan.
+              </p>
+            </div>
 
-          <div className="grid grid-cols-2 gap-4">
+            {/* Predefined checkboxes */}
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+                {PREDEFINED_DEPARTMENTS.map(dept => (
+                  <label key={dept} className="flex items-center gap-2.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={departments.includes(dept)}
+                      onChange={() => toggleDepartment(dept)}
+                      className="w-4 h-4 rounded accent-primary shrink-0"
+                    />
+                    <span className={`text-sm transition-colors ${
+                      departments.includes(dept)
+                        ? "text-foreground font-medium"
+                        : "text-muted-foreground group-hover:text-foreground"
+                    }`}>
+                      {dept}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom departments */}
+            {customDepts.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground font-medium">Custom departments</p>
+                <div className="flex flex-wrap gap-2">
+                  {customDepts.map(dept => (
+                    <div
+                      key={dept}
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-sm text-primary"
+                    >
+                      <span>{dept}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeCustomDept(dept)}
+                        className="text-primary/60 hover:text-primary transition"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add custom */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customDeptInput}
+                onChange={e => setCustomDeptInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustomDept(); } }}
+                placeholder="Add a custom department…"
+                className={inputCls() + " flex-1"}
+              />
+              <button
+                type="button"
+                onClick={addCustomDept}
+                disabled={!customDeptInput.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-muted border border-border text-sm font-medium text-foreground hover:bg-muted/80 disabled:opacity-40 transition"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
+
+            {departments.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {departments.length} department{departments.length !== 1 ? "s" : ""} active
+              </p>
+            )}
+          </div>
+
+          {/* Pipeline */}
+          <div className="pt-2 border-t border-border grid grid-cols-2 gap-4">
             <Field label="Post-Treatment Days" hint="Days in post-treatment stage">
               <input
                 type="number"
@@ -428,6 +545,7 @@ export default function HospitalDetail({ id }: Props) {
         </div>
       )}
 
+      {/* ── MODULES TAB ── */}
       {tab === "modules" && modules && (
         <div className="rounded-xl bg-card border border-border p-6 space-y-4 max-w-lg">
           <h2 className="font-semibold text-foreground">Feature Modules</h2>

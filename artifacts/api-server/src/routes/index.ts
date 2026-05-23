@@ -5,6 +5,8 @@ import pipelineRouter from "./pipeline";
 import appointmentsRouter from "./appointments";
 import dashboardRouter from "./dashboard";
 import activityRouter from "./activity";
+import queueRouter from "./queue";
+import callTasksRouter from "./call-tasks";
 
 const router: IRouter = Router();
 
@@ -14,5 +16,7 @@ router.use(pipelineRouter);
 router.use(appointmentsRouter);
 router.use(dashboardRouter);
 router.use(activityRouter);
+router.use(queueRouter);
+router.use(callTasksRouter);
 
 export default router;

@@ -16,8 +16,14 @@ export interface Patient {
   dateOfBirth: string;
   email: string;
   phone: string;
+  /** @nullable */
+  age?: number | null;
+  /** @nullable */
+  gender?: string | null;
   /** Booked | Queued | In Care | Post Treatment | Post Care | Dormant */
   stage: string;
+  /** @nullable */
+  preQueueStage?: string | null;
   /** @nullable */
   diagnosis?: string | null;
   /** @nullable */
@@ -28,6 +34,14 @@ export interface Patient {
   notes?: string | null;
   /** @nullable */
   treatmentPlan?: string | null;
+  /** @nullable */
+  treatmentType?: string | null;
+  /** @nullable */
+  medicationTiming?: string | null;
+  /** @nullable */
+  treatmentDurationDays?: number | null;
+  /** @nullable */
+  treatmentEndDate?: string | null;
   /** @nullable */
   checkedInAt?: string | null;
   /** @nullable */
@@ -43,6 +57,8 @@ export interface PatientInput {
   dateOfBirth: string;
   email: string;
   phone: string;
+  age?: number;
+  gender?: string;
   stage?: string;
   diagnosis?: string;
   doctor?: string;
@@ -56,6 +72,8 @@ export interface PatientUpdate {
   dateOfBirth?: string;
   email?: string;
   phone?: string;
+  age?: number;
+  gender?: string;
   stage?: string;
   diagnosis?: string;
   doctor?: string;
@@ -64,10 +82,51 @@ export interface PatientUpdate {
 }
 
 export interface TreatmentPlanInput {
+  /** Free-text summary of the treatment plan */
   treatmentPlan: string;
+  /** medication | injection | dressing | monitoring | physical_therapy | combination */
+  treatmentType: string;
+  /** Comma-separated timing slots: morning,afternoon,evening,night */
+  medicationTiming?: string;
+  /** Duration of treatment in days */
+  treatmentDurationDays: number;
   diagnosis?: string;
   doctor?: string;
-  reminderIntervalDays?: number;
+}
+
+export interface FlagMissedInput {
+  reason: string;
+}
+
+export interface QueueEntry {
+  id: number;
+  patientId: number;
+  patientName: string;
+  position: number;
+  addedAt: string;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  stage?: string | null;
+}
+
+export interface CallTask {
+  id: number;
+  patientId: number;
+  patientName: string;
+  phone: string;
+  reason: string;
+  /** @nullable */
+  outcome?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  flaggedAt: string;
+}
+
+export interface CallOutcomeInput {
+  outcome: string;
 }
 
 export interface PipelineStage {
@@ -135,5 +194,9 @@ date?: string;
 
 export type ListActivityParams = {
 limit?: number;
+};
+
+export type ListCallTasksParams = {
+completed?: boolean;
 };
 

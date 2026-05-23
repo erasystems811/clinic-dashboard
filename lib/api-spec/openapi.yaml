@@ -19,6 +19,10 @@ tags:
     description: Dashboard and summary data
   - name: activity
     description: Activity feed
+  - name: queue
+    description: Queue management
+  - name: call-tasks
+    description: Call task management
 paths:
   /healthz:
     get:
@@ -135,7 +139,7 @@ paths:
     post:
       operationId: checkinPatient
       tags: [patients]
-      summary: Receptionist checks patient in — moves to Queued
+      summary: Receptionist checks patient in — moves to Queued and adds to queue
       parameters:
         - name: id
           in: path
@@ -156,7 +160,7 @@ paths:
     post:
       operationId: dequeuePatient
       tags: [patients]
-      summary: Receptionist marks patient as called in by doctor — removes from queue
+      summary: Receptionist removes patient from queue — restores pre-queue stage
       parameters:
         - name: id
           in: path
@@ -197,6 +201,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Patient"
+        "404":
+          description: Not found
+
+  /patients/{id}/flag-missed:
+    post:
+      operationId: flagMissedTreatment
+      tags: [patients]
+      summary: Nurse flags patient for missed treatment — creates call task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FlagMissedInput"
+      responses:
+        "200":
+          description: Patient flagged, call task created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CallTask"
         "404":
           description: Not found
 
@@ -290,6 +321,68 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityItem"
 
+  /queue:
+    get:
+      operationId: listQueue
+      tags: [queue]
+      summary: Get current queue ordered by position
+      responses:
+        "200":
+          description: Current queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/QueueEntry"
+
+  /call-tasks:
+    get:
+      operationId: listCallTasks
+      tags: [call-tasks]
+      summary: List open call tasks
+      parameters:
+        - name: completed
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Call tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CallTask"
+
+  /call-tasks/{id}/outcome:
+    patch:
+      operationId: logCallOutcome
+      tags: [call-tasks]
+      summary: Log outcome for a call task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CallOutcomeInput"
+      responses:
+        "200":
+          description: Call task updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CallTask"
+        "404":
+          description: Not found
+
 components:
   schemas:
     HealthStatus:
@@ -316,9 +409,15 @@ components:
           type: string
         phone:
           type: string
+        age:
+          type: ["integer", "null"]
+        gender:
+          type: ["string", "null"]
         stage:
           type: string
           description: "Booked | Queued | In Care | Post Treatment | Post Care | Dormant"
+        preQueueStage:
+          type: ["string", "null"]
         diagnosis:
           type: ["string", "null"]
         doctor:
@@ -328,6 +427,14 @@ components:
         notes:
           type: ["string", "null"]
         treatmentPlan:
+          type: ["string", "null"]
+        treatmentType:
+          type: ["string", "null"]
+        medicationTiming:
+          type: ["string", "null"]
+        treatmentDurationDays:
+          type: ["integer", "null"]
+        treatmentEndDate:
           type: ["string", "null"]
         checkedInAt:
           type: ["string", "null"]
@@ -351,6 +458,10 @@ components:
         email:
           type: string
         phone:
+          type: string
+        age:
+          type: integer
+        gender:
           type: string
         stage:
           type: string
@@ -376,6 +487,10 @@ components:
           type: string
         phone:
           type: string
+        age:
+          type: integer
+        gender:
+          type: string
         stage:
           type: string
         diagnosis:
@@ -389,17 +504,80 @@ components:
 
     TreatmentPlanInput:
       type: object
-      required: [treatmentPlan]
+      required: [treatmentPlan, treatmentType, treatmentDurationDays]
       properties:
         treatmentPlan:
           type: string
+          description: Free-text summary of the treatment plan
+        treatmentType:
+          type: string
+          description: "medication | injection | dressing | monitoring | physical_therapy | combination"
+        medicationTiming:
+          type: string
+          description: "Comma-separated timing slots: morning,afternoon,evening,night"
+        treatmentDurationDays:
+          type: integer
+          description: Duration of treatment in days
         diagnosis:
           type: string
         doctor:
           type: string
-        reminderIntervalDays:
+
+    FlagMissedInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+
+    QueueEntry:
+      type: object
+      required: [id, patientId, patientName, position, addedAt]
+      properties:
+        id:
           type: integer
-          default: 7
+        patientId:
+          type: integer
+        patientName:
+          type: string
+        position:
+          type: integer
+        addedAt:
+          type: string
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        stage:
+          type: ["string", "null"]
+
+    CallTask:
+      type: object
+      required: [id, patientId, patientName, phone, reason, flaggedAt]
+      properties:
+        id:
+          type: integer
+        patientId:
+          type: integer
+        patientName:
+          type: string
+        phone:
+          type: string
+        reason:
+          type: string
+        outcome:
+          type: ["string", "null"]
+        completedAt:
+          type: ["string", "null"]
+        flaggedAt:
+          type: string
+
+    CallOutcomeInput:
+      type: object
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
 
     PipelineStage:
       type: object

@@ -12,6 +12,8 @@ export interface PatientUpdate {
   dateOfBirth?: string;
   email?: string;
   phone?: string;
+  age?: number;
+  gender?: string;
   stage?: string;
   diagnosis?: string;
   doctor?: string;

@@ -13,8 +13,14 @@ export interface Patient {
   dateOfBirth: string;
   email: string;
   phone: string;
+  /** @nullable */
+  age?: number | null;
+  /** @nullable */
+  gender?: string | null;
   /** Booked | Queued | In Care | Post Treatment | Post Care | Dormant */
   stage: string;
+  /** @nullable */
+  preQueueStage?: string | null;
   /** @nullable */
   diagnosis?: string | null;
   /** @nullable */
@@ -25,6 +31,14 @@ export interface Patient {
   notes?: string | null;
   /** @nullable */
   treatmentPlan?: string | null;
+  /** @nullable */
+  treatmentType?: string | null;
+  /** @nullable */
+  medicationTiming?: string | null;
+  /** @nullable */
+  treatmentDurationDays?: number | null;
+  /** @nullable */
+  treatmentEndDate?: string | null;
   /** @nullable */
   checkedInAt?: string | null;
   /** @nullable */

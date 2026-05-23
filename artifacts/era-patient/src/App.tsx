@@ -39,10 +39,11 @@ function defaultPathForRole(role: Role): string {
 function ProtectedRouter() {
   const { hospital, user, hospitalConfig } = useAuth();
 
-  // Not logged into hospital yet — or no role selected yet
-  if (!hospital || !user) {
-    return <Login />;
-  }
+  // Not signed in at all
+  if (!user) return <Login />;
+
+  // Admin must have a hospital session (their login provides it)
+  if (user.role === "admin" && !hospital) return <Login />;
 
   const role = user.role;
   const modules = hospitalConfig?.modules;

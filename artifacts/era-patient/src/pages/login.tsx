@@ -1,37 +1,50 @@
 import { useState } from "react";
-import { useAuth, type Role } from "@/contexts/auth-context";
-import { Activity, Building2, ChevronRight, Loader2, ArrowLeft } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
+import { Activity, Building2, Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const ROLE_MAP: Record<string, Role> = {
-  receptionist: "receptionist",
-  nurse: "nurse",
-  admin: "admin",
-};
+type Mode = "staff" | "admin";
 
 export default function Login() {
-  const { hospital, loginHospital, loginRole } = useAuth();
+  const { loginAdmin, loginStaff } = useAuth();
+  const [mode, setMode] = useState<Mode>("staff");
 
-  // Step 1 — hospital
+  // Staff (nurse / receptionist)
+  const [staffUsername, setStaffUsername] = useState("");
+  const [staffPassword, setStaffPassword] = useState("");
+  const [staffError, setStaffError] = useState("");
+  const [staffLoading, setStaffLoading] = useState(false);
+
+  // Admin (hospital credentials)
   const [hospUsername, setHospUsername] = useState("");
   const [hospPassword, setHospPassword] = useState("");
   const [hospError, setHospError] = useState("");
   const [hospLoading, setHospLoading] = useState(false);
 
-  // Step 2 — role
-  const [roleUsername, setRoleUsername] = useState("");
-  const [rolePassword, setRolePassword] = useState("");
-  const [roleError, setRoleError] = useState("");
-  const [roleLoading, setRoleLoading] = useState(false);
+  const handleStaffSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setStaffError("");
+    const role = staffUsername.trim().toLowerCase();
+    if (role !== "nurse" && role !== "receptionist") {
+      setStaffError("Username must be nurse or receptionist.");
+      return;
+    }
+    setStaffLoading(true);
+    setTimeout(() => {
+      const ok = loginStaff(role as "nurse" | "receptionist", staffPassword);
+      if (!ok) setStaffError("Incorrect password.");
+      setStaffLoading(false);
+    }, 200);
+  };
 
-  const handleHospitalSubmit = async (e: React.FormEvent) => {
+  const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setHospError("");
     setHospLoading(true);
     try {
-      await loginHospital(hospUsername, hospPassword);
+      await loginAdmin(hospUsername, hospPassword);
     } catch (err: any) {
       setHospError(err.message ?? "Invalid credentials");
     } finally {
@@ -39,25 +52,8 @@ export default function Login() {
     }
   };
 
-  const handleRoleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setRoleError("");
-    setRoleLoading(true);
-    setTimeout(() => {
-      const role = ROLE_MAP[roleUsername.trim().toLowerCase()];
-      if (!role) {
-        setRoleError("Unknown role. Use: receptionist, nurse, or admin.");
-        setRoleLoading(false);
-        return;
-      }
-      const ok = loginRole(role, rolePassword);
-      if (!ok) setRoleError("Incorrect password.");
-      setRoleLoading(false);
-    }, 200);
-  };
-
-  // ── STEP 1: Hospital Login ──────────────────────────────────────────────────
-  if (!hospital) {
+  // ── Staff Login ─────────────────────────────────────────────────────────────
+  if (mode === "staff") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm">
@@ -66,113 +62,112 @@ export default function Login() {
               <Activity className="w-7 h-7 text-primary-foreground" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight">Era Patient</h1>
-            <p className="text-sm text-muted-foreground mt-1">Sign in with your hospital credentials</p>
+            <p className="text-sm text-muted-foreground mt-1">Staff sign in</p>
           </div>
 
-          <form onSubmit={handleHospitalSubmit} className="space-y-4">
+          <form onSubmit={handleStaffSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="h-username">Hospital Username</Label>
+              <Label htmlFor="s-username">Username</Label>
               <Input
-                id="h-username"
+                id="s-username"
                 autoComplete="username"
-                value={hospUsername}
-                onChange={e => setHospUsername(e.target.value)}
-                placeholder="e.g. city_general"
+                value={staffUsername}
+                onChange={e => setStaffUsername(e.target.value)}
+                placeholder="nurse or receptionist"
                 required
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="h-password">Password</Label>
+              <Label htmlFor="s-password">Password</Label>
               <Input
-                id="h-password"
+                id="s-password"
                 type="password"
                 autoComplete="current-password"
-                value={hospPassword}
-                onChange={e => setHospPassword(e.target.value)}
-                placeholder="Enter hospital password"
+                value={staffPassword}
+                onChange={e => setStaffPassword(e.target.value)}
+                placeholder="Enter your password"
                 required
               />
             </div>
 
-            {hospError && <p className="text-sm text-destructive">{hospError}</p>}
+            {staffError && <p className="text-sm text-destructive">{staffError}</p>}
 
-            <Button type="submit" className="w-full" disabled={hospLoading}>
-              {hospLoading
-                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Verifying…</>
-                : <>Continue <ChevronRight className="w-4 h-4 ml-1" /></>}
+            <Button type="submit" className="w-full" disabled={staffLoading}>
+              {staffLoading
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in…</>
+                : "Sign In"}
             </Button>
           </form>
+
+          <div className="mt-8 text-center">
+            <button
+              type="button"
+              onClick={() => { setMode("admin"); setStaffError(""); }}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mx-auto"
+            >
+              <Building2 className="w-3 h-3" />
+              Hospital Admin Login
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ── STEP 2: Staff Login ─────────────────────────────────────────────────────
+  // ── Admin (Hospital) Login ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        {/* Hospital identity */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-center mb-3">
+          <div className="w-12 h-12 bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-center mb-4">
             <Building2 className="w-6 h-6 text-primary" />
           </div>
-          <h2 className="text-xl font-bold">{hospital.name}</h2>
-          <p className="text-sm text-muted-foreground mt-1">Staff sign in</p>
+          <h1 className="text-2xl font-bold tracking-tight">Admin Login</h1>
+          <p className="text-sm text-muted-foreground mt-1">Enter your hospital credentials</p>
         </div>
 
-        <form onSubmit={handleRoleSubmit} className="space-y-4">
+        <form onSubmit={handleAdminSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="r-username">Username</Label>
+            <Label htmlFor="h-username">Hospital Username</Label>
             <Input
-              id="r-username"
+              id="h-username"
               autoComplete="username"
-              value={roleUsername}
-              onChange={e => setRoleUsername(e.target.value)}
-              placeholder="receptionist / nurse / admin"
+              value={hospUsername}
+              onChange={e => setHospUsername(e.target.value)}
+              placeholder="e.g. gisd-hospital"
               required
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="r-password">Password</Label>
+            <Label htmlFor="h-password">Password</Label>
             <Input
-              id="r-password"
+              id="h-password"
               type="password"
               autoComplete="current-password"
-              value={rolePassword}
-              onChange={e => setRolePassword(e.target.value)}
-              placeholder="Enter your password"
+              value={hospPassword}
+              onChange={e => setHospPassword(e.target.value)}
+              placeholder="Enter hospital password"
               required
             />
           </div>
 
-          {roleError && <p className="text-sm text-destructive">{roleError}</p>}
+          {hospError && <p className="text-sm text-destructive">{hospError}</p>}
 
-          <Button type="submit" className="w-full" disabled={roleLoading}>
-            {roleLoading
+          <Button type="submit" className="w-full" disabled={hospLoading}>
+            {hospLoading
               ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in…</>
-              : "Sign In"}
+              : "Sign In as Admin"}
           </Button>
         </form>
 
-        <div className="mt-6 p-3 rounded-lg bg-muted/40 border border-border text-xs text-muted-foreground space-y-1">
-          <p className="font-medium text-foreground mb-1">Staff credentials</p>
-          <p>receptionist / recep1234</p>
-          <p>nurse / nurse1234</p>
-          <p>admin / admin1234</p>
-        </div>
-
-        <div className="mt-4 text-center">
+        <div className="mt-6 text-center">
           <button
             type="button"
-            onClick={() => {
-              localStorage.removeItem("era_hospital_session");
-              localStorage.removeItem("era_hospital_config");
-              window.location.reload();
-            }}
+            onClick={() => { setMode("staff"); setHospError(""); }}
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mx-auto"
           >
             <ArrowLeft className="w-3 h-3" />
-            Not {hospital.name}? Switch hospital
+            Back to Staff Login
           </button>
         </div>
       </div>

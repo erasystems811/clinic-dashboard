@@ -69,7 +69,7 @@ const ROLE_LABELS: Record<Role, string> = {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  const { user, hospital, hospitalConfig, logout, logoutRole } = useAuth();
+  const { user, hospital, hospitalConfig, logout } = useAuth();
   const role = user?.role ?? "admin";
   const navItems = getNavItems(role, hospitalConfig?.modules ?? null);
 

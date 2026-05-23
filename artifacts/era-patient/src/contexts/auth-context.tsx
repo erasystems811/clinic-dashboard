@@ -28,16 +28,16 @@ interface AuthContextValue {
   hospital: HospitalSession | null;
   hospitalConfig: HospitalConfig | null;
   user: User | null;
-  loginHospital: (username: string, password: string) => Promise<void>;
-  loginRole: (role: Role, password: string) => boolean;
+  /** Admin logs in with hospital credentials — that IS the admin login */
+  loginAdmin: (hospitalUsername: string, hospitalPassword: string) => Promise<void>;
+  /** Nurse / Receptionist log in with just their role password */
+  loginStaff: (role: "nurse" | "receptionist", password: string) => boolean;
   logout: () => void;
-  logoutRole: () => void;
 }
 
-const ROLE_CREDENTIALS: Record<Role, { password: string; displayName: string }> = {
+const STAFF_CREDENTIALS: Record<"nurse" | "receptionist", { password: string; displayName: string }> = {
   receptionist: { password: "recep1234", displayName: "Receptionist" },
   nurse: { password: "nurse1234", displayName: "Nurse" },
-  admin: { password: "admin1234", displayName: "Admin" },
 };
 
 const HOSPITAL_KEY = "era_hospital_session";
@@ -67,15 +67,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user ? localStorage.setItem(USER_KEY, JSON.stringify(user)) : localStorage.removeItem(USER_KEY);
   }, [user]);
 
-  const loginHospital = async (username: string, password: string): Promise<void> => {
+  /** Admin: hospital credentials authenticate them and establish the hospital context */
+  const loginAdmin = async (hospitalUsername: string, hospitalPassword: string): Promise<void> => {
     const res = await fetch("/api/auth/hospital-login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: username.trim().toLowerCase(), password }),
+      body: JSON.stringify({ username: hospitalUsername.trim().toLowerCase(), password: hospitalPassword }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: "Login failed" }));
-      throw new Error(err.error ?? "Login failed");
+      throw new Error(err.error ?? "Invalid hospital credentials");
     }
     const data = await res.json();
     const session: HospitalSession = { id: data.id, name: data.name, username: data.username, token: data.token };
@@ -89,10 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setHospitalConfig({ departments: [], modules: { appointmentsEnabled: true, feedbackEnabled: true } });
     }
+
+    setUser({ username: "admin", role: "admin", displayName: "Admin" });
   };
 
-  const loginRole = (role: Role, password: string): boolean => {
-    const entry = ROLE_CREDENTIALS[role];
+  /** Nurse / Receptionist: simple password check, no hospital step */
+  const loginStaff = (role: "nurse" | "receptionist", password: string): boolean => {
+    const entry = STAFF_CREDENTIALS[role];
     if (!entry || entry.password !== password) return false;
     setUser({ username: role, role, displayName: entry.displayName });
     return true;
@@ -104,10 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setHospitalConfig(null);
   };
 
-  const logoutRole = () => setUser(null);
-
   return (
-    <AuthContext.Provider value={{ hospital, hospitalConfig, user, loginHospital, loginRole, logout, logoutRole }}>
+    <AuthContext.Provider value={{ hospital, hospitalConfig, user, loginAdmin, loginStaff, logout }}>
       {children}
     </AuthContext.Provider>
   );

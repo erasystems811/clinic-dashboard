@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,6 @@ import {
   useListPatients,
   useCheckinPatient,
   useDequeuePatient,
-  useCreatePatient,
   useCreateAppointment,
   getListQueueQueryKey,
   getListPatientsQueryKey,
@@ -25,17 +25,6 @@ function waitTime(addedAt: string) {
   return `${diff} mins`;
 }
 
-const EMPTY_FORM = {
-  firstName: "",
-  lastName: "",
-  hospitalId: "",
-  phone: "",
-  whatsappNumber: "",
-  email: "",
-  age: "",
-  gender: "",
-};
-
 const EMPTY_APT_FORM = {
   patientId: 0,
   patientName: "",
@@ -48,9 +37,8 @@ const EMPTY_APT_FORM = {
 export default function QueueManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
-  const [showRegister, setShowRegister] = useState(false);
-  const [newForm, setNewForm] = useState(EMPTY_FORM);
   const [aptForm, setAptForm] = useState(EMPTY_APT_FORM);
   const [showSchedule, setShowSchedule] = useState(false);
   const [aptSearch, setAptSearch] = useState("");
@@ -89,19 +77,6 @@ export default function QueueManagement() {
     },
   });
 
-  const createPatient = useCreatePatient({
-    mutation: {
-      onSuccess: (patient) => {
-        toast({ title: "File created", description: `${patient.firstName} ${patient.lastName} registered and added to queue.` });
-        checkin.mutate({ id: patient.id });
-        setShowRegister(false);
-        setNewForm(EMPTY_FORM);
-        setSearch("");
-      },
-      onError: () => toast({ title: "Registration failed", variant: "destructive" }),
-    },
-  });
-
   const createAppointment = useCreateAppointment({
     mutation: {
       onSuccess: () => {
@@ -119,21 +94,6 @@ export default function QueueManagement() {
     const interval = setInterval(() => refetchQueue(), 30000);
     return () => clearInterval(interval);
   }, [refetchQueue]);
-
-  const handleRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    createPatient.mutate({
-      firstName: newForm.firstName,
-      lastName: newForm.lastName,
-      hospitalId: newForm.hospitalId || undefined,
-      phone: newForm.phone,
-      whatsappNumber: newForm.whatsappNumber || undefined,
-      email: newForm.email,
-      age: newForm.age ? parseInt(newForm.age) : undefined,
-      gender: newForm.gender || undefined,
-      stage: "Booked",
-    });
-  };
 
   const handleScheduleApt = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,8 +113,6 @@ export default function QueueManagement() {
     setAptSearch("");
   };
 
-  const field = (key: keyof typeof newForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-    setNewForm((f) => ({ ...f, [key]: e.target.value }));
 
   const filteredPatients = search.trim().length >= 2
     ? searchResults.filter((p) => !queue.some((q) => q.patientId === p.id))
@@ -365,7 +323,7 @@ export default function QueueManagement() {
               <Input
                 placeholder="Search by name, hospital ID, phone, or email..."
                 value={search}
-                onChange={(e) => { setSearch(e.target.value); setShowRegister(false); }}
+                onChange={(e) => setSearch(e.target.value)}
               />
               {searching && (
                 <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />
@@ -405,7 +363,7 @@ export default function QueueManagement() {
                       variant="outline"
                       size="sm"
                       className="gap-2"
-                      onClick={() => setShowRegister(true)}
+                      onClick={() => setLocation("/patients/new")}
                     >
                       <UserPlus className="w-4 h-4" />
                       Register New Patient
@@ -415,63 +373,6 @@ export default function QueueManagement() {
               </div>
             )}
 
-            {showRegister && (
-              <form onSubmit={handleRegister} className="border border-border rounded-lg p-4 space-y-3 bg-muted/20">
-                <div>
-                  <p className="font-semibold text-sm">New Patient File</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">They will be added to the queue immediately after registration.</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">First Name *</label>
-                    <Input value={newForm.firstName} onChange={field("firstName")} required />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Last Name *</label>
-                    <Input value={newForm.lastName} onChange={field("lastName")} required />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Hospital ID</label>
-                    <Input value={newForm.hospitalId} onChange={field("hospitalId")} placeholder="e.g. H-00123" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Age</label>
-                    <Input type="number" value={newForm.age} onChange={field("age")} placeholder="e.g. 34" />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Phone *</label>
-                    <Input value={newForm.phone} onChange={field("phone")} required />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">WhatsApp Number</label>
-                    <Input value={newForm.whatsappNumber} onChange={field("whatsappNumber")} placeholder="If different from phone" />
-                  </div>
-                  <div className="space-y-1 col-span-2">
-                    <label className="text-xs text-muted-foreground">Email *</label>
-                    <Input type="email" value={newForm.email} onChange={field("email")} required />
-                  </div>
-                  <div className="space-y-1 col-span-2">
-                    <label className="text-xs text-muted-foreground">Gender</label>
-                    <select
-                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                      value={newForm.gender}
-                      onChange={field("gender")}
-                    >
-                      <option value="">Select</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setShowRegister(false)}>Cancel</Button>
-                  <Button type="submit" size="sm" disabled={createPatient.isPending}>
-                    {createPatient.isPending ? "Creating..." : "Create File & Add to Queue"}
-                  </Button>
-                </div>
-              </form>
-            )}
           </div>
         </div>
       </div>

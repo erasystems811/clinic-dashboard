@@ -35,6 +35,10 @@ externalPort = 8081
 localPort = 20518
 externalPort = 3000
 
+[[ports]]
+localPort = 21064
+externalPort = 3002
+
 [nix]
 channel = "stable-25_05"
 packages = ["zip"]

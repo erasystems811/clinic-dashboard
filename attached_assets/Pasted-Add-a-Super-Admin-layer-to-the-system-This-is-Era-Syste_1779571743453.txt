@@ -1,0 +1,26 @@
+Add a Super Admin layer to the system. This is Era Systems’ own login separate from hospital logins. From here I can create hospital accounts, configure their settings, activate or deactivate their access, and see all hospitals on one dashboard.
+“Build a Super Admin login for Era Systems that is completely separate from all hospital logins. This is my personal login to manage all hospitals on the platform.
+From the Super Admin I need to be able to do the following:
+First, create and manage hospital accounts. I should be able to create a new hospital account by entering the hospital name, assigning them a login username and password, and setting their subscription status as active or inactive. I should be able to deactivate any hospital account instantly which removes their access immediately, and reactivate them when they pay.
+Second, configure each hospital’s settings before handing them access. The configuration should include the following:
+Hospital Profile — hospital name and logo.
+Departments — I select which departments are active for that hospital from these options: Fertility, Surgery, Chronic Disease, Maternity, Pediatrics, Oncology, Physiotherapy, Mental Health, Cardiology, Dental. I can also add a custom department if needed.
+Pipeline Timing — I set how many days after treatment plan ends before patient moves to Post Treatment, and how many days of inactivity before patient moves to Dormant.
+Communication Style — I select the hospital’s language from English, Yoruba, Hausa, Igbo, Pidgin. I select their tone from Formal, Warm, Friendly, Professional. I write a short clinic description that will guide how patient messages are written for that hospital. There should be a sample message preview that updates based on the language, tone and clinic description selected.
+Module Activation — Era Patient has a Core module and two add-on modules. The Core module is always active and cannot be turned off. It includes patient registration, queue management, nurse station, pipeline with all 6 states, patient files and full history, automated state transitions, wellness newsletter, and basic automated messages. The two add-on modules are Appointments and Feedback. I toggle each one on or off per hospital depending on what they have paid for. When Appointments is off the appointments tab does not appear anywhere in that hospital’s login. When Feedback is off the feedback tab does not appear anywhere in that hospital’s login.
+Third, I need a dashboard in Super Admin that shows me all hospitals, their active or inactive status, which modules they have, and when their account was created.
+The Super Admin login should never be visible or accessible from any hospital login. It is a completely separate entry point.”
+
+1. Era Systems Admin (me)
+	∙	You create each hospital account
+	∙	You configure their settings for them
+	∙	You can log them out / deactivate their account if they don’t pay
+	∙	You see all hospitals on your dashboard
+	∙	You control everything
+2. Hospital Admin (my Clients)
+	∙	They log in and use Era Patient
+	∙	They can only see and manage their own hospital
+	∙	They cannot touch other hospitals
+	∙	If you deactivate them they lose access immediately
+
+

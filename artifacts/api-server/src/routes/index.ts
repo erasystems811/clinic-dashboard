@@ -10,6 +10,7 @@ import callTasksRouter from "./call-tasks";
 import departmentsRouter from "./departments";
 import feedbackRouter from "./feedback";
 import wellnessRouter from "./wellness";
+import superAdminRouter from "./super-admin";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(callTasksRouter);
 router.use(departmentsRouter);
 router.use(feedbackRouter);
 router.use(wellnessRouter);
+router.use(superAdminRouter);
 
 export default router;

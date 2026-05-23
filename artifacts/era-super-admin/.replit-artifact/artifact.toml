@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/super-admin/"
+title = "Era Super Admin"
+version = "1.0.0"
+id = "artifacts/era-super-admin"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/super-admin/" ]
+localPort = 21064
+
+[services.development]
+run = "pnpm --filter @workspace/era-super-admin run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/era-super-admin", "run", "build" ]
+publicDir = "artifacts/era-super-admin/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21064"
+BASE_PATH = "/super-admin/"

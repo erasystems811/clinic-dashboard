@@ -7,11 +7,11 @@ import { Layout } from "@/components/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
-import { CheckInFlagModal, FollowUpFlagModal } from "@/components/flag-modals";
+import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
-  ArrowLeft, Phone, Mail, Hash, Calendar, Stethoscope,
+  ArrowLeft, Phone, Mail, Calendar, Stethoscope,
   ClipboardList, PhoneCall, MessageSquare, Bot, Activity,
-  MapPin, Clock, CheckCircle2, AlertTriangle, Flag, CheckCircle,
+  Clock, CheckCircle2, AlertTriangle, Flag,
 } from "lucide-react";
 
 function fmt(iso: string | null | undefined) {
@@ -105,7 +105,6 @@ export default function PatientHistory() {
   const isAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
 
-  const [showCheckIn, setShowCheckIn] = useState(false);
   const [showFollowUp, setShowFollowUp] = useState(false);
 
   const { data, isLoading, error } = useGetPatientHistory(id, {
@@ -182,15 +181,6 @@ export default function PatientHistory() {
               {/* Admin flag actions */}
               {isAdmin && (
                 <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
-                    onClick={() => setShowCheckIn(true)}
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    Flag Check-In
-                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -458,13 +448,6 @@ export default function PatientHistory() {
       </div>
 
       {/* Modals */}
-      {showCheckIn && (
-        <CheckInFlagModal
-          patientId={id}
-          patientName={patientFullName}
-          onClose={() => { setShowCheckIn(false); queryClient.invalidateQueries(); }}
-        />
-      )}
       {showFollowUp && (
         <FollowUpFlagModal
           patientId={id}

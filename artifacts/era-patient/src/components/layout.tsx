@@ -77,7 +77,7 @@ export function Layout({ children }: LayoutProps) {
           <span className="font-bold text-lg tracking-tight">Era Patient</span>
         </div>
 
-        {role === "admin" && (
+        {(role === "admin" || role === "receptionist") && (
           <div className="p-4 shrink-0">
             <Link href="/patients/new">
               <Button className="w-full justify-start gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">

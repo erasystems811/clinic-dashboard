@@ -70,6 +70,7 @@ function ProtectedRouter() {
       {role === "receptionist" && <Route path="/queue" component={QueueManagement} />}
       {role === "receptionist" && <Route path="/call-tasks" component={CallTasks} />}
       {role === "receptionist" && <Route path="/appointments" component={Appointments} />}
+      {role === "receptionist" && <Route path="/patients/new" component={NewPatient} />}
 
       {/* Nurse routes */}
       {role === "nurse" && <Route path="/nurse-station" component={NurseStation} />}

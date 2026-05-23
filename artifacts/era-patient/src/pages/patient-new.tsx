@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useCreatePatient, useListPipelineStages, getListPipelineStagesQueryKey } from "@workspace/api-client-react";
+import { useAuth } from "@/contexts/auth-context";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 export default function NewPatient() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isReceptionist = user?.role === "receptionist";
 
   const { data: stages } = useListPipelineStages({
     query: { queryKey: getListPipelineStagesQueryKey() }
@@ -29,7 +32,6 @@ export default function NewPatient() {
     age: "",
     gender: "",
     stage: "Booked",
-    diagnosis: "",
     notes: "",
   });
 
@@ -61,7 +63,7 @@ export default function NewPatient() {
       {
         onSuccess: (result) => {
           toast({ title: "Patient created", description: "New patient record has been added." });
-          setLocation(`/patients/${result.id}/history`);
+          setLocation(isReceptionist ? "/queue" : `/patients/${result.id}/history`);
         },
         onError: () => {
           toast({ title: "Error", description: "Failed to create patient. Please try again.", variant: "destructive" });

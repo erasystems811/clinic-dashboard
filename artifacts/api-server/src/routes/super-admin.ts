@@ -52,7 +52,7 @@ const CreateHospitalBody = z.object({
   name: z.string().min(1),
   username: z.string().min(3),
   password: z.string().min(6),
-  subscriptionStatus: z.enum(["active", "inactive"]).optional(),
+  subscriptionStatus: z.enum(["active", "trial", "inactive"]).optional(),
 });
 
 router.get("/super-admin/hospitals", requireSuperAdmin, async (_req, res): Promise<void> => {
@@ -109,7 +109,7 @@ router.get("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): Pr
 const UpdateHospitalBody = z.object({
   name: z.string().min(1).optional(),
   active: z.boolean().optional(),
-  subscriptionStatus: z.enum(["active", "inactive"]).optional(),
+  subscriptionStatus: z.enum(["active", "trial", "inactive"]).optional(),
   password: z.string().min(6).optional(),
 });
 

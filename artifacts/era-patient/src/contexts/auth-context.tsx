@@ -1,4 +1,3 @@
-// @refresh reset
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 export type Role = "receptionist" | "nurse" | "admin";

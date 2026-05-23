@@ -7,7 +7,7 @@ import { z } from "zod/v4";
 const router = Router();
 
 // ── Stateless HMAC token auth (survives server restarts) ─────────────────────
-const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const TOKEN_TTL_MS = 365 * 24 * 60 * 60 * 1000; // 1 year
 
 function getSecret(): string {
   return process.env.SUPER_ADMIN_PASSWORD ?? "EraAdmin2024!";

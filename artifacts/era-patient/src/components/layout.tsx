@@ -14,10 +14,11 @@ import {
   Phone,
   Star,
   Newspaper,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useAuth, type Role } from "@/contexts/auth-context";
+import { useAuth, type Role, type HospitalConfig } from "@/contexts/auth-context";
 
 interface LayoutProps {
   children: ReactNode;
@@ -29,29 +30,35 @@ interface NavItem {
   href: string;
 }
 
-function getNavItems(role: Role): NavItem[] {
+function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): NavItem[] {
+  const appt = modules?.appointmentsEnabled ?? true;
+
   if (role === "receptionist") {
-    return [
+    const items: NavItem[] = [
       { icon: ClipboardList, label: "Queue Management", href: "/queue" },
       { icon: Phone, label: "Call Tasks", href: "/call-tasks" },
-      { icon: Calendar, label: "Appointments", href: "/appointments" },
     ];
+    if (appt) items.push({ icon: Calendar, label: "Appointments", href: "/appointments" });
+    return items;
   }
   if (role === "nurse") {
-    return [
-      { icon: Stethoscope, label: "Nurse Station", href: "/nurse-station" },
-    ];
+    return [{ icon: Stethoscope, label: "Nurse Station", href: "/nurse-station" }];
   }
   // admin
-  return [
+  const items: NavItem[] = [
     { icon: Home, label: "Dashboard", href: "/" },
     { icon: Users, label: "Patients", href: "/patients" },
-    { icon: Calendar, label: "Appointments", href: "/appointments" },
+  ];
+  if (appt) items.push({ icon: Calendar, label: "Appointments", href: "/appointments" });
+  items.push(
     { icon: GitBranch, label: "Pipeline", href: "/pipeline" },
     { icon: Activity, label: "Activity", href: "/activity" },
-    { icon: Star, label: "Feedback", href: "/feedback-admin" },
-    { icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" },
-  ];
+  );
+  if (modules?.feedbackEnabled ?? true) {
+    items.push({ icon: Star, label: "Feedback", href: "/feedback-admin" });
+  }
+  items.push({ icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" });
+  return items;
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -62,19 +69,26 @@ const ROLE_LABELS: Record<Role, string> = {
 
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
-  const { user, logout } = useAuth();
+  const { user, hospital, hospitalConfig, logout } = useAuth();
   const role = user?.role ?? "admin";
-  const navItems = getNavItems(role);
+  const navItems = getNavItems(role, hospitalConfig?.modules ?? null);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
       {/* Sidebar */}
       <aside className="w-64 border-r border-border bg-sidebar flex flex-col hidden md:flex shrink-0">
-        <div className="h-16 flex items-center px-6 border-b border-border shrink-0">
-          <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center mr-3">
+        {/* Header — hospital identity */}
+        <div className="h-16 flex items-center px-4 border-b border-border shrink-0 gap-3">
+          <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center shrink-0">
             <Activity className="w-5 h-5 text-primary-foreground" />
           </div>
-          <span className="font-bold text-lg tracking-tight">Era Patient</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm leading-none truncate">{hospital?.name ?? "Era Patient"}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate flex items-center gap-1">
+              <Building2 className="w-3 h-3 shrink-0" />
+              {hospital?.username ?? ""}
+            </p>
+          </div>
         </div>
 
         {(role === "admin" || role === "receptionist") && (
@@ -147,7 +161,7 @@ export function Layout({ children }: LayoutProps) {
             <div className="w-8 h-8 bg-primary rounded-md flex items-center justify-center mr-3">
               <Activity className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="font-bold text-lg tracking-tight">Era Patient</span>
+            <span className="font-bold text-lg tracking-tight">{hospital?.name ?? "Era Patient"}</span>
           </div>
         </header>
 

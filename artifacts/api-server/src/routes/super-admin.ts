@@ -39,6 +39,31 @@ function hashPassword(password: string, salt: string): string {
   return crypto.scryptSync(password, salt, 64).toString("hex");
 }
 
+function signHospitalToken(hospitalId: number): string {
+  const expiry = Date.now() + TOKEN_TTL_MS;
+  const payload = `h:${hospitalId}:${expiry}`;
+  const sig = crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
+}
+
+export function verifyHospitalToken(token: string): number | null {
+  try {
+    const decoded = Buffer.from(token, "base64url").toString("utf8");
+    const lastColon = decoded.lastIndexOf(":");
+    const payload = decoded.slice(0, lastColon);
+    const sig = decoded.slice(lastColon + 1);
+    const parts = payload.split(":");
+    if (parts[0] !== "h") return null;
+    const expiry = parseInt(parts[2], 10);
+    if (Date.now() > expiry) return null;
+    const expected = crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
+    if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
+    return parseInt(parts[1], 10);
+  } catch {
+    return null;
+  }
+}
+
 function parseToneJson(raw: string | null): string[] {
   if (!raw) return [];
   try { return JSON.parse(raw); } catch { return raw ? [raw] : []; }
@@ -263,8 +288,25 @@ router.post("/auth/hospital-login", async (req, res): Promise<void> => {
     id: hospital.id,
     name: hospital.name,
     username: hospital.username,
-    role: "admin",
-    displayName: `${hospital.name} Admin`,
+    token: signHospitalToken(hospital.id),
+  });
+});
+
+// ── Hospital config (used by era-patient after hospital login) ────────────────
+router.get("/hospital/config", async (req, res): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, hospitalId));
+  const [modules] = await db.select().from(hospitalModulesTable).where(eq(hospitalModulesTable.hospitalId, hospitalId));
+
+  res.json({
+    departments: JSON.parse(settings?.departments ?? "[]"),
+    modules: {
+      appointmentsEnabled: modules?.appointmentsEnabled ?? true,
+      feedbackEnabled: modules?.feedbackEnabled ?? true,
+    },
   });
 });
 

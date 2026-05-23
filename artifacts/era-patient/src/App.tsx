@@ -37,13 +37,17 @@ function defaultPathForRole(role: Role): string {
 }
 
 function ProtectedRouter() {
-  const { user } = useAuth();
+  const { hospital, user, hospitalConfig } = useAuth();
 
-  if (!user) {
+  // Not logged into hospital yet — or no role selected yet
+  if (!hospital || !user) {
     return <Login />;
   }
 
   const role = user.role;
+  const modules = hospitalConfig?.modules;
+  const apptEnabled = modules?.appointmentsEnabled ?? true;
+  const feedbackEnabled = modules?.feedbackEnabled ?? true;
 
   return (
     <Switch>
@@ -51,7 +55,7 @@ function ProtectedRouter() {
         <Redirect to={defaultPathForRole(role)} />
       </Route>
 
-      {/* Public feedback form — accessible without auth */}
+      {/* Public feedback form */}
       <Route path="/feedback" component={FeedbackForm} />
 
       {/* Admin routes */}
@@ -60,16 +64,16 @@ function ProtectedRouter() {
       {role === "admin" && <Route path="/patients/new" component={NewPatient} />}
       {role === "admin" && <Route path="/patients/:id/history" component={PatientHistory} />}
       {role === "admin" && <Route path="/patients/:id" component={PatientDetail} />}
-      {role === "admin" && <Route path="/appointments" component={Appointments} />}
+      {role === "admin" && apptEnabled && <Route path="/appointments" component={Appointments} />}
       {role === "admin" && <Route path="/pipeline" component={Pipeline} />}
       {role === "admin" && <Route path="/activity" component={ActivityLog} />}
-      {role === "admin" && <Route path="/feedback-admin" component={FeedbackAdmin} />}
+      {role === "admin" && feedbackEnabled && <Route path="/feedback-admin" component={FeedbackAdmin} />}
       {role === "admin" && <Route path="/wellness" component={WellnessAdmin} />}
 
       {/* Receptionist routes */}
       {role === "receptionist" && <Route path="/queue" component={QueueManagement} />}
       {role === "receptionist" && <Route path="/call-tasks" component={CallTasks} />}
-      {role === "receptionist" && <Route path="/appointments" component={Appointments} />}
+      {role === "receptionist" && apptEnabled && <Route path="/appointments" component={Appointments} />}
       {role === "receptionist" && <Route path="/patients/new" component={NewPatient} />}
 
       {/* Nurse routes */}

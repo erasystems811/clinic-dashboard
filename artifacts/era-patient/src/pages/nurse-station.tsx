@@ -8,12 +8,12 @@ import {
   useListPatients,
   useLogTreatmentPlan,
   useFlagMissedTreatment,
-  useListDepartments,
   getListPatientsQueryKey,
   getListQueueQueryKey,
 } from "@workspace/api-client-react";
+import { useAuth } from "@/contexts/auth-context";
 import type { Patient } from "@workspace/api-client-react";
-import { Search, Stethoscope, Flag, Loader2, CheckCircle, Info, Bot, MessageSquare, PhoneCall } from "lucide-react";
+import { Search, Stethoscope, Flag, Loader2, CheckCircle, Info, Bot, MessageSquare, PhoneCall, Building2 } from "lucide-react";
 
 const FOLLOWUP_TYPES = [
   { value: "automated_message", label: "Automated Message", sub: "AI generates a check-in message", icon: Bot, color: "text-violet-400", active: "border-violet-500 bg-violet-500/10 text-violet-400" },
@@ -65,6 +65,9 @@ export default function NurseStation() {
   const [flagActionType, setFlagActionType] = useState<FollowupType>("manual_call");
   const [form, setForm] = useState<TreatmentForm>(EMPTY_FORM);
 
+  const { hospitalConfig } = useAuth();
+  const departments = hospitalConfig?.departments ?? [];
+
   const { data: searchResults = [], isFetching: searching } = useListPatients(
     { search },
     { enabled: search.trim().length >= 2 }
@@ -73,7 +76,6 @@ export default function NurseStation() {
     { search: flagSearch },
     { enabled: flagSearch.trim().length >= 2 }
   );
-  const { data: departments = [] } = useListDepartments({});
 
   const logPlan = useLogTreatmentPlan({
     mutation: {
@@ -333,7 +335,7 @@ export default function NurseStation() {
                   >
                     <option value="">Select department...</option>
                     {departments.map(d => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
+                      <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
                   {form.department && (

@@ -86,7 +86,7 @@ export default function Login() {
               autoComplete="username"
               value={username}
               onChange={e => setUsername(e.target.value)}
-              placeholder={mode === "admin" ? "Hospital username" : "e.g. GISD NURSE"}
+              placeholder="Username"
               required
             />
           </div>

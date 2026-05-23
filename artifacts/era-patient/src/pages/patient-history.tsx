@@ -204,21 +204,13 @@ export default function PatientHistory() {
               </div>
             </div>
 
-            {/* Diagnosis / Notes */}
-            {(patient.diagnosis || patient.notes) && (
-              <div className="grid md:grid-cols-2 gap-4 pt-4 border-t border-border">
-                {patient.diagnosis && (
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Diagnosis</p>
-                    <p className="text-sm bg-muted/40 border border-border rounded-lg px-3 py-2">{patient.diagnosis}</p>
-                  </div>
-                )}
-                {patient.notes && (
-                  <div className="space-y-1.5">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Clinical Notes</p>
-                    <p className="text-sm bg-muted/40 border border-border rounded-lg px-3 py-2 whitespace-pre-wrap">{patient.notes}</p>
-                  </div>
-                )}
+            {/* Clinical Notes */}
+            {patient.notes && (
+              <div className="pt-4 border-t border-border">
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Clinical Notes</p>
+                  <p className="text-sm bg-muted/40 border border-border rounded-lg px-3 py-2 whitespace-pre-wrap">{patient.notes}</p>
+                </div>
               </div>
             )}
           </div>

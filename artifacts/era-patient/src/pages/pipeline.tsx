@@ -8,8 +8,8 @@ import {
 } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
+import { Building2, Calendar, GitBranch } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { User, Calendar, GitBranch } from "lucide-react";
 import { format } from "date-fns";
 
 export default function Pipeline() {
@@ -83,13 +83,8 @@ export default function Pipeline() {
                         </div>
                         
                         <div className="space-y-2 mt-3">
-                          {patient.diagnosis && (
-                            <div className="text-xs font-medium px-2 py-1 bg-secondary rounded text-secondary-foreground truncate">
-                              {patient.diagnosis}
-                            </div>
-                          )}
                           <div className="flex items-center text-xs text-muted-foreground gap-1.5">
-                            <User className="w-3 h-3" />
+                            <Building2 className="w-3 h-3" />
                             <span className="truncate">{patient.department || 'No department'}</span>
                           </div>
                           {patient.nextAppointment && (

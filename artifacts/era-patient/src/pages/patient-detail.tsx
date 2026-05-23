@@ -240,12 +240,6 @@ export default function PatientDetail() {
                 </div>
               )}
               <div>
-                <h3 className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">Diagnosis</h3>
-                <div className="bg-secondary/30 p-4 rounded-md border border-border text-sm">
-                  {patient.diagnosis || "No diagnosis recorded."}
-                </div>
-              </div>
-              <div>
                 <h3 className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">Clinical Notes</h3>
                 <div className="bg-secondary/30 p-4 rounded-md border border-border min-h-[120px] whitespace-pre-wrap text-sm">
                   {patient.notes || "No notes recorded."}

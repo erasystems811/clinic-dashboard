@@ -3,7 +3,6 @@ import { format, isWithinInterval, subMinutes, addMinutes } from "date-fns";
 import {
   useListAppointments,
   useUpdateAppointment,
-  useCreateAppointment,
   getListAppointmentsQueryKey,
 } from "@workspace/api-client-react";
 import type { Appointment } from "@workspace/api-client-react";
@@ -14,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Calendar, Clock, User, AlertTriangle, RefreshCw, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/auth-context";
 
 const STATUS_STYLES: Record<string, string> = {
   scheduled: "bg-primary/10 text-primary",
@@ -34,10 +34,11 @@ function isUpcomingNow(scheduledAt: string) {
   return isWithinInterval(t, { start: subMinutes(new Date(), 30), end: addMinutes(new Date(), 30) });
 }
 
-function AppointmentCard({ apt, onNoShow, onReschedule }: {
+function AppointmentCard({ apt, onNoShow, onReschedule, showActions }: {
   apt: Appointment;
   onNoShow: (id: number) => void;
   onReschedule: (apt: Appointment) => void;
+  showActions: boolean;
 }) {
   const soon = isUpcomingNow(apt.scheduledAt);
 
@@ -63,11 +64,11 @@ function AppointmentCard({ apt, onNoShow, onReschedule }: {
         <div className="text-sm font-medium text-primary mb-1">{apt.title}</div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{format(new Date(apt.scheduledAt), "h:mm a")} ({apt.duration ?? 30} min)</span>
-          {apt.doctor && <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{apt.doctor}</span>}
+          {apt.department && <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{apt.department}</span>}
         </div>
       </div>
 
-      {apt.status === "scheduled" && (
+      {showActions && apt.status === "scheduled" && (
         <div className="flex gap-2 shrink-0">
           <Button
             variant="outline"
@@ -78,24 +79,16 @@ function AppointmentCard({ apt, onNoShow, onReschedule }: {
             <X className="w-3.5 h-3.5" />
             No Show
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onReschedule(apt)}
-          >
+          <Button variant="outline" size="sm" onClick={() => onReschedule(apt)}>
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
             Reschedule
           </Button>
         </div>
       )}
 
-      {apt.status === "no_show" && (
+      {showActions && apt.status === "no_show" && (
         <div className="flex gap-2 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onReschedule(apt)}
-          >
+          <Button variant="outline" size="sm" onClick={() => onReschedule(apt)}>
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
             Reschedule
           </Button>
@@ -108,6 +101,8 @@ function AppointmentCard({ apt, onNoShow, onReschedule }: {
 export default function Appointments() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isReceptionist = user?.role === "receptionist";
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
@@ -209,7 +204,7 @@ export default function Appointments() {
               <div className="space-y-3">
                 <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Scheduled ({scheduled.length})</h2>
                 {scheduled.map((apt) => (
-                  <AppointmentCard key={apt.id} apt={apt} onNoShow={handleNoShow} onReschedule={setRescheduleTarget} />
+                  <AppointmentCard key={apt.id} apt={apt} onNoShow={handleNoShow} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
                 ))}
               </div>
             )}
@@ -221,7 +216,7 @@ export default function Appointments() {
                   <h2 className="text-sm font-semibold text-destructive uppercase tracking-wide">No Shows ({noShows.length})</h2>
                 </div>
                 {noShows.map((apt) => (
-                  <AppointmentCard key={apt.id} apt={apt} onNoShow={handleNoShow} onReschedule={setRescheduleTarget} />
+                  <AppointmentCard key={apt.id} apt={apt} onNoShow={handleNoShow} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
                 ))}
               </div>
             )}
@@ -230,7 +225,7 @@ export default function Appointments() {
               <div className="space-y-3">
                 <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Rescheduled ({rescheduled.length})</h2>
                 {rescheduled.map((apt) => (
-                  <AppointmentCard key={apt.id} apt={apt} onNoShow={handleNoShow} onReschedule={setRescheduleTarget} />
+                  <AppointmentCard key={apt.id} apt={apt} onNoShow={handleNoShow} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
                 ))}
               </div>
             )}

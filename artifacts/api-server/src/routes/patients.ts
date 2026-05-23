@@ -13,14 +13,16 @@ const ListPatientsQuery = z.object({
 const CreatePatientBody = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  dateOfBirth: z.string().min(1),
+  dateOfBirth: z.string().optional(),
+  hospitalId: z.string().optional(),
   email: z.string().email(),
   phone: z.string().min(1),
+  whatsappNumber: z.string().optional(),
   age: z.number().int().optional(),
   gender: z.string().optional(),
   stage: z.string().optional(),
   diagnosis: z.string().optional(),
-  doctor: z.string().optional(),
+  department: z.string().optional(),
   nextAppointment: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -29,15 +31,22 @@ const UpdatePatientBody = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   dateOfBirth: z.string().optional(),
+  hospitalId: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
+  whatsappNumber: z.string().optional(),
   age: z.number().int().optional(),
   gender: z.string().optional(),
   stage: z.string().optional(),
   diagnosis: z.string().optional(),
-  doctor: z.string().optional(),
+  department: z.string().optional(),
   nextAppointment: z.string().optional(),
   notes: z.string().optional(),
+  treatmentPlan: z.string().optional(),
+  treatmentType: z.string().optional(),
+  medicationTiming: z.string().optional(),
+  treatmentDurationDays: z.number().int().optional(),
+  treatmentEndDate: z.string().optional(),
 });
 
 const TreatmentPlanBody = z.object({
@@ -46,7 +55,7 @@ const TreatmentPlanBody = z.object({
   medicationTiming: z.string().optional(),
   treatmentDurationDays: z.number().int().min(1),
   diagnosis: z.string().optional(),
-  doctor: z.string().optional(),
+  department: z.string().optional(),
 });
 
 const FlagMissedBody = z.object({
@@ -80,6 +89,7 @@ router.get("/patients", async (req, res): Promise<void> => {
         ilike(patientsTable.lastName, term),
         ilike(patientsTable.email, term),
         ilike(patientsTable.phone, term),
+        ilike(patientsTable.hospitalId, term),
       )
     );
   }
@@ -116,6 +126,32 @@ router.get("/patients/:id", async (req, res): Promise<void> => {
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   res.json(serializePatient(patient));
+});
+
+// GET /patients/:id/history — full patient history: activity, appointments, call tasks
+router.get("/patients/:id/history", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
+  if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+
+  const [activity, appointments, callTasks] = await Promise.all([
+    db.select().from(activityTable).where(eq(activityTable.patientId, id)).orderBy(activityTable.createdAt),
+    db.select().from(appointmentsTable).where(eq(appointmentsTable.patientId, id)).orderBy(appointmentsTable.scheduledAt),
+    db.select().from(callTasksTable).where(eq(callTasksTable.patientId, id)).orderBy(callTasksTable.flaggedAt),
+  ]);
+
+  res.json({
+    patient: serializePatient(patient),
+    activity: activity.map(a => ({ ...a, createdAt: a.createdAt.toISOString() })),
+    appointments: appointments.map(a => ({ ...a, duration: a.duration ?? 30 })),
+    callTasks: callTasks.map(t => ({
+      ...t,
+      flaggedAt: t.flaggedAt.toISOString(),
+      completedAt: t.completedAt?.toISOString() ?? null,
+    })),
+  });
 });
 
 router.patch("/patients/:id", async (req, res): Promise<void> => {
@@ -166,8 +202,7 @@ router.delete("/patients/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-// POST /patients/:id/checkin — receptionist checks patient in → saves preQueueStage + adds to queue
-// If patient has an appointment within 30 mins of now, they jump to position 1
+// POST /patients/:id/checkin
 router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -186,7 +221,6 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
 
   const patientName = `${patient.firstName} ${patient.lastName}`;
 
-  // Auto-complete any scheduled appointment for this patient
   const scheduledAppts = await db
     .select()
     .from(appointmentsTable)
@@ -199,22 +233,18 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
     if (appt.status !== "scheduled") continue;
     const apptTime = new Date(appt.scheduledAt);
     const diffMins = (apptTime.getTime() - now.getTime()) / 60000;
-    // Mark as completed (checked in)
     await db.update(appointmentsTable).set({ status: "completed" }).where(eq(appointmentsTable.id, appt.id));
     matchedAppointmentId = appt.id;
-    // Prioritize if appointment is within 30 mins (before or after)
     if (Math.abs(diffMins) <= 30) {
       hasTimedAppointment = true;
     }
   }
 
-  // Get current queue count
   const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(queueTable);
   const currentCount = Number(count);
 
   let position: number;
   if (hasTimedAppointment && currentCount > 0) {
-    // Shift everyone else down by 1 and insert at position 1
     const existing_queue = await db.select().from(queueTable).orderBy(queueTable.position);
     for (const entry of existing_queue) {
       await db.update(queueTable).set({ position: entry.position + 1 }).where(eq(queueTable.id, entry.id));
@@ -227,6 +257,11 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   await db.insert(queueTable).values({
     patientId: patient.id,
     patientName,
+    phone: patient.phone,
+    email: patient.email,
+    whatsappNumber: patient.whatsappNumber ?? undefined,
+    hospitalId: patient.hospitalId ?? undefined,
+    stage: existing.stage,
     position,
     appointmentId: matchedAppointmentId ?? undefined,
   });
@@ -244,7 +279,7 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   res.json(serializePatient(patient));
 });
 
-// POST /patients/:id/dequeue — receptionist removes from queue → restore preQueueStage
+// POST /patients/:id/dequeue — restore previous stage
 router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -252,10 +287,9 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   const [existing] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  // Restore pre-queue stage (if dormant → post_visit logic: use "Post Care")
-  const restoreStage = existing.preQueueStage === "Dormant"
-    ? "Post Care"
-    : (existing.preQueueStage ?? "Booked");
+  // If they were "Booked" before queuing, remove from Booked → go back to Booked
+  // If pre-stage was something else, restore it
+  const restoreStage = existing.preQueueStage ?? "Booked";
 
   const [patient] = await db
     .update(patientsTable)
@@ -263,10 +297,8 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
     .where(eq(patientsTable.id, id))
     .returning();
 
-  // Remove from queue table
   await db.delete(queueTable).where(eq(queueTable.patientId, id));
 
-  // Reorder remaining queue positions
   const remaining = await db.select().from(queueTable).orderBy(queueTable.position);
   for (let i = 0; i < remaining.length; i++) {
     await db.update(queueTable).set({ position: i + 1 }).where(eq(queueTable.id, remaining[i].id));
@@ -274,7 +306,7 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
 
   await db.insert(activityTable).values({
     type: "dequeued",
-    description: `${patient.firstName} ${patient.lastName} removed from queue by receptionist — returned to ${restoreStage}`,
+    description: `${patient.firstName} ${patient.lastName} removed from queue — returned to ${restoreStage}`,
     patientId: patient.id,
     patientName: `${patient.firstName} ${patient.lastName}`,
   });
@@ -282,7 +314,7 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   res.json(serializePatient(patient));
 });
 
-// POST /patients/:id/treatment-plan — nurse logs treatment plan → In Care + reminders
+// POST /patients/:id/treatment-plan
 router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -312,12 +344,11 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
       treatmentStartedAt: now.toISOString(),
       preQueueStage: null,
       ...(parsed.data.diagnosis ? { diagnosis: parsed.data.diagnosis } : {}),
-      ...(parsed.data.doctor ? { doctor: parsed.data.doctor } : {}),
+      ...(parsed.data.department ? { department: parsed.data.department } : {}),
     })
     .where(eq(patientsTable.id, id))
     .returning();
 
-  // Remove from queue if they were queued
   await db.delete(queueTable).where(eq(queueTable.patientId, id));
 
   const patientName = `${patient.firstName} ${patient.lastName}`;
@@ -330,7 +361,6 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
     metadata: parsed.data.treatmentPlan,
   });
 
-  // Schedule 3 reminder entries
   const interval = Math.floor(parsed.data.treatmentDurationDays / 3) || 1;
   const reminders = [1, 2, 3].map((n) => ({
     type: "treatment_reminder",
@@ -344,7 +374,7 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   res.json(serializePatient(patient));
 });
 
-// POST /patients/:id/flag-missed — nurse flags missed treatment → creates call task
+// POST /patients/:id/flag-missed
 router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -362,7 +392,9 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
     patientId: patient.id,
     patientName: `${patient.firstName} ${patient.lastName}`,
     phone: patient.phone,
+    whatsappNumber: patient.whatsappNumber ?? undefined,
     reason: parsed.data.reason,
+    actionType: "manual_call",
   }).returning();
 
   await db.insert(activityTable).values({

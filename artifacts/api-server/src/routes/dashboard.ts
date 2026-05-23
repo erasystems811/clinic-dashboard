@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
-import { sql, gte } from "drizzle-orm";
-import { db, patientsTable, appointmentsTable, pipelineStagesTable } from "@workspace/db";
-import { GetDashboardSummaryResponse } from "@workspace/api-zod";
+import { sql, gte, desc } from "drizzle-orm";
+import { db, patientsTable, appointmentsTable, pipelineStagesTable, feedbackTable, wellnessNewsletterTable, queueTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -63,17 +62,52 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     count: countMap[s.name] ?? 0,
   }));
 
-  // Critical alerts = patients in Queued (waiting to be called in)
   const criticalAlerts = (countMap["Queued"] ?? 0) + (countMap["In Care"] ?? 0);
 
-  res.json(GetDashboardSummaryResponse.parse({
+  // Feedback stats
+  const [feedbackStats] = await db
+    .select({
+      avgRating: sql<number>`round(avg(rating)::numeric, 1)`,
+      total: sql<number>`cast(count(*) as int)`,
+    })
+    .from(feedbackTable);
+
+  // Wellness newsletter last sent
+  const [latestNewsletter] = await db
+    .select()
+    .from(wellnessNewsletterTable)
+    .orderBy(desc(wellnessNewsletterTable.lastSentAt))
+    .limit(1);
+
+  // Average waiting time from queue (checkedInAt vs now for currently queued patients)
+  // Use patientsTable checkedInAt for all currently queued patients
+  const queuedPatients = await db
+    .select({ checkedInAt: patientsTable.checkedInAt })
+    .from(patientsTable)
+    .where(sql`${patientsTable.stage} = 'Queued' AND ${patientsTable.checkedInAt} IS NOT NULL`);
+
+  let avgWaitMinutes = 0;
+  if (queuedPatients.length > 0) {
+    const totalMins = queuedPatients.reduce((sum, p) => {
+      const checkedInAt = p.checkedInAt ? new Date(p.checkedInAt) : null;
+      if (!checkedInAt) return sum;
+      return sum + (now.getTime() - checkedInAt.getTime()) / 60000;
+    }, 0);
+    avgWaitMinutes = Math.round(totalMins / queuedPatients.length);
+  }
+
+  res.json({
     totalPatients: totalResult.count,
     newPatientsThisMonth: newThisMonthResult.count,
     appointmentsToday,
     appointmentsThisWeek,
     criticalAlerts,
     pipelineBreakdown,
-  }));
+    avgFeedbackRating: Number(feedbackStats.avgRating) || 0,
+    totalFeedback: feedbackStats.total,
+    wellnessLastSentAt: latestNewsletter?.lastSentAt?.toISOString() ?? null,
+    avgWaitMinutes,
+  });
 });
 
 export default router;

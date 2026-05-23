@@ -1,17 +1,13 @@
 import { Layout } from "@/components/layout";
-import { 
-  useGetDashboardSummary, 
-  getGetDashboardSummaryQueryKey 
-} from "@workspace/api-client-react";
+import { useGetDashboardSummary, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Users, Calendar, AlertCircle } from "lucide-react";
+import { Activity, Users, Calendar, AlertCircle, Star, Clock, Send } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { format, parseISO } from "date-fns";
 
 export default function Dashboard() {
   const { data: summary, isLoading } = useGetDashboardSummary({
-    query: {
-      queryKey: getGetDashboardSummaryQueryKey()
-    }
+    query: { queryKey: getGetDashboardSummaryQueryKey() }
   });
 
   return (
@@ -19,23 +15,15 @@ export default function Dashboard() {
       <div className="space-y-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Overview of clinic activity and patient pipeline.
-          </p>
+          <p className="text-muted-foreground mt-1">Live overview of clinic activity and patient pipeline.</p>
         </div>
 
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map(i => (
+            {Array.from({ length: 7 }).map((_, i) => (
               <Card key={i}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <Skeleton className="h-4 w-1/2" />
-                  <Skeleton className="h-4 w-4 rounded-full" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-8 w-16 mb-1" />
-                  <Skeleton className="h-3 w-2/3" />
-                </CardContent>
+                <CardHeader className="pb-2"><Skeleton className="h-4 w-1/2" /></CardHeader>
+                <CardContent><Skeleton className="h-8 w-16 mb-1" /><Skeleton className="h-3 w-2/3" /></CardContent>
               </Card>
             ))}
           </div>
@@ -44,9 +32,7 @@ export default function Dashboard() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Total Patients
-                  </CardTitle>
+                  <CardTitle className="text-sm font-medium">Total Patients</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
@@ -56,53 +42,81 @@ export default function Dashboard() {
                   </p>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Appointments Today
-                  </CardTitle>
+                  <CardTitle className="text-sm font-medium">Appointments Today</CardTitle>
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{summary.appointmentsToday}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {summary.appointmentsThisWeek} total this week
-                  </p>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Critical Alerts
-                  </CardTitle>
-                  <AlertCircle className="h-4 w-4 text-destructive" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-destructive">{summary.criticalAlerts}</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Requires immediate attention
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">{summary.appointmentsThisWeek} total this week</p>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    System Status
-                  </CardTitle>
+                  <CardTitle className="text-sm font-medium">Active Patients</CardTitle>
+                  <AlertCircle className="h-4 w-4 text-amber-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-amber-400">{summary.criticalAlerts}</div>
+                  <p className="text-xs text-muted-foreground mt-1">In queue or active care</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Avg Wait Time</CardTitle>
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{summary.avgWaitMinutes ?? 0}<span className="text-sm font-normal ml-1">min</span></div>
+                  <p className="text-xs text-muted-foreground mt-1">Currently queued patients</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Patient Feedback</CardTitle>
+                  <Star className="h-4 w-4 text-amber-400" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {summary.avgFeedbackRating ? Number(summary.avgFeedbackRating).toFixed(1) : "—"}
+                    <span className="text-sm font-normal ml-1 text-muted-foreground">/ 5</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{summary.totalFeedback ?? 0} total responses</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Wellness Newsletter</CardTitle>
+                  <Send className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-sm font-bold">
+                    {summary.wellnessLastSentAt
+                      ? format(parseISO(summary.wellnessLastSentAt), "MMM d, yyyy")
+                      : "Never sent"}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Last delivery date</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">System Status</CardTitle>
                   <Activity className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-green-500">Healthy</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    All services operational
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">All services operational</p>
                 </CardContent>
               </Card>
             </div>
-            
+
             <div className="grid gap-4 md:grid-cols-2">
               <Card className="col-span-2">
                 <CardHeader>
@@ -115,9 +129,12 @@ export default function Dashboard() {
                         <div className="w-32 text-sm font-medium">{stage.name}</div>
                         <div className="flex-1 px-4">
                           <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                            <div 
-                              className="h-full bg-primary" 
-                              style={{ width: `${Math.max(5, (stage.count / summary.totalPatients) * 100)}%`, backgroundColor: stage.color }}
+                            <div
+                              className="h-full"
+                              style={{
+                                width: `${summary.totalPatients > 0 ? Math.max(2, (stage.count / summary.totalPatients) * 100) : 0}%`,
+                                backgroundColor: stage.color
+                              }}
                             />
                           </div>
                         </div>
@@ -130,9 +147,7 @@ export default function Dashboard() {
             </div>
           </>
         ) : (
-          <div className="p-8 text-center text-muted-foreground">
-            Failed to load dashboard data.
-          </div>
+          <div className="p-8 text-center text-muted-foreground">Failed to load dashboard data.</div>
         )}
       </div>
     </Layout>

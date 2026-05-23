@@ -7,10 +7,8 @@
  */
 
 export interface AppointmentUpdate {
-  /** scheduled | completed | no_show | rescheduled */
   status?: string;
   scheduledAt?: string;
   title?: string;
-  doctor?: string;
-  notes?: string;
+  department?: string;
 }

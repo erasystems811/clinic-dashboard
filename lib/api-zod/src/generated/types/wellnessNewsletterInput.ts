@@ -6,10 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface AppointmentInput {
-  patientId: number;
-  title: string;
-  scheduledAt: string;
-  duration?: number;
-  department?: string;
+export interface WellnessNewsletterInput {
+  content: string;
+  weekOf: string;
 }

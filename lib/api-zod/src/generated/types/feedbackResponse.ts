@@ -5,11 +5,10 @@
  * Era Patient - Hospital Patient Management API
  * OpenAPI spec version: 0.1.0
  */
+import type { FeedbackEntry } from './feedbackEntry';
 
-export interface AppointmentInput {
-  patientId: number;
-  title: string;
-  scheduledAt: string;
-  duration?: number;
-  department?: string;
+export interface FeedbackResponse {
+  entries: FeedbackEntry[];
+  avgRating: number;
+  total: number;
 }

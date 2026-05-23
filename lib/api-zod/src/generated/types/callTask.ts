@@ -11,7 +11,11 @@ export interface CallTask {
   patientId: number;
   patientName: string;
   phone: string;
+  /** @nullable */
+  whatsappNumber?: string | null;
   reason: string;
+  /** automated_message | manual_text | manual_call */
+  actionType: string;
   /** @nullable */
   outcome?: string | null;
   /** @nullable */

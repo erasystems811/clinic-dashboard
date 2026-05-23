@@ -7,14 +7,10 @@
  */
 
 export interface TreatmentPlanInput {
-  /** Free-text summary of the treatment plan */
   treatmentPlan: string;
-  /** medication | injection | dressing | monitoring | physical_therapy | combination */
   treatmentType: string;
-  /** Comma-separated timing slots: morning,afternoon,evening,night */
   medicationTiming?: string;
-  /** Duration of treatment in days */
   treatmentDurationDays: number;
   diagnosis?: string;
-  doctor?: string;
+  department?: string;
 }

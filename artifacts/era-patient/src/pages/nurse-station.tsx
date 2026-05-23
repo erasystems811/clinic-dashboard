@@ -8,6 +8,7 @@ import {
   useListPatients,
   useLogTreatmentPlan,
   useFlagMissedTreatment,
+  useListDepartments,
   getListPatientsQueryKey,
   getListQueueQueryKey,
 } from "@workspace/api-client-react";
@@ -15,12 +16,9 @@ import type { Patient } from "@workspace/api-client-react";
 import { Search, Stethoscope, Flag, Loader2, CheckCircle } from "lucide-react";
 
 const TREATMENT_TYPES = [
-  { value: "medication", label: "Medication (self-administered)" },
-  { value: "injection", label: "Injection (clinic visit)" },
-  { value: "dressing", label: "Dressing (clinic visit)" },
-  { value: "monitoring", label: "Monitoring" },
-  { value: "physical_therapy", label: "Physical Therapy" },
-  { value: "combination", label: "Combination" },
+  { value: "medication_only", label: "Medication Only (self-administered)" },
+  { value: "come_to_hospital", label: "Come to Hospital (clinic visit)" },
+  { value: "combination", label: "Combination (medication + clinic)" },
 ];
 
 const TIMING_OPTIONS = [
@@ -36,7 +34,7 @@ interface TreatmentForm {
   medicationTiming: string[];
   treatmentDurationDays: string;
   diagnosis: string;
-  doctor: string;
+  department: string;
 }
 
 export default function NurseStation() {
@@ -54,7 +52,7 @@ export default function NurseStation() {
     medicationTiming: [],
     treatmentDurationDays: "",
     diagnosis: "",
-    doctor: "",
+    department: "",
   });
 
   const { data: searchResults = [], isFetching: searching } = useListPatients(
@@ -67,18 +65,20 @@ export default function NurseStation() {
     { enabled: flagSearch.trim().length >= 2 }
   );
 
+  const { data: departments = [] } = useListDepartments({});
+
   const logPlan = useLogTreatmentPlan({
     mutation: {
       onSuccess: (patient) => {
         toast({
           title: "Treatment plan saved",
-          description: `${patient.firstName} ${patient.lastName} moved to In Care. Reminders scheduled.`,
+          description: `${patient.firstName} ${patient.lastName} moved to In Care.`,
         });
         queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
         setSelectedPatient(null);
         setSearch("");
-        setForm({ treatmentPlan: "", treatmentType: "", medicationTiming: [], treatmentDurationDays: "", diagnosis: "", doctor: "" });
+        setForm({ treatmentPlan: "", treatmentType: "", medicationTiming: [], treatmentDurationDays: "", diagnosis: "", department: "" });
       },
       onError: () => toast({ title: "Failed to save treatment plan", variant: "destructive" }),
     },
@@ -116,7 +116,7 @@ export default function NurseStation() {
         medicationTiming: form.medicationTiming.join(",") || undefined,
         treatmentDurationDays: parseInt(form.treatmentDurationDays),
         diagnosis: form.diagnosis || undefined,
-        doctor: form.doctor || undefined,
+        department: form.department || undefined,
       },
     });
   };
@@ -148,13 +148,11 @@ export default function NurseStation() {
               <div className="space-y-3">
                 <div className="relative">
                   <Input
-                    placeholder="Search patient by name, phone, or email..."
+                    placeholder="Search patient by name, ID, phone, or email..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
-                  {searching && (
-                    <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />
-                  )}
+                  {searching && <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />}
                 </div>
                 {search.trim().length >= 2 && (
                   <div className="space-y-2">
@@ -173,7 +171,10 @@ export default function NurseStation() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
-                            <p className="text-xs text-muted-foreground">{patient.phone} · Stage: {patient.stage}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {patient.hospitalId && <span className="mr-2">ID: {patient.hospitalId}</span>}
+                              {patient.phone} · Stage: {patient.stage}
+                            </p>
                           </div>
                         </button>
                       ))
@@ -189,11 +190,12 @@ export default function NurseStation() {
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-sm">{selectedPatient.firstName} {selectedPatient.lastName}</p>
-                    <p className="text-xs text-muted-foreground">Stage: {selectedPatient.stage} · {selectedPatient.phone}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedPatient.hospitalId && <span className="mr-2">ID: {selectedPatient.hospitalId}</span>}
+                      Stage: {selectedPatient.stage}
+                    </p>
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedPatient(null)}>
-                    Change
-                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedPatient(null)}>Change</Button>
                 </div>
 
                 {selectedPatient.treatmentPlan && (
@@ -232,22 +234,24 @@ export default function NurseStation() {
                   </select>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Medication Timing</label>
-                  <div className="flex flex-wrap gap-2">
-                    {TIMING_OPTIONS.map((t) => (
-                      <label key={t.value} className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 accent-primary"
-                          checked={form.medicationTiming.includes(t.value)}
-                          onChange={() => toggleTiming(t.value)}
-                        />
-                        <span className="text-sm">{t.label}</span>
-                      </label>
-                    ))}
+                {(form.treatmentType === "medication_only" || form.treatmentType === "combination") && (
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Medication Timing</label>
+                    <div className="flex flex-wrap gap-2">
+                      {TIMING_OPTIONS.map((t) => (
+                        <label key={t.value} className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="w-4 h-4 accent-primary"
+                            checked={form.medicationTiming.includes(t.value)}
+                            onChange={() => toggleTiming(t.value)}
+                          />
+                          <span className="text-sm">{t.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Duration (days) *</label>
@@ -271,12 +275,17 @@ export default function NurseStation() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Doctor</label>
-                    <Input
-                      value={form.doctor}
-                      onChange={(e) => setForm((f) => ({ ...f, doctor: e.target.value }))}
-                      placeholder="Optional"
-                    />
+                    <label className="text-sm font-medium">Department</label>
+                    <select
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                      value={form.department}
+                      onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
+                    >
+                      <option value="">Select department</option>
+                      {departments.map((d) => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -307,9 +316,7 @@ export default function NurseStation() {
                     value={flagSearch}
                     onChange={(e) => setFlagSearch(e.target.value)}
                   />
-                  {flagSearching && (
-                    <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />
-                  )}
+                  {flagSearching && <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />}
                 </div>
                 {flagSearch.trim().length >= 2 && (
                   <div className="space-y-2">
@@ -348,9 +355,7 @@ export default function NurseStation() {
                     <p className="font-semibold text-sm">{flaggedPatient.firstName} {flaggedPatient.lastName}</p>
                     <p className="text-xs text-muted-foreground">{flaggedPatient.phone}</p>
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setFlaggedPatient(null)}>
-                    Change
-                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setFlaggedPatient(null)}>Change</Button>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Reason for flag *</label>

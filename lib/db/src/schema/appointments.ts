@@ -9,7 +9,7 @@ export const appointmentsTable = pgTable("appointments", {
   title: text("title").notNull(),
   scheduledAt: text("scheduled_at").notNull(),
   duration: integer("duration").default(30),
-  doctor: text("doctor"),
+  department: text("department"),
   status: text("status").notNull().default("scheduled"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -7,7 +7,7 @@ export const patientsTable = pgTable("patients", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   dateOfBirth: text("date_of_birth"),
-  nationalId: text("national_id"),
+  hospitalId: text("hospital_id"),
   email: text("email").notNull(),
   phone: text("phone").notNull(),
   whatsappNumber: text("whatsapp_number"),
@@ -16,7 +16,7 @@ export const patientsTable = pgTable("patients", {
   stage: text("stage").notNull().default("Booked"),
   preQueueStage: text("pre_queue_stage"),
   diagnosis: text("diagnosis"),
-  doctor: text("doctor"),
+  department: text("department"),
   nextAppointment: text("next_appointment"),
   notes: text("notes"),
   treatmentPlan: text("treatment_plan"),
@@ -49,6 +49,11 @@ export const queueTable = pgTable("queue", {
   id: serial("id").primaryKey(),
   patientId: integer("patient_id").notNull(),
   patientName: text("patient_name").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  whatsappNumber: text("whatsapp_number"),
+  hospitalId: text("hospital_id"),
+  stage: text("stage"),
   position: integer("position").notNull(),
   appointmentId: integer("appointment_id"),
   addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
@@ -63,7 +68,9 @@ export const callTasksTable = pgTable("call_tasks", {
   patientId: integer("patient_id").notNull(),
   patientName: text("patient_name").notNull(),
   phone: text("phone").notNull(),
+  whatsappNumber: text("whatsapp_number"),
   reason: text("reason").notNull(),
+  actionType: text("action_type").notNull().default("manual_call"),
   outcome: text("outcome"),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   flaggedAt: timestamp("flagged_at", { withTimezone: true }).notNull().defaultNow(),
@@ -72,3 +79,38 @@ export const callTasksTable = pgTable("call_tasks", {
 export const insertCallTaskSchema = createInsertSchema(callTasksTable).omit({ id: true, flaggedAt: true });
 export type InsertCallTask = z.infer<typeof insertCallTaskSchema>;
 export type CallTask = typeof callTasksTable.$inferSelect;
+
+export const departmentsTable = pgTable("departments", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertDepartmentSchema = createInsertSchema(departmentsTable).omit({ id: true, createdAt: true });
+export type InsertDepartment = z.infer<typeof insertDepartmentSchema>;
+export type Department = typeof departmentsTable.$inferSelect;
+
+export const feedbackTable = pgTable("feedback", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id"),
+  patientName: text("patient_name"),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const insertFeedbackSchema = createInsertSchema(feedbackTable).omit({ id: true, submittedAt: true });
+export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
+export type Feedback = typeof feedbackTable.$inferSelect;
+
+export const wellnessNewsletterTable = pgTable("wellness_newsletter", {
+  id: serial("id").primaryKey(),
+  weekOf: text("week_of").notNull(),
+  content: text("content").notNull(),
+  lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const insertWellnessNewsletterSchema = createInsertSchema(wellnessNewsletterTable).omit({ id: true, updatedAt: true });
+export type InsertWellnessNewsletter = z.infer<typeof insertWellnessNewsletterSchema>;
+export type WellnessNewsletter = typeof wellnessNewsletterTable.$inferSelect;

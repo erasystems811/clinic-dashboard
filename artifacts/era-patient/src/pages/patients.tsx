@@ -1,41 +1,14 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { format } from "date-fns";
-import { 
-  useListPatients, 
-  getListPatientsQueryKey,
-  useListPipelineStages,
-  getListPipelineStagesQueryKey
-} from "@workspace/api-client-react";
+import { useListPatients, getListPatientsQueryKey, useListPipelineStages, getListPipelineStagesQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Filter, MoreHorizontal } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Patients() {
   const [search, setSearch] = useState("");
@@ -56,9 +29,7 @@ export default function Patients() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Patients</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage and view all patient records.
-            </p>
+            <p className="text-muted-foreground mt-1">Click any patient to open their full file.</p>
           </div>
           <Link href="/patients/new">
             <Button className="gap-2">
@@ -72,7 +43,7 @@ export default function Patients() {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by name, email, or phone..."
+              placeholder="Search by name, ID, email, or phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
@@ -99,12 +70,12 @@ export default function Patients() {
             <Table>
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead>Patient</TableHead>
+                  <TableHead>Hospital ID</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Stage</TableHead>
-                  <TableHead>Next Appt</TableHead>
-                  <TableHead>Doctor</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -112,11 +83,11 @@ export default function Patients() {
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
                       <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                      <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                       <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                      <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto rounded-md" /></TableCell>
+                      <TableCell></TableCell>
                     </TableRow>
                   ))
                 ) : patients?.length === 0 ? (
@@ -128,16 +99,22 @@ export default function Patients() {
                 ) : (
                   patients?.map((patient) => {
                     const stageColor = stages?.find(s => s.name === patient.stage)?.color || "gray";
-                    
                     return (
-                      <TableRow key={patient.id} className="group">
+                      <TableRow
+                        key={patient.id}
+                        className="cursor-pointer hover:bg-muted/30 group"
+                        onClick={() => window.location.href = `${import.meta.env.BASE_URL}patients/${patient.id}/history`.replace('//', '/')}
+                      >
                         <TableCell className="font-medium">
-                          <Link href={`/patients/${patient.id}`} className="hover:underline flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs border border-border">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs border border-border shrink-0">
                               {patient.firstName[0]}{patient.lastName[0]}
                             </div>
-                            {patient.firstName} {patient.lastName}
-                          </Link>
+                            <span>{patient.firstName} {patient.lastName}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm font-mono">
+                          {patient.hospitalId || <span className="opacity-40">—</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">
@@ -146,39 +123,16 @@ export default function Patients() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge 
-                            variant="outline" 
-                            style={{ 
-                              borderColor: stageColor,
-                              color: stageColor,
-                              backgroundColor: `${stageColor}15`
-                            }}
+                          <Badge
+                            variant="outline"
+                            style={{ borderColor: stageColor, color: stageColor, backgroundColor: `${stageColor}15` }}
                           >
                             {patient.stage}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {patient.nextAppointment ? format(new Date(patient.nextAppointment), "MMM d, yyyy") : "-"}
-                        </TableCell>
-                        <TableCell>{patient.doctor || "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <Link href={`/patients/${patient.id}`}>
-                                <DropdownMenuItem className="cursor-pointer">View profile</DropdownMenuItem>
-                              </Link>
-                              <DropdownMenuItem>Schedule appointment</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive">Delete patient</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                        <TableCell className="text-muted-foreground text-sm">{patient.department || "—"}</TableCell>
+                        <TableCell>
+                          <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                         </TableCell>
                       </TableRow>
                     );

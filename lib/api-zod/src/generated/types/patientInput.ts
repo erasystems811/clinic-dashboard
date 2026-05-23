@@ -10,7 +10,7 @@ export interface PatientInput {
   firstName: string;
   lastName: string;
   dateOfBirth?: string;
-  nationalId?: string;
+  hospitalId?: string;
   email: string;
   phone: string;
   whatsappNumber?: string;
@@ -18,7 +18,7 @@ export interface PatientInput {
   gender?: string;
   stage?: string;
   diagnosis?: string;
-  doctor?: string;
+  department?: string;
   nextAppointment?: string;
   notes?: string;
 }

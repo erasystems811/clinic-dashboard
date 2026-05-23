@@ -12,6 +12,8 @@ import {
   ClipboardList,
   Stethoscope,
   Phone,
+  Star,
+  Newspaper,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,8 @@ function getNavItems(role: Role): NavItem[] {
     { icon: Calendar, label: "Appointments", href: "/appointments" },
     { icon: GitBranch, label: "Pipeline", href: "/pipeline" },
     { icon: Activity, label: "Activity", href: "/activity" },
+    { icon: Star, label: "Feedback", href: "/feedback-admin" },
+    { icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" },
   ];
 }
 

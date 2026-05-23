@@ -10,11 +10,14 @@ import {
   useCheckinPatient,
   useDequeuePatient,
   useCreatePatient,
+  useCreateAppointment,
+  useListDepartments,
   getListQueueQueryKey,
   getListPatientsQueryKey,
   getListAppointmentsQueryKey,
 } from "@workspace/api-client-react";
-import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star } from "lucide-react";
+import type { Patient } from "@workspace/api-client-react";
+import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star, CalendarPlus, X } from "lucide-react";
 
 function waitTime(addedAt: string) {
   const diff = Math.floor((Date.now() - new Date(addedAt).getTime()) / 60000);
@@ -26,12 +29,22 @@ function waitTime(addedAt: string) {
 const EMPTY_FORM = {
   firstName: "",
   lastName: "",
-  nationalId: "",
+  hospitalId: "",
   phone: "",
   whatsappNumber: "",
   email: "",
   age: "",
   gender: "",
+};
+
+const EMPTY_APT_FORM = {
+  patientId: 0,
+  patientName: "",
+  title: "",
+  date: "",
+  time: "",
+  department: "",
+  duration: "30",
 };
 
 export default function QueueManagement() {
@@ -40,17 +53,25 @@ export default function QueueManagement() {
   const [search, setSearch] = useState("");
   const [showRegister, setShowRegister] = useState(false);
   const [newForm, setNewForm] = useState(EMPTY_FORM);
+  const [aptForm, setAptForm] = useState(EMPTY_APT_FORM);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [aptSearch, setAptSearch] = useState("");
 
   const { data: queue = [], refetch: refetchQueue, isLoading: queueLoading } = useListQueue();
   const { data: searchResults = [], isFetching: searching } = useListPatients(
     { search },
     { enabled: search.trim().length >= 2 }
   );
+  const { data: aptSearchResults = [], isFetching: aptSearching } = useListPatients(
+    { search: aptSearch },
+    { enabled: aptSearch.trim().length >= 2 }
+  );
+  const { data: departments = [] } = useListDepartments({});
 
   const checkin = useCheckinPatient({
     mutation: {
       onSuccess: (patient) => {
-        toast({ title: "Patient added to queue", description: `${patient.firstName} ${patient.lastName} is now queued.` });
+        toast({ title: "Added to queue", description: `${patient.firstName} ${patient.lastName} is now queued.` });
         queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
@@ -63,11 +84,11 @@ export default function QueueManagement() {
   const dequeue = useDequeuePatient({
     mutation: {
       onSuccess: (patient) => {
-        toast({ title: "Patient removed from queue", description: `${patient.firstName} ${patient.lastName} returned to ${patient.stage}.` });
+        toast({ title: "Removed from queue", description: `${patient.firstName} ${patient.lastName} returned to ${patient.stage}.` });
         queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
       },
-      onError: () => toast({ title: "Failed to remove from queue", variant: "destructive" }),
+      onError: () => toast({ title: "Failed to remove", variant: "destructive" }),
     },
   });
 
@@ -84,6 +105,19 @@ export default function QueueManagement() {
     },
   });
 
+  const createAppointment = useCreateAppointment({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Appointment scheduled" });
+        queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+        setShowSchedule(false);
+        setAptForm(EMPTY_APT_FORM);
+        setAptSearch("");
+      },
+      onError: () => toast({ title: "Failed to schedule", variant: "destructive" }),
+    },
+  });
+
   useEffect(() => {
     const interval = setInterval(() => refetchQueue(), 30000);
     return () => clearInterval(interval);
@@ -94,7 +128,7 @@ export default function QueueManagement() {
     createPatient.mutate({
       firstName: newForm.firstName,
       lastName: newForm.lastName,
-      nationalId: newForm.nationalId || undefined,
+      hospitalId: newForm.hospitalId || undefined,
       phone: newForm.phone,
       whatsappNumber: newForm.whatsappNumber || undefined,
       email: newForm.email,
@@ -104,10 +138,28 @@ export default function QueueManagement() {
     });
   };
 
+  const handleScheduleApt = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aptForm.patientId || !aptForm.title || !aptForm.date || !aptForm.time) return;
+    createAppointment.mutate({
+      data: {
+        patientId: aptForm.patientId,
+        title: aptForm.title,
+        scheduledAt: `${aptForm.date}T${aptForm.time}:00`,
+        duration: parseInt(aptForm.duration) || 30,
+        department: aptForm.department || undefined,
+      },
+    });
+  };
+
+  const selectAptPatient = (p: Patient) => {
+    setAptForm(f => ({ ...f, patientId: p.id, patientName: `${p.firstName} ${p.lastName}` }));
+    setAptSearch("");
+  };
+
   const field = (key: keyof typeof newForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setNewForm((f) => ({ ...f, [key]: e.target.value }));
 
-  // Filter out already-queued patients
   const filteredPatients = search.trim().length >= 2
     ? searchResults.filter((p) => !queue.some((q) => q.patientId === p.id))
     : [];
@@ -120,11 +172,137 @@ export default function QueueManagement() {
             <h1 className="text-2xl font-bold tracking-tight">Queue Management</h1>
             <p className="text-muted-foreground text-sm mt-0.5">Live patient queue — auto-refreshes every 30 seconds</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => refetchQueue()} className="gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowSchedule(true)} className="gap-2">
+              <CalendarPlus className="w-4 h-4" />
+              Schedule Appointment
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => refetchQueue()} className="gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
+
+        {/* Schedule Appointment Modal */}
+        {showSchedule && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <form onSubmit={handleScheduleApt} className="bg-card border border-border rounded-xl p-6 w-full max-w-md space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold text-lg">Schedule Appointment</h2>
+                <button type="button" onClick={() => { setShowSchedule(false); setAptForm(EMPTY_APT_FORM); setAptSearch(""); }}>
+                  <X className="w-5 h-5 text-muted-foreground" />
+                </button>
+              </div>
+
+              {/* Patient search */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Patient *</label>
+                {aptForm.patientId ? (
+                  <div className="flex items-center gap-3 p-3 rounded-md border border-primary/30 bg-primary/5">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-xs flex items-center justify-center shrink-0">
+                      {aptForm.patientName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    </div>
+                    <span className="flex-1 text-sm font-medium">{aptForm.patientName}</span>
+                    <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setAptForm(f => ({ ...f, patientId: 0, patientName: "" }))}>
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Input
+                        placeholder="Search patient by name, ID, or phone..."
+                        value={aptSearch}
+                        onChange={(e) => setAptSearch(e.target.value)}
+                      />
+                      {aptSearching && <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />}
+                    </div>
+                    {aptSearch.trim().length >= 2 && aptSearchResults.length > 0 && (
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {aptSearchResults.map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => selectAptPatient(p)}
+                            className="w-full flex items-center gap-3 p-2.5 rounded-md border border-border bg-muted/30 hover:bg-muted/60 text-left text-sm"
+                          >
+                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0">
+                              {p.firstName[0]}{p.lastName[0]}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium">{p.firstName} {p.lastName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {p.hospitalId && <span className="mr-2">ID: {p.hospitalId}</span>}
+                                {p.stage}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Appointment Title *</label>
+                <Input
+                  placeholder="e.g. Follow-up Consultation"
+                  value={aptForm.title}
+                  onChange={(e) => setAptForm(f => ({ ...f, title: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Date *</label>
+                  <Input type="date" value={aptForm.date} onChange={(e) => setAptForm(f => ({ ...f, date: e.target.value }))} required />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Time *</label>
+                  <Input type="time" value={aptForm.time} onChange={(e) => setAptForm(f => ({ ...f, time: e.target.value }))} required />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Department</label>
+                  <select
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={aptForm.department}
+                    onChange={(e) => setAptForm(f => ({ ...f, department: e.target.value }))}
+                  >
+                    <option value="">Select dept.</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Duration (min)</label>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={180}
+                    value={aptForm.duration}
+                    onChange={(e) => setAptForm(f => ({ ...f, duration: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-1">
+                <Button type="button" variant="outline" onClick={() => { setShowSchedule(false); setAptForm(EMPTY_APT_FORM); setAptSearch(""); }}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={createAppointment.isPending || !aptForm.patientId}>
+                  {createAppointment.isPending ? "Scheduling..." : "Confirm Appointment"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Live Queue */}
         <div className="rounded-lg border border-border bg-card">
@@ -150,7 +328,7 @@ export default function QueueManagement() {
                     {entry.position}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium text-sm leading-none">{entry.patientName}</p>
                       {entry.appointmentId && (
                         <span className="flex items-center gap-1 text-xs text-amber-400 font-medium">
@@ -159,9 +337,11 @@ export default function QueueManagement() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1">
-                      {entry.phone && <span className="text-xs text-muted-foreground">{entry.phone}</span>}
-                      {entry.email && <span className="text-xs text-muted-foreground">{entry.email}</span>}
+                    <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-muted-foreground">
+                      {entry.hospitalId && <span className="font-mono">ID: {entry.hospitalId}</span>}
+                      {entry.stage && <span>was: {entry.stage}</span>}
+                      {entry.email && <span>{entry.email}</span>}
+                      {entry.whatsappNumber && <span>WA: {entry.whatsappNumber}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
@@ -182,7 +362,7 @@ export default function QueueManagement() {
                         }
                       }}
                     />
-                    <span className="text-xs text-muted-foreground">Doctor called in</span>
+                    <span className="text-xs text-muted-foreground">Called in</span>
                   </label>
                 </div>
               ))}
@@ -197,20 +377,18 @@ export default function QueueManagement() {
             <span className="font-semibold text-sm">Add Patient to Queue</span>
           </div>
           <div className="p-4 space-y-4">
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">
-                Search for an existing patient to add to the queue, or create a new patient file for first-time visitors.
-              </p>
-              <div className="relative">
-                <Input
-                  placeholder="Search by name, phone, or email..."
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setShowRegister(false); }}
-                />
-                {searching && (
-                  <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />
-                )}
-              </div>
+            <p className="text-xs text-muted-foreground">
+              Search for an existing patient, or register a new file for first-time visitors.
+            </p>
+            <div className="relative">
+              <Input
+                placeholder="Search by name, hospital ID, phone, or email..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setShowRegister(false); }}
+              />
+              {searching && (
+                <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />
+              )}
             </div>
 
             {search.trim().length >= 2 && (
@@ -223,14 +401,12 @@ export default function QueueManagement() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="text-xs text-muted-foreground">{patient.phone}</span>
-                          {patient.email && <span className="text-xs text-muted-foreground">· {patient.email}</span>}
-                          {patient.nationalId && <span className="text-xs text-muted-foreground">· ID: {patient.nationalId}</span>}
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
+                          {patient.hospitalId && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">ID: {patient.hospitalId}</span>}
+                          <span>{patient.stage}</span>
+                          <span>{patient.email}</span>
+                          {patient.whatsappNumber && <span>WA: {patient.whatsappNumber}</span>}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Stage: <span className="font-medium text-foreground">{patient.stage}</span>
-                        </p>
                       </div>
                       <Button
                         size="sm"
@@ -244,7 +420,6 @@ export default function QueueManagement() {
                 ) : (
                   <div className="text-center py-4 space-y-2">
                     <p className="text-sm text-muted-foreground">No patient found for "{search}"</p>
-                    <p className="text-xs text-muted-foreground">First-time patient? Create their file below.</p>
                     <Button
                       variant="outline"
                       size="sm"
@@ -252,7 +427,7 @@ export default function QueueManagement() {
                       onClick={() => setShowRegister(true)}
                     >
                       <UserPlus className="w-4 h-4" />
-                      Create Patient File
+                      Register New Patient
                     </Button>
                   </div>
                 )}
@@ -263,7 +438,7 @@ export default function QueueManagement() {
               <form onSubmit={handleRegister} className="border border-border rounded-lg p-4 space-y-3 bg-muted/20">
                 <div>
                   <p className="font-semibold text-sm">New Patient File</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Fill in the patient's details to create their file. They will be added to the queue immediately after.</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">They will be added to the queue immediately after registration.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
@@ -275,15 +450,15 @@ export default function QueueManagement() {
                     <Input value={newForm.lastName} onChange={field("lastName")} required />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">National ID</label>
-                    <Input value={newForm.nationalId} onChange={field("nationalId")} placeholder="e.g. 1234567890" />
+                    <label className="text-xs text-muted-foreground">Hospital ID</label>
+                    <Input value={newForm.hospitalId} onChange={field("hospitalId")} placeholder="e.g. H-00123" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">Age</label>
                     <Input type="number" value={newForm.age} onChange={field("age")} placeholder="e.g. 34" />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Phone Number *</label>
+                    <label className="text-xs text-muted-foreground">Phone *</label>
                     <Input value={newForm.phone} onChange={field("phone")} required />
                   </div>
                   <div className="space-y-1">

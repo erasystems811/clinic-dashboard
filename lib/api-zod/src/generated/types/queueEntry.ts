@@ -17,5 +17,11 @@ export interface QueueEntry {
   /** @nullable */
   email?: string | null;
   /** @nullable */
+  whatsappNumber?: string | null;
+  /** @nullable */
+  hospitalId?: string | null;
+  /** @nullable */
   stage?: string | null;
+  /** @nullable */
+  appointmentId?: number | null;
 }

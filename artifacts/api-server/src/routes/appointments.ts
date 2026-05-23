@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, ne, sql } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 import { db, appointmentsTable, activityTable, callTasksTable, patientsTable } from "@workspace/db";
 import { z } from "zod/v4";
 
@@ -16,7 +16,7 @@ const CreateAppointmentBody = z.object({
   title: z.string().min(1),
   scheduledAt: z.string().min(1),
   duration: z.number().int().optional(),
-  doctor: z.string().optional(),
+  department: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -24,7 +24,7 @@ const UpdateAppointmentBody = z.object({
   status: z.string().optional(),
   scheduledAt: z.string().optional(),
   title: z.string().optional(),
-  doctor: z.string().optional(),
+  department: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -41,7 +41,6 @@ router.get("/appointments", async (req, res): Promise<void> => {
 
   let dbQuery = db.select().from(appointmentsTable).$dynamic();
 
-  // By default exclude completed appointments; only show scheduled + no_show + rescheduled
   if (query.data.status) {
     dbQuery = dbQuery.where(eq(appointmentsTable.status, query.data.status));
   } else {
@@ -63,7 +62,6 @@ router.post("/appointments", async (req, res): Promise<void> => {
     return;
   }
 
-  // Look up patient name
   const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, parsed.data.patientId));
   const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "Unknown";
 
@@ -83,7 +81,6 @@ router.post("/appointments", async (req, res): Promise<void> => {
   res.status(201).json(serializeAppointment(appt));
 });
 
-// PATCH /appointments/:id — update status (no_show, completed, rescheduled, scheduled)
 router.patch("/appointments/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -102,15 +99,16 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
 
   if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
 
-  // If marking no_show → create a call task
   if (parsed.data.status === "no_show") {
     const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, appt.patientId));
     if (patient) {
       await db.insert(callTasksTable).values({
         patientId: patient.id,
         patientName: `${patient.firstName} ${patient.lastName}`,
-        phone: patient.whatsappNumber ?? patient.phone,
+        phone: patient.phone,
+        whatsappNumber: patient.whatsappNumber ?? undefined,
         reason: `No-show for appointment: ${appt.title} on ${new Date(appt.scheduledAt).toLocaleDateString()}`,
+        actionType: "manual_call",
       });
     }
 
@@ -123,7 +121,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
     });
   }
 
-  if (parsed.data.status === "rescheduled") {
+  if (parsed.data.status === "rescheduled" || (parsed.data.scheduledAt && !parsed.data.status)) {
     await db.insert(activityTable).values({
       type: "appointment_rescheduled",
       description: `Appointment rescheduled for ${appt.patientName}: ${appt.title}`,

@@ -14,4 +14,12 @@ export interface DashboardSummary {
   appointmentsThisWeek: number;
   criticalAlerts: number;
   pipelineBreakdown: PipelineStage[];
+  /** @nullable */
+  avgFeedbackRating?: number | null;
+  /** @nullable */
+  totalFeedback?: number | null;
+  /** @nullable */
+  wellnessLastSentAt?: string | null;
+  /** @nullable */
+  avgWaitMinutes?: number | null;
 }

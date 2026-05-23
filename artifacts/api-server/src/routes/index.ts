@@ -7,6 +7,9 @@ import dashboardRouter from "./dashboard";
 import activityRouter from "./activity";
 import queueRouter from "./queue";
 import callTasksRouter from "./call-tasks";
+import departmentsRouter from "./departments";
+import feedbackRouter from "./feedback";
+import wellnessRouter from "./wellness";
 
 const router: IRouter = Router();
 
@@ -18,5 +21,8 @@ router.use(dashboardRouter);
 router.use(activityRouter);
 router.use(queueRouter);
 router.use(callTasksRouter);
+router.use(departmentsRouter);
+router.use(feedbackRouter);
+router.use(wellnessRouter);
 
 export default router;

@@ -16,7 +16,7 @@ export interface Patient {
   /** @nullable */
   dateOfBirth?: string | null;
   /** @nullable */
-  nationalId?: string | null;
+  hospitalId?: string | null;
   email: string;
   phone: string;
   /** @nullable */
@@ -25,14 +25,13 @@ export interface Patient {
   age?: number | null;
   /** @nullable */
   gender?: string | null;
-  /** Booked | Queued | In Care | Post Treatment | Post Care | Dormant */
   stage: string;
   /** @nullable */
   preQueueStage?: string | null;
   /** @nullable */
   diagnosis?: string | null;
   /** @nullable */
-  doctor?: string | null;
+  department?: string | null;
   /** @nullable */
   nextAppointment?: string | null;
   /** @nullable */
@@ -60,7 +59,7 @@ export interface PatientInput {
   firstName: string;
   lastName: string;
   dateOfBirth?: string;
-  nationalId?: string;
+  hospitalId?: string;
   email: string;
   phone: string;
   whatsappNumber?: string;
@@ -68,7 +67,7 @@ export interface PatientInput {
   gender?: string;
   stage?: string;
   diagnosis?: string;
-  doctor?: string;
+  department?: string;
   nextAppointment?: string;
   notes?: string;
 }
@@ -77,7 +76,7 @@ export interface PatientUpdate {
   firstName?: string;
   lastName?: string;
   dateOfBirth?: string;
-  nationalId?: string;
+  hospitalId?: string;
   email?: string;
   phone?: string;
   whatsappNumber?: string;
@@ -85,22 +84,67 @@ export interface PatientUpdate {
   gender?: string;
   stage?: string;
   diagnosis?: string;
-  doctor?: string;
+  department?: string;
   nextAppointment?: string;
   notes?: string;
 }
 
+export interface ActivityItem {
+  id: number;
+  type: string;
+  description: string;
+  /** @nullable */
+  patientId?: number | null;
+  /** @nullable */
+  patientName?: string | null;
+  createdAt: string;
+  /** @nullable */
+  metadata?: string | null;
+}
+
+export interface Appointment {
+  id: number;
+  patientId: number;
+  patientName: string;
+  title: string;
+  scheduledAt: string;
+  duration?: number;
+  /** @nullable */
+  department?: string | null;
+  status: string;
+}
+
+export interface CallTask {
+  id: number;
+  patientId: number;
+  patientName: string;
+  phone: string;
+  /** @nullable */
+  whatsappNumber?: string | null;
+  reason: string;
+  /** automated_message | manual_text | manual_call */
+  actionType: string;
+  /** @nullable */
+  outcome?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  flaggedAt: string;
+}
+
+export interface PatientHistory {
+  patient: Patient;
+  activity: ActivityItem[];
+  appointments: Appointment[];
+  callTasks: CallTask[];
+}
+
 export interface TreatmentPlanInput {
-  /** Free-text summary of the treatment plan */
   treatmentPlan: string;
-  /** medication | injection | dressing | monitoring | physical_therapy | combination */
   treatmentType: string;
-  /** Comma-separated timing slots: morning,afternoon,evening,night */
   medicationTiming?: string;
-  /** Duration of treatment in days */
   treatmentDurationDays: number;
   diagnosis?: string;
-  doctor?: string;
+  department?: string;
 }
 
 export interface FlagMissedInput {
@@ -118,24 +162,22 @@ export interface QueueEntry {
   /** @nullable */
   email?: string | null;
   /** @nullable */
+  whatsappNumber?: string | null;
+  /** @nullable */
+  hospitalId?: string | null;
+  /** @nullable */
   stage?: string | null;
-}
-
-export interface CallTask {
-  id: number;
-  patientId: number;
-  patientName: string;
-  phone: string;
-  reason: string;
   /** @nullable */
-  outcome?: string | null;
-  /** @nullable */
-  completedAt?: string | null;
-  flaggedAt: string;
+  appointmentId?: number | null;
 }
 
 export interface CallOutcomeInput {
   outcome: string;
+}
+
+export interface CallTaskActionInput {
+  /** automated_message | manual_text | manual_call */
+  actionType: string;
 }
 
 export interface PipelineStage {
@@ -146,36 +188,19 @@ export interface PipelineStage {
   order: number;
 }
 
-export interface Appointment {
-  id: number;
-  patientId: number;
-  patientName: string;
-  title: string;
-  scheduledAt: string;
-  duration?: number;
-  /** @nullable */
-  doctor?: string | null;
-  status: string;
-  /** @nullable */
-  notes?: string | null;
-}
-
 export interface AppointmentInput {
   patientId: number;
   title: string;
   scheduledAt: string;
   duration?: number;
-  doctor?: string;
-  notes?: string;
+  department?: string;
 }
 
 export interface AppointmentUpdate {
-  /** scheduled | completed | no_show | rescheduled */
   status?: string;
   scheduledAt?: string;
   title?: string;
-  doctor?: string;
-  notes?: string;
+  department?: string;
 }
 
 export interface DashboardSummary {
@@ -185,19 +210,63 @@ export interface DashboardSummary {
   appointmentsThisWeek: number;
   criticalAlerts: number;
   pipelineBreakdown: PipelineStage[];
+  /** @nullable */
+  avgFeedbackRating?: number | null;
+  /** @nullable */
+  totalFeedback?: number | null;
+  /** @nullable */
+  wellnessLastSentAt?: string | null;
+  /** @nullable */
+  avgWaitMinutes?: number | null;
 }
 
-export interface ActivityItem {
+export interface Department {
   id: number;
-  type: string;
-  description: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface DepartmentInput {
+  name: string;
+}
+
+export interface FeedbackEntry {
+  id: number;
   /** @nullable */
   patientId?: number | null;
   /** @nullable */
   patientName?: string | null;
-  createdAt: string;
+  rating: number;
   /** @nullable */
-  metadata?: string | null;
+  comment?: string | null;
+  submittedAt: string;
+}
+
+export interface FeedbackInput {
+  patientId?: number;
+  patientName?: string;
+  rating: number;
+  comment?: string;
+}
+
+export interface FeedbackResponse {
+  entries: FeedbackEntry[];
+  avgRating: number;
+  total: number;
+}
+
+export interface WellnessNewsletter {
+  id: number;
+  weekOf: string;
+  content: string;
+  /** @nullable */
+  lastSentAt?: string | null;
+  updatedAt: string;
+}
+
+export interface WellnessNewsletterInput {
+  content: string;
+  weekOf: string;
 }
 
 export type ListPatientsParams = {

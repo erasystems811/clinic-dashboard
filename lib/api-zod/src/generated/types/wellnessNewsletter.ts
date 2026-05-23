@@ -6,14 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Appointment {
+export interface WellnessNewsletter {
   id: number;
-  patientId: number;
-  patientName: string;
-  title: string;
-  scheduledAt: string;
-  duration?: number;
+  weekOf: string;
+  content: string;
   /** @nullable */
-  department?: string | null;
-  status: string;
+  lastSentAt?: string | null;
+  updatedAt: string;
 }

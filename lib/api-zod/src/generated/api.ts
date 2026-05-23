@@ -16,9 +16,6 @@ export const HealthCheckResponse = zod.object({
 })
 
 
-/**
- * @summary List all patients
- */
 export const ListPatientsQueryParams = zod.object({
   "stage": zod.coerce.string().optional(),
   "search": zod.coerce.string().optional()
@@ -29,16 +26,16 @@ export const ListPatientsResponseItem = zod.object({
   "firstName": zod.string(),
   "lastName": zod.string(),
   "dateOfBirth": zod.string().nullish(),
-  "nationalId": zod.string().nullish(),
+  "hospitalId": zod.string().nullish(),
   "email": zod.string(),
   "phone": zod.string(),
   "whatsappNumber": zod.string().nullish(),
   "age": zod.number().nullish(),
   "gender": zod.string().nullish(),
-  "stage": zod.string().describe('Booked | Queued | In Care | Post Treatment | Post Care | Dormant'),
+  "stage": zod.string(),
   "preQueueStage": zod.string().nullish(),
   "diagnosis": zod.string().nullish(),
-  "doctor": zod.string().nullish(),
+  "department": zod.string().nullish(),
   "nextAppointment": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "treatmentPlan": zod.string().nullish(),
@@ -54,14 +51,11 @@ export const ListPatientsResponseItem = zod.object({
 export const ListPatientsResponse = zod.array(ListPatientsResponseItem)
 
 
-/**
- * @summary Create a new patient
- */
 export const CreatePatientBody = zod.object({
   "firstName": zod.string(),
   "lastName": zod.string(),
   "dateOfBirth": zod.string().optional(),
-  "nationalId": zod.string().optional(),
+  "hospitalId": zod.string().optional(),
   "email": zod.string(),
   "phone": zod.string(),
   "whatsappNumber": zod.string().optional(),
@@ -69,15 +63,12 @@ export const CreatePatientBody = zod.object({
   "gender": zod.string().optional(),
   "stage": zod.string().optional(),
   "diagnosis": zod.string().optional(),
-  "doctor": zod.string().optional(),
+  "department": zod.string().optional(),
   "nextAppointment": zod.string().optional(),
   "notes": zod.string().optional()
 })
 
 
-/**
- * @summary Get a patient by ID
- */
 export const GetPatientParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -87,16 +78,16 @@ export const GetPatientResponse = zod.object({
   "firstName": zod.string(),
   "lastName": zod.string(),
   "dateOfBirth": zod.string().nullish(),
-  "nationalId": zod.string().nullish(),
+  "hospitalId": zod.string().nullish(),
   "email": zod.string(),
   "phone": zod.string(),
   "whatsappNumber": zod.string().nullish(),
   "age": zod.number().nullish(),
   "gender": zod.string().nullish(),
-  "stage": zod.string().describe('Booked | Queued | In Care | Post Treatment | Post Care | Dormant'),
+  "stage": zod.string(),
   "preQueueStage": zod.string().nullish(),
   "diagnosis": zod.string().nullish(),
-  "doctor": zod.string().nullish(),
+  "department": zod.string().nullish(),
   "nextAppointment": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "treatmentPlan": zod.string().nullish(),
@@ -111,9 +102,6 @@ export const GetPatientResponse = zod.object({
 })
 
 
-/**
- * @summary Update a patient
- */
 export const UpdatePatientParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -122,7 +110,7 @@ export const UpdatePatientBody = zod.object({
   "firstName": zod.string().optional(),
   "lastName": zod.string().optional(),
   "dateOfBirth": zod.string().optional(),
-  "nationalId": zod.string().optional(),
+  "hospitalId": zod.string().optional(),
   "email": zod.string().optional(),
   "phone": zod.string().optional(),
   "whatsappNumber": zod.string().optional(),
@@ -130,7 +118,7 @@ export const UpdatePatientBody = zod.object({
   "gender": zod.string().optional(),
   "stage": zod.string().optional(),
   "diagnosis": zod.string().optional(),
-  "doctor": zod.string().optional(),
+  "department": zod.string().optional(),
   "nextAppointment": zod.string().optional(),
   "notes": zod.string().optional()
 })
@@ -140,16 +128,16 @@ export const UpdatePatientResponse = zod.object({
   "firstName": zod.string(),
   "lastName": zod.string(),
   "dateOfBirth": zod.string().nullish(),
-  "nationalId": zod.string().nullish(),
+  "hospitalId": zod.string().nullish(),
   "email": zod.string(),
   "phone": zod.string(),
   "whatsappNumber": zod.string().nullish(),
   "age": zod.number().nullish(),
   "gender": zod.string().nullish(),
-  "stage": zod.string().describe('Booked | Queued | In Care | Post Treatment | Post Care | Dormant'),
+  "stage": zod.string(),
   "preQueueStage": zod.string().nullish(),
   "diagnosis": zod.string().nullish(),
-  "doctor": zod.string().nullish(),
+  "department": zod.string().nullish(),
   "nextAppointment": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "treatmentPlan": zod.string().nullish(),
@@ -164,17 +152,77 @@ export const UpdatePatientResponse = zod.object({
 })
 
 
-/**
- * @summary Delete a patient
- */
 export const DeletePatientParams = zod.object({
   "id": zod.coerce.number()
 })
 
 
-/**
- * @summary Receptionist checks patient in — moves to Queued and adds to queue
- */
+export const GetPatientHistoryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetPatientHistoryResponse = zod.object({
+  "patient": zod.object({
+  "id": zod.number(),
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "dateOfBirth": zod.string().nullish(),
+  "hospitalId": zod.string().nullish(),
+  "email": zod.string(),
+  "phone": zod.string(),
+  "whatsappNumber": zod.string().nullish(),
+  "age": zod.number().nullish(),
+  "gender": zod.string().nullish(),
+  "stage": zod.string(),
+  "preQueueStage": zod.string().nullish(),
+  "diagnosis": zod.string().nullish(),
+  "department": zod.string().nullish(),
+  "nextAppointment": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "treatmentPlan": zod.string().nullish(),
+  "treatmentType": zod.string().nullish(),
+  "medicationTiming": zod.string().nullish(),
+  "treatmentDurationDays": zod.number().nullish(),
+  "treatmentEndDate": zod.string().nullish(),
+  "checkedInAt": zod.string().nullish(),
+  "treatmentStartedAt": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string().nullish()
+}),
+  "activity": zod.array(zod.object({
+  "id": zod.number(),
+  "type": zod.string(),
+  "description": zod.string(),
+  "patientId": zod.number().nullish(),
+  "patientName": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "metadata": zod.string().nullish()
+})),
+  "appointments": zod.array(zod.object({
+  "id": zod.number(),
+  "patientId": zod.number(),
+  "patientName": zod.string(),
+  "title": zod.string(),
+  "scheduledAt": zod.string(),
+  "duration": zod.number().optional(),
+  "department": zod.string().nullish(),
+  "status": zod.string()
+})),
+  "callTasks": zod.array(zod.object({
+  "id": zod.number(),
+  "patientId": zod.number(),
+  "patientName": zod.string(),
+  "phone": zod.string(),
+  "whatsappNumber": zod.string().nullish(),
+  "reason": zod.string(),
+  "actionType": zod.string().describe('automated_message | manual_text | manual_call'),
+  "outcome": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "flaggedAt": zod.string()
+}))
+})
+
+
 export const CheckinPatientParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -184,16 +232,16 @@ export const CheckinPatientResponse = zod.object({
   "firstName": zod.string(),
   "lastName": zod.string(),
   "dateOfBirth": zod.string().nullish(),
-  "nationalId": zod.string().nullish(),
+  "hospitalId": zod.string().nullish(),
   "email": zod.string(),
   "phone": zod.string(),
   "whatsappNumber": zod.string().nullish(),
   "age": zod.number().nullish(),
   "gender": zod.string().nullish(),
-  "stage": zod.string().describe('Booked | Queued | In Care | Post Treatment | Post Care | Dormant'),
+  "stage": zod.string(),
   "preQueueStage": zod.string().nullish(),
   "diagnosis": zod.string().nullish(),
-  "doctor": zod.string().nullish(),
+  "department": zod.string().nullish(),
   "nextAppointment": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "treatmentPlan": zod.string().nullish(),
@@ -208,9 +256,6 @@ export const CheckinPatientResponse = zod.object({
 })
 
 
-/**
- * @summary Receptionist removes patient from queue — restores pre-queue stage
- */
 export const DequeuePatientParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -220,16 +265,16 @@ export const DequeuePatientResponse = zod.object({
   "firstName": zod.string(),
   "lastName": zod.string(),
   "dateOfBirth": zod.string().nullish(),
-  "nationalId": zod.string().nullish(),
+  "hospitalId": zod.string().nullish(),
   "email": zod.string(),
   "phone": zod.string(),
   "whatsappNumber": zod.string().nullish(),
   "age": zod.number().nullish(),
   "gender": zod.string().nullish(),
-  "stage": zod.string().describe('Booked | Queued | In Care | Post Treatment | Post Care | Dormant'),
+  "stage": zod.string(),
   "preQueueStage": zod.string().nullish(),
   "diagnosis": zod.string().nullish(),
-  "doctor": zod.string().nullish(),
+  "department": zod.string().nullish(),
   "nextAppointment": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "treatmentPlan": zod.string().nullish(),
@@ -244,20 +289,17 @@ export const DequeuePatientResponse = zod.object({
 })
 
 
-/**
- * @summary Nurse logs treatment plan — moves patient to In Care and starts reminders
- */
 export const LogTreatmentPlanParams = zod.object({
   "id": zod.coerce.number()
 })
 
 export const LogTreatmentPlanBody = zod.object({
-  "treatmentPlan": zod.string().describe('Free-text summary of the treatment plan'),
-  "treatmentType": zod.string().describe('medication | injection | dressing | monitoring | physical_therapy | combination'),
-  "medicationTiming": zod.string().optional().describe('Comma-separated timing slots: morning,afternoon,evening,night'),
-  "treatmentDurationDays": zod.number().describe('Duration of treatment in days'),
+  "treatmentPlan": zod.string(),
+  "treatmentType": zod.string(),
+  "medicationTiming": zod.string().optional(),
+  "treatmentDurationDays": zod.number(),
   "diagnosis": zod.string().optional(),
-  "doctor": zod.string().optional()
+  "department": zod.string().optional()
 })
 
 export const LogTreatmentPlanResponse = zod.object({
@@ -265,16 +307,16 @@ export const LogTreatmentPlanResponse = zod.object({
   "firstName": zod.string(),
   "lastName": zod.string(),
   "dateOfBirth": zod.string().nullish(),
-  "nationalId": zod.string().nullish(),
+  "hospitalId": zod.string().nullish(),
   "email": zod.string(),
   "phone": zod.string(),
   "whatsappNumber": zod.string().nullish(),
   "age": zod.number().nullish(),
   "gender": zod.string().nullish(),
-  "stage": zod.string().describe('Booked | Queued | In Care | Post Treatment | Post Care | Dormant'),
+  "stage": zod.string(),
   "preQueueStage": zod.string().nullish(),
   "diagnosis": zod.string().nullish(),
-  "doctor": zod.string().nullish(),
+  "department": zod.string().nullish(),
   "nextAppointment": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "treatmentPlan": zod.string().nullish(),
@@ -289,9 +331,6 @@ export const LogTreatmentPlanResponse = zod.object({
 })
 
 
-/**
- * @summary Nurse flags patient for missed treatment — creates call task
- */
 export const FlagMissedTreatmentParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -305,16 +344,15 @@ export const FlagMissedTreatmentResponse = zod.object({
   "patientId": zod.number(),
   "patientName": zod.string(),
   "phone": zod.string(),
+  "whatsappNumber": zod.string().nullish(),
   "reason": zod.string(),
+  "actionType": zod.string().describe('automated_message | manual_text | manual_call'),
   "outcome": zod.string().nullish(),
   "completedAt": zod.string().nullish(),
   "flaggedAt": zod.string()
 })
 
 
-/**
- * @summary List pipeline stages with patient counts
- */
 export const ListPipelineStagesResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -325,9 +363,6 @@ export const ListPipelineStagesResponseItem = zod.object({
 export const ListPipelineStagesResponse = zod.array(ListPipelineStagesResponseItem)
 
 
-/**
- * @summary List appointments (excludes completed by default)
- */
 export const ListAppointmentsQueryParams = zod.object({
   "patientId": zod.coerce.number().optional(),
   "date": zod.coerce.string().optional(),
@@ -341,39 +376,30 @@ export const ListAppointmentsResponseItem = zod.object({
   "title": zod.string(),
   "scheduledAt": zod.string(),
   "duration": zod.number().optional(),
-  "doctor": zod.string().nullish(),
-  "status": zod.string(),
-  "notes": zod.string().nullish()
+  "department": zod.string().nullish(),
+  "status": zod.string()
 })
 export const ListAppointmentsResponse = zod.array(ListAppointmentsResponseItem)
 
 
-/**
- * @summary Create an appointment
- */
 export const CreateAppointmentBody = zod.object({
   "patientId": zod.number(),
   "title": zod.string(),
   "scheduledAt": zod.string(),
   "duration": zod.number().optional(),
-  "doctor": zod.string().optional(),
-  "notes": zod.string().optional()
+  "department": zod.string().optional()
 })
 
 
-/**
- * @summary Update appointment status (no_show, completed, rescheduled, scheduled)
- */
 export const UpdateAppointmentParams = zod.object({
   "id": zod.coerce.number()
 })
 
 export const UpdateAppointmentBody = zod.object({
-  "status": zod.string().optional().describe('scheduled | completed | no_show | rescheduled'),
+  "status": zod.string().optional(),
   "scheduledAt": zod.string().optional(),
   "title": zod.string().optional(),
-  "doctor": zod.string().optional(),
-  "notes": zod.string().optional()
+  "department": zod.string().optional()
 })
 
 export const UpdateAppointmentResponse = zod.object({
@@ -383,15 +409,11 @@ export const UpdateAppointmentResponse = zod.object({
   "title": zod.string(),
   "scheduledAt": zod.string(),
   "duration": zod.number().optional(),
-  "doctor": zod.string().nullish(),
-  "status": zod.string(),
-  "notes": zod.string().nullish()
+  "department": zod.string().nullish(),
+  "status": zod.string()
 })
 
 
-/**
- * @summary Get dashboard summary stats
- */
 export const GetDashboardSummaryResponse = zod.object({
   "totalPatients": zod.number(),
   "newPatientsThisMonth": zod.number(),
@@ -404,17 +426,16 @@ export const GetDashboardSummaryResponse = zod.object({
   "color": zod.string(),
   "count": zod.number(),
   "order": zod.number()
-}))
+})),
+  "avgFeedbackRating": zod.number().nullish(),
+  "totalFeedback": zod.number().nullish(),
+  "wellnessLastSentAt": zod.string().nullish(),
+  "avgWaitMinutes": zod.number().nullish()
 })
 
 
-/**
- * @summary List recent activity
- */
-export const listActivityQueryLimitDefault = 20;
-
 export const ListActivityQueryParams = zod.object({
-  "limit": zod.coerce.number().default(listActivityQueryLimitDefault)
+  "limit": zod.coerce.number().optional()
 })
 
 export const ListActivityResponseItem = zod.object({
@@ -429,9 +450,6 @@ export const ListActivityResponseItem = zod.object({
 export const ListActivityResponse = zod.array(ListActivityResponseItem)
 
 
-/**
- * @summary Get current queue ordered by position
- */
 export const ListQueueResponseItem = zod.object({
   "id": zod.number(),
   "patientId": zod.number(),
@@ -440,14 +458,14 @@ export const ListQueueResponseItem = zod.object({
   "addedAt": zod.string(),
   "phone": zod.string().nullish(),
   "email": zod.string().nullish(),
-  "stage": zod.string().nullish()
+  "whatsappNumber": zod.string().nullish(),
+  "hospitalId": zod.string().nullish(),
+  "stage": zod.string().nullish(),
+  "appointmentId": zod.number().nullish()
 })
 export const ListQueueResponse = zod.array(ListQueueResponseItem)
 
 
-/**
- * @summary List open call tasks
- */
 export const ListCallTasksQueryParams = zod.object({
   "completed": zod.coerce.boolean().optional()
 })
@@ -457,7 +475,9 @@ export const ListCallTasksResponseItem = zod.object({
   "patientId": zod.number(),
   "patientName": zod.string(),
   "phone": zod.string(),
+  "whatsappNumber": zod.string().nullish(),
   "reason": zod.string(),
+  "actionType": zod.string().describe('automated_message | manual_text | manual_call'),
   "outcome": zod.string().nullish(),
   "completedAt": zod.string().nullish(),
   "flaggedAt": zod.string()
@@ -465,9 +485,6 @@ export const ListCallTasksResponseItem = zod.object({
 export const ListCallTasksResponse = zod.array(ListCallTasksResponseItem)
 
 
-/**
- * @summary Log outcome for a call task
- */
 export const LogCallOutcomeParams = zod.object({
   "id": zod.coerce.number()
 })
@@ -481,10 +498,120 @@ export const LogCallOutcomeResponse = zod.object({
   "patientId": zod.number(),
   "patientName": zod.string(),
   "phone": zod.string(),
+  "whatsappNumber": zod.string().nullish(),
   "reason": zod.string(),
+  "actionType": zod.string().describe('automated_message | manual_text | manual_call'),
   "outcome": zod.string().nullish(),
   "completedAt": zod.string().nullish(),
   "flaggedAt": zod.string()
+})
+
+
+export const UpdateCallTaskActionTypeParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateCallTaskActionTypeBody = zod.object({
+  "actionType": zod.string().describe('automated_message | manual_text | manual_call')
+})
+
+export const UpdateCallTaskActionTypeResponse = zod.object({
+  "id": zod.number(),
+  "patientId": zod.number(),
+  "patientName": zod.string(),
+  "phone": zod.string(),
+  "whatsappNumber": zod.string().nullish(),
+  "reason": zod.string(),
+  "actionType": zod.string().describe('automated_message | manual_text | manual_call'),
+  "outcome": zod.string().nullish(),
+  "completedAt": zod.string().nullish(),
+  "flaggedAt": zod.string()
+})
+
+
+export const ListDepartmentsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListDepartmentsResponse = zod.array(ListDepartmentsResponseItem)
+
+
+export const CreateDepartmentBody = zod.object({
+  "name": zod.string()
+})
+
+
+export const DeleteDepartmentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+export const ListFeedbackResponse = zod.object({
+  "entries": zod.array(zod.object({
+  "id": zod.number(),
+  "patientId": zod.number().nullish(),
+  "patientName": zod.string().nullish(),
+  "rating": zod.number(),
+  "comment": zod.string().nullish(),
+  "submittedAt": zod.string()
+})),
+  "avgRating": zod.number(),
+  "total": zod.number()
+})
+
+
+export const SubmitFeedbackBody = zod.object({
+  "patientId": zod.number().optional(),
+  "patientName": zod.string().optional(),
+  "rating": zod.number(),
+  "comment": zod.string().optional()
+})
+
+
+export const ListWellnessNewslettersResponseItem = zod.object({
+  "id": zod.number(),
+  "weekOf": zod.string(),
+  "content": zod.string(),
+  "lastSentAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})
+export const ListWellnessNewslettersResponse = zod.array(ListWellnessNewslettersResponseItem)
+
+
+export const UpsertWellnessNewsletterBody = zod.object({
+  "content": zod.string(),
+  "weekOf": zod.string()
+})
+
+export const UpsertWellnessNewsletterResponse = zod.object({
+  "id": zod.number(),
+  "weekOf": zod.string(),
+  "content": zod.string(),
+  "lastSentAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+})
+
+
+export const GetCurrentWellnessNewsletterResponse = zod.union([zod.object({
+  "id": zod.number(),
+  "weekOf": zod.string(),
+  "content": zod.string(),
+  "lastSentAt": zod.string().nullish(),
+  "updatedAt": zod.string()
+}),zod.null()])
+
+
+export const MarkNewsletterSentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MarkNewsletterSentResponse = zod.object({
+  "id": zod.number(),
+  "weekOf": zod.string(),
+  "content": zod.string(),
+  "lastSentAt": zod.string().nullish(),
+  "updatedAt": zod.string()
 })
 
 

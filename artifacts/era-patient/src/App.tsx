@@ -9,6 +9,7 @@ import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Patients from "@/pages/patients";
 import PatientDetail from "@/pages/patient-detail";
+import PatientHistory from "@/pages/patient-history";
 import NewPatient from "@/pages/patient-new";
 import Appointments from "@/pages/appointments";
 import Pipeline from "@/pages/pipeline";
@@ -16,6 +17,9 @@ import ActivityLog from "@/pages/activity";
 import QueueManagement from "@/pages/queue";
 import NurseStation from "@/pages/nurse-station";
 import CallTasks from "@/pages/call-tasks";
+import FeedbackAdmin from "@/pages/feedback-admin";
+import FeedbackForm from "@/pages/feedback-form";
+import WellnessAdmin from "@/pages/wellness-admin";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -43,19 +47,24 @@ function ProtectedRouter() {
 
   return (
     <Switch>
-      {/* Shared */}
       <Route path="/login">
         <Redirect to={defaultPathForRole(role)} />
       </Route>
+
+      {/* Public feedback form — accessible without auth */}
+      <Route path="/feedback" component={FeedbackForm} />
 
       {/* Admin routes */}
       {role === "admin" && <Route path="/" component={Dashboard} />}
       {role === "admin" && <Route path="/patients" component={Patients} />}
       {role === "admin" && <Route path="/patients/new" component={NewPatient} />}
+      {role === "admin" && <Route path="/patients/:id/history" component={PatientHistory} />}
       {role === "admin" && <Route path="/patients/:id" component={PatientDetail} />}
       {role === "admin" && <Route path="/appointments" component={Appointments} />}
       {role === "admin" && <Route path="/pipeline" component={Pipeline} />}
       {role === "admin" && <Route path="/activity" component={ActivityLog} />}
+      {role === "admin" && <Route path="/feedback-admin" component={FeedbackAdmin} />}
+      {role === "admin" && <Route path="/wellness" component={WellnessAdmin} />}
 
       {/* Receptionist routes */}
       {role === "receptionist" && <Route path="/queue" component={QueueManagement} />}
@@ -65,7 +74,7 @@ function ProtectedRouter() {
       {/* Nurse routes */}
       {role === "nurse" && <Route path="/nurse-station" component={NurseStation} />}
 
-      {/* Default redirect to role home */}
+      {/* Default redirect */}
       <Route>
         <Redirect to={defaultPathForRole(role)} />
       </Route>

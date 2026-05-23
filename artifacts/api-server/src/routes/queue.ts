@@ -12,9 +12,12 @@ router.get("/queue", async (req, res): Promise<void> => {
       patientName: queueTable.patientName,
       position: queueTable.position,
       addedAt: queueTable.addedAt,
+      appointmentId: queueTable.appointmentId,
       phone: patientsTable.phone,
       email: patientsTable.email,
-      stage: patientsTable.stage,
+      whatsappNumber: patientsTable.whatsappNumber,
+      hospitalId: patientsTable.hospitalId,
+      stage: patientsTable.preQueueStage,
     })
     .from(queueTable)
     .leftJoin(patientsTable, eq(queueTable.patientId, patientsTable.id))

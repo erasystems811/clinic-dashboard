@@ -10,4 +10,7 @@ export interface FlagMissedInput {
   reason: string;
   /** automated_message | manual_text | manual_call */
   actionType?: string;
+  /** follow_up | check_in */
+  taskType?: string;
+  checkInType?: string;
 }

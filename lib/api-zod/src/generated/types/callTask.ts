@@ -13,7 +13,13 @@ export interface CallTask {
   phone: string;
   /** @nullable */
   whatsappNumber?: string | null;
+  /** @nullable */
+  department?: string | null;
   reason: string;
+  /** follow_up | check_in */
+  taskType: string;
+  /** @nullable */
+  checkInType?: string | null;
   /** automated_message | manual_text | manual_call */
   actionType: string;
   /** @nullable */

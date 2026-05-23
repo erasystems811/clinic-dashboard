@@ -762,7 +762,7 @@ components:
 
     CallTask:
       type: object
-      required: [id, patientId, patientName, phone, reason, flaggedAt, actionType]
+      required: [id, patientId, patientName, phone, reason, flaggedAt, actionType, taskType]
       properties:
         id:
           type: integer
@@ -774,8 +774,15 @@ components:
           type: string
         whatsappNumber:
           type: ["string", "null"]
+        department:
+          type: ["string", "null"]
         reason:
           type: string
+        taskType:
+          type: string
+          description: "follow_up | check_in"
+        checkInType:
+          type: ["string", "null"]
         actionType:
           type: string
           description: "automated_message | manual_text | manual_call"

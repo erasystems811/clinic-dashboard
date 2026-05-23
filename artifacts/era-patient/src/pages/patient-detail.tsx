@@ -59,12 +59,152 @@ const FOLLOWUP_TYPES = [
   },
 ];
 
+const CHECKIN_TYPES = [
+  "Appointment Check-In",
+  "Routine Check-In",
+  "Post-Treatment Check-In",
+  "Discharge Check-In",
+  "Medication Follow-Up",
+  "General Check-In",
+];
+
 type FollowupType = typeof FOLLOWUP_TYPES[number]["value"];
 
 interface FlagModalProps {
   patientName: string;
   patientId: number;
   onClose: () => void;
+}
+
+/* ── Check-In Flag Modal ── */
+interface CheckInFlagModalProps {
+  patientName: string;
+  patientId: number;
+  onClose: () => void;
+}
+
+function CheckInFlagModal({ patientName, patientId, onClose }: CheckInFlagModalProps) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [checkInType, setCheckInType] = useState(CHECKIN_TYPES[0]);
+  const [reason, setReason] = useState("");
+  const [actionType, setActionType] = useState<FollowupType>("manual_call");
+
+  const flagMissed = useFlagMissedTreatment({
+    mutation: {
+      onSuccess: () => {
+        toast({
+          title: "Check-in task created",
+          description: `${patientName} has been flagged for check-in. The task will appear in the receptionist's call list.`,
+        });
+        queryClient.invalidateQueries({ queryKey: getListCallTasksQueryKey() });
+        onClose();
+      },
+      onError: () => toast({ title: "Failed to flag patient", variant: "destructive" }),
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reason.trim()) return;
+    flagMissed.mutate({ id: patientId, data: { reason, actionType, taskType: "check_in", checkInType } });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="w-full max-w-md bg-card rounded-2xl border border-border shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-primary" />
+            <h2 className="font-semibold text-foreground">Flag for Check-In</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-5 pt-4">
+          <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+            <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center shrink-0">
+              {patientName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+            </div>
+            <div>
+              <p className="font-semibold text-sm">{patientName}</p>
+              <p className="text-xs text-muted-foreground">Will be added to receptionist call tasks</p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* Check-In Type */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Check-In Type *</label>
+            <div className="grid grid-cols-2 gap-2">
+              {CHECKIN_TYPES.map(type => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setCheckInType(type)}
+                  className={`px-3 py-2 rounded-lg border text-xs font-medium text-left transition-colors ${
+                    checkInType === type
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border hover:border-border/60 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Reason */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Reason / Notes *</label>
+            <Input
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="e.g. Patient missed last appointment, needs confirmation…"
+              required
+            />
+          </div>
+
+          {/* Method picker */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Contact Method *</label>
+            <div className="grid grid-cols-3 gap-2">
+              {FOLLOWUP_TYPES.map(ft => {
+                const Icon = ft.icon;
+                const isSelected = actionType === ft.value;
+                return (
+                  <button
+                    key={ft.value}
+                    type="button"
+                    onClick={() => setActionType(ft.value)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center text-xs transition-colors ${
+                      isSelected ? ft.active : "border-border hover:border-border/60 text-muted-foreground"
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 ${isSelected ? "" : ft.color}`} />
+                    <span className="font-semibold">{ft.label}</span>
+                    <span className="leading-snug opacity-80">{ft.sub}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" className="flex-1" disabled={!reason.trim() || flagMissed.isPending}>
+              {flagMissed.isPending ? "Creating…" : "Create Check-In Task"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }
 
 function FlagModal({ patientName, patientId, onClose }: FlagModalProps) {
@@ -188,6 +328,7 @@ export default function PatientDetail() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [showFlagModal, setShowFlagModal] = useState(false);
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
 
   const { data: patient, isLoading } = useGetPatient(patientId, {
     query: { enabled: !isNaN(patientId), queryKey: getGetPatientQueryKey(patientId) }
@@ -273,14 +414,24 @@ export default function PatientDetail() {
             <h1 className="text-2xl font-bold tracking-tight">Patient Profile</h1>
             <div className="flex items-center gap-2">
               {user?.role === "admin" && (
-                <Button
-                  variant="outline"
-                  className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => setShowFlagModal(true)}
-                >
-                  <Flag className="w-4 h-4" />
-                  Flag for Follow-up
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    className="gap-2 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+                    onClick={() => setShowCheckInModal(true)}
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Flag for Check-In
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="gap-2 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setShowFlagModal(true)}
+                  >
+                    <Flag className="w-4 h-4" />
+                    Flag for Follow-up
+                  </Button>
+                </>
               )}
               <Link href={`/patients/${patientId}/history`}>
                 <Button variant="outline" className="gap-2">
@@ -449,6 +600,14 @@ export default function PatientDetail() {
           </Card>
         </div>
       </div>
+
+      {showCheckInModal && patient && (
+        <CheckInFlagModal
+          patientId={patientId}
+          patientName={`${patient.firstName} ${patient.lastName}`}
+          onClose={() => setShowCheckInModal(false)}
+        />
+      )}
 
       {showFlagModal && patient && (
         <FlagModal

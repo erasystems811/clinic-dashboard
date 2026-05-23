@@ -61,6 +61,8 @@ const TreatmentPlanBody = z.object({
 const FlagMissedBody = z.object({
   reason: z.string().min(1),
   actionType: z.enum(["automated_message", "manual_text", "manual_call"]).optional(),
+  taskType: z.enum(["follow_up", "check_in"]).optional(),
+  checkInType: z.string().optional(),
 });
 
 function serializePatient(p: typeof patientsTable.$inferSelect) {
@@ -389,18 +391,26 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
+  const taskType = parsed.data.taskType ?? "follow_up";
   const [task] = await db.insert(callTasksTable).values({
     patientId: patient.id,
     patientName: `${patient.firstName} ${patient.lastName}`,
     phone: patient.phone,
     whatsappNumber: patient.whatsappNumber ?? undefined,
+    department: patient.department ?? undefined,
     reason: parsed.data.reason,
+    taskType,
+    checkInType: parsed.data.checkInType ?? undefined,
     actionType: parsed.data.actionType ?? "manual_call",
   }).returning();
 
+  const activityDesc = taskType === "check_in"
+    ? `${patient.firstName} ${patient.lastName} flagged for check-in (${parsed.data.checkInType ?? "General"}) — call task created`
+    : `${patient.firstName} ${patient.lastName} flagged for missed treatment — call task created`;
+
   await db.insert(activityTable).values({
-    type: "missed_treatment_flagged",
-    description: `${patient.firstName} ${patient.lastName} flagged for missed treatment — call task created`,
+    type: taskType === "check_in" ? "check_in_flagged" : "missed_treatment_flagged",
+    description: activityDesc,
     patientId: patient.id,
     patientName: `${patient.firstName} ${patient.lastName}`,
     metadata: parsed.data.reason,

@@ -173,6 +173,38 @@ export interface QueueEntry {
   appointmentId?: number | null;
 }
 
+export interface CallTask {
+  id: number;
+  patientId: number;
+  patientName: string;
+  phone: string;
+  /** @nullable */
+  whatsappNumber?: string | null;
+  /** @nullable */
+  department?: string | null;
+  reason: string;
+  /** follow_up | check_in */
+  taskType: string;
+  /** @nullable */
+  checkInType?: string | null;
+  /** automated_message | manual_text | manual_call */
+  actionType: string;
+  /** @nullable */
+  outcome?: string | null;
+  /** @nullable */
+  completedAt?: string | null;
+  flaggedAt: string;
+}
+
+export interface FlagMissedInput {
+  reason: string;
+  /** automated_message | manual_text | manual_call */
+  actionType?: string;
+  /** follow_up | check_in */
+  taskType?: string;
+  checkInType?: string;
+}
+
 export interface CallOutcomeInput {
   outcome: string;
 }

@@ -322,10 +322,25 @@ function TaskCard({ task }: { task: CallTask }) {
         </div>
       </div>
 
-      {/* Reason */}
-      <div className="mx-4 mb-4 rounded-md bg-muted/40 px-3 py-2">
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Reason for flag</p>
-        <p className="text-sm">{task.reason}</p>
+      {/* Task type + reason */}
+      <div className="mx-4 mb-4 space-y-2">
+        <div className="flex items-center gap-2">
+          {task.taskType === "check_in" ? (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              <CheckCircle className="w-3 h-3" />
+              {task.checkInType ?? "Check-In"}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
+              <Flag className="w-3 h-3" />
+              Follow-Up
+            </span>
+          )}
+        </div>
+        <div className="rounded-md bg-muted/40 px-3 py-2">
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Reason</p>
+          <p className="text-sm">{task.reason}</p>
+        </div>
       </div>
 
       {/* Method badge + toggle */}

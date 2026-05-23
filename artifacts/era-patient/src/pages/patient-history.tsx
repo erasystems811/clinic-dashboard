@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { useParams, Link } from "wouter";
 import { format, parseISO } from "date-fns";
 import { useGetPatientHistory } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/auth-context";
+import { CheckInFlagModal, FollowUpFlagModal } from "@/components/flag-modals";
 import {
   ArrowLeft, Phone, Mail, Hash, Calendar, Stethoscope,
   ClipboardList, PhoneCall, MessageSquare, Bot, Activity,
-  User, MapPin, Clock, CheckCircle2, AlertTriangle,
+  MapPin, Clock, CheckCircle2, AlertTriangle, Flag, CheckCircle,
 } from "lucide-react";
 
 function fmt(iso: string | null | undefined) {
@@ -53,6 +58,7 @@ const ACTIVITY_DOT: Record<string, string> = {
   treatment_plan_logged:    "bg-violet-500",
   treatment_reminder:       "bg-amber-500",
   missed_treatment_flagged: "bg-destructive",
+  check_in_flagged:         "bg-primary",
   no_show:                  "bg-destructive",
   appointment_scheduled:    "bg-teal-500",
   appointment_rescheduled:  "bg-amber-500",
@@ -60,10 +66,11 @@ const ACTIVITY_DOT: Record<string, string> = {
   call_task_action_updated: "bg-muted-foreground",
 };
 
-function Section({ icon: Icon, title, count, children }: {
+function Section({ icon: Icon, title, count, actions, children }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   count?: number;
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -74,6 +81,7 @@ function Section({ icon: Icon, title, count, children }: {
         {count !== undefined && (
           <span className="ml-auto text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{count}</span>
         )}
+        {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}
       </div>
       {children}
     </div>
@@ -93,6 +101,12 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 export default function PatientHistory() {
   const params = useParams<{ id: string }>();
   const id = parseInt(params.id ?? "", 10);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const queryClient = useQueryClient();
+
+  const [showCheckIn, setShowCheckIn] = useState(false);
+  const [showFollowUp, setShowFollowUp] = useState(false);
 
   const { data, isLoading, error } = useGetPatientHistory(id, {
     query: { enabled: !isNaN(id) },
@@ -126,6 +140,10 @@ export default function PatientHistory() {
 
   const { patient, activity, appointments, callTasks } = data;
   const stageClass = STAGE_COLORS[patient.stage] ?? "bg-muted text-muted-foreground border-border";
+  const patientFullName = `${patient.firstName} ${patient.lastName}`;
+
+  const openTasks = callTasks.filter(t => !t.completedAt).length;
+  const completedTasks = callTasks.filter(t => !!t.completedAt).length;
 
   return (
     <Layout>
@@ -140,24 +158,20 @@ export default function PatientHistory() {
 
         {/* ── PATIENT HEADER ── */}
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-          {/* Top colour band */}
           <div className="h-2 bg-gradient-to-r from-primary/60 to-primary/20" />
 
           <div className="px-6 pt-5 pb-6 space-y-5">
-            {/* Avatar + name + stage */}
             <div className="flex items-start gap-5">
               <div className="w-16 h-16 rounded-full bg-primary/10 text-primary text-xl font-bold flex items-center justify-center shrink-0 border-2 border-primary/20 shadow-sm">
                 {patient.firstName[0]}{patient.lastName[0]}
               </div>
               <div className="flex-1 min-w-0 pt-1">
-                <h1 className="text-2xl font-bold tracking-tight">
-                  {patient.firstName} {patient.lastName}
-                </h1>
+                <h1 className="text-2xl font-bold tracking-tight">{patientFullName}</h1>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${stageClass}`}>
                     {patient.stage}
                   </span>
-                  {patient.stage === "In Care" && patient.department && (
+                  {patient.department && (
                     <span className="text-xs px-2.5 py-1 rounded-full border border-border bg-muted text-muted-foreground flex items-center gap-1">
                       <Stethoscope className="w-3 h-3" />
                       {patient.department}
@@ -165,9 +179,31 @@ export default function PatientHistory() {
                   )}
                 </div>
               </div>
+              {/* Admin flag actions */}
+              {isAdmin && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10 hover:text-primary"
+                    onClick={() => setShowCheckIn(true)}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Flag Check-In
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => setShowFollowUp(true)}
+                  >
+                    <Flag className="w-3.5 h-3.5" />
+                    Flag Follow-Up
+                  </Button>
+                </div>
+              )}
             </div>
 
-            {/* Registration details grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 pt-4 border-t border-border">
               <InfoRow label="Hospital ID" value={patient.hospitalId} />
               <InfoRow label="Date of Birth" value={fmtDate(patient.dateOfBirth)} />
@@ -203,7 +239,6 @@ export default function PatientHistory() {
                 </span>
               </div>
             </div>
-
           </div>
         </div>
 
@@ -295,36 +330,95 @@ export default function PatientHistory() {
         </Section>
 
         {/* ── CALL TASKS / FOLLOW-UPS ── */}
-        <Section icon={PhoneCall} title="Follow-up Calls & Messages" count={callTasks.length}>
+        <Section
+          icon={PhoneCall}
+          title="Call Tasks & Follow-Ups"
+          actions={
+            callTasks.length > 0 ? (
+              <div className="flex items-center gap-2">
+                {openTasks > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                    {openTasks} open
+                  </span>
+                )}
+                {completedTasks > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 font-medium">
+                    {completedTasks} done
+                  </span>
+                )}
+              </div>
+            ) : undefined
+          }
+        >
           {callTasks.length === 0 ? (
-            <div className="py-10 text-center text-muted-foreground text-sm">No follow-up tasks on record.</div>
+            <div className="py-10 text-center text-muted-foreground text-sm">No call tasks on record.</div>
           ) : (
             <div className="divide-y divide-border">
-              {callTasks.map((task) => {
+              {[...callTasks].reverse().map((task) => {
                 const Icon = ACTION_ICONS[task.actionType] ?? PhoneCall;
+                const isCheckIn = (task as any).taskType === "check_in";
+                const checkInType = (task as any).checkInType as string | null | undefined;
+                const isComplete = !!task.completedAt;
+
                 return (
-                  <div key={task.id} className="px-5 py-4 space-y-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${task.completedAt ? "bg-green-500/10" : "bg-amber-500/10"}`}>
-                        <Icon className={`w-3.5 h-3.5 ${task.completedAt ? "text-green-400" : "text-amber-400"}`} />
+                  <div key={task.id} className="px-5 py-4 space-y-3">
+                    {/* Header row */}
+                    <div className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                        isComplete ? "bg-green-500/10" : isCheckIn ? "bg-primary/10" : "bg-amber-500/10"
+                      }`}>
+                        <Icon className={`w-3.5 h-3.5 ${
+                          isComplete ? "text-green-400" : isCheckIn ? "text-primary" : "text-amber-400"
+                        }`} />
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium">{ACTION_LABELS[task.actionType] ?? task.actionType}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${task.completedAt ? "bg-green-500/10 text-green-400" : "bg-amber-500/10 text-amber-400"}`}>
-                            {task.completedAt ? "Completed" : "Open"}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Task type badge */}
+                          {isCheckIn ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                              <CheckCircle className="w-3 h-3" />
+                              {checkInType ?? "Check-In"}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
+                              <Flag className="w-3 h-3" />
+                              Follow-Up
+                            </span>
+                          )}
+                          {/* Method */}
+                          <span className="text-xs text-muted-foreground">{ACTION_LABELS[task.actionType] ?? task.actionType}</span>
+                          {/* Status */}
+                          <span className={`ml-auto text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                            isComplete ? "bg-green-500/10 text-green-400" : "bg-amber-500/10 text-amber-400"
+                          }`}>
+                            {isComplete ? "Completed" : "Open"}
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{fmt(task.flaggedAt)}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Flagged {fmt(task.flaggedAt)}</p>
                       </div>
                     </div>
-                    <p className="text-sm text-foreground">{task.reason}</p>
-                    {task.outcome && (
-                      <div className="flex items-start gap-2 bg-green-500/5 border border-green-500/20 rounded-md px-3 py-2">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0 mt-0.5" />
-                        <p className="text-xs text-green-300">{task.outcome}</p>
+
+                    {/* Reason */}
+                    <div className="ml-11 rounded-md bg-muted/30 border border-border px-3 py-2">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-0.5">Reason</p>
+                      <p className="text-sm">{task.reason}</p>
+                    </div>
+
+                    {/* Outcome / Response */}
+                    {isComplete && task.outcome ? (
+                      <div className="ml-11 rounded-md bg-green-500/5 border border-green-500/20 px-3 py-2.5 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-green-400 shrink-0" />
+                          <span className="text-xs font-semibold text-green-400 uppercase tracking-wide">Receptionist Response</span>
+                          <span className="text-xs text-muted-foreground ml-auto">{fmt(task.completedAt)}</span>
+                        </div>
+                        <p className="text-sm text-foreground leading-relaxed">{task.outcome}</p>
                       </div>
-                    )}
+                    ) : !isComplete ? (
+                      <div className="ml-11">
+                        <span className="text-xs text-muted-foreground italic">Awaiting receptionist response…</span>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
@@ -338,7 +432,6 @@ export default function PatientHistory() {
             <div className="py-10 text-center text-muted-foreground text-sm">No activity recorded.</div>
           ) : (
             <div className="relative px-5 py-4">
-              {/* Timeline line */}
               <div className="absolute left-[2.125rem] top-4 bottom-4 w-px bg-border" />
               <div className="space-y-4">
                 {[...activity].reverse().map((item) => {
@@ -363,6 +456,22 @@ export default function PatientHistory() {
           )}
         </Section>
       </div>
+
+      {/* Modals */}
+      {showCheckIn && (
+        <CheckInFlagModal
+          patientId={id}
+          patientName={patientFullName}
+          onClose={() => { setShowCheckIn(false); queryClient.invalidateQueries(); }}
+        />
+      )}
+      {showFollowUp && (
+        <FollowUpFlagModal
+          patientId={id}
+          patientName={patientFullName}
+          onClose={() => { setShowFollowUp(false); queryClient.invalidateQueries(); }}
+        />
+      )}
     </Layout>
   );
 }

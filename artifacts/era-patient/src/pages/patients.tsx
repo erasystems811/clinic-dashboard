@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useListPatients, getListPatientsQueryKey, useListPipelineStages, getListPipelineStagesQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function Patients() {
+  const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
 

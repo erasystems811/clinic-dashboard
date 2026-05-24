@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { format, parseISO, startOfWeek } from "date-fns";
 import {
-  Send, Save, Newspaper, Edit3, CheckCircle, Loader2,
+  Send, Save, Newspaper, Edit3, CheckCircle, CheckCircle2, Loader2,
   Sparkles, Youtube, Link, RefreshCw, ChevronDown, ChevronUp,
 } from "lucide-react";
 
@@ -320,12 +320,13 @@ export default function WellnessAdmin() {
                   </Button>
                   {!isSent ? (
                     <Button onClick={() => handleSaveAndSend(currentNewsletter.id)} disabled={sending} className="gap-2">
-                      {sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send to Patients</>}
+                      {sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send to Friends</>}
                     </Button>
                   ) : (
-                    <Button variant="outline" onClick={() => handleSaveAndSend(currentNewsletter.id)} disabled={sending} className="gap-2">
-                      {sending ? <><Loader2 className="w-4 h-4 animate-spin" />Resending…</> : <><Send className="w-4 h-4" />Resend</>}
-                    </Button>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-green-500/10 border border-green-500/20 text-xs text-green-600 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Sent this week — next send available next week
+                    </div>
                   )}
                 </div>
               </div>

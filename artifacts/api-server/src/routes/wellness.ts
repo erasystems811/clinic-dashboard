@@ -204,6 +204,12 @@ router.post("/wellness/:id/send", async (req, res): Promise<void> => {
 
   if (error || !data) { res.status(404).json({ error: "Newsletter not found" }); return; }
 
+  // One send per week — block if already sent
+  if (data.status === "sent") {
+    res.status(409).json({ error: "This newsletter has already been sent this week. Only one send per week is allowed." });
+    return;
+  }
+
   const resolvedHospitalId = hospitalId ?? (data.hospital_id as number | null);
   let sent = 0;
   let failed = 0;

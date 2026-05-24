@@ -184,7 +184,7 @@ async function runPostCareWellness() {
       .select("hospital_id, post_care_checkin_days");
 
     for (const hs of hospitals ?? []) {
-      const freqDays = (hs.post_care_checkin_days as number) ?? 7;
+      const freqDays = (hs.post_care_checkin_days as number) ?? 30;
       const cutoff = new Date(Date.now() - freqDays * 24 * 60 * 60 * 1000).toISOString();
 
       const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hs.hospital_id).single();
@@ -405,7 +405,8 @@ export function startScheduler() {
   // Daily at 9pm: end-of-day feedback emails
   cron.schedule("0 21 * * *", runFeedbackEmails);
 
-  // Post-care wellness is admin-triggered, not scheduled automatically.
+  // Daily at 10am: post-care wellness (sends once to patients with 30+ days no contact, then every 30 days)
+  cron.schedule("0 10 * * *", runPostCareWellness);
 
   log("Scheduler started");
 }

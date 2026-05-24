@@ -1,8 +1,8 @@
 [build]
-buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/era-super-admin run build && npm install -g serve"
+buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/era-super-admin run build"
 
 [deploy]
-startCommand = "serve -s dist/public --listen $PORT"
+startCommand = "node server.cjs"
 healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

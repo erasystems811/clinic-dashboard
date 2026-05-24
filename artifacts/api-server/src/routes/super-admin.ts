@@ -158,7 +158,7 @@ router.post("/super-admin/deploy", requireSuperAdmin, async (req, res): Promise<
 
     // Push
     const { stdout, stderr } = await execAsync(
-      `git push "${repoUrl}" HEAD:main`,
+      `git push --force "${repoUrl}" HEAD:main`,
       { env: gitEnv, timeout: 60000 },
     );
 

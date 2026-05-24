@@ -7,7 +7,7 @@ import {
   sendAppointmentReminder,
   sendFeedbackEmail,
   sendInCareDailyMessage,
-  sendMedicationReminder,
+  sendCareReminder,
   type MedicationPeriod,
 } from "./automation.js";
 import { signFeedbackToken } from "./feedbackToken.js";
@@ -161,7 +161,7 @@ async function runMedicationReminders() {
         if (!phone) continue;
 
         // Skip if already sent this period today
-        const automationType = `medication_reminder_${period}`;
+        const automationType = `care_reminder_${period}`;
         const { data: alreadySent } = await supabase
           .from("automation_log")
           .select("id")
@@ -179,7 +179,7 @@ async function runMedicationReminders() {
         const totalDays = (p.treatment_duration_days as number) ?? 30;
         const patientName = `${p.first_name} ${p.last_name}`;
 
-        await sendMedicationReminder(
+        await sendCareReminder(
           h.id,
           p.id as number,
           patientName,

@@ -213,7 +213,7 @@ export async function sendInCareDailyMessage(
 
 export type MedicationPeriod = "morning" | "afternoon" | "night";
 
-export async function sendMedicationReminder(
+export async function sendCareReminder(
   hospitalId: number,
   patientId: number,
   patientName: string,
@@ -226,7 +226,7 @@ export async function sendMedicationReminder(
 ): Promise<void> {
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
-    automationType: `medication_reminder_${period}`,
+    automationType: `care_reminder_${period}`,
     channel: "whatsapp",
   };
   const logId = await logAutomation(ctx, "queued");
@@ -239,9 +239,25 @@ export async function sendMedicationReminder(
       night: "Good evening",
     };
     const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a WhatsApp medication reminder. Tone: ${hCtx.tone}. Write like a warm, caring person — not a robotic alert. Start with "${greetMap[period]} ${firstName},". Be brief (2 sentences max). Remind them it is time for their ${period} medication or care activity without repeating the clinical details verbatim — keep it human and encouraging.`,
-      `Today is day ${dayNumber} of ${totalDays} for ${firstName}'s treatment at ${hCtx.hospitalName}. Medication schedule: ${medicationTiming}. Treatment plan: ${treatmentPlan}. Write a short, warm ${period} reminder letting them know it is time for their ${period} medication or treatment step. Example feel: "${greetMap[period]} ${firstName}, just a reminder to take your ${period} medication 💊 — keep it up, you're doing great!" — write with this warmth, naturally.`,
-      120,
+      `You are a care team member at ${hCtx.hospitalName} sending a WhatsApp care reminder for the ${period}. Tone: ${hCtx.tone}. You must read the FULL treatment plan carefully and identify EVERY care activity that applies to the ${period} — this includes medication, hospital visits, procedures, exercises, dietary instructions, or any other care step scheduled for this time of day. Combine all ${period} activities into ONE warm, human message. Start with "${greetMap[period]} ${firstName},". Be warm and encouraging, not clinical. Keep it brief (2-3 sentences max). Never mention just one activity if multiple apply — always cover everything the patient needs to do in this ${period}.`,
+      `Today is day ${dayNumber} of ${totalDays} for ${firstName}'s treatment at ${hCtx.hospitalName}.
+
+FULL TREATMENT PLAN:
+${treatmentPlan}
+
+MEDICATION SCHEDULE (time-of-day breakdown):
+${medicationTiming}
+
+TIME WINDOW: ${period.toUpperCase()}
+
+Carefully read the treatment plan above. Identify ALL activities for the ${period} — for example, if the plan says they have a hospital visit AND morning medication, mention BOTH in the message. If they only have medication, mention just that. If they have a hospital visit but no medication at this time, focus on the visit. Write ONE combined message covering everything relevant to the ${period}. 
+
+Example when both apply: "${greetMap[period]} ${firstName}, remember to take your morning medication and also come in to the hospital for your treatment session today — we are expecting you! 💙"
+Example medication only: "${greetMap[period]} ${firstName}, just a reminder to take your ${period} medication 💊 — keep it up, you're doing great!"
+Example hospital visit only: "${greetMap[period]} ${firstName}, don't forget you have a hospital visit at ${hCtx.hospitalName} this ${period} — we will see you soon! 💙"
+
+Write naturally in the hospital's tone. Never sound automated.`,
+      180,
     );
     await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);

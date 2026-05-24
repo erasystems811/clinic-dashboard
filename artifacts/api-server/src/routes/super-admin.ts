@@ -131,6 +131,33 @@ router.post("/super-admin/auth/logout", (req, res): void => {
   res.json({ ok: true });
 });
 
+router.post("/super-admin/auth/recover", async (req, res): Promise<void> => {
+  const { recoveryKey, newPassword } = req.body ?? {};
+  const configuredKey = process.env.SUPER_ADMIN_RECOVERY_KEY;
+  if (!configuredKey) {
+    res.status(503).json({ error: "Recovery not configured — set SUPER_ADMIN_RECOVERY_KEY in Railway env vars" });
+    return;
+  }
+  if (!recoveryKey || !newPassword) {
+    res.status(400).json({ error: "recoveryKey and newPassword are required" });
+    return;
+  }
+  if ((newPassword as string).length < 8) {
+    res.status(400).json({ error: "New password must be at least 8 characters" });
+    return;
+  }
+  if (!crypto.timingSafeEqual(Buffer.from(recoveryKey), Buffer.from(configuredKey))) {
+    res.status(401).json({ error: "Invalid recovery key" });
+    return;
+  }
+  const salt = crypto.randomBytes(16).toString("hex");
+  const newHash = hashPassword(newPassword, salt);
+  await supabase
+    .from("super_admin_credentials")
+    .upsert({ id: 1, password_hash: newHash, salt, updated_at: new Date().toISOString() });
+  res.json({ ok: true });
+});
+
 router.post("/super-admin/change-password", requireSuperAdmin, async (req, res): Promise<void> => {
   const { currentPassword, newPassword } = req.body ?? {};
   if (!currentPassword || !newPassword) {

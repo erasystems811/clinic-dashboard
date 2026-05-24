@@ -1,8 +1,11 @@
 import { ReactNode, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth";
-import { Building2, LayoutDashboard, LogOut, ChevronRight, ShieldCheck } from "lucide-react";
+import { Building2, LayoutDashboard, LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import ChangePasswordModal from "@/components/change-password-modal";
+import { post } from "@/lib/api";
+
+type DeployState = "idle" | "pushing" | "done" | "error";
 
 interface LayoutProps {
   children: ReactNode;
@@ -13,6 +16,24 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
   const { logout } = useAuth();
   const [, setLocation] = useLocation();
   const [showSecurity, setShowSecurity] = useState(false);
+  const [deployState, setDeployState] = useState<DeployState>("idle");
+  const [deployMsg, setDeployMsg] = useState("");
+
+  const handleDeploy = async () => {
+    if (deployState === "pushing") return;
+    setDeployState("pushing");
+    setDeployMsg("");
+    try {
+      const result = await post<{ ok: boolean; output: string }>("/super-admin/deploy", {});
+      setDeployMsg(result.output);
+      setDeployState("done");
+    } catch (err: unknown) {
+      setDeployMsg(err instanceof Error ? err.message : "Push failed");
+      setDeployState("error");
+    } finally {
+      setTimeout(() => setDeployState("idle"), 5000);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -69,6 +90,29 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
             <ShieldCheck className="w-3.5 h-3.5" />
             Security
           </button>
+
+          {/* Deploy button */}
+          <div className="relative">
+            <button
+              onClick={handleDeploy}
+              disabled={deployState === "pushing"}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition font-medium
+                ${deployState === "done" ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" :
+                  deployState === "error" ? "border-red-500/40 text-red-400 bg-red-500/10" :
+                  "border-primary/40 text-primary hover:bg-primary/10"} disabled:opacity-60`}
+              title={deployMsg || "Push latest changes to GitHub → triggers Railway deploy"}
+            >
+              {deployState === "pushing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+               deployState === "done" ? <CheckCircle2 className="w-3.5 h-3.5" /> :
+               deployState === "error" ? <XCircle className="w-3.5 h-3.5" /> :
+               <Upload className="w-3.5 h-3.5" />}
+              {deployState === "pushing" ? "Pushing…" :
+               deployState === "done" ? "Pushed!" :
+               deployState === "error" ? "Failed" :
+               "Deploy"}
+            </button>
+          </div>
+
           <button
             onClick={() => logout()}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition"

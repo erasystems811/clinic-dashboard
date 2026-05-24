@@ -1,8 +1,12 @@
 import { Router } from "express";
 import crypto from "crypto";
+import { exec } from "child_process";
+import { promisify } from "util";
 import { z } from "zod/v4";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
+
+const execAsync = promisify(exec);
 
 const router = Router();
 
@@ -129,6 +133,42 @@ router.post("/super-admin/auth/login", async (req, res): Promise<void> => {
 
 router.post("/super-admin/auth/logout", (req, res): void => {
   res.json({ ok: true });
+});
+
+router.post("/super-admin/deploy", requireSuperAdmin, async (req, res): Promise<void> => {
+  const pat = process.env.GITHUB_PAT;
+  if (!pat) {
+    res.status(503).json({ error: "GITHUB_PAT not configured in environment" });
+    return;
+  }
+  try {
+    const repoUrl = `https://${pat}@github.com/erasystems811/clinic-dashboard.git`;
+    const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+
+    // Stage all changes
+    await execAsync("git add -A", { env: gitEnv });
+
+    // Commit (skip if nothing to commit)
+    const label = `Deploy from Era Super Admin ${new Date().toISOString()}`;
+    try {
+      await execAsync(`git commit -m "${label}"`, { env: gitEnv });
+    } catch {
+      // nothing to commit — that's fine, still push
+    }
+
+    // Push
+    const { stdout, stderr } = await execAsync(
+      `git push "${repoUrl}" HEAD:main`,
+      { env: gitEnv, timeout: 60000 },
+    );
+
+    res.json({ ok: true, output: (stdout + stderr).trim() || "Pushed successfully" });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Strip PAT from any error output
+    const safe = msg.replace(pat, "***");
+    res.status(500).json({ error: safe });
+  }
 });
 
 router.post("/super-admin/auth/recover", async (req, res): Promise<void> => {

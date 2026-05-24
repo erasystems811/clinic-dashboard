@@ -1,8 +1,8 @@
 [build]
-buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/era-super-admin run build"
+buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/era-super-admin run build && npm install -g serve"
 
 [deploy]
-startCommand = "npx serve -s dist/public -l $PORT"
+startCommand = "serve -s dist/public --listen $PORT"
 healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

@@ -1,7 +1,7 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth";
-import { Building2, LayoutDashboard, LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Building2, LayoutDashboard, LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2, Settings2 } from "lucide-react";
 import ChangePasswordModal from "@/components/change-password-modal";
 import { post } from "@/lib/api";
 
@@ -16,11 +16,26 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
   const { logout } = useAuth();
   const [, setLocation] = useLocation();
   const [showSecurity, setShowSecurity] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [deployState, setDeployState] = useState<DeployState>("idle");
   const [deployMsg, setDeployMsg] = useState("");
+  const [confirmDeploy, setConfirmDeploy] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettings(false);
+        setConfirmDeploy(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const handleDeploy = async () => {
     if (deployState === "pushing") return;
+    setConfirmDeploy(false);
     setDeployState("pushing");
     setDeployMsg("");
     try {
@@ -31,7 +46,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
       setDeployMsg(err instanceof Error ? err.message : "Push failed");
       setDeployState("error");
     } finally {
-      setTimeout(() => setDeployState("idle"), 5000);
+      setTimeout(() => { setDeployState("idle"); setShowSettings(false); }, 4000);
     }
   };
 
@@ -83,34 +98,67 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
             <LayoutDashboard className="w-3.5 h-3.5" />
             Hospitals
           </button>
-          <button
-            onClick={() => setShowSecurity(true)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition"
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Security
-          </button>
 
-          {/* Deploy button */}
-          <div className="relative">
+          {/* Settings gear — Security + Deploy hidden inside */}
+          <div className="relative" ref={settingsRef}>
             <button
-              onClick={handleDeploy}
-              disabled={deployState === "pushing"}
-              className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border transition font-medium
-                ${deployState === "done" ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" :
-                  deployState === "error" ? "border-red-500/40 text-red-400 bg-red-500/10" :
-                  "border-primary/40 text-primary hover:bg-primary/10"} disabled:opacity-60`}
-              title={deployMsg || "Push latest changes to GitHub → triggers Railway deploy"}
+              onClick={() => { setShowSettings(s => !s); setConfirmDeploy(false); }}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
+              title="Settings"
             >
-              {deployState === "pushing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
-               deployState === "done" ? <CheckCircle2 className="w-3.5 h-3.5" /> :
-               deployState === "error" ? <XCircle className="w-3.5 h-3.5" /> :
-               <Upload className="w-3.5 h-3.5" />}
-              {deployState === "pushing" ? "Pushing…" :
-               deployState === "done" ? "Pushed!" :
-               deployState === "error" ? "Failed" :
-               "Deploy"}
+              <Settings2 className="w-4 h-4" />
             </button>
+
+            {showSettings && (
+              <div className="absolute right-0 top-9 w-52 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
+                <button
+                  onClick={() => { setShowSecurity(true); setShowSettings(false); }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition text-left"
+                >
+                  <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+                  Security
+                </button>
+
+                <div className="border-t border-border" />
+
+                {!confirmDeploy ? (
+                  <button
+                    onClick={() => setConfirmDeploy(true)}
+                    disabled={deployState === "pushing"}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition text-left disabled:opacity-50"
+                  >
+                    {deployState === "pushing" ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                     deployState === "done" ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> :
+                     deployState === "error" ? <XCircle className="w-4 h-4 text-red-400" /> :
+                     <Upload className="w-4 h-4" />}
+                    <span className={deployState === "done" ? "text-emerald-400" : deployState === "error" ? "text-red-400" : ""}>
+                      {deployState === "pushing" ? "Pushing to GitHub…" :
+                       deployState === "done" ? "Pushed!" :
+                       deployState === "error" ? "Push failed" :
+                       "Push to GitHub"}
+                    </span>
+                  </button>
+                ) : (
+                  <div className="px-4 py-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">This will overwrite GitHub with the current Replit code and trigger a Railway deploy. Continue?</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleDeploy}
+                        className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition"
+                      >
+                        Yes, push
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeploy(false)}
+                        className="flex-1 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <button

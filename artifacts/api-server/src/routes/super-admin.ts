@@ -281,6 +281,7 @@ const UpdateHospitalBody = z.object({
   name: z.string().min(1).optional(),
   active: z.boolean().optional(),
   subscriptionStatus: z.enum(["active", "trial", "inactive"]).optional(),
+  subscriptionExpiresAt: z.string().nullable().optional(),
   password: z.string().min(6).optional(),
 });
 
@@ -291,11 +292,12 @@ router.patch("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): 
   const parsed = UpdateHospitalBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { password, name, active, subscriptionStatus } = parsed.data;
+  const { password, name, active, subscriptionStatus, subscriptionExpiresAt } = parsed.data;
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
   if (active !== undefined) updates.active = active;
   if (subscriptionStatus !== undefined) updates.subscription_status = subscriptionStatus;
+  if (subscriptionExpiresAt !== undefined) updates.subscription_expires_at = subscriptionExpiresAt;
   if (password) {
     const salt = crypto.randomBytes(16).toString("hex");
     updates.password_hash = `${salt}:${hashPassword(password, salt)}`;

@@ -468,6 +468,33 @@ async function runFeedbackEmails() {
   }
 }
 
+// ── Subscription Expiration Auto-Suspend ──────────────────────────────────────
+async function checkSubscriptionExpirations() {
+  try {
+    const now = new Date().toISOString();
+    const { data: expired } = await supabase
+      .from("hospitals")
+      .select("id, name, subscription_expires_at")
+      .eq("active", true)
+      .not("subscription_expires_at", "is", null)
+      .lte("subscription_expires_at", now);
+
+    if (!expired?.length) return;
+    log(`Subscription check: ${expired.length} hospital(s) expired, suspending…`);
+
+    for (const h of expired) {
+      await supabase
+        .from("hospitals")
+        .update({ active: false, subscription_status: "inactive" })
+        .eq("id", h.id);
+      log(`Suspended hospital id=${h.id} name="${h.name}" — subscription expired`);
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Subscription expiration check failed: ${err}`);
+  }
+}
+
 export function startScheduler() {
   // Every 15 minutes: appointment reminders
   cron.schedule("*/15 * * * *", runAppointmentReminders);
@@ -493,6 +520,9 @@ export function startScheduler() {
 
   // Daily at 10am: post-care wellness (sends once to patients with 30+ days no contact, then every 30 days)
   cron.schedule("0 10 * * *", runPostCareWellness);
+
+  // Daily at 1am UTC (2am WAT): auto-suspend hospitals with expired subscriptions
+  cron.schedule("0 1 * * *", checkSubscriptionExpirations);
 
   log("Scheduler started");
 }

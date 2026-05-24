@@ -4,7 +4,7 @@ import Layout from "@/components/layout";
 import { api, Hospital } from "@/lib/api";
 import {
   Building2, Plus, Search, CheckCircle2, XCircle,
-  AlertCircle, Loader2, ChevronRight, Users, RefreshCw, Trash2
+  AlertCircle, Loader2, ChevronRight, RefreshCw, Trash2, CalendarClock
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";
 
@@ -73,11 +73,18 @@ export default function Dashboard() {
     h.username.toLowerCase().includes(search.toLowerCase())
   );
 
+  const now = Date.now();
+  const in30days = now + 30 * 24 * 60 * 60 * 1000;
   const stats = {
     total: hospitals.length,
     active: hospitals.filter(h => h.active && h.subscriptionStatus === "active").length,
     trial: hospitals.filter(h => h.subscriptionStatus === "trial").length,
     suspended: hospitals.filter(h => !h.active).length,
+    expiringSoon: hospitals.filter(h => {
+      if (!h.active || !h.subscriptionExpiresAt) return false;
+      const exp = new Date(h.subscriptionExpiresAt).getTime();
+      return exp > now && exp <= in30days;
+    }).length,
   };
 
   return (
@@ -125,14 +132,15 @@ export default function Dashboard() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-5 gap-4 mb-6">
         {[
           { label: "Total Accounts", value: stats.total, icon: Building2, color: "text-primary" },
           { label: "Active", value: stats.active, icon: CheckCircle2, color: "text-emerald-400" },
           { label: "Trial", value: stats.trial, icon: AlertCircle, color: "text-amber-400" },
           { label: "Suspended", value: stats.suspended, icon: XCircle, color: "text-red-400" },
+          { label: "Expiring Soon", value: stats.expiringSoon, icon: CalendarClock, color: stats.expiringSoon > 0 ? "text-orange-400" : "text-muted-foreground" },
         ].map(stat => (
-          <div key={stat.label} className="rounded-xl bg-card border border-border p-4">
+          <div key={stat.label} className={`rounded-xl bg-card border p-4 ${stat.label === "Expiring Soon" && stat.value > 0 ? "border-orange-500/40 bg-orange-500/5" : "border-border"}`}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-muted-foreground font-medium">{stat.label}</span>
               <stat.icon className={`w-4 h-4 ${stat.color}`} />
@@ -186,12 +194,18 @@ export default function Dashboard() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Hospital</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Username</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Subscription Expires</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Created</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map(hospital => (
+              {filtered.map(hospital => {
+                const expDate = hospital.subscriptionExpiresAt ? new Date(hospital.subscriptionExpiresAt) : null;
+                const daysLeft = expDate ? Math.ceil((expDate.getTime() - now) / (1000 * 60 * 60 * 24)) : null;
+                const isExpired = daysLeft !== null && daysLeft < 0;
+                const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
+                return (
                 <tr
                   key={hospital.id}
                   className="hover:bg-muted/30 transition cursor-pointer"
@@ -215,6 +229,19 @@ export default function Dashboard() {
                     <StatusBadge status={hospital.subscriptionStatus} active={hospital.active} />
                   </td>
                   <td className="px-4 py-3">
+                    {expDate ? (
+                      <div>
+                        <p className={`text-xs font-medium ${isExpired ? "text-red-400" : isExpiringSoon ? "text-orange-400" : "text-muted-foreground"}`}>
+                          {expDate.toLocaleDateString()}
+                        </p>
+                        {isExpired && <p className="text-xs text-red-400">Expired {Math.abs(daysLeft!)}d ago</p>}
+                        {isExpiringSoon && <p className="text-xs text-orange-400">⚠️ {daysLeft}d left</p>}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground/50">Not set</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
                     <span className="text-xs text-muted-foreground">
                       {new Date(hospital.createdAt).toLocaleDateString()}
                     </span>
@@ -223,7 +250,8 @@ export default function Dashboard() {
                     <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

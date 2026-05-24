@@ -111,6 +111,7 @@ export default function HospitalDetail({ id }: Props) {
   const [name, setName] = useState("");
   const [subStatus, setSubStatus] = useState("active");
   const [active, setActive] = useState(true);
+  const [subscriptionExpiresAt, setSubscriptionExpiresAt] = useState<string>("");
   const [regenerating, setRegenerating] = useState(false);
   const [showAdminPass, setShowAdminPass] = useState(false);
   const [allCopied, setAllCopied] = useState(false);
@@ -149,6 +150,7 @@ export default function HospitalDetail({ id }: Props) {
       setName(h.name);
       setSubStatus(h.subscriptionStatus);
       setActive(h.active);
+      setSubscriptionExpiresAt(h.subscriptionExpiresAt ? h.subscriptionExpiresAt.substring(0, 10) : "");
       setDepartments(s.departments ?? []);
       setPostTreatmentDays(s.pipelinePostTreatmentDays?.toString() ?? "");
       setDormantDays(s.pipelineDormantDays?.toString() ?? "");
@@ -199,7 +201,12 @@ export default function HospitalDetail({ id }: Props) {
     setSaving(true);
     setError("");
     try {
-      await api.updateHospital(id, { name, subscriptionStatus: subStatus, active });
+      await api.updateHospital(id, {
+        name,
+        subscriptionStatus: subStatus,
+        active,
+        subscriptionExpiresAt: subscriptionExpiresAt ? new Date(subscriptionExpiresAt).toISOString() : null,
+      });
       flash("Hospital updated");
       load();
     } catch (e: unknown) {
@@ -504,17 +511,41 @@ export default function HospitalDetail({ id }: Props) {
           </Field>
 
           <Field label="Subscription Status">
-            <select value={subStatus} onChange={e => setSubStatus(e.target.value)} className={inputCls()}>
-              {["active", "trial", "inactive"].map(s => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-              ))}
+            <select
+              value={subStatus}
+              onChange={e => {
+                const val = e.target.value;
+                setSubStatus(val);
+                if (val === "inactive") setActive(false);
+                else setActive(true);
+              }}
+              className={inputCls()}
+            >
+              <option value="active">Active</option>
+              <option value="trial">Trial</option>
+              <option value="inactive">Suspended</option>
             </select>
+          </Field>
+
+          <Field label="Subscription Expiry Date">
+            <input
+              type="date"
+              value={subscriptionExpiresAt}
+              onChange={e => setSubscriptionExpiresAt(e.target.value)}
+              className={inputCls()}
+            />
+            {subscriptionExpiresAt && (() => {
+              const days = Math.ceil((new Date(subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              if (days < 0) return <p className="text-xs text-red-400 mt-1">⚠️ Subscription expired {Math.abs(days)} day{Math.abs(days) !== 1 ? "s" : ""} ago</p>;
+              if (days <= 30) return <p className="text-xs text-amber-400 mt-1">⚠️ Expires in {days} day{days !== 1 ? "s" : ""}</p>;
+              return <p className="text-xs text-emerald-400 mt-1">Active for {days} more day{days !== 1 ? "s" : ""}</p>;
+            })()}
           </Field>
 
           <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted border border-border">
             <div>
               <p className="text-sm font-medium text-foreground">Account Active</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Inactive accounts cannot log in</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Suspended accounts cannot log in</p>
             </div>
             <Toggle checked={active} onChange={setActive} />
           </div>

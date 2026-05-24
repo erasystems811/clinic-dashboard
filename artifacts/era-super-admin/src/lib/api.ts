@@ -56,6 +56,7 @@ export interface Hospital {
   username: string;
   active: boolean;
   subscriptionStatus: string;
+  subscriptionExpiresAt: string | null;
   logoUrl: string | null;
   createdAt: string;
   updatedAt: string | null;

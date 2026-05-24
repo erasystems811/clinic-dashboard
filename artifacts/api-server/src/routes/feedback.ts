@@ -76,11 +76,14 @@ router.get("/feedback/form/:token", async (req, res): Promise<void> => {
     .eq("feedback_token", req.params.token)
     .maybeSingle();
 
+  const questions = await getFormQuestions(hospitalId);
+
   res.json({
     patientId: patient.id,
     patientName: `${patient.first_name} ${patient.last_name}`,
     hospitalName: hospital.name,
     alreadySubmitted: !!existing,
+    questions,
   });
 });
 
@@ -142,6 +145,48 @@ router.post("/feedback", async (req, res): Promise<void> => {
 
   if (error || !data) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
   res.status(201).json(camelize(data));
+});
+
+const DEFAULT_QUESTIONS = [
+  { key: "overall", label: "Overall Experience", type: "rating", required: true, enabled: true },
+  { key: "wait_time", label: "Wait Time", type: "rating", required: false, enabled: true },
+  { key: "staff_friendliness", label: "Staff Friendliness", type: "rating", required: false, enabled: true },
+  { key: "quality_of_care", label: "Quality of Care", type: "rating", required: false, enabled: true },
+  { key: "recommend", label: "Would you recommend us to others?", type: "recommend", required: false, enabled: true },
+  { key: "comments", label: "Additional Comments", type: "text", required: false, enabled: true },
+];
+
+async function getFormQuestions(hospitalId: number) {
+  const { data } = await supabase
+    .from("feedback_form_config")
+    .select("questions")
+    .eq("hospital_id", hospitalId)
+    .maybeSingle();
+  return (data?.questions as typeof DEFAULT_QUESTIONS) ?? DEFAULT_QUESTIONS;
+}
+
+router.get("/feedback/form-config", async (req, res): Promise<void> => {
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const questions = await getFormQuestions(hospitalId);
+  res.json({ questions });
+});
+
+router.put("/feedback/form-config", async (req, res): Promise<void> => {
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { questions } = req.body;
+  if (!Array.isArray(questions)) { res.status(400).json({ error: "questions must be an array" }); return; }
+
+  const { error } = await supabase
+    .from("feedback_form_config")
+    .upsert({ hospital_id: hospitalId, questions, updated_at: new Date().toISOString() });
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ ok: true });
 });
 
 router.get("/feedback", async (req, res): Promise<void> => {

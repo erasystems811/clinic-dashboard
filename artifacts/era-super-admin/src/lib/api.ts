@@ -29,7 +29,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export function get<T>(path: string) {
-  return request<T>(path);
+  return request<T>(path, { cache: "no-store" });
 }
 export function post<T>(path: string, body: unknown) {
   return request<T>(path, { method: "POST", body: JSON.stringify(body) });

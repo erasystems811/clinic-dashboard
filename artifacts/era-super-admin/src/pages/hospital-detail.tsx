@@ -547,7 +547,14 @@ export default function HospitalDetail({ id }: Props) {
               <p className="text-sm font-medium text-foreground">Account Active</p>
               <p className="text-xs text-muted-foreground mt-0.5">Suspended accounts cannot log in</p>
             </div>
-            <Toggle checked={active} onChange={setActive} />
+            <Toggle
+              checked={active}
+              onChange={(val) => {
+                setActive(val);
+                if (!val) setSubStatus("inactive");
+                else if (subStatus === "inactive") setSubStatus("active");
+              }}
+            />
           </div>
 
           <div className="flex justify-end pt-2">

@@ -119,27 +119,45 @@ async function runInCareDailyMessages() {
 // ── Post-Treatment Check-ins — runs daily ─────────────────────────────────────
 async function runPostTreatmentCheckins() {
   try {
+    const today = new Date().toISOString().split("T")[0];
+
     const { data: hospitals } = await supabase
       .from("hospital_settings")
       .select("hospital_id, post_treatment_checkin_days");
 
     for (const hs of hospitals ?? []) {
-      const freqDays = (hs.post_treatment_checkin_days as number) ?? 3;
-      const cutoff = new Date(Date.now() - freqDays * 24 * 60 * 60 * 1000).toISOString();
+      // post_treatment_checkin_days = total number of days to send daily check-ins after treatment ends
+      const durationDays = (hs.post_treatment_checkin_days as number) ?? 14;
+      const windowStart = new Date(Date.now() - durationDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
       const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hs.hospital_id).single();
       if (!hospital) continue;
 
+      // Only patients whose treatment ended within the check-in window
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, phone, whatsapp_number")
+        .select("id, first_name, last_name, phone, whatsapp_number, treatment_end_date")
         .eq("stage", "Post Treatment")
         .eq("hospital_id", hospital.username)
-        .or(`last_checkin_sent_at.is.null,last_checkin_sent_at.lt.${cutoff}`);
+        .gte("treatment_end_date", windowStart);
 
       for (const p of patients ?? []) {
         const phone = (p.whatsapp_number as string) || (p.phone as string);
         if (!phone) continue;
+
+        // Only once per day — skip if already sent today
+        const { data: sentToday } = await supabase
+          .from("automation_log")
+          .select("id")
+          .eq("patient_id", p.id)
+          .eq("automation_type", "post_treatment_checkin")
+          .eq("status", "sent")
+          .gte("created_at", `${today}T00:00:00Z`)
+          .lte("created_at", `${today}T23:59:59Z`)
+          .maybeSingle();
+
+        if (sentToday) continue;
+
         const patientName = `${p.first_name} ${p.last_name}`;
 
         const { count } = await supabase
@@ -149,8 +167,7 @@ async function runPostTreatmentCheckins() {
           .eq("automation_type", "post_treatment_checkin");
 
         await sendPostTreatmentCheckin(hs.hospital_id as number, p.id as number, patientName, phone, (count ?? 0) + 1);
-        await supabase.from("patients").update({ last_checkin_sent_at: new Date().toISOString() }).eq("id", p.id);
-        log(`Post-treatment check-in sent to patient ${p.id}`);
+        log(`Post-treatment check-in sent to patient ${p.id} (day ${(count ?? 0) + 1} of ${durationDays})`);
       }
     }
   } catch (err) {

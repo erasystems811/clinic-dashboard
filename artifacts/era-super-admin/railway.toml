@@ -2,6 +2,8 @@
 buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/era-super-admin run build"
 
 [deploy]
-startCommand = "cd ../.. && pnpm --filter @workspace/era-super-admin run serve"
+startCommand = "npx serve -s dist/public -l $PORT"
+healthcheckPath = "/"
+healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

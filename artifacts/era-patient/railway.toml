@@ -3,7 +3,5 @@ buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @workspace/era-p
 
 [deploy]
 startCommand = "pnpm --filter @workspace/era-patient run start"
-healthcheckPath = "/"
-healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

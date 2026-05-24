@@ -31,14 +31,15 @@ export async function generateOpenAIMessage(
   return resp.choices[0]?.message?.content?.trim() ?? "";
 }
 
+// Newsletter generation uses Claude Haiku for quality long-form wellness content
 export async function generateClaudeMessage(
   systemPrompt: string,
   userPrompt: string,
-  maxTokens = 1000,
+  maxTokens = 1200,
 ): Promise<string> {
   const claude = getClaude();
   const resp = await claude.messages.create({
-    model: "claude-3-5-haiku-20241022",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: "user", content: userPrompt }],

@@ -308,7 +308,8 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
     .select()
     .single();
 
-  if (error || !modules) { res.status(404).json({ error: "Not found" }); return; }
+  if (error) { res.status(500).json({ error: error.message ?? "Update failed" }); return; }
+  if (!modules) { res.status(404).json({ error: "Not found" }); return; }
   res.json(camelize(modules));
 });
 

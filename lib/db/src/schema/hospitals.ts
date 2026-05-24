@@ -38,6 +38,8 @@ export const hospitalModulesTable = pgTable("hospital_modules", {
   hospitalId: integer("hospital_id").notNull().unique(),
   appointmentsEnabled: boolean("appointments_enabled").notNull().default(true),
   feedbackEnabled: boolean("feedback_enabled").notNull().default(true),
+  wellnessNewsletterEnabled: boolean("wellness_newsletter_enabled").notNull().default(true),
+  whatsappEnabled: boolean("whatsapp_enabled").notNull().default(false),
   messagesEnabled: boolean("messages_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

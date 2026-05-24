@@ -304,8 +304,17 @@ router.patch("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): 
     updates.current_password = password;
   }
 
-  const { data: hospital, error } = await supabase.from("hospitals").update(updates).eq("id", id).select().single();
-  if (error || !hospital) { res.status(404).json({ error: "Not found" }); return; }
+  let { data: hospital, error } = await supabase.from("hospitals").update(updates).eq("id", id).select().single();
+
+  // If subscription_expires_at column doesn't exist yet, retry without it
+  if (error && error.message.includes("subscription_expires_at")) {
+    const { subscription_expires_at: _dropped, ...updatesWithout } = updates as Record<string, unknown> & { subscription_expires_at?: unknown };
+    void _dropped;
+    ({ data: hospital, error } = await supabase.from("hospitals").update(updatesWithout).eq("id", id).select().single());
+  }
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (!hospital) { res.status(404).json({ error: "Hospital not found" }); return; }
 
   res.json({ ...camelize(hospital), currentPassword: hospital.current_password ?? null });
 });

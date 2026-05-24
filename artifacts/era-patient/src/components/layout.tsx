@@ -16,10 +16,12 @@ import {
   Newspaper,
   Building2,
   MessageSquare,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth, type Role, type HospitalConfig } from "@/contexts/auth-context";
+import { TourGuide, useRestartTour } from "@/components/tour-guide";
 
 interface LayoutProps {
   children: ReactNode;
@@ -75,6 +77,19 @@ const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
 };
 
+function RestartTourButton() {
+  const restartTour = useRestartTour();
+  return (
+    <button
+      onClick={restartTour}
+      className="text-muted-foreground hover:text-foreground transition-colors"
+      title="Restart guided tour"
+    >
+      <HelpCircle className="w-4 h-4" />
+    </button>
+  );
+}
+
 export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { user, hospital, hospitalConfig, logout } = useAuth();
@@ -102,7 +117,7 @@ export function Layout({ children }: LayoutProps) {
         {(role === "admin" || role === "receptionist") && (
           <div className="p-4 shrink-0">
             <Link href="/patients/new">
-              <Button className="w-full justify-start gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button data-tour="new-patient" className="w-full justify-start gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
                 <Plus className="w-4 h-4" />
                 New Patient
               </Button>
@@ -115,9 +130,13 @@ export function Layout({ children }: LayoutProps) {
             const isActive =
               location === item.href ||
               (item.href !== "/" && location.startsWith(item.href));
+            const tourId = item.href === "/"
+              ? "nav-dashboard"
+              : `nav-${item.href.replace(/^\//, "").replace(/[^a-z0-9]/g, "-")}`;
             return (
               <Link key={item.href} href={item.href}>
                 <button
+                  data-tour={tourId}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium w-full text-left transition-colors",
                     isActive
@@ -136,7 +155,7 @@ export function Layout({ children }: LayoutProps) {
         <div className="p-4 border-t border-border shrink-0">
           {role === "admin" && (
             <Link href="/settings">
-              <button className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium w-full text-left text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors mb-2">
+              <button data-tour="nav-settings" className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium w-full text-left text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors mb-2">
                 <Settings className="w-4 h-4" />
                 Settings
               </button>
@@ -153,6 +172,7 @@ export function Layout({ children }: LayoutProps) {
               <span className="text-sm font-medium leading-none truncate">{user?.displayName ?? "User"}</span>
               <span className="text-xs text-muted-foreground capitalize">{ROLE_LABELS[role]}</span>
             </div>
+            <RestartTourButton />
             <button
               onClick={logout}
               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -179,6 +199,7 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </div>
       </main>
+      <TourGuide />
     </div>
   );
 }

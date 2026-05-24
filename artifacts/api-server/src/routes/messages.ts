@@ -95,6 +95,72 @@ router.get("/messages/thread", async (req, res): Promise<void> => {
   res.json((data ?? []).map((m) => camelize(m)));
 });
 
+// ── POST /messages/inbound — receive an inbound patient reply (webhook) ──────
+// Routing: look up last outbound message sent to this phone; use its category
+// to decide which inbox receives the reply.
+//   queue / appointment  →  receptionist inbox
+//   care  / treatment    →  nurse inbox
+//   anything else / none →  general (admin default)
+const InboundBody = z.object({
+  phone:       z.string().min(1),
+  body:        z.string().min(1),
+  patientName: z.string().optional(),
+  patientId:   z.number().optional(),
+});
+
+router.post("/messages/inbound", async (req, res): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const parsed = InboundBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const { phone, body, patientName, patientId } = parsed.data;
+
+  // Find the last outbound message sent to this phone number at this hospital
+  const { data: lastOutbound } = await supabase
+    .from("whatsapp_messages")
+    .select("category")
+    .eq("hospital_id", hospitalId)
+    .eq("patient_phone", phone)
+    .eq("direction", "outbound")
+    .order("received_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Route reply to the correct inbox based on what the outbound message was about
+  const outboundCategory = lastOutbound?.category as string | undefined;
+  let routedCategory: string;
+  if (outboundCategory === "queue" || outboundCategory === "appointment") {
+    routedCategory = outboundCategory;   // → receptionist inbox
+  } else if (outboundCategory === "care" || outboundCategory === "treatment") {
+    routedCategory = outboundCategory;   // → nurse inbox
+  } else {
+    routedCategory = "general";          // → admin inbox (default / unclassified)
+  }
+
+  const now = new Date().toISOString();
+  const { data: inserted, error } = await supabase
+    .from("whatsapp_messages")
+    .insert({
+      hospital_id:   hospitalId,
+      patient_id:    patientId ?? null,
+      patient_name:  patientName ?? null,
+      patient_phone: phone,
+      direction:     "inbound",
+      message_body:  body,
+      category:      routedCategory,
+      read:          false,
+      received_at:   now,
+    })
+    .select()
+    .single();
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json(camelize(inserted));
+});
+
 // ── POST /messages/reply — send an outbound reply ────────────────────────────
 const ReplyBody = z.object({
   phone:       z.string().min(1),

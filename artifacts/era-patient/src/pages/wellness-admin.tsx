@@ -21,7 +21,7 @@ function weekOfDate(date: Date) {
   return format(startOfWeek(date), "yyyy-MM-dd");
 }
 
-const TOPIC_SUGGESTIONS = [
+const FALLBACK_TOPIC_SUGGESTIONS = [
   "Hydration and Water Intake",
   "Sleep Hygiene",
   "Stress Management",
@@ -52,6 +52,19 @@ export default function WellnessAdmin() {
   const [sending, setSending] = useState(false);
   const [showTopicSuggestions, setShowTopicSuggestions] = useState(false);
   const [sendResult, setSendResult] = useState<{ sent: number; failed: number } | null>(null);
+  const [topicSuggestions, setTopicSuggestions] = useState<string[]>(FALLBACK_TOPIC_SUGGESTIONS);
+
+  useEffect(() => {
+    if (!hospital?.token) return;
+    fetch(`${BASE}/api/wellness/topics`, {
+      headers: { "x-hospital-token": hospital.token },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { suggested: string[] } | null) => {
+        if (data?.suggested?.length) setTopicSuggestions(data.suggested);
+      })
+      .catch(() => {});
+  }, [hospital?.token]);
 
   useEffect(() => {
     if (currentNewsletter) {
@@ -196,7 +209,7 @@ export default function WellnessAdmin() {
               </div>
               {showTopicSuggestions && (
                 <div className="flex flex-wrap gap-2">
-                  {TOPIC_SUGGESTIONS.map(t => (
+                  {topicSuggestions.map(t => (
                     <button
                       key={t}
                       type="button"

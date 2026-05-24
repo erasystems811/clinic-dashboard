@@ -57,6 +57,62 @@ const DEFAULT_TOPICS = [
   "Building Healthy Habits",
 ];
 
+// Topics relevant to each department type — used to surface contextual suggestions
+const DEPARTMENT_TOPICS: Record<string, string[]> = {
+  "Cardiology":        ["Heart Health", "Blood Pressure Management", "Stress Management", "Physical Activity and Exercise", "Weight Management"],
+  "Pediatrics":        ["Children's Health", "Healthy Eating Habits", "Sleep Hygiene", "Immune System Support", "Physical Activity and Exercise"],
+  "Orthopedics":       ["Bone and Joint Health", "Posture and Back Health", "Physical Activity and Exercise", "Managing Chronic Pain", "Building Healthy Habits"],
+  "General Practice":  ["Hydration and Water Intake", "Sleep Hygiene", "Stress Management", "Healthy Eating Habits", "Building Healthy Habits"],
+  "Oncology":          ["Immune System Support", "Mental Health Awareness", "Emotional Wellbeing", "Cancer Awareness and Prevention", "Vitamins and Nutrition"],
+  "Neurology":         ["Mental Health Awareness", "Sleep Hygiene", "Stress Management", "Emotional Wellbeing", "Managing Chronic Pain"],
+  "Endocrinology":     ["Diabetes Prevention", "Weight Management", "Healthy Eating Habits", "Physical Activity and Exercise", "Blood Pressure Management"],
+  "Obstetrics":        ["Women's Health", "Healthy Eating Habits", "Stress Management", "Sleep Hygiene", "Physical Activity and Exercise"],
+  "Maternity":         ["Women's Health", "Healthy Eating Habits", "Stress Management", "Sleep Hygiene", "Emotional Wellbeing"],
+  "Physiotherapy":     ["Physical Activity and Exercise", "Posture and Back Health", "Bone and Joint Health", "Managing Chronic Pain", "Building Healthy Habits"],
+  "Nutrition":         ["Healthy Eating Habits", "Weight Management", "Digestive Wellness", "Vitamins and Nutrition", "Hydration and Water Intake"],
+  "Dietetics":         ["Healthy Eating Habits", "Weight Management", "Digestive Wellness", "Vitamins and Nutrition", "Diabetes Prevention"],
+  "Psychiatry":        ["Mental Health Awareness", "Emotional Wellbeing", "Sleep Hygiene", "Stress Management", "Work-Life Balance"],
+  "Psychology":        ["Mental Health Awareness", "Emotional Wellbeing", "Stress Management", "Work-Life Balance", "Building Healthy Habits"],
+  "Dermatology":       ["Skin Health", "Hydration and Water Intake", "Vitamins and Nutrition", "Immune System Support", "Healthy Eating Habits"],
+  "Ophthalmology":     ["Eye Health", "Vitamins and Nutrition", "Sleep Hygiene", "Hydration and Water Intake", "Physical Activity and Exercise"],
+  "Pulmonology":       ["Respiratory Health", "Physical Activity and Exercise", "Stress Management", "Immune System Support", "Building Healthy Habits"],
+  "Respiratory":       ["Respiratory Health", "Physical Activity and Exercise", "Stress Management", "Immune System Support", "Sleep Hygiene"],
+  "Gastroenterology":  ["Digestive Wellness", "Healthy Eating Habits", "Hydration and Water Intake", "Stress Management", "Vitamins and Nutrition"],
+  "Geriatrics":        ["Senior Wellness", "Bone and Joint Health", "Mental Health Awareness", "Immune System Support", "Managing Chronic Pain"],
+  "Surgery":           ["Managing Chronic Pain", "Building Healthy Habits", "Immune System Support", "Healthy Eating Habits", "Stress Management"],
+  "Emergency":         ["Stress Management", "Mental Health Awareness", "Sleep Hygiene", "Building Healthy Habits", "Work-Life Balance"],
+  "Urology":           ["Hydration and Water Intake", "Men's Health", "Healthy Eating Habits", "Physical Activity and Exercise", "Weight Management"],
+  "Gynaecology":       ["Women's Health", "Mental Health Awareness", "Healthy Eating Habits", "Stress Management", "Physical Activity and Exercise"],
+  "Dentistry":         ["Oral Health", "Healthy Eating Habits", "Vitamins and Nutrition", "Hydration and Water Intake", "Stress Management"],
+  "ENT":               ["Respiratory Health", "Immune System Support", "Vitamins and Nutrition", "Sleep Hygiene", "Hydration and Water Intake"],
+  "Rheumatology":      ["Bone and Joint Health", "Managing Chronic Pain", "Physical Activity and Exercise", "Stress Management", "Vitamins and Nutrition"],
+  "Nephrology":        ["Hydration and Water Intake", "Blood Pressure Management", "Healthy Eating Habits", "Stress Management", "Vitamins and Nutrition"],
+  "Haematology":       ["Immune System Support", "Vitamins and Nutrition", "Healthy Eating Habits", "Emotional Wellbeing", "Mental Health Awareness"],
+};
+
+function getTopicsForDepartments(departments: string[]): string[] {
+  if (departments.length === 0) return DEFAULT_TOPICS;
+
+  // Score each topic by how many of the hospital's departments recommend it
+  const scores = new Map<string, number>();
+  for (const dept of departments) {
+    // Try exact match first, then case-insensitive partial match
+    const key = Object.keys(DEPARTMENT_TOPICS).find(
+      k => k.toLowerCase() === dept.toLowerCase() || dept.toLowerCase().includes(k.toLowerCase()),
+    );
+    const relevant = key ? DEPARTMENT_TOPICS[key] : [];
+    for (const topic of relevant) {
+      scores.set(topic, (scores.get(topic) ?? 0) + 1);
+    }
+  }
+
+  // Return topics sorted by relevance score (descending), then pad with unused DEFAULT_TOPICS
+  const scored = [...scores.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  const scoredSet = new Set(scored);
+  const remainder = DEFAULT_TOPICS.filter(t => !scoredSet.has(t));
+  return [...scored, ...remainder];
+}
+
 async function pickNextTopic(hospitalId: number, departments: string[]): Promise<string> {
   const { data: used } = await supabase
     .from("wellness_topics")
@@ -245,16 +301,20 @@ router.get("/wellness/topics", async (req, res): Promise<void> => {
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { data: used } = await supabase
-    .from("wellness_topics")
-    .select("topic")
-    .eq("hospital_id", hospitalId);
+  const [{ data: used }, { data: settings }] = await Promise.all([
+    supabase.from("wellness_topics").select("topic").eq("hospital_id", hospitalId),
+    supabase.from("hospital_settings").select("departments").eq("hospital_id", hospitalId).single(),
+  ]);
 
+  const departments: string[] = settings?.departments ? JSON.parse(settings.departments as string) : [];
   const usedSet = new Set((used ?? []).map((t: Record<string, unknown>) => t.topic as string));
-  const suggested = DEFAULT_TOPICS.filter(t => !usedSet.has(t)).slice(0, 8);
-  const all = DEFAULT_TOPICS;
 
-  res.json({ suggested, all, used: [...usedSet] });
+  // Get all topics ordered by department relevance, then filter out already-used ones for suggestions
+  const orderedByDept = getTopicsForDepartments(departments);
+  const suggested = orderedByDept.filter(t => !usedSet.has(t)).slice(0, 8);
+  const all = orderedByDept;
+
+  res.json({ suggested, all, used: [...usedSet], departments });
 });
 
 export default router;

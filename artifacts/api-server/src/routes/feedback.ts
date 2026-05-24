@@ -2,39 +2,10 @@ import { Router, type IRouter } from "express";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
-import crypto from "crypto";
 import { verifyHospitalToken } from "./super-admin.js";
+import { signFeedbackToken, verifyFeedbackToken } from "../lib/feedbackToken.js";
 
 const router: IRouter = Router();
-
-const SECRET = process.env.SUPABASE_JWT_SECRET ?? "fallback-feedback-secret";
-
-function signFeedbackToken(patientId: number, hospitalId: number): string {
-  const payload = `f:${patientId}:${hospitalId}`;
-  const encoded = Buffer.from(payload).toString("base64url");
-  const sig = crypto.createHmac("sha256", SECRET).update(payload).digest("hex").slice(0, 32);
-  return `${encoded}.${sig}`;
-}
-
-function verifyFeedbackToken(token: string): { patientId: number; hospitalId: number } | null {
-  try {
-    const dot = token.lastIndexOf(".");
-    if (dot < 0) return null;
-    const encoded = token.slice(0, dot);
-    const sig = token.slice(dot + 1);
-    const payload = Buffer.from(encoded, "base64url").toString("utf8");
-    const expected = crypto.createHmac("sha256", SECRET).update(payload).digest("hex").slice(0, 32);
-    if (sig !== expected) return null;
-    const parts = payload.split(":");
-    if (parts[0] !== "f" || parts.length !== 3) return null;
-    const patientId = parseInt(parts[1], 10);
-    const hospitalId = parseInt(parts[2], 10);
-    if (isNaN(patientId) || isNaN(hospitalId)) return null;
-    return { patientId, hospitalId };
-  } catch {
-    return null;
-  }
-}
 
 router.post("/patients/:id/feedback-link", async (req, res): Promise<void> => {
   const hospitalToken = req.headers["x-hospital-token"] as string;

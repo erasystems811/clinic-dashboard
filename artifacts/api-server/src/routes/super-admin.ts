@@ -211,6 +211,10 @@ const UpdateSettingsBody = z.object({
   language: z.string().optional(),
   tone: z.array(z.string()).optional(),
   clinicDescription: z.string().optional(),
+  sendingEmail: z.string().optional(),
+  postTreatmentCheckinDays: z.number().int().min(1).optional(),
+  postCareCheckinDays: z.number().int().min(1).optional(),
+  whatsappFromNumber: z.string().optional(),
 });
 
 router.get("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -235,7 +239,7 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   const parsed = UpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { departments, tone, pipelinePostTreatmentDays, pipelineDormantDays, language, clinicDescription } = parsed.data;
+  const { departments, tone, pipelinePostTreatmentDays, pipelineDormantDays, language, clinicDescription, sendingEmail, postTreatmentCheckinDays, postCareCheckinDays, whatsappFromNumber } = parsed.data;
   const updates: Record<string, unknown> = {};
   if (departments !== undefined) updates.departments = JSON.stringify(departments);
   if (tone !== undefined) updates.tone = JSON.stringify(tone);
@@ -243,6 +247,10 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   if (pipelineDormantDays !== undefined) updates.pipeline_dormant_days = pipelineDormantDays;
   if (language !== undefined) updates.language = language;
   if (clinicDescription !== undefined) updates.clinic_description = clinicDescription;
+  if (sendingEmail !== undefined) updates.sending_email = sendingEmail;
+  if (postTreatmentCheckinDays !== undefined) updates.post_treatment_checkin_days = postTreatmentCheckinDays;
+  if (postCareCheckinDays !== undefined) updates.post_care_checkin_days = postCareCheckinDays;
+  if (whatsappFromNumber !== undefined) updates.whatsapp_from_number = whatsappFromNumber;
 
   const { data: settings, error } = await supabase
     .from("hospital_settings")
@@ -264,6 +272,8 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
 const UpdateModulesBody = z.object({
   appointmentsEnabled: z.boolean().optional(),
   feedbackEnabled: z.boolean().optional(),
+  wellnessNewsletterEnabled: z.boolean().optional(),
+  whatsappEnabled: z.boolean().optional(),
 });
 
 router.get("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -286,6 +296,8 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
   const updates: Record<string, unknown> = {};
   if (parsed.data.appointmentsEnabled !== undefined) updates.appointments_enabled = parsed.data.appointmentsEnabled;
   if (parsed.data.feedbackEnabled !== undefined) updates.feedback_enabled = parsed.data.feedbackEnabled;
+  if (parsed.data.wellnessNewsletterEnabled !== undefined) updates.wellness_newsletter_enabled = parsed.data.wellnessNewsletterEnabled;
+  if (parsed.data.whatsappEnabled !== undefined) updates.whatsapp_enabled = parsed.data.whatsappEnabled;
 
   const { data: modules, error } = await supabase
     .from("hospital_modules")
@@ -447,6 +459,46 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
       feedbackEnabled: modules?.feedback_enabled ?? true,
     },
   });
+});
+
+// ── Automation Log (Failed Automations) ───────────────────────────────────────
+router.get("/super-admin/automation-log", requireSuperAdmin, async (req, res): Promise<void> => {
+  const status = req.query.status as string | undefined;
+  const hospitalId = req.query.hospitalId ? parseInt(req.query.hospitalId as string, 10) : null;
+
+  let q = supabase
+    .from("automation_log")
+    .select("*, hospitals(name)")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (status) q = q.eq("status", status);
+  if (hospitalId) q = q.eq("hospital_id", hospitalId);
+
+  const { data, error } = await q;
+  if (error) { res.status(500).json({ error: error.message }); return; }
+
+  res.json((data ?? []).map((row: Record<string, unknown>) => ({
+    ...camelize(row),
+    hospitalName: (row.hospitals as Record<string, unknown> | null)?.name ?? null,
+  })));
+});
+
+router.post("/super-admin/automation-log/:id/retry", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { data: log } = await supabase.from("automation_log").select("*").eq("id", id).single();
+  if (!log) { res.status(404).json({ error: "Log entry not found" }); return; }
+
+  await supabase.from("automation_log").update({
+    status: "queued",
+    error_message: null,
+    retry_count: (log.retry_count as number ?? 0) + 1,
+    last_attempted_at: new Date().toISOString(),
+  }).eq("id", id);
+
+  res.json({ ok: true, message: "Marked for retry. The automation will be re-attempted on the next scheduler run." });
 });
 
 export default router;

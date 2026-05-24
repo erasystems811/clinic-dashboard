@@ -2,6 +2,10 @@ import { Router, type IRouter } from "express";
 import { supabase } from "../lib/supabase.js";
 import { camelize, snakify } from "../lib/camel.js";
 import { z } from "zod/v4";
+import {
+  sendAppointmentConfirmation,
+  sendAppointmentNoShowFollowUp,
+} from "../lib/automation.js";
 
 const router: IRouter = Router();
 
@@ -27,6 +31,12 @@ const UpdateAppointmentBody = z.object({
   department: z.string().optional(),
   notes: z.string().optional(),
 });
+
+async function resolveHospitalIntId(usernameOrNull: string | null): Promise<number | null> {
+  if (!usernameOrNull) return null;
+  const { data } = await supabase.from("hospitals").select("id").eq("username", usernameOrNull.toLowerCase()).single();
+  return data?.id ?? null;
+}
 
 router.get("/appointments", async (req, res): Promise<void> => {
   const query = ListAppointmentsQuery.safeParse(req.query);
@@ -54,7 +64,11 @@ router.post("/appointments", async (req, res): Promise<void> => {
   const parsed = CreateAppointmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { data: patient } = await supabase.from("patients").select("first_name, last_name").eq("id", parsed.data.patientId).single();
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("first_name, last_name, phone, whatsapp_number, hospital_id")
+    .eq("id", parsed.data.patientId)
+    .single();
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
 
   const { data: appt, error } = await supabase.from("appointments").insert({
@@ -71,6 +85,17 @@ router.post("/appointments", async (req, res): Promise<void> => {
     patient_name: patientName,
     metadata: appt.scheduled_at,
   });
+
+  // ── Automation: WhatsApp confirmation ──
+  if (patient) {
+    const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
+    if (hospitalIntId) {
+      const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+      if (phone) {
+        sendAppointmentConfirmation(hospitalIntId, parsed.data.patientId, patientName, phone, appt.title, appt.scheduled_at).catch(() => {});
+      }
+    }
+  }
 
   res.status(201).json({ ...camelize(appt), duration: appt.duration ?? 30 });
 });
@@ -102,6 +127,15 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
         reason: `No-show for appointment: ${appt.title} on ${new Date(appt.scheduled_at).toLocaleDateString()}`,
         action_type: "manual_call",
       });
+
+      // ── Automation: WhatsApp no-show follow-up ──
+      const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
+      if (hospitalIntId) {
+        const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+        if (phone) {
+          sendAppointmentNoShowFollowUp(hospitalIntId, patient.id, `${patient.first_name} ${patient.last_name}`, phone, appt.title).catch(() => {});
+        }
+      }
     }
 
     await supabase.from("activity").insert({

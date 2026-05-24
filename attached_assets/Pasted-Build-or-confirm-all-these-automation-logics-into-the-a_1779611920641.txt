@@ -1,0 +1,78 @@
+Build or confirm all these automation logics into the app. API keys will be stored in Replit Secrets as OPENAI_API_KEY, ANTHROPIC_API_KEY and RESEND_API_KEY. Use those secret variables — do not hardcode any keys.
+Use OpenAI API for all WhatsApp automations and Claude API only for care summary and wellness newsletter. Use Resend for all email delivery.
+Pipeline State Transitions
+	∙	Receptionist checks patient into queue → patient moves to Queued
+	∙	Nurse logs treatment plan → patient moves to In Care
+	∙	Treatment plan duration ends → patient moves to Post Treatment
+	∙	Post Treatment check-in period ends (hospital configured) → patient moves to Post Care
+	∙	Patient inactive for hospital configured dormancy period → patient moves to Dormant
+	∙	Dormant patient checks in → patient moves to Queued
+	∙	Patient removed from queue → patient returns to previous state before queue
+	∙	If previous state was Booked → patient returns to state before Booked
+	∙	If previous state was Dormant → patient moves to Post Care instead
+Queue Messages (WhatsApp - OpenAI - Warm tone)
+	∙	Patient added to queue → send their queue number and a warm message letting them know they are seen and being taken care of
+	∙	Queue number keeps updating as queue moves → send updated position so patient always feels informed and seen
+	∙	Messages must feel warm and human not robotic
+In Care - Care Summary (WhatsApp - Claude API)
+	∙	When nurse logs treatment plan → send patient a care summary
+	∙	Care summary must explain their care process clearly, reassure them, and let them know the team will be with them through the process
+	∙	Do not mention their diagnosis or sickness
+	∙	Tone must be warm and reassuring
+	∙	Use ANTHROPIC_API_KEY
+Post Treatment - Recovery Phase (WhatsApp - OpenAI)
+	∙	Regular warm check-in messages sent based on hospital configured frequency
+	∙	Messages must feel genuinely caring like the hospital is truly checking on them as a person not just a patient
+	∙	Patient must feel seen not just treated
+	∙	Use OPENAI_API_KEY
+Post Care - Wellness Phase (WhatsApp - OpenAI)
+	∙	Mostly wellness focused messages
+	∙	Encouraging and uplifting tone
+	∙	Based on hospital configured frequency
+	∙	Use OPENAI_API_KEY
+Dormant Patients
+	∙	Dormant patients receive the same weekly wellness newsletter as active patients
+	∙	No separate dormant message
+Missed Visit (Manual)
+	∙	Nurse voluntarily flags a patient who missed their expected visit
+	∙	This is not automatic
+	∙	Flagged patient appears in receptionist call tasks
+Call Tasks - Receptionist Automated Message
+	∙	Receptionist sees flagged patient in call tasks
+	∙	Receptionist chooses to send an automated WhatsApp message
+	∙	OpenAI reads the reason for the flag and automatically chooses the best tone and generates the most appropriate message for that specific patient situation
+	∙	Use OPENAI_API_KEY
+Appointments (If Module Active)
+	∙	Appointment booked → WhatsApp confirmation sent to patient
+	∙	24 hours before appointment → WhatsApp reminder sent
+	∙	2 hours before appointment → WhatsApp final reminder sent
+	∙	Appointment missed → WhatsApp follow up message sent
+	∙	Use OPENAI_API_KEY
+Feedback (Email - OpenAI)
+	∙	End of day → all patients seen that day receive an email with a link to their unique feedback form
+	∙	Feedback form collects: overall experience, wait time, staff friendliness, quality of care, would you recommend us — all rated 1 to 5 stars — plus optional comments
+	∙	Form submissions save directly to Supabase
+	∙	Admin feedback dashboard reads and displays live feedback data in real time
+	∙	Each hospital sends feedback emails from their own configured email address
+	∙	Use OPENAI_API_KEY to generate email content and RESEND_API_KEY to deliver
+Wellness Newsletter (Email - Claude API)
+	∙	Weekly → Claude API generates wellness newsletter based on hospital configured tone and active departments
+	∙	Newsletter covers one topic per week rotating so the same topic is never repeated until full cycle is complete
+	∙	Topics are general wellness awareness shaped by the hospital’s active departments
+	∙	Each newsletter is detailed and explanatory covering: what the topic is, why it matters, common causes or triggers, benefits of good practice, what to avoid, and one simple action step for the week
+	∙	Written in the hospital’s configured tone
+	∙	Admin can review and edit the newsletter before it sends
+	∙	Admin can optionally add a YouTube or TikTok link to support the tip
+	∙	Sent via email to all active and dormant patients
+	∙	Each hospital sends newsletter from their own configured email address
+	∙	Use ANTHROPIC_API_KEY to generate content and RESEND_API_KEY to deliver
+Email Service
+	∙	Use Resend as the email delivery service using RESEND_API_KEY
+	∙	Each hospital has their own sending email address configured in Super Admin
+	∙	When a hospital is configured their email domain is verified through Resend
+	∙	All patient emails go out from that hospital’s own email address
+Error Monitoring
+	∙	Integrate Sentry for error monitoring
+	∙	All automation failures are logged in Sentry
+	∙	Failed automations are also visible in a Failed Automations log inside Super Admin showing which hospital, which patient, which message failed, why it failed, and option to retry
+WhatsApp delivery will be connected when Meta WhatsApp Business API verification is complete. Build all automation logic now so it is ready to connect when WhatsApp credentials are added. All messages use the hospital’s configured tone.”

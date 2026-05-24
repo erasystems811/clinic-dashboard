@@ -3,6 +3,7 @@ import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/auth-context";
 import {
   useListCallTasks,
   useLogCallOutcome,
@@ -12,8 +13,10 @@ import {
 import type { CallTask } from "@workspace/api-client-react";
 import {
   Phone, CheckCircle, Clock, Loader2, MessageSquare, Bot, PhoneCall,
-  Send, RefreshCw, Pencil, ChevronDown, ChevronUp, Flag,
+  Send, RefreshCw, Pencil, ChevronDown, ChevronUp, Flag, Sparkles,
 } from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", {
@@ -26,7 +29,7 @@ const ACTION_TYPES = [
     value: "automated_message",
     label: "Automated Message",
     icon: Bot,
-    description: "AI generates a check-in message based on the patient's department",
+    description: "AI generates a personalised message based on the patient's situation",
     color: "text-violet-400",
     badge: "bg-violet-500/10 text-violet-400 border-violet-500/20",
   },
@@ -48,45 +51,14 @@ const ACTION_TYPES = [
   },
 ] as const;
 
-/* ── Automated message template generator ── */
-function generateAutoMessage(
-  patientName: string,
-  department: string | undefined | null,
-  reason: string,
-): string {
-  const first = patientName.split(" ")[0];
-  const dept = department ?? "your care team";
-
-  const deptTemplates: Record<string, string> = {
-    "Cardiology":
-      `Hello ${first}, this is a check-in from the ${dept} team. We wanted to see how you are feeling and remind you to take your prescribed medication as scheduled. Please don't hesitate to reach out if you experience any chest discomfort or shortness of breath. Reply to this message or call us anytime.`,
-    "Maternity & Antenatal":
-      `Hello ${first}, this is a follow-up from your ${dept} team. We hope you and baby are doing well. Please remember to attend your next scheduled visit and continue taking your prenatal supplements. Do reach out if you have any concerns.`,
-    "Oncology (cancer care)":
-      `Hello ${first}, this is a care check-in from the ${dept} team. We are thinking of you and want to ensure your treatment plan is going smoothly. Please let us know how you are feeling and if there is anything we can support you with.`,
-    "Mental Health & Psychiatry":
-      `Hello ${first}, this is a wellness check from the ${dept} team. We hope you are doing okay. If you find you need to speak with someone before your next appointment, please don't hesitate to contact us. You are not alone.`,
-    "Pediatrics":
-      `Hello, this is a follow-up from the ${dept} team regarding your child ${first}. We wanted to check in on their recovery progress. Please let us know if you have any concerns or if symptoms have changed. We are here to help.`,
-    "Physiotherapy & Rehabilitation":
-      `Hello ${first}, this is a follow-up from your ${dept} team. We hope your recovery exercises are going well. Remember to complete your daily routine and rest between sessions. Let us know if you have any pain or discomfort.`,
-    "Fertility & Reproductive Health":
-      `Hello ${first}, this is a check-in from the ${dept} team. We wanted to follow up on your recent visit and see how you are doing. Please continue your treatment as advised and feel free to reach out with any questions.`,
-  };
-
-  return (
-    deptTemplates[dept] ??
-    `Hello ${first}, this is a follow-up message from the ${dept} team. We are checking in regarding: ${reason}. Please feel free to reply to this message or call us if you have any concerns. We are here to support you.`
-  );
-}
-
-/* ── Action Panel (bottom of each card) ── */
+/* ── Action Panel ── */
 function ActionPanel({ task }: { task: CallTask }) {
   const { toast } = useToast();
+  const { hospital } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  const [generated, setGenerated] = useState("");
+  const [generatedMsg, setGeneratedMsg] = useState("");
   const [generating, setGenerating] = useState(false);
   const [editingGenerated, setEditingGenerated] = useState(false);
 
@@ -100,15 +72,27 @@ function ActionPanel({ task }: { task: CallTask }) {
     },
   });
 
-  const handleGenerate = () => {
+  const handleGenerateAndSend = async () => {
+    if (!hospital?.token) {
+      toast({ title: "Not authenticated", variant: "destructive" });
+      return;
+    }
     setGenerating(true);
-    // Simulate a brief generation delay (replace with real AI call when integrated)
-    setTimeout(() => {
-      const msg = generateAutoMessage(task.patientName, task.department, task.reason);
-      setGenerated(msg);
+    try {
+      const res = await fetch(`${BASE}/api/call-tasks/${task.id}/send-message`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Generation failed");
+      setGeneratedMsg(data.message);
       setEditingGenerated(false);
+      toast({ title: "Message generated", description: "AI message queued for WhatsApp delivery." });
+    } catch (err: unknown) {
+      toast({ title: "Generation failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+    } finally {
       setGenerating(false);
-    }, 900);
+    }
   };
 
   const submit = (outcome: string) => {
@@ -132,15 +116,8 @@ function ActionPanel({ task }: { task: CallTask }) {
           autoFocus
         />
         <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setOpen(false); setText(""); }}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 gap-2"
-            disabled={!text.trim() || logOutcome.isPending}
-            onClick={() => submit(text)}
-          >
+          <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setOpen(false); setText(""); }}>Cancel</Button>
+          <Button size="sm" className="flex-1 gap-2" disabled={!text.trim() || logOutcome.isPending} onClick={() => submit(text)}>
             {logOutcome.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
             Save Outcome
           </Button>
@@ -162,9 +139,7 @@ function ActionPanel({ task }: { task: CallTask }) {
           <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-500/20 bg-blue-500/10">
             <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
             <span className="text-xs font-medium text-blue-400">To: {task.patientName}</span>
-            <span className="text-xs text-muted-foreground ml-1">
-              · {task.whatsappNumber ?? task.phone}
-            </span>
+            <span className="text-xs text-muted-foreground ml-1">· {task.whatsappNumber ?? task.phone}</span>
           </div>
           <textarea
             className="w-full bg-transparent px-3 py-2.5 text-sm min-h-[100px] resize-none focus:outline-none"
@@ -178,15 +153,8 @@ function ActionPanel({ task }: { task: CallTask }) {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setOpen(false); setText(""); }}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-            disabled={!text.trim() || logOutcome.isPending}
-            onClick={() => submit(`[Text sent] ${text}`)}
-          >
+          <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setOpen(false); setText(""); }}>Cancel</Button>
+          <Button size="sm" className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700 text-white" disabled={!text.trim() || logOutcome.isPending} onClick={() => submit(`[Text sent] ${text}`)}>
             {logOutcome.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Send Message
           </Button>
@@ -195,72 +163,59 @@ function ActionPanel({ task }: { task: CallTask }) {
     );
   }
 
-  /* ── Automated Message ── */
+  /* ── Automated Message (AI via OpenAI) ── */
   return (
     <div className="space-y-2">
-      {!generated ? (
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full gap-2 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
-          onClick={handleGenerate}
-          disabled={generating}
-        >
-          {generating
-            ? <><Loader2 className="w-4 h-4 animate-spin" />Generating message...</>
-            : <><Bot className="w-4 h-4" />Generate Automated Message</>}
-        </Button>
+      {!generatedMsg ? (
+        <div className="space-y-2">
+          <div className="rounded-md bg-violet-500/5 border border-violet-500/20 px-3 py-2.5">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              AI will read the patient's situation and reason for flag, then generate the most appropriate personalised WhatsApp message.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full gap-2 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
+            onClick={handleGenerateAndSend}
+            disabled={generating}
+          >
+            {generating
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Generating &amp; queuing message…</>
+              : <><Sparkles className="w-4 h-4" />Generate &amp; Send AI Message</>}
+          </Button>
+        </div>
       ) : (
         <>
           <div className="rounded-md border border-violet-500/30 bg-violet-500/5 overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-2 border-b border-violet-500/20 bg-violet-500/10">
               <Bot className="w-3.5 h-3.5 text-violet-400" />
-              <span className="text-xs font-medium text-violet-400">AI Generated · {task.department ?? "General"}</span>
-              <button
-                type="button"
-                className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                onClick={handleGenerate}
-              >
-                <RefreshCw className="w-3 h-3" />
+              <span className="text-xs font-medium text-violet-400">AI Generated · Queued for WhatsApp</span>
+              <button type="button" className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={handleGenerateAndSend} disabled={generating}>
+                <RefreshCw className={`w-3 h-3 ${generating ? "animate-spin" : ""}`} />
                 Regenerate
               </button>
             </div>
             {editingGenerated ? (
-              <textarea
-                className="w-full bg-transparent px-3 py-2.5 text-sm min-h-[110px] resize-none focus:outline-none"
-                value={generated}
-                onChange={(e) => setGenerated(e.target.value)}
-                autoFocus
-              />
+              <textarea className="w-full bg-transparent px-3 py-2.5 text-sm min-h-[110px] resize-none focus:outline-none" value={generatedMsg} onChange={(e) => setGeneratedMsg(e.target.value)} autoFocus />
             ) : (
               <div className="px-3 py-2.5">
-                <p className="text-sm leading-relaxed">{generated}</p>
+                <p className="text-sm leading-relaxed">{generatedMsg}</p>
               </div>
             )}
             <div className="flex items-center justify-between px-3 py-2 border-t border-violet-500/20 bg-violet-500/5">
-              <span className="text-xs text-muted-foreground">{generated.length} characters</span>
-              <button
-                type="button"
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                onClick={() => setEditingGenerated(!editingGenerated)}
-              >
+              <span className="text-xs text-muted-foreground">{generatedMsg.length} chars</span>
+              <button type="button" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={() => setEditingGenerated(!editingGenerated)}>
                 <Pencil className="w-3 h-3" />
                 {editingGenerated ? "Done editing" : "Edit"}
               </button>
             </div>
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setGenerated(""); setEditingGenerated(false); }}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1 gap-2 bg-violet-600 hover:bg-violet-700 text-white"
-              disabled={!generated.trim() || logOutcome.isPending}
-              onClick={() => submit(`[Auto-message sent] ${generated}`)}
-            >
-              {logOutcome.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Send Message
+            <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setGeneratedMsg(""); setEditingGenerated(false); }}>Clear</Button>
+            <Button size="sm" className="flex-1 gap-2 bg-violet-600 hover:bg-violet-700 text-white" disabled={!generatedMsg.trim() || logOutcome.isPending} onClick={() => submit(`[AI message sent] ${generatedMsg}`)}>
+              {logOutcome.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              Mark Complete
             </Button>
           </div>
         </>
@@ -288,8 +243,7 @@ function TaskCard({ task }: { task: CallTask }) {
   const Icon = currentAction.icon;
 
   return (
-    <div className={`rounded-xl border bg-card space-y-0 overflow-hidden ${isComplete ? "opacity-60 border-border" : "border-border"}`}>
-      {/* Header */}
+    <div className={`rounded-xl border bg-card overflow-hidden ${isComplete ? "opacity-60 border-border" : "border-border"}`}>
       <div className="flex items-start gap-3 p-4">
         <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 font-bold text-sm ${isComplete ? "bg-muted text-muted-foreground" : "bg-destructive/10 text-destructive"}`}>
           {task.patientName.split(" ").map((n) => n[0]).join("").slice(0, 2)}
@@ -297,24 +251,12 @@ function TaskCard({ task }: { task: CallTask }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-sm">{task.patientName}</p>
-            {isComplete && (
-              <span className="text-xs bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded-full font-medium border border-green-500/20">
-                Completed
-              </span>
-            )}
-            {task.department && (
-              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
-                {task.department}
-              </span>
-            )}
+            {isComplete && <span className="text-xs bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded-full font-medium border border-green-500/20">Completed</span>}
+            {task.department && <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{task.department}</span>}
           </div>
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <Phone className="w-3 h-3" />{task.phone}
-            </span>
-            {task.whatsappNumber && task.whatsappNumber !== task.phone && (
-              <span className="text-xs text-muted-foreground">WA: {task.whatsappNumber}</span>
-            )}
+            <span className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{task.phone}</span>
+            {task.whatsappNumber && task.whatsappNumber !== task.phone && <span className="text-xs text-muted-foreground">WA: {task.whatsappNumber}</span>}
           </div>
         </div>
         <div className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
@@ -322,18 +264,15 @@ function TaskCard({ task }: { task: CallTask }) {
         </div>
       </div>
 
-      {/* Task type + reason */}
       <div className="mx-4 mb-4 space-y-2">
         <div className="flex items-center gap-2">
           {task.taskType === "check_in" ? (
             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-              <CheckCircle className="w-3 h-3" />
-              {task.checkInType ?? "Check-In"}
+              <CheckCircle className="w-3 h-3" />{task.checkInType ?? "Check-In"}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
-              <Flag className="w-3 h-3" />
-              Follow-Up
+              <Flag className="w-3 h-3" />Follow-Up
             </span>
           )}
         </div>
@@ -343,7 +282,6 @@ function TaskCard({ task }: { task: CallTask }) {
         </div>
       </div>
 
-      {/* Method badge + toggle */}
       {!isComplete && (
         <div className="px-4 pb-4 space-y-3">
           <div className="flex items-center gap-2">
@@ -351,7 +289,6 @@ function TaskCard({ task }: { task: CallTask }) {
               type="button"
               className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${currentAction.badge}`}
               onClick={() => setShowMethodPicker(!showMethodPicker)}
-              title="Click to change follow-up method"
             >
               <Icon className="w-3 h-3" />
               {currentAction.label}
@@ -360,7 +297,6 @@ function TaskCard({ task }: { task: CallTask }) {
             <span className="text-xs text-muted-foreground">— {currentAction.description}</span>
           </div>
 
-          {/* Method picker (shown on demand) */}
           {showMethodPicker && (
             <div className="grid grid-cols-3 gap-2">
               {ACTION_TYPES.map((action) => {
@@ -378,9 +314,7 @@ function TaskCard({ task }: { task: CallTask }) {
                       }
                     }}
                     className={`flex flex-col items-center gap-1.5 p-2.5 rounded-md border text-center transition-colors text-xs font-medium ${
-                      isSelected
-                        ? "border-primary bg-primary/10 text-primary"
-                        : "border-border hover:border-border/80 text-muted-foreground hover:text-foreground"
+                      isSelected ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-border/80 text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <AI className={`w-4 h-4 ${isSelected ? "text-primary" : action.color}`} />
@@ -391,12 +325,10 @@ function TaskCard({ task }: { task: CallTask }) {
             </div>
           )}
 
-          {/* Contextual action area */}
           <ActionPanel task={task} />
         </div>
       )}
 
-      {/* Completed outcome */}
       {isComplete && (
         <div className="mx-4 mb-4 rounded-md bg-green-500/10 border border-green-500/20 px-3 py-2">
           <div className="flex items-center gap-1.5 mb-1">
@@ -406,8 +338,7 @@ function TaskCard({ task }: { task: CallTask }) {
           </div>
           <p className="text-sm text-foreground leading-relaxed">{task.outcome}</p>
           <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
-            <Icon className="w-3 h-3" />
-            via {currentAction.label}
+            <Icon className="w-3 h-3" />via {currentAction.label}
           </p>
         </div>
       )}
@@ -431,20 +362,8 @@ export default function CallTasks() {
             </p>
           </div>
           <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-            <button
-              type="button"
-              onClick={() => setShowCompleted(false)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${!showCompleted ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Open
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCompleted(true)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${showCompleted ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              Completed
-            </button>
+            <button type="button" onClick={() => setShowCompleted(false)} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${!showCompleted ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Open</button>
+            <button type="button" onClick={() => setShowCompleted(true)} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${showCompleted ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Completed</button>
           </div>
         </div>
 

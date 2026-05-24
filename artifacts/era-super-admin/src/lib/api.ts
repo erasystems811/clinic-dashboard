@@ -65,6 +65,10 @@ export interface HospitalSettings {
   language: string | null;
   tone: string[] | null;
   clinicDescription: string | null;
+  sendingEmail: string | null;
+  postTreatmentCheckinDays: number | null;
+  postCareCheckinDays: number | null;
+  whatsappFromNumber: string | null;
 }
 
 export interface HospitalModules {
@@ -72,6 +76,25 @@ export interface HospitalModules {
   hospitalId: number;
   appointmentsEnabled: boolean;
   feedbackEnabled: boolean;
+  wellnessNewsletterEnabled: boolean;
+  whatsappEnabled: boolean;
+}
+
+export interface AutomationLog {
+  id: number;
+  hospitalId: number | null;
+  hospitalName: string | null;
+  patientId: number | null;
+  patientName: string | null;
+  automationType: string;
+  channel: string;
+  status: string;
+  messagePreview: string | null;
+  errorMessage: string | null;
+  retryCount: number;
+  createdAt: string;
+  lastAttemptedAt: string | null;
+  sentAt: string | null;
 }
 
 // ── API calls ─────────────────────────────────────────────────────────────────
@@ -105,4 +128,14 @@ export const api = {
 
   updateModules: (id: number, data: Partial<HospitalModules>) =>
     put<HospitalModules>(`/super-admin/hospitals/${id}/modules`, data),
+
+  getAutomationLog: (params?: { status?: string; hospitalId?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.hospitalId) qs.set("hospitalId", String(params.hospitalId));
+    return get<AutomationLog[]>(`/super-admin/automation-log${qs.toString() ? "?" + qs.toString() : ""}`);
+  },
+
+  retryAutomation: (id: number) =>
+    post<{ ok: boolean; message: string }>(`/super-admin/automation-log/${id}/retry`, {}),
 };

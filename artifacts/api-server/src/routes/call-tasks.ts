@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
+import { sendCallTaskAutomatedMessage } from "../lib/automation.js";
+import { verifyHospitalToken } from "./super-admin.js";
 
 const router: IRouter = Router();
 
@@ -13,6 +15,12 @@ const CallOutcomeBody = z.object({
 const UpdateActionTypeBody = z.object({
   actionType: z.enum(["automated_message", "manual_text", "manual_call"]),
 });
+
+async function resolveHospitalIntId(usernameOrNull: string | null): Promise<number | null> {
+  if (!usernameOrNull) return null;
+  const { data } = await supabase.from("hospitals").select("id").eq("username", usernameOrNull.toLowerCase()).single();
+  return data?.id ?? null;
+}
 
 router.get("/call-tasks", async (req, res): Promise<void> => {
   const completed = req.query.completed === "true";
@@ -82,6 +90,48 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   });
 
   res.json(camelize(task));
+});
+
+router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: task, error } = await supabase
+    .from("call_tasks")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
+
+  const phone = (task.whatsapp_number as string) || (task.phone as string);
+  if (!phone) { res.status(400).json({ error: "No phone number on record for this patient" }); return; }
+
+  const message = await sendCallTaskAutomatedMessage(
+    hospitalId,
+    task.patient_id as number,
+    task.patient_name as string,
+    phone,
+    task.reason as string,
+  );
+
+  await supabase.from("call_tasks")
+    .update({ action_type: "automated_message" })
+    .eq("id", id);
+
+  await supabase.from("activity").insert({
+    type: "automated_message_sent",
+    description: `Automated WhatsApp message sent to ${task.patient_name} (call task)`,
+    patient_id: task.patient_id,
+    patient_name: task.patient_name,
+    metadata: message.slice(0, 200),
+  });
+
+  res.json({ ok: true, message });
 });
 
 export default router;

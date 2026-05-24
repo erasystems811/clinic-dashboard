@@ -2,6 +2,11 @@ import { Router, type IRouter } from "express";
 import { supabase } from "../lib/supabase.js";
 import { camelize, camelizeArr, snakify } from "../lib/camel.js";
 import { z } from "zod/v4";
+import {
+  sendQueueJoinMessage,
+  sendQueuePositionUpdate,
+  sendCareSummary,
+} from "../lib/automation.js";
 
 const router: IRouter = Router();
 
@@ -66,8 +71,13 @@ const FlagMissedBody = z.object({
 });
 
 function serializePatient(p: Record<string, unknown>) {
-  const c = camelize<Record<string, unknown>>(p);
-  return c;
+  return camelize<Record<string, unknown>>(p);
+}
+
+async function resolveHospitalIntId(usernameOrNull: string | null): Promise<number | null> {
+  if (!usernameOrNull) return null;
+  const { data } = await supabase.from("hospitals").select("id").eq("username", usernameOrNull.toLowerCase()).single();
+  return data?.id ?? null;
 }
 
 router.get("/patients", async (req, res): Promise<void> => {
@@ -260,6 +270,30 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
     metadata: nowIso,
   });
 
+  // ── Automation: send queue join WhatsApp ──
+  const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
+  if (hospitalIntId) {
+    const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+    sendQueueJoinMessage(hospitalIntId, patient.id, patientName, phone, position).catch(() => {});
+
+    // Notify patients whose position changed (bumped by priority check-in)
+    if (hasTimedAppointment && queueSize > 0) {
+      const { data: updatedQueue } = await supabase
+        .from("queue")
+        .select("patient_id, patient_name, whatsapp_number, phone, position")
+        .eq("hospital_id", patient.hospital_id)
+        .gt("position", 1)
+        .order("position", { ascending: true });
+
+      for (const qEntry of (updatedQueue ?? []).slice(0, 5)) {
+        const qPhone = (qEntry.whatsapp_number as string) || (qEntry.phone as string);
+        if (qPhone) {
+          sendQueuePositionUpdate(hospitalIntId, qEntry.patient_id as number, qEntry.patient_name as string, qPhone, qEntry.position as number).catch(() => {});
+        }
+      }
+    }
+  }
+
   res.json(camelize(patient));
 });
 
@@ -270,7 +304,11 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   const { data: existing } = await supabase.from("patients").select("*").eq("id", id).single();
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  const restoreStage = existing.pre_queue_stage ?? "Booked";
+  // Dequeue logic: restore pre_queue_stage, or Post Care if was Dormant
+  let restoreStage = existing.pre_queue_stage ?? "Booked";
+  if (restoreStage === "Dormant") restoreStage = "Post Care";
+  if (restoreStage === "Booked") restoreStage = existing.pre_queue_stage ?? "Post Care";
+
   const { data: patient } = await supabase
     .from("patients")
     .update({ stage: restoreStage, pre_queue_stage: null, updated_at: new Date().toISOString() })
@@ -280,7 +318,12 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
 
   await supabase.from("queue").delete().eq("patient_id", id);
 
-  const { data: remaining } = await supabase.from("queue").select("id, position").order("position", { ascending: true });
+  const { data: remaining } = await supabase
+    .from("queue")
+    .select("id, patient_id, patient_name, phone, whatsapp_number, position")
+    .eq("hospital_id", existing.hospital_id)
+    .order("position", { ascending: true });
+
   for (let i = 0; i < (remaining ?? []).length; i++) {
     await supabase.from("queue").update({ position: i + 1 }).eq("id", remaining![i].id);
   }
@@ -291,6 +334,18 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
     patient_id: id,
     patient_name: `${patient!.first_name} ${patient!.last_name}`,
   });
+
+  // ── Automation: notify remaining patients of position updates ──
+  const hospitalIntId = await resolveHospitalIntId(existing.hospital_id as string);
+  if (hospitalIntId && (remaining ?? []).length > 0) {
+    for (let i = 0; i < Math.min((remaining ?? []).length, 5); i++) {
+      const qEntry = remaining![i];
+      const qPhone = (qEntry.whatsapp_number as string) || (qEntry.phone as string);
+      if (qPhone) {
+        sendQueuePositionUpdate(hospitalIntId, qEntry.patient_id as number, qEntry.patient_name as string, qPhone, i + 1).catch(() => {});
+      }
+    }
+  }
 
   res.json(camelize(patient!));
 });
@@ -344,6 +399,23 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
     metadata: `day_${n * interval}`,
   }));
   await supabase.from("activity").insert(reminders);
+
+  // ── Automation: send care summary WhatsApp (Claude) ──
+  const hospitalIntId = await resolveHospitalIntId(patient!.hospital_id as string);
+  if (hospitalIntId) {
+    const phone = (patient!.whatsapp_number as string) || (patient!.phone as string);
+    if (phone) {
+      sendCareSummary(
+        hospitalIntId,
+        id,
+        patientName,
+        phone,
+        parsed.data.treatmentPlan,
+        parsed.data.treatmentType,
+        parsed.data.treatmentDurationDays,
+      ).catch(() => {});
+    }
+  }
 
   res.json(camelize(patient!));
 });

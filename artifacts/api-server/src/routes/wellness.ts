@@ -180,9 +180,9 @@ router.post("/wellness/generate", async (req, res): Promise<void> => {
   }
 
   try {
-    const { subtopic, content } = await generateWellnessNewsletter(hospitalId, topic, departments);
+    const { subtopic, angle, content } = await generateWellnessNewsletter(hospitalId, topic, departments);
     await markTopicUsed(hospitalId, topic);
-    res.json({ topic, subtopic, content });
+    res.json({ topic, subtopic, angle, content });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: msg });

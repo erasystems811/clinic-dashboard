@@ -413,23 +413,26 @@ export async function generateWellnessNewsletter(
   hospitalId: number,
   topic: string,
   departments: string[],
-): Promise<{ subtopic: string; content: string }> {
+): Promise<{ subtopic: string; angle: string; content: string }> {
   const hCtx = await getHospitalContext(hospitalId);
   const deptList = departments.length > 0 ? departments.join(", ") : "General Practice";
 
   const raw = await generateClaudeMessage(
     `You are a wellness content writer for ${hCtx.hospitalName}. Write in a ${hCtx.tone} tone. You write detailed, helpful wellness newsletters that educate the community. Never mention diagnoses or specific patient cases. Write at a general public level. Always address recipients as "friends" — never use the word "patients". Always respond with valid JSON only — no markdown, no code fences, no extra text.`,
-    `You are given a broad wellness category. Your job is to:
-1. Choose a specific, fresh, interesting subtopic or angle within that category that most people overlook or find surprising. Make it concrete and specific — not the obvious take.
-2. Write a detailed weekly wellness newsletter for the community of ${hCtx.hospitalName} (departments: ${deptList}) focused on that specific subtopic.
+    `You are given a broad wellness category. Your job is to choose TWO levels of focus, then write a newsletter about the specific combination:
+
+LEVEL 1 — Subtopic: A specific area or branch within the broad category (e.g. if category is "Sleep Hygiene", a subtopic could be "Sleep Cycles" or "Pre-Sleep Nutrition" or "Napping Science").
+LEVEL 2 — Angle: A specific, surprising, or overlooked perspective on that subtopic — something most people don't think about (e.g. subtopic "Sleep Cycles" → angle "Why timing your wake-up to the end of a 90-minute cycle prevents morning grogginess").
 
 Broad category: ${topic}
+
+Write a detailed weekly wellness newsletter for the community of ${hCtx.hospitalName} (departments: ${deptList}) focused on the specific angle within the chosen subtopic.
 
 The newsletter content field must begin with exactly this greeting on its own line:
 Dear Friends,
 
 Then continue with the following sections:
-- A warm, engaging 1-2 sentence opening referencing the specific subtopic (immediately after the greeting)
+- A warm, engaging 1-2 sentence opening referencing the specific angle (immediately after the greeting)
 - What is it? (2-3 sentences explaining simply)
 - Why it matters (2-3 sentences)
 - Common causes or triggers (3-4 bullet points)
@@ -443,10 +446,11 @@ Write in plain language, warm and encouraging. No markdown symbols in the conten
 
 Respond with this exact JSON structure (no extra keys, no markdown wrapping):
 {
-  "subtopic": "the specific angle or subtopic you chose (short phrase, max 10 words)",
+  "subtopic": "the subtopic you chose within the broad category (2-5 words)",
+  "angle": "the specific angle or perspective on that subtopic (max 12 words)",
   "content": "the full newsletter text"
 }`,
-    1600,
+    1800,
   );
 
   try {
@@ -455,20 +459,20 @@ Respond with this exact JSON structure (no extra keys, no markdown wrapping):
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```\s*$/, "")
       .trim();
-    const parsed = JSON.parse(cleaned) as { subtopic: string; content: string };
-    if (typeof parsed.subtopic === "string" && typeof parsed.content === "string") {
+    const parsed = JSON.parse(cleaned) as { subtopic: string; angle: string; content: string };
+    if (typeof parsed.subtopic === "string" && typeof parsed.angle === "string" && typeof parsed.content === "string") {
       // Guarantee the newsletter always starts with "Dear Friends,"
       const content = parsed.content.trimStart();
       const greeting = "Dear Friends,";
       const finalContent = content.startsWith(greeting) ? content : `${greeting}\n\n${content}`;
-      return { subtopic: parsed.subtopic, content: finalContent };
+      return { subtopic: parsed.subtopic, angle: parsed.angle, content: finalContent };
     }
   } catch {
     // Fall back gracefully if Claude returns non-JSON
   }
 
-  // Fallback: treat entire response as content with generic subtopic
-  return { subtopic: topic, content: raw };
+  // Fallback: treat entire response as content with generic labels
+  return { subtopic: topic, angle: topic, content: raw };
 }
 
 export async function sendWellnessNewsletterEmails(

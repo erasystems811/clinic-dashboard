@@ -45,6 +45,7 @@ export default function WellnessAdmin() {
   const [content, setContent] = useState("");
   const [topic, setTopic] = useState("");
   const [subtopic, setSubtopic] = useState("");
+  const [angle, setAngle] = useState("");
   const [youtubeLink, setYoutubeLink] = useState("");
   const [tiktokLink, setTiktokLink] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -86,8 +87,10 @@ export default function WellnessAdmin() {
       setContent(data.content);
       setTopic(data.topic);
       setSubtopic(data.subtopic ?? "");
+      setAngle(data.angle ?? "");
       setEditing(true);
-      toast({ title: "Newsletter generated", description: data.subtopic ? `Angle: ${data.subtopic}` : `Topic: ${data.topic}` });
+      const desc = data.angle ? `${data.subtopic} → ${data.angle}` : (data.subtopic ?? data.topic);
+      toast({ title: "Newsletter generated", description: desc });
     } catch (err: unknown) {
       toast({ title: "Generation failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
     } finally {
@@ -252,18 +255,33 @@ export default function WellnessAdmin() {
                   </Button>
                 )}
               </div>
-              {/* Subtopic Claude chose */}
-              {subtopic && !generating && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/15">
-                  <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
-                  <span className="text-xs text-muted-foreground">Claude chose this angle: </span>
-                  <span className="text-xs font-semibold text-primary">{subtopic}</span>
-                  <span className="ml-auto text-[10px] text-muted-foreground/60">Regenerate for a different one</span>
+              {/* Subtopic + Angle Claude chose */}
+              {(subtopic || angle) && !generating && (
+                <div className="rounded-lg bg-primary/5 border border-primary/15 px-3 py-2.5 space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="text-[11px] font-semibold text-primary uppercase tracking-wide">Claude's selection</span>
+                    <span className="ml-auto text-[10px] text-muted-foreground/60">Regenerate for a different one</span>
+                  </div>
+                  <div className="flex flex-col gap-1 pl-5">
+                    {subtopic && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground w-14 shrink-0">Subtopic</span>
+                        <span className="text-xs font-medium text-foreground">{subtopic}</span>
+                      </div>
+                    )}
+                    {angle && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground w-14 shrink-0">Angle</span>
+                        <span className="text-xs font-semibold text-primary">{angle}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-              {!subtopic && !generating && !content && (
+              {!subtopic && !angle && !generating && !content && (
                 <p className="text-xs text-muted-foreground">
-                  Claude will pick a fresh, specific angle within your chosen category each time — topics never run out.
+                  Claude picks a fresh subtopic and a specific angle within your category each time — topics never run out.
                 </p>
               )}
             </div>

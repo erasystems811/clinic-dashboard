@@ -111,8 +111,6 @@ export default function HospitalDetail({ id }: Props) {
   const [name, setName] = useState("");
   const [subStatus, setSubStatus] = useState("active");
   const [active, setActive] = useState(true);
-  const [newPassword, setNewPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [showAdminPass, setShowAdminPass] = useState(false);
   const [allCopied, setAllCopied] = useState(false);
@@ -201,13 +199,7 @@ export default function HospitalDetail({ id }: Props) {
     setSaving(true);
     setError("");
     try {
-      const payload: Record<string, unknown> = { name, subscriptionStatus: subStatus, active };
-      if (newPassword.trim()) {
-        if (newPassword.length < 8) { setError("Password must be at least 8 characters"); setSaving(false); return; }
-        payload.password = newPassword;
-      }
-      await api.updateHospital(id, payload);
-      setNewPassword("");
+      await api.updateHospital(id, { name, subscriptionStatus: subStatus, active });
       flash("Hospital updated");
       load();
     } catch (e: unknown) {
@@ -267,7 +259,7 @@ export default function HospitalDetail({ id }: Props) {
     setError("");
     try {
       const result = await api.regeneratePassword(id);
-      setHospital(result.hospital);
+      setHospital(prev => prev ? { ...prev, ...result.hospital, staffCredentials: prev.staffCredentials } : result.hospital);
       flash("Password regenerated — share new credentials with the hospital");
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : null) ?? "Regeneration failed");
@@ -525,27 +517,6 @@ export default function HospitalDetail({ id }: Props) {
               <p className="text-xs text-muted-foreground mt-0.5">Inactive accounts cannot log in</p>
             </div>
             <Toggle checked={active} onChange={setActive} />
-          </div>
-
-          <div className="pt-2 border-t border-border space-y-3">
-            <div className="flex items-center gap-2">
-              <KeyRound className="w-4 h-4 text-muted-foreground" />
-              <h3 className="text-sm font-medium text-foreground">Reset Password</h3>
-            </div>
-            <Field label="New Password" hint="Leave blank to keep current password">
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
-                  className={inputCls() + " pr-10"}
-                />
-                <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </Field>
           </div>
 
           <div className="flex justify-end pt-2">

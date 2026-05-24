@@ -7,6 +7,8 @@ import {
   sendAppointmentReminder,
   sendFeedbackEmail,
   sendInCareDailyMessage,
+  sendMedicationReminder,
+  type MedicationPeriod,
 } from "./automation.js";
 import { signFeedbackToken } from "./feedbackToken.js";
 
@@ -113,6 +115,87 @@ async function runInCareDailyMessages() {
   } catch (err) {
     Sentry.captureException(err);
     log(`In-care daily messages error: ${err}`);
+  }
+}
+
+// ── Medication Timing Reminders — runs every 30 min ──────────────────────────
+// Nigeria WAT = UTC+1. Windows (UTC hours):
+//   Morning   → 6–9   (7am–10am WAT)
+//   Afternoon → 11–14 (12pm–3pm WAT)
+//   Night     → 18–20 (7pm–9pm WAT)
+
+function currentPeriod(): MedicationPeriod | null {
+  const utcHour = new Date().getUTCHours();
+  if (utcHour >= 6 && utcHour < 9) return "morning";
+  if (utcHour >= 11 && utcHour < 14) return "afternoon";
+  if (utcHour >= 18 && utcHour < 20) return "night";
+  return null;
+}
+
+function hasPeriod(timing: string, period: MedicationPeriod): boolean {
+  const t = timing.toLowerCase();
+  if (period === "night") return t.includes("night") || t.includes("evening");
+  return t.includes(period);
+}
+
+async function runMedicationReminders() {
+  const period = currentPeriod();
+  if (!period) return; // outside all reminder windows
+
+  try {
+    const today = new Date().toISOString().split("T")[0];
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
+    for (const h of hospitals ?? []) {
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone, whatsapp_number, treatment_plan, medication_timing, treatment_type, treatment_duration_days, treatment_started_at")
+        .eq("stage", "In Care")
+        .eq("hospital_id", h.username);
+
+      for (const p of patients ?? []) {
+        const medicationTiming = (p.medication_timing as string | null) ?? "";
+        if (!medicationTiming || !hasPeriod(medicationTiming, period)) continue;
+
+        const phone = (p.whatsapp_number as string) || (p.phone as string);
+        if (!phone) continue;
+
+        // Skip if already sent this period today
+        const automationType = `medication_reminder_${period}`;
+        const { data: alreadySent } = await supabase
+          .from("automation_log")
+          .select("id")
+          .eq("patient_id", p.id)
+          .eq("automation_type", automationType)
+          .eq("status", "sent")
+          .gte("created_at", `${today}T00:00:00Z`)
+          .lte("created_at", `${today}T23:59:59Z`)
+          .maybeSingle();
+
+        if (alreadySent) continue;
+
+        const startedAt = p.treatment_started_at ? new Date(p.treatment_started_at as string) : new Date();
+        const dayNumber = Math.max(1, Math.floor((Date.now() - startedAt.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        const totalDays = (p.treatment_duration_days as number) ?? 30;
+        const patientName = `${p.first_name} ${p.last_name}`;
+
+        await sendMedicationReminder(
+          h.id,
+          p.id as number,
+          patientName,
+          phone,
+          (p.treatment_plan as string) ?? "",
+          medicationTiming,
+          period,
+          dayNumber,
+          totalDays,
+        );
+        log(`Medication reminder (${period}) sent to patient ${p.id}`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Medication reminders error: ${err}`);
   }
 }
 
@@ -389,8 +472,11 @@ export function startScheduler() {
   // Every 15 minutes: appointment reminders
   cron.schedule("*/15 * * * *", runAppointmentReminders);
 
-  // Every 30 minutes: in-care daily messages (dedup prevents double-sends on same day)
-  cron.schedule("*/30 * * * *", runInCareDailyMessages);
+  // Every 30 minutes: in-care daily general message + medication timing reminders
+  cron.schedule("*/30 * * * *", async () => {
+    await runInCareDailyMessages();
+    await runMedicationReminders();
+  });
 
   // Every 10 minutes: pipeline stage transitions + dormant detection (pure data flow, no patient messages)
   cron.schedule("*/10 * * * *", async () => {

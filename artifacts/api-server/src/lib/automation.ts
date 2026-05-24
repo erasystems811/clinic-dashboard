@@ -209,6 +209,49 @@ export async function sendInCareDailyMessage(
   }
 }
 
+// ── Medication Timing Reminder (OpenAI) ──────────────────────────────────────
+
+export type MedicationPeriod = "morning" | "afternoon" | "night";
+
+export async function sendMedicationReminder(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  phone: string,
+  treatmentPlan: string,
+  medicationTiming: string,
+  period: MedicationPeriod,
+  dayNumber: number,
+  totalDays: number,
+): Promise<void> {
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: `medication_reminder_${period}`,
+    channel: "whatsapp",
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const hCtx = await getHospitalContext(hospitalId);
+    const firstName = patientName.split(" ")[0];
+    const greetMap: Record<MedicationPeriod, string> = {
+      morning: "Good morning",
+      afternoon: "Good afternoon",
+      night: "Good evening",
+    };
+    const message = await generateOpenAIMessage(
+      `You are a care team member at ${hCtx.hospitalName} sending a WhatsApp medication reminder. Tone: ${hCtx.tone}. Write like a warm, caring person — not a robotic alert. Start with "${greetMap[period]} ${firstName},". Be brief (2 sentences max). Remind them it is time for their ${period} medication or care activity without repeating the clinical details verbatim — keep it human and encouraging.`,
+      `Today is day ${dayNumber} of ${totalDays} for ${firstName}'s treatment at ${hCtx.hospitalName}. Medication schedule: ${medicationTiming}. Treatment plan: ${treatmentPlan}. Write a short, warm ${period} reminder letting them know it is time for their ${period} medication or treatment step. Example feel: "${greetMap[period]} ${firstName}, just a reminder to take your ${period} medication 💊 — keep it up, you're doing great!" — write with this warmth, naturally.`,
+      120,
+    );
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
+    await updateAutomationLog(logId, "sent", message);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
 // ── Post Treatment Check-in (OpenAI) ─────────────────────────────────────────
 
 export async function sendPostTreatmentCheckin(

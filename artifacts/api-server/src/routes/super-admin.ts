@@ -296,7 +296,14 @@ router.post("/super-admin/hospitals/:id/regenerate-password", requireSuperAdmin,
     .select()
     .single();
 
-  if (error || !hospital) { res.status(404).json({ error: "Not found" }); return; }
+  if (error) {
+    const msg = error.message.includes("current_password")
+      ? "Missing column: run 'ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS current_password TEXT;' in Supabase"
+      : error.message;
+    res.status(500).json({ error: msg });
+    return;
+  }
+  if (!hospital) { res.status(404).json({ error: "Hospital not found" }); return; }
 
   res.json({ newPassword, hospital: camelize(hospital) });
 });
@@ -304,15 +311,15 @@ router.post("/super-admin/hospitals/:id/regenerate-password", requireSuperAdmin,
 // ── Hospital Settings ──────────────────────────────────────────────────────────
 const UpdateSettingsBody = z.object({
   departments: z.array(z.string()).optional(),
-  pipelinePostTreatmentDays: z.number().int().min(1).optional(),
-  pipelineDormantDays: z.number().int().min(1).optional(),
-  language: z.string().optional(),
+  pipelinePostTreatmentDays: z.number().int().min(1).nullish(),
+  pipelineDormantDays: z.number().int().min(1).nullish(),
+  language: z.string().nullish(),
   tone: z.array(z.string()).optional(),
-  clinicDescription: z.string().optional(),
-  sendingEmail: z.string().optional(),
-  postTreatmentCheckinDays: z.number().int().min(1).optional(),
-  postCareCheckinDays: z.number().int().min(1).optional(),
-  whatsappFromNumber: z.string().optional(),
+  clinicDescription: z.string().nullish(),
+  sendingEmail: z.string().nullish(),
+  postTreatmentCheckinDays: z.number().int().min(1).nullish(),
+  postCareCheckinDays: z.number().int().min(1).nullish(),
+  whatsappFromNumber: z.string().nullish(),
 });
 
 router.get("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req, res): Promise<void> => {

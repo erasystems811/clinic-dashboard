@@ -389,17 +389,23 @@ export function startScheduler() {
   // Every 15 minutes: appointment reminders
   cron.schedule("*/15 * * * *", runAppointmentReminders);
 
-  // Daily at 6am: pipeline transitions + check-ins + in-care daily messages
-  cron.schedule("0 6 * * *", async () => {
-    await runInCareDailyMessages();
+  // Every 30 minutes: in-care daily messages (dedup prevents double-sends on same day)
+  cron.schedule("*/30 * * * *", runInCareDailyMessages);
+
+  // Every 10 minutes: pipeline stage transitions + dormant detection (pure data flow, no patient messages)
+  cron.schedule("*/10 * * * *", async () => {
     await runPostTreatmentTransitions();
-    await runPostTreatmentCheckins();
-    await runPostCareWellness();
     await runDormantDetection();
   });
 
+  // Post-treatment check-ins: 7am and 6pm daily (dedup prevents double-sends on same day)
+  cron.schedule("0 7 * * *", runPostTreatmentCheckins);
+  cron.schedule("0 18 * * *", runPostTreatmentCheckins);
+
   // Daily at 9pm: end-of-day feedback emails
   cron.schedule("0 21 * * *", runFeedbackEmails);
+
+  // Post-care wellness is admin-triggered, not scheduled automatically.
 
   log("Scheduler started");
 }

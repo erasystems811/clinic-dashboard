@@ -154,4 +154,7 @@ export const api = {
 
   resetTestData: () =>
     post<{ ok: boolean; message: string }>("/super-admin/reset-test-data", {}),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    post<{ ok: boolean }>("/super-admin/change-password", { currentPassword, newPassword }),
 };

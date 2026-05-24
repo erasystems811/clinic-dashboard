@@ -1,7 +1,8 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth";
-import { Building2, LayoutDashboard, LogOut, ChevronRight } from "lucide-react";
+import { Building2, LayoutDashboard, LogOut, ChevronRight, ShieldCheck } from "lucide-react";
+import ChangePasswordModal from "@/components/change-password-modal";
 
 interface LayoutProps {
   children: ReactNode;
@@ -11,6 +12,7 @@ interface LayoutProps {
 export default function Layout({ children, breadcrumb }: LayoutProps) {
   const { logout } = useAuth();
   const [, setLocation] = useLocation();
+  const [showSecurity, setShowSecurity] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -61,6 +63,13 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
             Hospitals
           </button>
           <button
+            onClick={() => setShowSecurity(true)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            Security
+          </button>
+          <button
             onClick={() => logout()}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition"
           >
@@ -73,6 +82,8 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
       <main className="flex-1 p-6">
         {children}
       </main>
+
+      {showSecurity && <ChangePasswordModal onClose={() => setShowSecurity(false)} />}
     </div>
   );
 }

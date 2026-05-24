@@ -88,13 +88,39 @@ function requireSuperAdmin(req: any, res: any, next: any) {
   next();
 }
 
+// ── Stored credential helpers ─────────────────────────────────────────────────
+async function getStoredCredential(): Promise<{ passwordHash: string; salt: string } | null> {
+  const { data } = await supabase
+    .from("super_admin_credentials")
+    .select("password_hash, salt")
+    .eq("id", 1)
+    .maybeSingle();
+  if (!data) return null;
+  return { passwordHash: data.password_hash as string, salt: data.salt as string };
+}
+
+async function verifyAdminPassword(input: string): Promise<boolean> {
+  const stored = await getStoredCredential();
+  if (stored) {
+    const hash = hashPassword(input, stored.salt);
+    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(stored.passwordHash));
+  }
+  // Fall back to env var
+  const adminPass = process.env.SUPER_ADMIN_PASSWORD ?? "EraAdmin2024!";
+  return crypto.timingSafeEqual(Buffer.from(input), Buffer.from(adminPass));
+}
+
 // ── Auth ─────────────────────────────────────────────────────────────────────
-router.post("/super-admin/auth/login", (req, res): void => {
+router.post("/super-admin/auth/login", async (req, res): Promise<void> => {
   const { username, password } = req.body ?? {};
   const adminUser = process.env.SUPER_ADMIN_USERNAME ?? "era_admin";
-  const adminPass = process.env.SUPER_ADMIN_PASSWORD ?? "EraAdmin2024!";
 
-  if (username !== adminUser || password !== adminPass) {
+  if (username !== adminUser) {
+    res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
+  const ok = await verifyAdminPassword(password ?? "");
+  if (!ok) {
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
@@ -102,6 +128,29 @@ router.post("/super-admin/auth/login", (req, res): void => {
 });
 
 router.post("/super-admin/auth/logout", (req, res): void => {
+  res.json({ ok: true });
+});
+
+router.post("/super-admin/change-password", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { currentPassword, newPassword } = req.body ?? {};
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "currentPassword and newPassword are required" });
+    return;
+  }
+  if ((newPassword as string).length < 8) {
+    res.status(400).json({ error: "New password must be at least 8 characters" });
+    return;
+  }
+  const ok = await verifyAdminPassword(currentPassword);
+  if (!ok) {
+    res.status(401).json({ error: "Current password is incorrect" });
+    return;
+  }
+  const salt = crypto.randomBytes(16).toString("hex");
+  const newHash = hashPassword(newPassword, salt);
+  await supabase
+    .from("super_admin_credentials")
+    .upsert({ id: 1, password_hash: newHash, salt, updated_at: new Date().toISOString() });
   res.json({ ok: true });
 });
 

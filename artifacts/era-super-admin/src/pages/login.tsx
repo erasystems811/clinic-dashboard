@@ -81,7 +81,7 @@ export default function LoginPage() {
                     required
                     autoComplete="username"
                     className={inputCls}
-                    placeholder="era_admin"
+                    placeholder=""
                   />
                 </div>
               </div>

@@ -1,9 +1,9 @@
 import { ReactNode, useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth";
-import { Building2, LayoutDashboard, LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2, Settings2 } from "lucide-react";
+import { Building2, LayoutDashboard, LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2, Settings2, Trash2 } from "lucide-react";
 import ChangePasswordModal from "@/components/change-password-modal";
-import { post } from "@/lib/api";
+import { post, api } from "@/lib/api";
 
 type DeployState = "idle" | "pushing" | "done" | "error";
 
@@ -20,6 +20,8 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
   const [deployState, setDeployState] = useState<DeployState>("idle");
   const [deployMsg, setDeployMsg] = useState("");
   const [confirmDeploy, setConfirmDeploy] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,11 +29,23 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
         setShowSettings(false);
         setConfirmDeploy(false);
+        setConfirmReset(false);
       }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const handleReset = async () => {
+    setResetting(true);
+    try {
+      await api.resetTestData();
+    } finally {
+      setResetting(false);
+      setConfirmReset(false);
+      setTimeout(() => setShowSettings(false), 800);
+    }
+  };
 
   const handleDeploy = async () => {
     if (deployState === "pushing") return;
@@ -118,6 +132,39 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
                   <ShieldCheck className="w-4 h-4 text-muted-foreground" />
                   Security
                 </button>
+
+                <div className="border-t border-border" />
+
+                {/* Reset Test Data */}
+                {!confirmReset ? (
+                  <button
+                    onClick={() => { setConfirmReset(true); setConfirmDeploy(false); }}
+                    disabled={resetting}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-400/80 hover:bg-red-500/10 hover:text-red-400 transition text-left disabled:opacity-50"
+                  >
+                    {resetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    {resetting ? "Resetting…" : "Reset Test Data"}
+                  </button>
+                ) : (
+                  <div className="px-4 py-3 space-y-2">
+                    <p className="text-xs text-muted-foreground">Permanently deletes all patients, appointments, queue entries and logs across <strong>all hospitals</strong>. Accounts are preserved. Cannot be undone.</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleReset}
+                        disabled={resetting}
+                        className="flex-1 py-1.5 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-50 transition"
+                      >
+                        {resetting ? "Resetting…" : "Yes, reset"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmReset(false)}
+                        className="flex-1 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="border-t border-border" />
 

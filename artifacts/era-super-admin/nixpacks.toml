@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+cmds = ["npm install -g pnpm@10.26.1"]
+
+[phases.install]
+cmds = ["cd ../.. && pnpm install --frozen-lockfile"]
+
+[phases.build]
+cmds = ["cd ../.. && pnpm --filter @workspace/era-super-admin run build"]
+
+[start]
+cmd = "node server.cjs"

@@ -44,6 +44,7 @@ export default function WellnessAdmin() {
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState("");
   const [topic, setTopic] = useState("");
+  const [subtopic, setSubtopic] = useState("");
   const [youtubeLink, setYoutubeLink] = useState("");
   const [tiktokLink, setTiktokLink] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -84,8 +85,9 @@ export default function WellnessAdmin() {
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
       setContent(data.content);
       setTopic(data.topic);
+      setSubtopic(data.subtopic ?? "");
       setEditing(true);
-      toast({ title: "Newsletter generated", description: `Topic: ${data.topic}` });
+      toast({ title: "Newsletter generated", description: data.subtopic ? `Angle: ${data.subtopic}` : `Topic: ${data.topic}` });
     } catch (err: unknown) {
       toast({ title: "Generation failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
     } finally {
@@ -234,19 +236,35 @@ export default function WellnessAdmin() {
             </div>
 
             {/* Generate with AI */}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
-                onClick={handleGenerate}
-                disabled={generating}
-              >
-                {generating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating with Claude…</> : <><Sparkles className="w-4 h-4" />Generate with AI</>}
-              </Button>
-              {content && !generating && (
-                <Button variant="outline" className="gap-2" onClick={handleGenerate} disabled={generating}>
-                  <RefreshCw className="w-4 h-4" />Regenerate
+            <div className="space-y-2">
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+                  onClick={handleGenerate}
+                  disabled={generating}
+                >
+                  {generating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate with AI</>}
                 </Button>
+                {content && !generating && (
+                  <Button variant="outline" className="gap-2" onClick={handleGenerate} disabled={generating}>
+                    <RefreshCw className="w-4 h-4" />Try a different angle
+                  </Button>
+                )}
+              </div>
+              {/* Subtopic Claude chose */}
+              {subtopic && !generating && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/15">
+                  <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
+                  <span className="text-xs text-muted-foreground">Claude chose this angle: </span>
+                  <span className="text-xs font-semibold text-primary">{subtopic}</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground/60">Regenerate for a different one</span>
+                </div>
+              )}
+              {!subtopic && !generating && !content && (
+                <p className="text-xs text-muted-foreground">
+                  Claude will pick a fresh, specific angle within your chosen category each time — topics never run out.
+                </p>
               )}
             </div>
 
@@ -256,7 +274,7 @@ export default function WellnessAdmin() {
                 {generating && (
                   <div className="rounded-md bg-primary/5 border border-primary/20 px-4 py-3 flex items-center gap-3">
                     <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
-                    <span className="text-sm text-muted-foreground">Claude is writing your wellness newsletter…</span>
+                    <span className="text-sm text-muted-foreground">Claude is picking an angle and writing your newsletter…</span>
                   </div>
                 )}
                 <textarea

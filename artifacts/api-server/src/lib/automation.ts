@@ -413,27 +413,54 @@ export async function generateWellnessNewsletter(
   hospitalId: number,
   topic: string,
   departments: string[],
-): Promise<string> {
+): Promise<{ subtopic: string; content: string }> {
   const hCtx = await getHospitalContext(hospitalId);
   const deptList = departments.length > 0 ? departments.join(", ") : "General Practice";
 
-  return generateClaudeMessage(
-    `You are a wellness content writer for ${hCtx.hospitalName}. Write in a ${hCtx.tone} tone. Write detailed, helpful wellness newsletters that educate patients. Never mention diagnoses or specific patient cases. Write at a general public level.`,
-    `Write a detailed weekly wellness newsletter for patients of ${hCtx.hospitalName} (departments: ${deptList}).
+  const raw = await generateClaudeMessage(
+    `You are a wellness content writer for ${hCtx.hospitalName}. Write in a ${hCtx.tone} tone. You write detailed, helpful wellness newsletters that educate patients. Never mention diagnoses or specific patient cases. Write at a general public level. Always respond with valid JSON only — no markdown, no code fences, no extra text.`,
+    `You are given a broad wellness category. Your job is to:
+1. Choose a specific, fresh, interesting subtopic or angle within that category that most people overlook or find surprising. Make it concrete and specific — not the obvious take.
+2. Write a detailed weekly wellness newsletter for patients of ${hCtx.hospitalName} (departments: ${deptList}) focused on that specific subtopic.
 
-Topic this week: ${topic}
+Broad category: ${topic}
 
-Include all of these sections:
-1. What is ${topic}? (2-3 sentences explaining it simply)
-2. Why it matters (2-3 sentences)
-3. Common causes or triggers (bullet points, 3-4 items)
-4. Benefits of good practice (bullet points, 3-4 items)
-5. What to avoid (bullet points, 3-4 items)
-6. One Simple Action Step for this week (1 concrete, easy thing they can do)
+The newsletter must include all of these sections:
+- A warm, engaging opening (1-2 sentences referencing the specific subtopic)
+- What is it? (2-3 sentences explaining simply)
+- Why it matters (2-3 sentences)
+- Common causes or triggers (3-4 bullet points)
+- Benefits of good practice (3-4 bullet points)
+- What to avoid (3-4 bullet points)
+- One Simple Action Step for this week (1 concrete, easy thing they can do)
+- A warm closing sign-off from ${hCtx.hospitalName}
 
-Write in plain language, warm and encouraging. Format as clean readable text, no markdown symbols.`,
-    1200,
+Write in plain language, warm and encouraging. No markdown symbols in the content.
+
+Respond with this exact JSON structure (no extra keys, no markdown wrapping):
+{
+  "subtopic": "the specific angle or subtopic you chose (short phrase, max 10 words)",
+  "content": "the full newsletter text"
+}`,
+    1600,
   );
+
+  try {
+    // Strip markdown code fences if Claude wraps the JSON
+    const cleaned = raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```\s*$/, "")
+      .trim();
+    const parsed = JSON.parse(cleaned) as { subtopic: string; content: string };
+    if (typeof parsed.subtopic === "string" && typeof parsed.content === "string") {
+      return parsed;
+    }
+  } catch {
+    // Fall back gracefully if Claude returns non-JSON
+  }
+
+  // Fallback: treat entire response as content with generic subtopic
+  return { subtopic: topic, content: raw };
 }
 
 export async function sendWellnessNewsletterEmails(

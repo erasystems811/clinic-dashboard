@@ -4,7 +4,7 @@ import Layout from "@/components/layout";
 import { api, Hospital } from "@/lib/api";
 import {
   Building2, Plus, Search, CheckCircle2, XCircle,
-  AlertCircle, Loader2, ChevronRight, Users, RefreshCw
+  AlertCircle, Loader2, ChevronRight, Users, RefreshCw, Trash2
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";
 
@@ -34,6 +34,9 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetMsg, setResetMsg] = useState("");
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [, setLocation] = useLocation();
 
   const fetchHospitals = useCallback(async () => {
@@ -50,6 +53,20 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => { fetchHospitals(); }, [fetchHospitals]);
+
+  const handleReset = async () => {
+    setResetting(true);
+    setResetMsg("");
+    try {
+      const result = await api.resetTestData();
+      setResetMsg(result.message);
+      setShowResetConfirm(false);
+    } catch (e: any) {
+      setResetMsg(e.message ?? "Reset failed");
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const filtered = hospitals.filter(h =>
     h.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -82,6 +99,14 @@ export default function Dashboard() {
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
+            onClick={() => setShowResetConfirm(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-semibold hover:bg-red-500/20 transition"
+            title="Clear all test data for production launch"
+          >
+            <Trash2 className="w-4 h-4" />
+            Reset Test Data
+          </button>
+          <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition"
           >
@@ -90,6 +115,14 @@ export default function Dashboard() {
           </button>
         </div>
       </div>
+
+      {/* Reset success message */}
+      {resetMsg && (
+        <div className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl border mb-4 text-emerald-400 bg-emerald-500/10 border-emerald-500/20">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          {resetMsg}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
@@ -201,6 +234,45 @@ export default function Dashboard() {
           onClose={() => setShowCreate(false)}
           onCreated={() => { setShowCreate(false); fetchHospitals(); }}
         />
+      )}
+
+      {/* Reset Confirm Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-foreground text-lg">Reset All Test Data</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  This will permanently delete all patients, appointments, queue entries, call tasks, automation logs, feedback, and wellness newsletters across <strong>all hospitals</strong>.
+                </p>
+                <p className="text-sm text-amber-400 mt-2 font-medium">
+                  Hospital accounts and settings are preserved. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                disabled={resetting}
+                className="px-4 py-2 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={resetting}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-50 transition"
+              >
+                {resetting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {resetting ? "Resetting…" : "Yes, Reset Everything"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );

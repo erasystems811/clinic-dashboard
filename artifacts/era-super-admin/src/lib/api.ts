@@ -138,4 +138,7 @@ export const api = {
 
   retryAutomation: (id: number) =>
     post<{ ok: boolean; message: string }>(`/super-admin/automation-log/${id}/retry`, {}),
+
+  resetTestData: () =>
+    post<{ ok: boolean; message: string }>("/super-admin/reset-test-data", {}),
 };

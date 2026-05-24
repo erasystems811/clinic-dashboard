@@ -335,9 +335,9 @@ function CalendarView({
 
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-primary/20 border border-primary/30 inline-block" />Booked</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-teal-500/25 border-l-2 border-teal-400 inline-block" />Booked</span>
         <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-card border border-border inline-block" />Free (click to book)</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-muted border border-border inline-block" />Past</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-muted/40 border border-border inline-block" />Past</span>
       </div>
 
       {/* Grid */}
@@ -390,13 +390,13 @@ function CalendarView({
                   return (
                     <div
                       key={di}
-                      className={`border-r border-border last:border-r-0 px-1 py-0.5 ${isStart ? "bg-primary/15 border-l-2 border-l-primary" : "bg-primary/8"}`}
+                      className={`border-r border-border last:border-r-0 px-1 py-0.5 ${isStart ? "bg-teal-500/25 border-l-2 border-l-teal-400" : "bg-teal-500/15"}`}
                       title={`${blocker.patientName} — ${blocker.title}`}
                     >
                       {isStart && (
                         <div className="overflow-hidden">
-                          <p className="text-xs font-semibold text-primary truncate leading-tight">{blocker.patientName}</p>
-                          <p className="text-xs text-primary/70 truncate leading-tight">{blocker.title}</p>
+                          <p className="text-xs font-semibold text-teal-300 truncate leading-tight">{blocker.patientName}</p>
+                          <p className="text-xs text-teal-400/80 truncate leading-tight">{blocker.title}</p>
                         </div>
                       )}
                     </div>
@@ -436,7 +436,7 @@ export default function Appointments() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isReceptionist = user?.role === "receptionist";
+  const isReceptionist = user?.role === "receptionist" || user?.role === "admin";
 
   const [tab, setTab] = useState<"list" | "calendar">("list");
   const [showBook, setShowBook] = useState(false);

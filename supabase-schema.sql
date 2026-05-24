@@ -17,62 +17,70 @@ CREATE TABLE IF NOT EXISTS hospitals (
 );
 
 CREATE TABLE IF NOT EXISTS hospital_settings (
-  id                          SERIAL PRIMARY KEY,
-  hospital_id                 INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
-  departments                 TEXT DEFAULT '[]',
-  pipeline_post_treatment_days INTEGER DEFAULT 7,
-  pipeline_dormant_days       INTEGER DEFAULT 30,
-  language                    TEXT DEFAULT 'English',
-  tone                        TEXT DEFAULT 'Formal',
-  clinic_description          TEXT,
-  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                            SERIAL PRIMARY KEY,
+  hospital_id                   INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
+  departments                   TEXT DEFAULT '[]',
+  pipeline_post_treatment_days  INTEGER DEFAULT 7,
+  pipeline_dormant_days         INTEGER DEFAULT 30,
+  language                      TEXT DEFAULT 'English',
+  tone                          TEXT DEFAULT 'Formal',
+  clinic_description            TEXT,
+  sending_email                 TEXT,
+  post_treatment_checkin_days   INTEGER DEFAULT 3,
+  post_care_checkin_days        INTEGER DEFAULT 7,
+  whatsapp_from_number          TEXT,
+  updated_at                    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS hospital_modules (
-  id                   SERIAL PRIMARY KEY,
-  hospital_id          INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
-  appointments_enabled BOOLEAN NOT NULL DEFAULT true,
-  feedback_enabled     BOOLEAN NOT NULL DEFAULT true,
-  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                        SERIAL PRIMARY KEY,
+  hospital_id               INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
+  appointments_enabled      BOOLEAN NOT NULL DEFAULT true,
+  feedback_enabled          BOOLEAN NOT NULL DEFAULT true,
+  wellness_newsletter_enabled BOOLEAN NOT NULL DEFAULT true,
+  whatsapp_enabled          BOOLEAN NOT NULL DEFAULT true,
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS hospital_staff_credentials (
-  id                       SERIAL PRIMARY KEY,
-  hospital_id              INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
-  nurse_username           TEXT NOT NULL,
-  nurse_password_hash      TEXT NOT NULL,
-  receptionist_username    TEXT NOT NULL,
+  id                         SERIAL PRIMARY KEY,
+  hospital_id                INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
+  nurse_username             TEXT NOT NULL,
+  nurse_password_hash        TEXT NOT NULL,
+  receptionist_username      TEXT NOT NULL,
   receptionist_password_hash TEXT NOT NULL,
-  updated_at               TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ── Patients ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS patients (
-  id                      SERIAL PRIMARY KEY,
-  first_name              TEXT NOT NULL,
-  last_name               TEXT NOT NULL,
-  date_of_birth           TEXT,
-  hospital_id             TEXT,
-  email                   TEXT NOT NULL,
-  phone                   TEXT NOT NULL,
-  whatsapp_number         TEXT,
-  age                     INTEGER,
-  gender                  TEXT,
-  stage                   TEXT NOT NULL DEFAULT 'Booked',
-  pre_queue_stage         TEXT,
-  diagnosis               TEXT,
-  department              TEXT,
-  next_appointment        TEXT,
-  notes                   TEXT,
-  treatment_plan          TEXT,
-  treatment_type          TEXT,
-  medication_timing       TEXT,
-  treatment_duration_days INTEGER,
-  treatment_end_date      TEXT,
-  checked_in_at           TEXT,
-  treatment_started_at    TEXT,
-  created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                        SERIAL PRIMARY KEY,
+  first_name                TEXT NOT NULL,
+  last_name                 TEXT NOT NULL,
+  date_of_birth             TEXT,
+  hospital_id               TEXT,
+  email                     TEXT NOT NULL,
+  phone                     TEXT NOT NULL,
+  whatsapp_number           TEXT,
+  age                       INTEGER,
+  gender                    TEXT,
+  stage                     TEXT NOT NULL DEFAULT 'Booked',
+  pre_queue_stage           TEXT,
+  diagnosis                 TEXT,
+  department                TEXT,
+  next_appointment          TEXT,
+  notes                     TEXT,
+  treatment_plan            TEXT,
+  treatment_type            TEXT,
+  medication_timing         TEXT,
+  treatment_duration_days   INTEGER,
+  treatment_end_date        TEXT,
+  checked_in_at             TEXT,
+  treatment_started_at      TEXT,
+  last_checkin_sent_at      TIMESTAMPTZ,
+  last_feedback_sent_at     TIMESTAMPTZ,
+  created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ── Pipeline Stages ───────────────────────────────────────────────────────────
@@ -85,34 +93,35 @@ CREATE TABLE IF NOT EXISTS pipeline_stages (
 
 -- ── Queue ─────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS queue (
-  id             SERIAL PRIMARY KEY,
-  patient_id     INTEGER NOT NULL,
-  patient_name   TEXT NOT NULL,
-  phone          TEXT,
-  email          TEXT,
+  id              SERIAL PRIMARY KEY,
+  patient_id      INTEGER NOT NULL,
+  patient_name    TEXT NOT NULL,
+  phone           TEXT,
+  email           TEXT,
   whatsapp_number TEXT,
-  hospital_id    TEXT,
-  stage          TEXT,
-  position       INTEGER NOT NULL,
-  appointment_id INTEGER,
-  added_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+  hospital_id     TEXT,
+  stage           TEXT,
+  position        INTEGER NOT NULL,
+  appointment_id  INTEGER,
+  added_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ── Call Tasks ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS call_tasks (
-  id             SERIAL PRIMARY KEY,
-  patient_id     INTEGER NOT NULL,
-  patient_name   TEXT NOT NULL,
-  phone          TEXT NOT NULL,
+  id              SERIAL PRIMARY KEY,
+  patient_id      INTEGER NOT NULL,
+  patient_name    TEXT NOT NULL,
+  phone           TEXT NOT NULL,
   whatsapp_number TEXT,
-  department     TEXT,
-  reason         TEXT NOT NULL,
-  task_type      TEXT NOT NULL DEFAULT 'follow_up',
-  check_in_type  TEXT,
-  action_type    TEXT NOT NULL DEFAULT 'manual_call',
-  outcome        TEXT,
-  completed_at   TIMESTAMPTZ,
-  flagged_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  hospital_id     TEXT,
+  department      TEXT,
+  reason          TEXT NOT NULL,
+  task_type       TEXT NOT NULL DEFAULT 'follow_up',
+  check_in_type   TEXT,
+  action_type     TEXT NOT NULL DEFAULT 'manual_call',
+  outcome         TEXT,
+  completed_at    TIMESTAMPTZ,
+  flagged_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ── Departments ───────────────────────────────────────────────────────────────
@@ -127,6 +136,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   id           SERIAL PRIMARY KEY,
   patient_id   INTEGER NOT NULL,
   patient_name TEXT NOT NULL,
+  hospital_id  TEXT,
   title        TEXT NOT NULL,
   scheduled_at TEXT NOT NULL,
   duration     INTEGER DEFAULT 30,
@@ -143,6 +153,7 @@ CREATE TABLE IF NOT EXISTS activity (
   description  TEXT NOT NULL,
   patient_id   INTEGER,
   patient_name TEXT,
+  hospital_id  TEXT,
   metadata     TEXT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -152,18 +163,42 @@ CREATE TABLE IF NOT EXISTS feedback (
   id           SERIAL PRIMARY KEY,
   patient_id   INTEGER,
   patient_name TEXT,
+  hospital_id  TEXT,
   rating       INTEGER NOT NULL,
   comment      TEXT,
+  token        TEXT UNIQUE,
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ── Wellness Newsletter ───────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS wellness_newsletter (
   id           SERIAL PRIMARY KEY,
+  hospital_id  INTEGER REFERENCES hospitals(id) ON DELETE CASCADE,
   week_of      TEXT NOT NULL,
+  topic        TEXT,
   content      TEXT NOT NULL,
+  youtube_link TEXT,
+  tiktok_link  TEXT,
+  status       TEXT NOT NULL DEFAULT 'draft',
   last_sent_at TIMESTAMPTZ,
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Automation Log ────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS automation_log (
+  id               SERIAL PRIMARY KEY,
+  hospital_id      INTEGER REFERENCES hospitals(id) ON DELETE SET NULL,
+  patient_id       INTEGER,
+  patient_name     TEXT,
+  automation_type  TEXT NOT NULL,
+  channel          TEXT NOT NULL DEFAULT 'whatsapp',
+  status           TEXT NOT NULL DEFAULT 'queued',
+  message_preview  TEXT,
+  error_message    TEXT,
+  retry_count      INTEGER NOT NULL DEFAULT 0,
+  last_attempted_at TIMESTAMPTZ,
+  sent_at          TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ── Auto-update updated_at triggers ──────────────────────────────────────────
@@ -196,7 +231,10 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- ── Disable RLS on all tables (server-side anon key access) ──────────────────
+-- ── Disable RLS on all tables (server-side service-role key access) ───────────
+-- The API server uses the Supabase service-role key which bypasses RLS.
+-- RLS is intentionally disabled for all tables; hospital-level isolation is
+-- enforced in application logic (x-hospital-token middleware).
 ALTER TABLE hospitals                  DISABLE ROW LEVEL SECURITY;
 ALTER TABLE hospital_settings          DISABLE ROW LEVEL SECURITY;
 ALTER TABLE hospital_modules           DISABLE ROW LEVEL SECURITY;
@@ -210,3 +248,39 @@ ALTER TABLE appointments               DISABLE ROW LEVEL SECURITY;
 ALTER TABLE activity                   DISABLE ROW LEVEL SECURITY;
 ALTER TABLE feedback                   DISABLE ROW LEVEL SECURITY;
 ALTER TABLE wellness_newsletter        DISABLE ROW LEVEL SECURITY;
+ALTER TABLE automation_log             DISABLE ROW LEVEL SECURITY;
+
+-- ── Column additions for existing databases (run if upgrading) ────────────────
+-- hospital_settings new columns
+ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS sending_email TEXT;
+ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS post_treatment_checkin_days INTEGER DEFAULT 3;
+ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS post_care_checkin_days INTEGER DEFAULT 7;
+ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS whatsapp_from_number TEXT;
+
+-- hospital_modules new columns
+ALTER TABLE hospital_modules ADD COLUMN IF NOT EXISTS wellness_newsletter_enabled BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE hospital_modules ADD COLUMN IF NOT EXISTS whatsapp_enabled BOOLEAN NOT NULL DEFAULT true;
+
+-- patients scheduler columns
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS last_checkin_sent_at TIMESTAMPTZ;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS last_feedback_sent_at TIMESTAMPTZ;
+
+-- call_tasks hospital scoping
+ALTER TABLE call_tasks ADD COLUMN IF NOT EXISTS hospital_id TEXT;
+
+-- appointments hospital scoping
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS hospital_id TEXT;
+
+-- activity hospital scoping
+ALTER TABLE activity ADD COLUMN IF NOT EXISTS hospital_id TEXT;
+
+-- feedback hospital scoping + token
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS hospital_id TEXT;
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS token TEXT UNIQUE;
+
+-- wellness_newsletter new columns
+ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS hospital_id INTEGER REFERENCES hospitals(id) ON DELETE CASCADE;
+ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS topic TEXT;
+ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS youtube_link TEXT;
+ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS tiktok_link TEXT;
+ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft';

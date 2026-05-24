@@ -461,6 +461,28 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
   });
 });
 
+// ── Reset Test Data ───────────────────────────────────────────────────────────
+router.post("/super-admin/reset-test-data", requireSuperAdmin, async (req, res): Promise<void> => {
+  try {
+    const tables = [
+      "automation_log",
+      "activity",
+      "queue",
+      "call_tasks",
+      "appointments",
+      "feedback",
+      "wellness_newsletter",
+      "patients",
+    ];
+    for (const table of tables) {
+      await supabase.from(table).delete().neq("id", 0);
+    }
+    res.json({ ok: true, message: "All test data cleared. Hospital accounts and settings are preserved." });
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Reset failed" });
+  }
+});
+
 // ── Automation Log (Failed Automations) ───────────────────────────────────────
 router.get("/super-admin/automation-log", requireSuperAdmin, async (req, res): Promise<void> => {
   const status = req.query.status as string | undefined;

@@ -16,7 +16,7 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 function StatusBadge({ status, active }: { status: string; active: boolean }) {
-  const label = !active ? "suspended" : status;
+  const label = (!active || status === "inactive") ? "suspended" : status;
   const style = STATUS_STYLES[label] ?? STATUS_STYLES.inactive;
   return (
     <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${style}`}>

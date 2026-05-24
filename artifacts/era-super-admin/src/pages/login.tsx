@@ -150,7 +150,7 @@ export default function LoginPage() {
                     <KeyRound className="w-4 h-4 text-primary" />
                     <p className="text-sm font-semibold text-foreground">Account Recovery</p>
                   </div>
-                  <p className="text-xs text-muted-foreground -mt-2">Enter your recovery key (set as <code className="bg-muted px-1 rounded">SUPER_ADMIN_RECOVERY_KEY</code> in Railway env vars) and choose a new password.</p>
+                  <p className="text-xs text-muted-foreground -mt-2">Enter your recovery key and choose a new password.</p>
 
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recovery Key</label>

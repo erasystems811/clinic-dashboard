@@ -274,6 +274,7 @@ const UpdateModulesBody = z.object({
   feedbackEnabled: z.boolean().optional(),
   wellnessNewsletterEnabled: z.boolean().optional(),
   whatsappEnabled: z.boolean().optional(),
+  messagesEnabled: z.boolean().optional(),
 });
 
 router.get("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -298,6 +299,7 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
   if (parsed.data.feedbackEnabled !== undefined) updates.feedback_enabled = parsed.data.feedbackEnabled;
   if (parsed.data.wellnessNewsletterEnabled !== undefined) updates.wellness_newsletter_enabled = parsed.data.wellnessNewsletterEnabled;
   if (parsed.data.whatsappEnabled !== undefined) updates.whatsapp_enabled = parsed.data.whatsappEnabled;
+  if (parsed.data.messagesEnabled !== undefined) updates.messages_enabled = parsed.data.messagesEnabled;
 
   const { data: modules, error } = await supabase
     .from("hospital_modules")
@@ -353,6 +355,7 @@ router.post("/staff/login", async (req, res): Promise<void> => {
     modules: {
       appointmentsEnabled: modules?.appointments_enabled ?? true,
       feedbackEnabled: modules?.feedback_enabled ?? true,
+      messagesEnabled: modules?.messages_enabled ?? false,
     },
   });
 });
@@ -412,6 +415,7 @@ router.get("/hospital/lookup/:username", async (req, res): Promise<void> => {
     modules: {
       appointmentsEnabled: modules?.appointments_enabled ?? true,
       feedbackEnabled: modules?.feedback_enabled ?? true,
+      messagesEnabled: modules?.messages_enabled ?? false,
     },
   });
 });
@@ -457,6 +461,7 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
     modules: {
       appointmentsEnabled: modules?.appointments_enabled ?? true,
       feedbackEnabled: modules?.feedback_enabled ?? true,
+      messagesEnabled: modules?.messages_enabled ?? false,
     },
   });
 });

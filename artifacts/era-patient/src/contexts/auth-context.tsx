@@ -14,6 +14,7 @@ export interface HospitalConfig {
   modules: {
     appointmentsEnabled: boolean;
     feedbackEnabled: boolean;
+    messagesEnabled: boolean;
   };
 }
 

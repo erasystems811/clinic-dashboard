@@ -104,6 +104,7 @@ export default function HospitalDetail({ id }: Props) {
   const [feedbackEnabled, setFeedbackEnabled] = useState(true);
   const [wellnessEnabled, setWellnessEnabled] = useState(true);
   const [whatsappEnabled, setWhatsappEnabled] = useState(true);
+  const [messagesEnabled, setMessagesEnabled] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +135,7 @@ export default function HospitalDetail({ id }: Props) {
       setFeedbackEnabled(m.feedbackEnabled);
       setWellnessEnabled(m.wellnessNewsletterEnabled ?? true);
       setWhatsappEnabled(m.whatsappEnabled ?? true);
+      setMessagesEnabled(m.messagesEnabled ?? false);
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : null) ?? "Failed to load hospital");
     } finally {
@@ -220,6 +222,7 @@ export default function HospitalDetail({ id }: Props) {
         feedbackEnabled,
         wellnessNewsletterEnabled: wellnessEnabled,
         whatsappEnabled,
+        messagesEnabled,
       });
       flash("Modules saved");
       load();
@@ -593,6 +596,7 @@ export default function HospitalDetail({ id }: Props) {
             { key: "feedback", label: "Patient Feedback", desc: "Post-visit feedback collection and analytics", value: feedbackEnabled, set: setFeedbackEnabled },
             { key: "wellness", label: "Wellness Newsletter", desc: "Weekly AI-generated wellness emails to patients", value: wellnessEnabled, set: setWellnessEnabled },
             { key: "whatsapp", label: "WhatsApp Automations", desc: "AI-generated WhatsApp messages for patient journeys", value: whatsappEnabled, set: setWhatsappEnabled },
+            { key: "messages", label: "Messages Inbox", desc: "WhatsApp inbox for two-way patient communication (requires WhatsApp setup)", value: messagesEnabled, set: setMessagesEnabled },
           ].map(mod => (
             <div key={mod.key} className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted border border-border">
               <div>

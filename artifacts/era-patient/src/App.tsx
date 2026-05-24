@@ -53,6 +53,7 @@ function ProtectedRouter() {
   const modules = hospitalConfig?.modules;
   const apptEnabled = modules?.appointmentsEnabled ?? true;
   const feedbackEnabled = modules?.feedbackEnabled ?? true;
+  const messagesEnabled = modules?.messagesEnabled ?? false;
 
   return (
     <Switch>
@@ -71,7 +72,7 @@ function ProtectedRouter() {
       {role === "admin" && <Route path="/activity" component={ActivityLog} />}
       {role === "admin" && feedbackEnabled && <Route path="/feedback-admin" component={FeedbackAdmin} />}
       {role === "admin" && <Route path="/wellness" component={WellnessAdmin} />}
-      {role === "admin" && <Route path="/messages" component={Messages} />}
+      {role === "admin" && messagesEnabled && <Route path="/messages" component={Messages} />}
       {role === "admin" && <Route path="/settings" component={Settings} />}
 
       {/* Receptionist routes */}
@@ -79,11 +80,11 @@ function ProtectedRouter() {
       {role === "receptionist" && <Route path="/call-tasks" component={CallTasks} />}
       {role === "receptionist" && apptEnabled && <Route path="/appointments" component={Appointments} />}
       {role === "receptionist" && <Route path="/patients/new" component={NewPatient} />}
-      {role === "receptionist" && <Route path="/messages" component={Messages} />}
+      {role === "receptionist" && messagesEnabled && <Route path="/messages" component={Messages} />}
 
       {/* Nurse routes */}
       {role === "nurse" && <Route path="/nurse-station" component={NurseStation} />}
-      {role === "nurse" && <Route path="/messages" component={Messages} />}
+      {role === "nurse" && messagesEnabled && <Route path="/messages" component={Messages} />}
 
       {/* Default redirect */}
       <Route>

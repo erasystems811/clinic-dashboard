@@ -38,6 +38,7 @@ export const hospitalModulesTable = pgTable("hospital_modules", {
   hospitalId: integer("hospital_id").notNull().unique(),
   appointmentsEnabled: boolean("appointments_enabled").notNull().default(true),
   feedbackEnabled: boolean("feedback_enabled").notNull().default(true),
+  messagesEnabled: boolean("messages_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 

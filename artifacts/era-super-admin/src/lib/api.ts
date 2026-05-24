@@ -78,6 +78,7 @@ export interface HospitalModules {
   feedbackEnabled: boolean;
   wellnessNewsletterEnabled: boolean;
   whatsappEnabled: boolean;
+  messagesEnabled: boolean;
 }
 
 export interface AutomationLog {

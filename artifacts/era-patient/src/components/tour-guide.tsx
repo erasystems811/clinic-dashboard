@@ -275,12 +275,13 @@ export function TourGuide() {
   const [rect, setRect] = useState<Rect | null>(null);
 
   useEffect(() => {
-    if (!user || !hospital) return;
-    const done = localStorage.getItem(key);
-    if (!done) {
-      setTimeout(() => setActive(true), 600);
-    }
-  }, [user, hospital, key]);
+    const handler = () => {
+      setStepIndex(0);
+      setActive(true);
+    };
+    window.addEventListener("era:start-tour", handler);
+    return () => window.removeEventListener("era:start-tour", handler);
+  }, []);
 
   const currentStep = steps[stepIndex];
 
@@ -353,6 +354,6 @@ export function useRestartTour() {
   return useCallback(() => {
     const key = tourKey(slug, role);
     localStorage.removeItem(key);
-    window.location.reload();
+    window.dispatchEvent(new Event("era:start-tour"));
   }, [slug, role]);
 }

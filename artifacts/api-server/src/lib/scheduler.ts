@@ -6,6 +6,7 @@ import {
   sendPostCareWellness,
   sendAppointmentReminder,
   sendFeedbackEmail,
+  sendInCareDailyMessage,
 } from "./automation.js";
 import { signFeedbackToken } from "./feedbackToken.js";
 
@@ -57,6 +58,61 @@ async function runAppointmentReminders() {
   } catch (err) {
     Sentry.captureException(err);
     log(`Appointment reminders error: ${err}`);
+  }
+}
+
+// ── In-Care Daily Messages — runs daily ───────────────────────────────────────
+async function runInCareDailyMessages() {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
+    for (const h of hospitals ?? []) {
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone, whatsapp_number, treatment_plan, medication_timing, treatment_type, treatment_duration_days, treatment_started_at")
+        .eq("stage", "In Care")
+        .eq("hospital_id", h.username);
+
+      for (const p of patients ?? []) {
+        const phone = (p.whatsapp_number as string) || (p.phone as string);
+        if (!phone) continue;
+
+        // Check if we already sent a daily message today
+        const { data: alreadySent } = await supabase
+          .from("automation_log")
+          .select("id")
+          .eq("patient_id", p.id)
+          .eq("automation_type", "in_care_daily")
+          .eq("status", "sent")
+          .gte("created_at", `${today}T00:00:00Z`)
+          .lte("created_at", `${today}T23:59:59Z`)
+          .maybeSingle();
+
+        if (alreadySent) continue;
+
+        const startedAt = p.treatment_started_at ? new Date(p.treatment_started_at as string) : new Date();
+        const dayNumber = Math.max(1, Math.floor((Date.now() - startedAt.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+        const totalDays = (p.treatment_duration_days as number) ?? 30;
+
+        const patientName = `${p.first_name} ${p.last_name}`;
+        await sendInCareDailyMessage(
+          h.id,
+          p.id as number,
+          patientName,
+          phone,
+          (p.treatment_plan as string) ?? "",
+          (p.medication_timing as string | null) ?? null,
+          (p.treatment_type as string) ?? "treatment",
+          dayNumber,
+          totalDays,
+        );
+        log(`In-care daily message sent to patient ${p.id} (day ${dayNumber}/${totalDays})`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`In-care daily messages error: ${err}`);
   }
 }
 
@@ -316,8 +372,9 @@ export function startScheduler() {
   // Every 15 minutes: appointment reminders
   cron.schedule("*/15 * * * *", runAppointmentReminders);
 
-  // Daily at 6am: pipeline transitions + check-ins
+  // Daily at 6am: pipeline transitions + check-ins + in-care daily messages
   cron.schedule("0 6 * * *", async () => {
+    await runInCareDailyMessages();
     await runPostTreatmentTransitions();
     await runPostTreatmentCheckins();
     await runPostCareWellness();

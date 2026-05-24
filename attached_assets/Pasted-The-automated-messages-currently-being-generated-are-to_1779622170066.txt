@@ -1,0 +1,17 @@
+The automated messages currently being generated are too generic. For example ‘your care plan is active’ is not acceptable. Each message must feel warm, human and specific to the patient’s situation. Here are the exact tone and content guidelines for each message type:
+
+Queue message when patient joins: Must feel welcoming and warm. Acknowledge them by name. Tell them their queue number. Make them feel seen and valued not just like a number. Example feel: ‘Hi Mrs Amaka! Welcome to GISD Hospital. You are currently number 4 in the queue. We see you and we will keep you updated as things move. Thank you for your patience today.’
+
+Queue update when position changes: Short, warm, reassuring. Example feel: ‘Hi Mrs Amaka, just a quick update — you are now number 2 in the queue. It will not be long now. We appreciate your patience.’
+
+Care summary when nurse logs treatment plan: Warm, reassuring, informative but never clinical. Never mention the diagnosis. Explain the care process, reassure them the team is with them, let them know what to expect. Example feel: ‘Hi Mrs Amaka, your care plan at GISD Hospital is now in place. Over the next 30 days our team will be actively supporting your health journey. You will have a combination of medication and clinic visits — we will guide you through every step. You are not alone in this. We are here with you.’
+
+For the continuous in care automations: Ai should read the plan and the time for the treatment and send messages through the whole number of treatments days example feel: good morning  Amaka you have medication this morning and you are expected to visit the hospital too….please don’t miss this to ensure you get better orrr good afternoon Amaka you have medication to take this afternoon please don’t forget this and make sure you rest well
+
+Post Treatment check-in: Genuinely caring, like a friend checking in not a system notification. Example feel: ‘Hi Mrs Amaka, we are just checking in on you. Your treatment period has ended and we want to know how you are feeling. Please do not hesitate to reach out if you need anything. 
+
+Appointment confirmation: Warm and clear. Example feel: ‘Hi Mr Tunde, your appointment at GISD Hospital is confirmed for Tuesday 27th May at 10am. We look forward to seeing you.’
+Appointment 24 hour reminder: Friendly reminder. Example feel: ‘Hi Mr Tunde, just a reminder that your appointment at GISD Hospital is tomorrow at 10am. See you soon!’
+Appointment 2 hour reminder: Short and friendly. Example feel: ‘Hi Mr Tunde, your appointment at GISD hospital is in 2 hours at 10am. We will see you shortly!’
+Missed appointment follow up: Caring not accusatory. Example feel: ‘Hi Mr Tunde, we noticed you were not able to make your appointment today, we hope you are good? Please reach out if you want to reschedule — we are here for you.’
+All messages must use the hospital’s configured tone. These examples are for a Warm tone hospital. A Formal tone hospital would sound more professional but still never robotic or cold. The AI must generate messages that feel like they were written by a caring human not a system.”

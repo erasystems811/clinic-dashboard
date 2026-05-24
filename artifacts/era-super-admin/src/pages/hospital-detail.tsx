@@ -103,7 +103,6 @@ export default function HospitalDetail({ id }: Props) {
   const [apptEnabled, setApptEnabled] = useState(true);
   const [feedbackEnabled, setFeedbackEnabled] = useState(true);
   const [wellnessEnabled, setWellnessEnabled] = useState(true);
-  const [whatsappEnabled, setWhatsappEnabled] = useState(true);
   const [messagesEnabled, setMessagesEnabled] = useState(false);
 
   const load = useCallback(async () => {
@@ -134,7 +133,6 @@ export default function HospitalDetail({ id }: Props) {
       setApptEnabled(m.appointmentsEnabled);
       setFeedbackEnabled(m.feedbackEnabled);
       setWellnessEnabled(m.wellnessNewsletterEnabled ?? true);
-      setWhatsappEnabled(m.whatsappEnabled ?? true);
       setMessagesEnabled(m.messagesEnabled ?? false);
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : null) ?? "Failed to load hospital");
@@ -221,7 +219,7 @@ export default function HospitalDetail({ id }: Props) {
         appointmentsEnabled: apptEnabled,
         feedbackEnabled,
         wellnessNewsletterEnabled: wellnessEnabled,
-        whatsappEnabled,
+        whatsappEnabled: true,
         messagesEnabled,
       });
       flash("Modules saved");
@@ -595,7 +593,6 @@ export default function HospitalDetail({ id }: Props) {
             { key: "appointments", label: "Appointments", desc: "Calendar scheduling and appointment management", value: apptEnabled, set: setApptEnabled },
             { key: "feedback", label: "Patient Feedback", desc: "Post-visit feedback collection and analytics", value: feedbackEnabled, set: setFeedbackEnabled },
             { key: "wellness", label: "Wellness Newsletter", desc: "Weekly AI-generated wellness emails to patients", value: wellnessEnabled, set: setWellnessEnabled },
-            { key: "whatsapp", label: "WhatsApp Automations", desc: "AI-generated WhatsApp messages for patient journeys", value: whatsappEnabled, set: setWhatsappEnabled },
             { key: "messages", label: "Messages Inbox", desc: "WhatsApp inbox for two-way patient communication (requires WhatsApp setup)", value: messagesEnabled, set: setMessagesEnabled },
           ].map(mod => (
             <div key={mod.key} className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted border border-border">

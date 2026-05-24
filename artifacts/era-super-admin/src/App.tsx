@@ -1,7 +1,8 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/auth";
 import LoginPage from "@/pages/login";
+import RegisterPage from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
 import HospitalDetail from "@/pages/hospital-detail";
 
@@ -9,8 +10,10 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { isAuthed } = useAuth();
+  const [location] = useLocation();
 
   if (!isAuthed) {
+    if (location === "/register") return <RegisterPage />;
     return <LoginPage />;
   }
 

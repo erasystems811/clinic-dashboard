@@ -5,6 +5,7 @@ import { promisify } from "util";
 import { z } from "zod/v4";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
+import { sendEmail, wrapHtml } from "../lib/email.js";
 
 const execAsync = promisify(exec);
 
@@ -219,6 +220,121 @@ router.post("/super-admin/change-password", requireSuperAdmin, async (req, res):
     .from("super_admin_credentials")
     .upsert({ id: 1, password_hash: newHash, salt, updated_at: new Date().toISOString() });
   res.json({ ok: true });
+});
+
+// ── Public Hospital Self-Registration ─────────────────────────────────────────
+const RegisterBody = z.object({
+  hospitalName: z.string().min(2).max(100),
+  contactName: z.string().min(2).max(100),
+  email: z.string().email(),
+  phone: z.string().min(7).max(20),
+  city: z.string().optional(),
+  username: z.string().min(3).max(30),
+});
+
+router.post("/super-admin/register", async (req, res): Promise<void> => {
+  const parsed = RegisterBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Please fill all required fields correctly." });
+    return;
+  }
+  const { hospitalName, contactName, email, phone, city, username } = parsed.data;
+
+  const { data: existing } = await supabase.from("hospitals").select("id").eq("username", username).single();
+  if (existing) {
+    res.status(409).json({ error: "That username is already taken. Please choose another." });
+    return;
+  }
+
+  const plainPassword = generatePassword();
+  const slug = username.toLowerCase().replace(/[^a-z0-9]/g, "-");
+  const salt = crypto.randomBytes(16).toString("hex");
+  const passwordHash = `${salt}:${hashPassword(plainPassword, salt)}`;
+
+  const { data: hospital, error } = await supabase.from("hospitals").insert({
+    name: hospitalName, slug, username,
+    password_hash: passwordHash,
+    current_password: plainPassword,
+    active: true,
+    subscription_status: "trial",
+  }).select().single();
+
+  if (error || !hospital) {
+    res.status(500).json({ error: "Account creation failed. Please try again." });
+    return;
+  }
+
+  await supabase.from("hospital_settings").insert({ hospital_id: hospital.id });
+  await supabase.from("hospital_modules").insert({ hospital_id: hospital.id });
+
+  const prefix = hospitalName.trim().split(/\s+/)[0].toUpperCase();
+  const nursePass = "nurse1234";
+  const recepPass = "recep1234";
+  const nurseSalt = crypto.randomBytes(16).toString("hex");
+  const recepSalt = crypto.randomBytes(16).toString("hex");
+  await supabase.from("hospital_staff_credentials").insert({
+    hospital_id: hospital.id,
+    nurse_username: `${prefix} NURSE`,
+    nurse_password_hash: `${nurseSalt}:${hashPassword(nursePass, nurseSalt)}`,
+    nurse_plain_password: nursePass,
+    receptionist_username: `${prefix} RECEPTIONIST`,
+    receptionist_password_hash: `${recepSalt}:${hashPassword(recepPass, recepSalt)}`,
+    receptionist_plain_password: recepPass,
+  });
+
+  const fromEmail = process.env.ERA_FROM_EMAIL ?? "onboarding@resend.dev";
+  const loginUrl = process.env.APP_BASE_URL ?? "https://app.erasystem.com.ng";
+
+  // Send credentials to the registering hospital
+  try {
+    await sendEmail({
+      to: email,
+      from: fromEmail,
+      subject: `Welcome to Era Systems — Your Login Credentials`,
+      html: wrapHtml(`
+        <p>Hello ${contactName},</p>
+        <p>Your Era Patient account for <strong>${hospitalName}</strong> is ready. You are on a <strong>trial</strong> subscription.</p>
+        <table style="background:#0d1117;border-radius:8px;padding:16px;width:100%;margin:16px 0;border-collapse:collapse">
+          <tr><td style="color:#8b949e;font-size:13px;padding:6px 12px 6px 0">Login URL</td><td style="font-weight:600;padding:6px 0"><a href="${loginUrl}" style="color:#14b8a6">${loginUrl}</a></td></tr>
+          <tr><td style="color:#8b949e;font-size:13px;padding:6px 12px 6px 0">Username</td><td style="font-weight:600;padding:6px 0">${username}</td></tr>
+          <tr><td style="color:#8b949e;font-size:13px;padding:6px 12px 6px 0">Password</td><td style="font-weight:600;padding:6px 0">${plainPassword}</td></tr>
+        </table>
+        <p style="font-size:13px;color:#8b949e;line-height:1.8">
+          Staff credentials:<br/>
+          Nurse — <strong>${prefix} NURSE</strong> / <strong>${nursePass}</strong><br/>
+          Receptionist — <strong>${prefix} RECEPTIONIST</strong> / <strong>${recepPass}</strong>
+        </p>
+        <p>We recommend changing your password after your first login.</p>
+        <p>Welcome aboard,<br/>Era Systems Team</p>
+      `, hospitalName),
+    });
+  } catch (_) { /* don't block response if email fails */ }
+
+  // Notify super admin
+  const adminEmail = process.env.ERA_ADMIN_EMAIL;
+  if (adminEmail) {
+    try {
+      await sendEmail({
+        to: adminEmail,
+        from: fromEmail,
+        subject: `New Hospital Registered — ${hospitalName}`,
+        html: wrapHtml(`
+          <p>A new hospital has self-registered on Era Systems:</p>
+          <table style="background:#0d1117;border-radius:8px;padding:16px;width:100%;margin:16px 0;border-collapse:collapse">
+            <tr><td style="color:#8b949e;font-size:13px;padding:6px 12px 6px 0">Hospital</td><td style="font-weight:600;padding:6px 0">${hospitalName}</td></tr>
+            <tr><td style="color:#8b949e;font-size:13px;padding:6px 12px 6px 0">Contact</td><td style="font-weight:600;padding:6px 0">${contactName}</td></tr>
+            <tr><td style="color:#8b949e;font-size:13px;padding:6px 12px 6px 0">Email</td><td style="font-weight:600;padding:6px 0">${email}</td></tr>
+            <tr><td style="color:#8b949e;font-size:13px;padding:6px 12px 6px 0">Phone</td><td style="font-weight:600;padding:6px 0">${phone}</td></tr>
+            ${city ? `<tr><td style="color:#8b949e;font-size:13px;padding:6px 12px 6px 0">City</td><td style="font-weight:600;padding:6px 0">${city}</td></tr>` : ""}
+            <tr><td style="color:#8b949e;font-size:13px;padding:6px 12px 6px 0">Username</td><td style="font-weight:600;padding:6px 0">${username}</td></tr>
+          </table>
+          <p>Log into the super admin panel to review this account.</p>
+        `, "Era Systems"),
+      });
+    } catch (_) { /* don't block */ }
+  }
+
+  res.status(201).json({ ok: true, message: "Account created! Check your email for login credentials." });
 });
 
 // ── Hospitals ─────────────────────────────────────────────────────────────────

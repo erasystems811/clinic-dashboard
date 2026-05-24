@@ -1,4 +1,5 @@
 import { useState, FormEvent } from "react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth";
 import { Building2, Lock, User, AlertCircle, KeyRound, ArrowLeft, ShieldCheck } from "lucide-react";
 import { post } from "@/lib/api";
@@ -7,6 +8,7 @@ type Screen = "login" | "recover";
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const [, setLocation] = useLocation();
   const [screen, setScreen] = useState<Screen>("login");
 
   // login form
@@ -221,7 +223,17 @@ export default function LoginPage() {
           </div>
         )}
 
-        <p className="text-center text-xs text-muted-foreground">Era Systems internal access only</p>
+        {screen === "login" && (
+          <p className="text-center text-xs text-muted-foreground">
+            New hospital?{" "}
+            <button
+              onClick={() => setLocation("/register")}
+              className="text-primary hover:underline"
+            >
+              Create a free account
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );

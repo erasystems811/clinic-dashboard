@@ -1,0 +1,212 @@
+-- Era Patient Management System — Supabase Schema
+-- Run this entire file in your Supabase SQL Editor (https://app.supabase.com → SQL Editor)
+-- All tables use RLS disabled so the anon key has full server-side access.
+
+-- ── Hospitals ─────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS hospitals (
+  id                  SERIAL PRIMARY KEY,
+  name                TEXT NOT NULL,
+  slug                TEXT NOT NULL UNIQUE,
+  username            TEXT NOT NULL UNIQUE,
+  password_hash       TEXT NOT NULL,
+  logo_url            TEXT,
+  active              BOOLEAN NOT NULL DEFAULT true,
+  subscription_status TEXT NOT NULL DEFAULT 'active',
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS hospital_settings (
+  id                          SERIAL PRIMARY KEY,
+  hospital_id                 INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
+  departments                 TEXT DEFAULT '[]',
+  pipeline_post_treatment_days INTEGER DEFAULT 7,
+  pipeline_dormant_days       INTEGER DEFAULT 30,
+  language                    TEXT DEFAULT 'English',
+  tone                        TEXT DEFAULT 'Formal',
+  clinic_description          TEXT,
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS hospital_modules (
+  id                   SERIAL PRIMARY KEY,
+  hospital_id          INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
+  appointments_enabled BOOLEAN NOT NULL DEFAULT true,
+  feedback_enabled     BOOLEAN NOT NULL DEFAULT true,
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS hospital_staff_credentials (
+  id                       SERIAL PRIMARY KEY,
+  hospital_id              INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
+  nurse_username           TEXT NOT NULL,
+  nurse_password_hash      TEXT NOT NULL,
+  receptionist_username    TEXT NOT NULL,
+  receptionist_password_hash TEXT NOT NULL,
+  updated_at               TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Patients ──────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS patients (
+  id                      SERIAL PRIMARY KEY,
+  first_name              TEXT NOT NULL,
+  last_name               TEXT NOT NULL,
+  date_of_birth           TEXT,
+  hospital_id             TEXT,
+  email                   TEXT NOT NULL,
+  phone                   TEXT NOT NULL,
+  whatsapp_number         TEXT,
+  age                     INTEGER,
+  gender                  TEXT,
+  stage                   TEXT NOT NULL DEFAULT 'Booked',
+  pre_queue_stage         TEXT,
+  diagnosis               TEXT,
+  department              TEXT,
+  next_appointment        TEXT,
+  notes                   TEXT,
+  treatment_plan          TEXT,
+  treatment_type          TEXT,
+  medication_timing       TEXT,
+  treatment_duration_days INTEGER,
+  treatment_end_date      TEXT,
+  checked_in_at           TEXT,
+  treatment_started_at    TEXT,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Pipeline Stages ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS pipeline_stages (
+  id         SERIAL PRIMARY KEY,
+  name       TEXT NOT NULL,
+  color      TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+-- ── Queue ─────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS queue (
+  id             SERIAL PRIMARY KEY,
+  patient_id     INTEGER NOT NULL,
+  patient_name   TEXT NOT NULL,
+  phone          TEXT,
+  email          TEXT,
+  whatsapp_number TEXT,
+  hospital_id    TEXT,
+  stage          TEXT,
+  position       INTEGER NOT NULL,
+  appointment_id INTEGER,
+  added_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Call Tasks ────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS call_tasks (
+  id             SERIAL PRIMARY KEY,
+  patient_id     INTEGER NOT NULL,
+  patient_name   TEXT NOT NULL,
+  phone          TEXT NOT NULL,
+  whatsapp_number TEXT,
+  department     TEXT,
+  reason         TEXT NOT NULL,
+  task_type      TEXT NOT NULL DEFAULT 'follow_up',
+  check_in_type  TEXT,
+  action_type    TEXT NOT NULL DEFAULT 'manual_call',
+  outcome        TEXT,
+  completed_at   TIMESTAMPTZ,
+  flagged_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Departments ───────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS departments (
+  id         SERIAL PRIMARY KEY,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Appointments ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS appointments (
+  id           SERIAL PRIMARY KEY,
+  patient_id   INTEGER NOT NULL,
+  patient_name TEXT NOT NULL,
+  title        TEXT NOT NULL,
+  scheduled_at TEXT NOT NULL,
+  duration     INTEGER DEFAULT 30,
+  department   TEXT,
+  status       TEXT NOT NULL DEFAULT 'scheduled',
+  notes        TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Activity Log ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS activity (
+  id           SERIAL PRIMARY KEY,
+  type         TEXT NOT NULL,
+  description  TEXT NOT NULL,
+  patient_id   INTEGER,
+  patient_name TEXT,
+  metadata     TEXT,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Feedback ──────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS feedback (
+  id           SERIAL PRIMARY KEY,
+  patient_id   INTEGER,
+  patient_name TEXT,
+  rating       INTEGER NOT NULL,
+  comment      TEXT,
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Wellness Newsletter ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS wellness_newsletter (
+  id           SERIAL PRIMARY KEY,
+  week_of      TEXT NOT NULL,
+  content      TEXT NOT NULL,
+  last_sent_at TIMESTAMPTZ,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Auto-update updated_at triggers ──────────────────────────────────────────
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_hospitals_updated_at') THEN
+    CREATE TRIGGER set_hospitals_updated_at BEFORE UPDATE ON hospitals FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_hospital_settings_updated_at') THEN
+    CREATE TRIGGER set_hospital_settings_updated_at BEFORE UPDATE ON hospital_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_hospital_modules_updated_at') THEN
+    CREATE TRIGGER set_hospital_modules_updated_at BEFORE UPDATE ON hospital_modules FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_hospital_staff_credentials_updated_at') THEN
+    CREATE TRIGGER set_hospital_staff_credentials_updated_at BEFORE UPDATE ON hospital_staff_credentials FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_patients_updated_at') THEN
+    CREATE TRIGGER set_patients_updated_at BEFORE UPDATE ON patients FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'set_wellness_newsletter_updated_at') THEN
+    CREATE TRIGGER set_wellness_newsletter_updated_at BEFORE UPDATE ON wellness_newsletter FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+  END IF;
+END $$;
+
+-- ── Disable RLS on all tables (server-side anon key access) ──────────────────
+ALTER TABLE hospitals                  DISABLE ROW LEVEL SECURITY;
+ALTER TABLE hospital_settings          DISABLE ROW LEVEL SECURITY;
+ALTER TABLE hospital_modules           DISABLE ROW LEVEL SECURITY;
+ALTER TABLE hospital_staff_credentials DISABLE ROW LEVEL SECURITY;
+ALTER TABLE patients                   DISABLE ROW LEVEL SECURITY;
+ALTER TABLE pipeline_stages            DISABLE ROW LEVEL SECURITY;
+ALTER TABLE queue                      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE call_tasks                 DISABLE ROW LEVEL SECURITY;
+ALTER TABLE departments                DISABLE ROW LEVEL SECURITY;
+ALTER TABLE appointments               DISABLE ROW LEVEL SECURITY;
+ALTER TABLE activity                   DISABLE ROW LEVEL SECURITY;
+ALTER TABLE feedback                   DISABLE ROW LEVEL SECURITY;
+ALTER TABLE wellness_newsletter        DISABLE ROW LEVEL SECURITY;

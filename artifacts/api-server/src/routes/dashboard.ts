@@ -1,22 +1,21 @@
 import { Router, type IRouter } from "express";
-import { sql, gte, desc } from "drizzle-orm";
-import { db, patientsTable, appointmentsTable, pipelineStagesTable, feedbackTable, wellnessNewsletterTable, queueTable } from "@workspace/db";
+import { supabase } from "../lib/supabase.js";
 
 const router: IRouter = Router();
 
 const DEFAULT_STAGES = [
-  { name: "Booked",         color: "#14b8a6", order: 1 },
-  { name: "Queued",         color: "#f59e0b", order: 2 },
-  { name: "In Care",        color: "#3b82f6", order: 3 },
-  { name: "Post Treatment", color: "#8b5cf6", order: 4 },
-  { name: "Post Care",      color: "#06b6d4", order: 5 },
-  { name: "Dormant",        color: "#6b7280", order: 6 },
+  { name: "Booked",         color: "#14b8a6", sort_order: 1 },
+  { name: "Queued",         color: "#f59e0b", sort_order: 2 },
+  { name: "In Care",        color: "#3b82f6", sort_order: 3 },
+  { name: "Post Treatment", color: "#8b5cf6", sort_order: 4 },
+  { name: "Post Care",      color: "#06b6d4", sort_order: 5 },
+  { name: "Dormant",        color: "#6b7280", sort_order: 6 },
 ];
 
 async function ensureStagesExist() {
-  const existing = await db.select().from(pipelineStagesTable);
-  if (existing.length === 0) {
-    await db.insert(pipelineStagesTable).values(DEFAULT_STAGES);
+  const { data: existing } = await supabase.from("pipeline_stages").select("id");
+  if (!existing || existing.length === 0) {
+    await supabase.from("pipeline_stages").insert(DEFAULT_STAGES);
   }
 }
 
@@ -24,88 +23,79 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   await ensureStagesExist();
 
   const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
   const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
   const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
   const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + 7).toISOString();
 
-  const [totalResult] = await db
-    .select({ count: sql<number>`cast(count(*) as int)` })
-    .from(patientsTable);
+  const [
+    { count: totalPatients },
+    { count: newThisMonth },
+    { data: allAppointments },
+    { data: stages },
+    { data: allPatientStages },
+    { data: allFeedback },
+    { data: newsletters },
+    { data: queuedPatients },
+  ] = await Promise.all([
+    supabase.from("patients").select("*", { count: "exact", head: true }),
+    supabase.from("patients").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth),
+    supabase.from("appointments").select("scheduled_at, status"),
+    supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
+    supabase.from("patients").select("stage"),
+    supabase.from("feedback").select("rating"),
+    supabase.from("wellness_newsletter").select("last_sent_at").order("last_sent_at", { ascending: false }).limit(1),
+    supabase.from("patients").select("checked_in_at").eq("stage", "Queued").not("checked_in_at", "is", null),
+  ]);
 
-  const [newThisMonthResult] = await db
-    .select({ count: sql<number>`cast(count(*) as int)` })
-    .from(patientsTable)
-    .where(gte(patientsTable.createdAt, startOfMonth));
-
-  const allAppointments = await db.select().from(appointmentsTable);
-  const appointmentsToday = allAppointments.filter(
-    a => a.scheduledAt >= startOfDay && a.scheduledAt < endOfDay && a.status !== "cancelled"
+  const appointmentsToday = (allAppointments ?? []).filter(
+    a => a.scheduled_at >= startOfDay && a.scheduled_at < endOfDay && a.status !== "cancelled"
   ).length;
-  const appointmentsThisWeek = allAppointments.filter(
-    a => a.scheduledAt >= startOfWeek && a.scheduledAt < endOfWeek && a.status !== "cancelled"
+  const appointmentsThisWeek = (allAppointments ?? []).filter(
+    a => a.scheduled_at >= startOfWeek && a.scheduled_at < endOfWeek && a.status !== "cancelled"
   ).length;
 
-  const stages = await db.select().from(pipelineStagesTable).orderBy(pipelineStagesTable.order);
-  const counts = await db
-    .select({
-      stage: patientsTable.stage,
-      count: sql<number>`cast(count(*) as int)`,
-    })
-    .from(patientsTable)
-    .groupBy(patientsTable.stage);
+  const countMap: Record<string, number> = {};
+  for (const p of allPatientStages ?? []) {
+    countMap[p.stage] = (countMap[p.stage] ?? 0) + 1;
+  }
 
-  const countMap = Object.fromEntries(counts.map(c => [c.stage, c.count]));
-  const pipelineBreakdown = stages.map(s => ({
-    ...s,
-    count: countMap[s.name] ?? 0,
+  const pipelineBreakdown = (stages ?? []).map((s: Record<string, unknown>) => ({
+    id: s.id,
+    name: s.name,
+    color: s.color,
+    order: s.sort_order,
+    count: countMap[s.name as string] ?? 0,
   }));
 
   const criticalAlerts = (countMap["Queued"] ?? 0) + (countMap["In Care"] ?? 0);
 
-  // Feedback stats
-  const [feedbackStats] = await db
-    .select({
-      avgRating: sql<number>`round(avg(rating)::numeric, 1)`,
-      total: sql<number>`cast(count(*) as int)`,
-    })
-    .from(feedbackTable);
-
-  // Wellness newsletter last sent
-  const [latestNewsletter] = await db
-    .select()
-    .from(wellnessNewsletterTable)
-    .orderBy(desc(wellnessNewsletterTable.lastSentAt))
-    .limit(1);
-
-  // Average waiting time from queue (checkedInAt vs now for currently queued patients)
-  // Use patientsTable checkedInAt for all currently queued patients
-  const queuedPatients = await db
-    .select({ checkedInAt: patientsTable.checkedInAt })
-    .from(patientsTable)
-    .where(sql`${patientsTable.stage} = 'Queued' AND ${patientsTable.checkedInAt} IS NOT NULL`);
+  const feedbackList = allFeedback ?? [];
+  const avgFeedbackRating = feedbackList.length > 0
+    ? Math.round((feedbackList.reduce((s, f) => s + (f.rating ?? 0), 0) / feedbackList.length) * 10) / 10
+    : 0;
 
   let avgWaitMinutes = 0;
-  if (queuedPatients.length > 0) {
-    const totalMins = queuedPatients.reduce((sum, p) => {
-      const checkedInAt = p.checkedInAt ? new Date(p.checkedInAt) : null;
+  if ((queuedPatients ?? []).length > 0) {
+    const totalMins = (queuedPatients ?? []).reduce((sum, p) => {
+      const checkedInAt = p.checked_in_at ? new Date(p.checked_in_at) : null;
       if (!checkedInAt) return sum;
       return sum + (now.getTime() - checkedInAt.getTime()) / 60000;
     }, 0);
-    avgWaitMinutes = Math.round(totalMins / queuedPatients.length);
+    avgWaitMinutes = Math.round(totalMins / queuedPatients!.length);
   }
 
   res.json({
-    totalPatients: totalResult.count,
-    newPatientsThisMonth: newThisMonthResult.count,
+    totalPatients: totalPatients ?? 0,
+    newPatientsThisMonth: newThisMonth ?? 0,
     appointmentsToday,
     appointmentsThisWeek,
     criticalAlerts,
     pipelineBreakdown,
-    avgFeedbackRating: Number(feedbackStats.avgRating) || 0,
-    totalFeedback: feedbackStats.total,
-    wellnessLastSentAt: latestNewsletter?.lastSentAt?.toISOString() ?? null,
+    avgFeedbackRating,
+    totalFeedback: feedbackList.length,
+    wellnessLastSentAt: newsletters?.[0]?.last_sent_at ?? null,
     avgWaitMinutes,
   });
 });

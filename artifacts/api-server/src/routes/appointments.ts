@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ne } from "drizzle-orm";
-import { db, appointmentsTable, activityTable, callTasksTable, patientsTable } from "@workspace/db";
+import { supabase } from "../lib/supabase.js";
+import { camelize, snakify } from "../lib/camel.js";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
@@ -28,57 +28,51 @@ const UpdateAppointmentBody = z.object({
   notes: z.string().optional(),
 });
 
-function serializeAppointment(a: typeof appointmentsTable.$inferSelect) {
-  return { ...a, duration: a.duration ?? 30 };
-}
-
 router.get("/appointments", async (req, res): Promise<void> => {
   const query = ListAppointmentsQuery.safeParse(req.query);
-  if (!query.success) {
-    res.status(400).json({ error: query.error.message });
-    return;
-  }
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
 
-  let dbQuery = db.select().from(appointmentsTable).$dynamic();
+  let q = supabase.from("appointments").select("*");
 
   if (query.data.status) {
-    dbQuery = dbQuery.where(eq(appointmentsTable.status, query.data.status));
+    q = q.eq("status", query.data.status);
   } else {
-    dbQuery = dbQuery.where(ne(appointmentsTable.status, "completed"));
+    q = q.neq("status", "completed");
   }
 
   if (query.data.patientId) {
-    dbQuery = dbQuery.where(eq(appointmentsTable.patientId, query.data.patientId));
+    q = q.eq("patient_id", query.data.patientId);
   }
 
-  const appointments = await dbQuery.orderBy(appointmentsTable.scheduledAt);
-  res.json(appointments.map(serializeAppointment));
+  const { data, error } = await q.order("scheduled_at", { ascending: true });
+  if (error) { res.status(500).json({ error: error.message }); return; }
+
+  res.json((data ?? []).map((a) => ({ ...camelize(a), duration: a.duration ?? 30 })));
 });
 
 router.post("/appointments", async (req, res): Promise<void> => {
   const parsed = CreateAppointmentBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, parsed.data.patientId));
-  const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "Unknown";
+  const { data: patient } = await supabase.from("patients").select("first_name, last_name").eq("id", parsed.data.patientId).single();
+  const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
 
-  const [appt] = await db.insert(appointmentsTable).values({
-    ...parsed.data,
-    patientName,
-  }).returning();
+  const { data: appt, error } = await supabase.from("appointments").insert({
+    ...snakify(parsed.data as Record<string, unknown>),
+    patient_name: patientName,
+  }).select().single();
 
-  await db.insert(activityTable).values({
+  if (error || !appt) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
+
+  await supabase.from("activity").insert({
     type: "appointment_scheduled",
     description: `Appointment scheduled for ${patientName}: ${appt.title}`,
-    patientId: appt.patientId,
-    patientName,
-    metadata: appt.scheduledAt,
+    patient_id: appt.patient_id,
+    patient_name: patientName,
+    metadata: appt.scheduled_at,
   });
 
-  res.status(201).json(serializeAppointment(appt));
+  res.status(201).json({ ...camelize(appt), duration: appt.duration ?? 30 });
 });
 
 router.patch("/appointments/:id", async (req, res): Promise<void> => {
@@ -86,52 +80,50 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = UpdateAppointmentBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [appt] = await db
-    .update(appointmentsTable)
-    .set(parsed.data)
-    .where(eq(appointmentsTable.id, id))
-    .returning();
+  const { data: appt, error } = await supabase
+    .from("appointments")
+    .update(snakify(parsed.data as Record<string, unknown>))
+    .eq("id", id)
+    .select()
+    .single();
 
-  if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+  if (error || !appt) { res.status(404).json({ error: "Appointment not found" }); return; }
 
   if (parsed.data.status === "no_show") {
-    const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, appt.patientId));
+    const { data: patient } = await supabase.from("patients").select("*").eq("id", appt.patient_id).single();
     if (patient) {
-      await db.insert(callTasksTable).values({
-        patientId: patient.id,
-        patientName: `${patient.firstName} ${patient.lastName}`,
+      await supabase.from("call_tasks").insert({
+        patient_id: patient.id,
+        patient_name: `${patient.first_name} ${patient.last_name}`,
         phone: patient.phone,
-        whatsappNumber: patient.whatsappNumber ?? undefined,
-        reason: `No-show for appointment: ${appt.title} on ${new Date(appt.scheduledAt).toLocaleDateString()}`,
-        actionType: "manual_call",
+        whatsapp_number: patient.whatsapp_number,
+        reason: `No-show for appointment: ${appt.title} on ${new Date(appt.scheduled_at).toLocaleDateString()}`,
+        action_type: "manual_call",
       });
     }
 
-    await db.insert(activityTable).values({
+    await supabase.from("activity").insert({
       type: "no_show",
-      description: `No-show recorded for ${appt.patientName}: ${appt.title}`,
-      patientId: appt.patientId,
-      patientName: appt.patientName,
-      metadata: appt.scheduledAt,
+      description: `No-show recorded for ${appt.patient_name}: ${appt.title}`,
+      patient_id: appt.patient_id,
+      patient_name: appt.patient_name,
+      metadata: appt.scheduled_at,
     });
   }
 
   if (parsed.data.status === "rescheduled" || (parsed.data.scheduledAt && !parsed.data.status)) {
-    await db.insert(activityTable).values({
+    await supabase.from("activity").insert({
       type: "appointment_rescheduled",
-      description: `Appointment rescheduled for ${appt.patientName}: ${appt.title}`,
-      patientId: appt.patientId,
-      patientName: appt.patientName,
-      metadata: parsed.data.scheduledAt ?? appt.scheduledAt,
+      description: `Appointment rescheduled for ${appt.patient_name}: ${appt.title}`,
+      patient_id: appt.patient_id,
+      patient_name: appt.patient_name,
+      metadata: parsed.data.scheduledAt ?? appt.scheduled_at,
     });
   }
 
-  res.json(serializeAppointment(appt));
+  res.json({ ...camelize(appt), duration: appt.duration ?? 30 });
 });
 
 export default router;

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, isNull, isNotNull } from "drizzle-orm";
-import { db, callTasksTable, activityTable } from "@workspace/db";
+import { supabase } from "../lib/supabase.js";
+import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
@@ -14,27 +14,22 @@ const UpdateActionTypeBody = z.object({
   actionType: z.enum(["automated_message", "manual_text", "manual_call"]),
 });
 
-function serializeTask(t: typeof callTasksTable.$inferSelect) {
-  return {
-    ...t,
-    flaggedAt: t.flaggedAt.toISOString(),
-    completedAt: t.completedAt?.toISOString() ?? null,
-  };
-}
-
 router.get("/call-tasks", async (req, res): Promise<void> => {
   const completed = req.query.completed === "true";
 
-  const tasks = await db
-    .select()
-    .from(callTasksTable)
-    .where(completed ? isNotNull(callTasksTable.completedAt) : isNull(callTasksTable.completedAt))
-    .orderBy(callTasksTable.flaggedAt);
+  let q = supabase.from("call_tasks").select("*").order("flagged_at", { ascending: true });
+  if (completed) {
+    q = q.not("completed_at", "is", null);
+  } else {
+    q = q.is("completed_at", null);
+  }
 
-  res.json(tasks.map(serializeTask));
+  const { data, error } = await q;
+  if (error) { res.status(500).json({ error: error.message }); return; }
+
+  res.json((data ?? []).map((t) => camelize(t)));
 });
 
-// PATCH /call-tasks/:id/outcome — log the outcome and complete the task
 router.patch("/call-tasks/:id/outcome", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -42,26 +37,26 @@ router.patch("/call-tasks/:id/outcome", async (req, res): Promise<void> => {
   const parsed = CallOutcomeBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [task] = await db
-    .update(callTasksTable)
-    .set({ outcome: parsed.data.outcome, completedAt: new Date() })
-    .where(eq(callTasksTable.id, id))
-    .returning();
+  const { data: task, error } = await supabase
+    .from("call_tasks")
+    .update({ outcome: parsed.data.outcome, completed_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
 
-  if (!task) { res.status(404).json({ error: "Call task not found" }); return; }
+  if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
 
-  await db.insert(activityTable).values({
+  await supabase.from("activity").insert({
     type: "call_task_completed",
-    description: `Call task completed for ${task.patientName} (${task.actionType}): ${parsed.data.outcome}`,
-    patientId: task.patientId,
-    patientName: task.patientName,
+    description: `Call task completed for ${task.patient_name} (${task.action_type}): ${parsed.data.outcome}`,
+    patient_id: task.patient_id,
+    patient_name: task.patient_name,
     metadata: parsed.data.outcome,
   });
 
-  res.json(serializeTask(task));
+  res.json(camelize(task));
 });
 
-// PATCH /call-tasks/:id/action-type — change the follow-up method
 router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -69,23 +64,24 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   const parsed = UpdateActionTypeBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [task] = await db
-    .update(callTasksTable)
-    .set({ actionType: parsed.data.actionType })
-    .where(eq(callTasksTable.id, id))
-    .returning();
+  const { data: task, error } = await supabase
+    .from("call_tasks")
+    .update({ action_type: parsed.data.actionType })
+    .eq("id", id)
+    .select()
+    .single();
 
-  if (!task) { res.status(404).json({ error: "Call task not found" }); return; }
+  if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
 
-  await db.insert(activityTable).values({
+  await supabase.from("activity").insert({
     type: "call_task_action_updated",
-    description: `Follow-up method changed to ${parsed.data.actionType} for ${task.patientName}`,
-    patientId: task.patientId,
-    patientName: task.patientName,
+    description: `Follow-up method changed to ${parsed.data.actionType} for ${task.patient_name}`,
+    patient_id: task.patient_id,
+    patient_name: task.patient_name,
     metadata: parsed.data.actionType,
   });
 
-  res.json(serializeTask(task));
+  res.json(camelize(task));
 });
 
 export default router;

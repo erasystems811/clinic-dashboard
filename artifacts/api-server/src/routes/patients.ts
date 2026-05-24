@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, sql } from "drizzle-orm";
-import { db, patientsTable, activityTable, queueTable, callTasksTable, appointmentsTable } from "@workspace/db";
+import { supabase } from "../lib/supabase.js";
+import { camelize, camelizeArr, snakify } from "../lib/camel.js";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
@@ -65,95 +65,77 @@ const FlagMissedBody = z.object({
   checkInType: z.string().optional(),
 });
 
-function serializePatient(p: typeof patientsTable.$inferSelect) {
-  return {
-    ...p,
-    createdAt: p.createdAt.toISOString(),
-    updatedAt: p.updatedAt?.toISOString() ?? null,
-  };
+function serializePatient(p: Record<string, unknown>) {
+  const c = camelize<Record<string, unknown>>(p);
+  return c;
 }
 
 router.get("/patients", async (req, res): Promise<void> => {
   const query = ListPatientsQuery.safeParse(req.query);
-  if (!query.success) {
-    res.status(400).json({ error: query.error.message });
-    return;
-  }
+  if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
 
-  let dbQuery = db.select().from(patientsTable).$dynamic();
+  let q = supabase.from("patients").select("*");
 
   if (query.data.stage) {
-    dbQuery = dbQuery.where(eq(patientsTable.stage, query.data.stage));
+    q = q.eq("stage", query.data.stage);
   } else if (query.data.search) {
     const term = `%${query.data.search}%`;
-    dbQuery = dbQuery.where(
-      or(
-        ilike(patientsTable.firstName, term),
-        ilike(patientsTable.lastName, term),
-        ilike(patientsTable.email, term),
-        ilike(patientsTable.phone, term),
-        ilike(patientsTable.hospitalId, term),
-      )
-    );
+    q = q.or(`first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},phone.ilike.${term},hospital_id.ilike.${term}`);
   }
 
-  const patients = await dbQuery.orderBy(patientsTable.createdAt);
-  res.json(patients.map(serializePatient));
+  const { data, error } = await q.order("created_at", { ascending: true });
+  if (error) { res.status(500).json({ error: error.message }); return; }
+
+  res.json(camelizeArr(data ?? []));
 });
 
 router.post("/patients", async (req, res): Promise<void> => {
   const parsed = CreatePatientBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const data = { ...parsed.data, stage: parsed.data.stage ?? "Booked" };
-  const [patient] = await db.insert(patientsTable).values(data).returning();
+  const data = snakify({ ...parsed.data, stage: parsed.data.stage ?? "Booked" });
+  const { data: patient, error } = await supabase.from("patients").insert(data).select().single();
+  if (error) { res.status(500).json({ error: error.message }); return; }
 
-  await db.insert(activityTable).values({
+  const p = camelize<Record<string, unknown>>(patient);
+  await supabase.from("activity").insert({
     type: "patient_created",
-    description: `New patient registered: ${patient.firstName} ${patient.lastName}`,
-    patientId: patient.id,
-    patientName: `${patient.firstName} ${patient.lastName}`,
+    description: `New patient registered: ${p.firstName} ${p.lastName}`,
+    patient_id: patient.id,
+    patient_name: `${p.firstName} ${p.lastName}`,
   });
 
-  res.status(201).json(serializePatient(patient));
+  res.status(201).json(p);
 });
 
 router.get("/patients/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
-  if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+  const { data, error } = await supabase.from("patients").select("*").eq("id", id).single();
+  if (error || !data) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  res.json(serializePatient(patient));
+  res.json(serializePatient(data));
 });
 
-// GET /patients/:id/history — full patient history: activity, appointments, call tasks
 router.get("/patients/:id/history", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
-  if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+  const { data: patient, error: pErr } = await supabase.from("patients").select("*").eq("id", id).single();
+  if (pErr || !patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  const [activity, appointments, callTasks] = await Promise.all([
-    db.select().from(activityTable).where(eq(activityTable.patientId, id)).orderBy(activityTable.createdAt),
-    db.select().from(appointmentsTable).where(eq(appointmentsTable.patientId, id)).orderBy(appointmentsTable.scheduledAt),
-    db.select().from(callTasksTable).where(eq(callTasksTable.patientId, id)).orderBy(callTasksTable.flaggedAt),
+  const [activityRes, appointmentsRes, callTasksRes] = await Promise.all([
+    supabase.from("activity").select("*").eq("patient_id", id).order("created_at", { ascending: true }),
+    supabase.from("appointments").select("*").eq("patient_id", id).order("scheduled_at", { ascending: true }),
+    supabase.from("call_tasks").select("*").eq("patient_id", id).order("flagged_at", { ascending: true }),
   ]);
 
   res.json({
     patient: serializePatient(patient),
-    activity: activity.map(a => ({ ...a, createdAt: a.createdAt.toISOString() })),
-    appointments: appointments.map(a => ({ ...a, duration: a.duration ?? 30 })),
-    callTasks: callTasks.map(t => ({
-      ...t,
-      flaggedAt: t.flaggedAt.toISOString(),
-      completedAt: t.completedAt?.toISOString() ?? null,
-    })),
+    activity: camelizeArr(activityRes.data ?? []),
+    appointments: (appointmentsRes.data ?? []).map(a => ({ ...camelize(a), duration: a.duration ?? 30 })),
+    callTasks: camelizeArr(callTasksRes.data ?? []),
   });
 });
 
@@ -162,205 +144,194 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = UpdatePatientBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [patient] = await db
-    .update(patientsTable)
-    .set(parsed.data)
-    .where(eq(patientsTable.id, id))
-    .returning();
+  const { data, error } = await supabase
+    .from("patients")
+    .update({ ...snakify(parsed.data as Record<string, unknown>), updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
 
-  if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+  if (error || !data) { res.status(404).json({ error: "Patient not found" }); return; }
+
+  const patient = camelize<Record<string, unknown>>(data);
 
   if (parsed.data.stage) {
-    await db.insert(activityTable).values({
+    await supabase.from("activity").insert({
       type: "stage_changed",
       description: `${patient.firstName} ${patient.lastName} moved to ${parsed.data.stage}`,
-      patientId: patient.id,
-      patientName: `${patient.firstName} ${patient.lastName}`,
+      patient_id: id,
+      patient_name: `${patient.firstName} ${patient.lastName}`,
       metadata: parsed.data.stage,
     });
   }
 
-  res.json(serializePatient(patient));
+  res.json(patient);
 });
 
 router.delete("/patients/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [patient] = await db.delete(patientsTable).where(eq(patientsTable.id, id)).returning();
-  if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+  const { data, error } = await supabase.from("patients").delete().eq("id", id).select().single();
+  if (error || !data) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  await db.insert(activityTable).values({
+  const patient = camelize<Record<string, unknown>>(data);
+  await supabase.from("activity").insert({
     type: "patient_deleted",
     description: `Patient record removed: ${patient.firstName} ${patient.lastName}`,
-    patientId: null,
-    patientName: `${patient.firstName} ${patient.lastName}`,
+    patient_name: `${patient.firstName} ${patient.lastName}`,
   });
 
   res.sendStatus(204);
 });
 
-// POST /patients/:id/checkin
 router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [existing] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
-  if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
+  const { data: existing, error: fetchErr } = await supabase.from("patients").select("*").eq("id", id).single();
+  if (fetchErr || !existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const now = new Date();
   const nowIso = now.toISOString();
 
-  const [patient] = await db
-    .update(patientsTable)
-    .set({ stage: "Queued", preQueueStage: existing.stage, checkedInAt: nowIso })
-    .where(eq(patientsTable.id, id))
-    .returning();
-
-  const patientName = `${patient.firstName} ${patient.lastName}`;
-
-  const scheduledAppts = await db
+  const { data: patient, error: updateErr } = await supabase
+    .from("patients")
+    .update({ stage: "Queued", pre_queue_stage: existing.stage, checked_in_at: nowIso, updated_at: nowIso })
+    .eq("id", id)
     .select()
-    .from(appointmentsTable)
-    .where(eq(appointmentsTable.patientId, id));
+    .single();
+
+  if (updateErr || !patient) { res.status(500).json({ error: "Update failed" }); return; }
+
+  const patientName = `${patient.first_name} ${patient.last_name}`;
+
+  const { data: scheduledAppts } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("patient_id", id)
+    .eq("status", "scheduled");
 
   let matchedAppointmentId: number | null = null;
   let hasTimedAppointment = false;
 
-  for (const appt of scheduledAppts) {
-    if (appt.status !== "scheduled") continue;
-    const apptTime = new Date(appt.scheduledAt);
+  for (const appt of scheduledAppts ?? []) {
+    const apptTime = new Date(appt.scheduled_at);
     const diffMins = (apptTime.getTime() - now.getTime()) / 60000;
-    await db.update(appointmentsTable).set({ status: "completed" }).where(eq(appointmentsTable.id, appt.id));
+    await supabase.from("appointments").update({ status: "completed" }).eq("id", appt.id);
     matchedAppointmentId = appt.id;
-    if (Math.abs(diffMins) <= 30) {
-      hasTimedAppointment = true;
-    }
+    if (Math.abs(diffMins) <= 30) hasTimedAppointment = true;
   }
 
-  const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(queueTable);
-  const currentCount = Number(count);
+  const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true });
+  const queueSize = currentCount ?? 0;
 
   let position: number;
-  if (hasTimedAppointment && currentCount > 0) {
-    const existing_queue = await db.select().from(queueTable).orderBy(queueTable.position);
-    for (const entry of existing_queue) {
-      await db.update(queueTable).set({ position: entry.position + 1 }).where(eq(queueTable.id, entry.id));
+  if (hasTimedAppointment && queueSize > 0) {
+    const { data: existingQueue } = await supabase.from("queue").select("id, position").order("position", { ascending: true });
+    for (const entry of existingQueue ?? []) {
+      await supabase.from("queue").update({ position: entry.position + 1 }).eq("id", entry.id);
     }
     position = 1;
   } else {
-    position = currentCount + 1;
+    position = queueSize + 1;
   }
 
-  await db.insert(queueTable).values({
-    patientId: patient.id,
-    patientName,
+  await supabase.from("queue").insert({
+    patient_id: patient.id,
+    patient_name: patientName,
     phone: patient.phone,
     email: patient.email,
-    whatsappNumber: patient.whatsappNumber ?? undefined,
-    hospitalId: patient.hospitalId ?? undefined,
+    whatsapp_number: patient.whatsapp_number,
+    hospital_id: patient.hospital_id,
     stage: existing.stage,
     position,
-    appointmentId: matchedAppointmentId ?? undefined,
+    appointment_id: matchedAppointmentId,
   });
 
   const priorityNote = hasTimedAppointment ? " (priority — appointment time)" : "";
-
-  await db.insert(activityTable).values({
+  await supabase.from("activity").insert({
     type: "checkin",
     description: `${patientName} checked in — added to queue at position ${position}${priorityNote}`,
-    patientId: patient.id,
-    patientName,
+    patient_id: patient.id,
+    patient_name: patientName,
     metadata: nowIso,
   });
 
-  res.json(serializePatient(patient));
+  res.json(camelize(patient));
 });
 
-// POST /patients/:id/dequeue — restore previous stage
 router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [existing] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
+  const { data: existing } = await supabase.from("patients").select("*").eq("id", id).single();
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  // If they were "Booked" before queuing, remove from Booked → go back to Booked
-  // If pre-stage was something else, restore it
-  const restoreStage = existing.preQueueStage ?? "Booked";
+  const restoreStage = existing.pre_queue_stage ?? "Booked";
+  const { data: patient } = await supabase
+    .from("patients")
+    .update({ stage: restoreStage, pre_queue_stage: null, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
 
-  const [patient] = await db
-    .update(patientsTable)
-    .set({ stage: restoreStage, preQueueStage: null })
-    .where(eq(patientsTable.id, id))
-    .returning();
+  await supabase.from("queue").delete().eq("patient_id", id);
 
-  await db.delete(queueTable).where(eq(queueTable.patientId, id));
-
-  const remaining = await db.select().from(queueTable).orderBy(queueTable.position);
-  for (let i = 0; i < remaining.length; i++) {
-    await db.update(queueTable).set({ position: i + 1 }).where(eq(queueTable.id, remaining[i].id));
+  const { data: remaining } = await supabase.from("queue").select("id, position").order("position", { ascending: true });
+  for (let i = 0; i < (remaining ?? []).length; i++) {
+    await supabase.from("queue").update({ position: i + 1 }).eq("id", remaining![i].id);
   }
 
-  await db.insert(activityTable).values({
+  await supabase.from("activity").insert({
     type: "dequeued",
-    description: `${patient.firstName} ${patient.lastName} removed from queue — returned to ${restoreStage}`,
-    patientId: patient.id,
-    patientName: `${patient.firstName} ${patient.lastName}`,
+    description: `${patient!.first_name} ${patient!.last_name} removed from queue — returned to ${restoreStage}`,
+    patient_id: id,
+    patient_name: `${patient!.first_name} ${patient!.last_name}`,
   });
 
-  res.json(serializePatient(patient));
+  res.json(camelize(patient!));
 });
 
-// POST /patients/:id/treatment-plan
 router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = TreatmentPlanBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [existing] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
+  const { data: existing } = await supabase.from("patients").select("*").eq("id", id).single();
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const now = new Date();
   const treatmentEndDate = new Date(now);
   treatmentEndDate.setDate(treatmentEndDate.getDate() + parsed.data.treatmentDurationDays);
 
-  const [patient] = await db
-    .update(patientsTable)
-    .set({
-      treatmentPlan: parsed.data.treatmentPlan,
-      treatmentType: parsed.data.treatmentType,
-      medicationTiming: parsed.data.medicationTiming ?? null,
-      treatmentDurationDays: parsed.data.treatmentDurationDays,
-      treatmentEndDate: treatmentEndDate.toISOString().split("T")[0],
-      stage: "In Care",
-      treatmentStartedAt: now.toISOString(),
-      preQueueStage: null,
-      ...(parsed.data.diagnosis ? { diagnosis: parsed.data.diagnosis } : {}),
-      ...(parsed.data.department ? { department: parsed.data.department } : {}),
-    })
-    .where(eq(patientsTable.id, id))
-    .returning();
+  const updateData: Record<string, unknown> = {
+    treatment_plan: parsed.data.treatmentPlan,
+    treatment_type: parsed.data.treatmentType,
+    medication_timing: parsed.data.medicationTiming ?? null,
+    treatment_duration_days: parsed.data.treatmentDurationDays,
+    treatment_end_date: treatmentEndDate.toISOString().split("T")[0],
+    stage: "In Care",
+    treatment_started_at: now.toISOString(),
+    pre_queue_stage: null,
+    updated_at: now.toISOString(),
+  };
+  if (parsed.data.diagnosis) updateData.diagnosis = parsed.data.diagnosis;
+  if (parsed.data.department) updateData.department = parsed.data.department;
 
-  await db.delete(queueTable).where(eq(queueTable.patientId, id));
+  const { data: patient } = await supabase.from("patients").update(updateData).eq("id", id).select().single();
+  await supabase.from("queue").delete().eq("patient_id", id);
 
-  const patientName = `${patient.firstName} ${patient.lastName}`;
-
-  await db.insert(activityTable).values({
+  const patientName = `${patient!.first_name} ${patient!.last_name}`;
+  await supabase.from("activity").insert({
     type: "treatment_plan_logged",
     description: `Treatment plan logged for ${patientName} — moved to In Care (${parsed.data.treatmentDurationDays} days, ends ${treatmentEndDate.toISOString().split("T")[0]})`,
-    patientId: patient.id,
-    patientName,
+    patient_id: id,
+    patient_name: patientName,
     metadata: parsed.data.treatmentPlan,
   });
 
@@ -368,59 +339,53 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   const reminders = [1, 2, 3].map((n) => ({
     type: "treatment_reminder",
     description: `Treatment reminder ${n} for ${patientName} (day ${n * interval})`,
-    patientId: patient.id,
-    patientName,
+    patient_id: id,
+    patient_name: patientName,
     metadata: `day_${n * interval}`,
   }));
-  await db.insert(activityTable).values(reminders);
+  await supabase.from("activity").insert(reminders);
 
-  res.json(serializePatient(patient));
+  res.json(camelize(patient!));
 });
 
-// POST /patients/:id/flag-missed
 router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = FlagMissedBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [patient] = await db.select().from(patientsTable).where(eq(patientsTable.id, id));
+  const { data: patient } = await supabase.from("patients").select("*").eq("id", id).single();
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const taskType = parsed.data.taskType ?? "follow_up";
-  const [task] = await db.insert(callTasksTable).values({
-    patientId: patient.id,
-    patientName: `${patient.firstName} ${patient.lastName}`,
+  const { data: task, error: taskErr } = await supabase.from("call_tasks").insert({
+    patient_id: patient.id,
+    patient_name: `${patient.first_name} ${patient.last_name}`,
     phone: patient.phone,
-    whatsappNumber: patient.whatsappNumber ?? undefined,
-    department: patient.department ?? undefined,
+    whatsapp_number: patient.whatsapp_number,
+    department: patient.department,
     reason: parsed.data.reason,
-    taskType,
-    checkInType: parsed.data.checkInType ?? undefined,
-    actionType: parsed.data.actionType ?? "manual_call",
-  }).returning();
+    task_type: taskType,
+    check_in_type: parsed.data.checkInType ?? null,
+    action_type: parsed.data.actionType ?? "manual_call",
+  }).select().single();
+
+  if (taskErr || !task) { res.status(500).json({ error: taskErr?.message ?? "Failed to create task" }); return; }
 
   const activityDesc = taskType === "check_in"
-    ? `${patient.firstName} ${patient.lastName} flagged for check-in (${parsed.data.checkInType ?? "General"}) — call task created`
-    : `${patient.firstName} ${patient.lastName} flagged for missed treatment — call task created`;
+    ? `${patient.first_name} ${patient.last_name} flagged for check-in (${parsed.data.checkInType ?? "General"}) — call task created`
+    : `${patient.first_name} ${patient.last_name} flagged for missed treatment — call task created`;
 
-  await db.insert(activityTable).values({
+  await supabase.from("activity").insert({
     type: taskType === "check_in" ? "check_in_flagged" : "missed_treatment_flagged",
     description: activityDesc,
-    patientId: patient.id,
-    patientName: `${patient.firstName} ${patient.lastName}`,
+    patient_id: id,
+    patient_name: `${patient.first_name} ${patient.last_name}`,
     metadata: parsed.data.reason,
   });
 
-  res.json({
-    ...task,
-    flaggedAt: task.flaggedAt.toISOString(),
-    completedAt: task.completedAt?.toISOString() ?? null,
-  });
+  res.json(camelize(task));
 });
 
 export default router;

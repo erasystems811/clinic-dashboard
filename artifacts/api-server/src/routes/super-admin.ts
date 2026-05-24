@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
-import crypto from "node:crypto";
-import { db, hospitalsTable, hospitalSettingsTable, hospitalModulesTable, hospitalStaffCredentialsTable } from "@workspace/db";
+import crypto from "crypto";
 import { z } from "zod/v4";
+import { supabase } from "../lib/supabase.js";
+import { camelize } from "../lib/camel.js";
 
 const router = Router();
 
@@ -60,7 +60,7 @@ export function verifyHospitalToken(token: string): number | null {
     if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
     return parseInt(parts[1], 10);
   } catch {
-    return null;
+    return false as unknown as null;
   }
 }
 
@@ -92,7 +92,6 @@ router.post("/super-admin/auth/login", (req, res): void => {
 });
 
 router.post("/super-admin/auth/logout", (req, res): void => {
-  // Stateless — client just drops the token
   res.json({ ok: true });
 });
 
@@ -105,16 +104,20 @@ const CreateHospitalBody = z.object({
 });
 
 router.get("/super-admin/hospitals", requireSuperAdmin, async (_req, res): Promise<void> => {
-  const hospitals = await db
-    .select()
-    .from(hospitalsTable)
-    .orderBy(hospitalsTable.createdAt);
+  const { data: hospitals, error } = await supabase
+    .from("hospitals")
+    .select("*")
+    .order("created_at", { ascending: true });
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
 
   const withModules = await Promise.all(
-    hospitals.map(async (h) => {
-      const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, h.id));
-      const [modules] = await db.select().from(hospitalModulesTable).where(eq(hospitalModulesTable.hospitalId, h.id));
-      return { ...h, settings: settings ?? null, modules: modules ?? null };
+    (hospitals ?? []).map(async (h: Record<string, unknown>) => {
+      const [{ data: settings }, { data: modules }] = await Promise.all([
+        supabase.from("hospital_settings").select("*").eq("hospital_id", h.id).single(),
+        supabase.from("hospital_modules").select("*").eq("hospital_id", h.id).single(),
+      ]);
+      return { ...camelize(h), settings: settings ? camelize(settings) : null, modules: modules ? camelize(modules) : null };
     })
   );
 
@@ -130,41 +133,44 @@ router.post("/super-admin/hospitals", requireSuperAdmin, async (req, res): Promi
   const salt = crypto.randomBytes(16).toString("hex");
   const passwordHash = `${salt}:${hashPassword(password, salt)}`;
 
-  const [hospital] = await db.insert(hospitalsTable).values({
-    name, slug, username, passwordHash,
+  const { data: hospital, error } = await supabase.from("hospitals").insert({
+    name, slug, username, password_hash: passwordHash,
     active: subscriptionStatus !== "inactive",
-    subscriptionStatus: subscriptionStatus ?? "active",
-  }).returning();
+    subscription_status: subscriptionStatus ?? "active",
+  }).select().single();
 
-  await db.insert(hospitalSettingsTable).values({ hospitalId: hospital.id });
-  await db.insert(hospitalModulesTable).values({ hospitalId: hospital.id });
+  if (error || !hospital) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
 
-  // Auto-generate staff credentials from hospital name (first word = prefix)
+  await supabase.from("hospital_settings").insert({ hospital_id: hospital.id });
+  await supabase.from("hospital_modules").insert({ hospital_id: hospital.id });
+
   const prefix = name.trim().split(/\s+/)[0].toUpperCase();
   const nurseSalt = crypto.randomBytes(16).toString("hex");
   const recepSalt = crypto.randomBytes(16).toString("hex");
-  await db.insert(hospitalStaffCredentialsTable).values({
-    hospitalId: hospital.id,
-    nurseUsername: `${prefix} NURSE`,
-    nursePasswordHash: `${nurseSalt}:${hashPassword("nurse1234", nurseSalt)}`,
-    receptionistUsername: `${prefix} RECEPTIONIST`,
-    receptionistPasswordHash: `${recepSalt}:${hashPassword("recep1234", recepSalt)}`,
+  await supabase.from("hospital_staff_credentials").insert({
+    hospital_id: hospital.id,
+    nurse_username: `${prefix} NURSE`,
+    nurse_password_hash: `${nurseSalt}:${hashPassword("nurse1234", nurseSalt)}`,
+    receptionist_username: `${prefix} RECEPTIONIST`,
+    receptionist_password_hash: `${recepSalt}:${hashPassword("recep1234", recepSalt)}`,
   });
 
-  res.status(201).json(hospital);
+  res.status(201).json(camelize(hospital));
 });
 
 router.get("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [hospital] = await db.select().from(hospitalsTable).where(eq(hospitalsTable.id, id));
+  const { data: hospital } = await supabase.from("hospitals").select("*").eq("id", id).single();
   if (!hospital) { res.status(404).json({ error: "Not found" }); return; }
 
-  const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, id));
-  const [modules] = await db.select().from(hospitalModulesTable).where(eq(hospitalModulesTable.hospitalId, id));
+  const [{ data: settings }, { data: modules }] = await Promise.all([
+    supabase.from("hospital_settings").select("*").eq("hospital_id", id).single(),
+    supabase.from("hospital_modules").select("*").eq("hospital_id", id).single(),
+  ]);
 
-  res.json({ ...hospital, settings: settings ?? null, modules: modules ?? null });
+  res.json({ ...camelize(hospital), settings: settings ? camelize(settings) : null, modules: modules ? camelize(modules) : null });
 });
 
 const UpdateHospitalBody = z.object({
@@ -181,18 +187,20 @@ router.patch("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): 
   const parsed = UpdateHospitalBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { password, ...rest } = parsed.data;
-  const updates: Record<string, any> = { ...rest };
-
+  const { password, name, active, subscriptionStatus } = parsed.data;
+  const updates: Record<string, unknown> = {};
+  if (name !== undefined) updates.name = name;
+  if (active !== undefined) updates.active = active;
+  if (subscriptionStatus !== undefined) updates.subscription_status = subscriptionStatus;
   if (password) {
     const salt = crypto.randomBytes(16).toString("hex");
-    updates.passwordHash = `${salt}:${hashPassword(password, salt)}`;
+    updates.password_hash = `${salt}:${hashPassword(password, salt)}`;
   }
 
-  const [hospital] = await db.update(hospitalsTable).set(updates).where(eq(hospitalsTable.id, id)).returning();
-  if (!hospital) { res.status(404).json({ error: "Not found" }); return; }
+  const { data: hospital, error } = await supabase.from("hospitals").update(updates).eq("id", id).select().single();
+  if (error || !hospital) { res.status(404).json({ error: "Not found" }); return; }
 
-  res.json(hospital);
+  res.json(camelize(hospital));
 });
 
 // ── Hospital Settings ──────────────────────────────────────────────────────────
@@ -209,13 +217,14 @@ router.get("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, id));
+  const { data: settings } = await supabase.from("hospital_settings").select("*").eq("hospital_id", id).single();
   if (!settings) { res.status(404).json({ error: "Not found" }); return; }
 
+  const s = camelize<Record<string, unknown>>(settings);
   res.json({
-    ...settings,
-    departments: JSON.parse(settings.departments ?? "[]"),
-    tone: parseToneJson(settings.tone),
+    ...s,
+    departments: JSON.parse((settings.departments as string) ?? "[]"),
+    tone: parseToneJson(settings.tone as string),
   });
 });
 
@@ -226,22 +235,28 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   const parsed = UpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { departments, tone, ...rest } = parsed.data;
-  const updates: Record<string, any> = { ...rest };
+  const { departments, tone, pipelinePostTreatmentDays, pipelineDormantDays, language, clinicDescription } = parsed.data;
+  const updates: Record<string, unknown> = {};
   if (departments !== undefined) updates.departments = JSON.stringify(departments);
   if (tone !== undefined) updates.tone = JSON.stringify(tone);
+  if (pipelinePostTreatmentDays !== undefined) updates.pipeline_post_treatment_days = pipelinePostTreatmentDays;
+  if (pipelineDormantDays !== undefined) updates.pipeline_dormant_days = pipelineDormantDays;
+  if (language !== undefined) updates.language = language;
+  if (clinicDescription !== undefined) updates.clinic_description = clinicDescription;
 
-  const [settings] = await db
-    .update(hospitalSettingsTable)
-    .set(updates)
-    .where(eq(hospitalSettingsTable.hospitalId, id))
-    .returning();
+  const { data: settings, error } = await supabase
+    .from("hospital_settings")
+    .update(updates)
+    .eq("hospital_id", id)
+    .select()
+    .single();
 
-  if (!settings) { res.status(404).json({ error: "Not found" }); return; }
+  if (error || !settings) { res.status(404).json({ error: "Not found" }); return; }
+  const s = camelize<Record<string, unknown>>(settings);
   res.json({
-    ...settings,
-    departments: JSON.parse(settings.departments ?? "[]"),
-    tone: parseToneJson(settings.tone),
+    ...s,
+    departments: JSON.parse((settings.departments as string) ?? "[]"),
+    tone: parseToneJson(settings.tone as string),
   });
 });
 
@@ -255,10 +270,10 @@ router.get("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [modules] = await db.select().from(hospitalModulesTable).where(eq(hospitalModulesTable.hospitalId, id));
+  const { data: modules } = await supabase.from("hospital_modules").select("*").eq("hospital_id", id).single();
   if (!modules) { res.status(404).json({ error: "Not found" }); return; }
 
-  res.json(modules);
+  res.json(camelize(modules));
 });
 
 router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -268,70 +283,78 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
   const parsed = UpdateModulesBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [modules] = await db
-    .update(hospitalModulesTable)
-    .set(parsed.data)
-    .where(eq(hospitalModulesTable.hospitalId, id))
-    .returning();
+  const updates: Record<string, unknown> = {};
+  if (parsed.data.appointmentsEnabled !== undefined) updates.appointments_enabled = parsed.data.appointmentsEnabled;
+  if (parsed.data.feedbackEnabled !== undefined) updates.feedback_enabled = parsed.data.feedbackEnabled;
 
-  if (!modules) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(modules);
+  const { data: modules, error } = await supabase
+    .from("hospital_modules")
+    .update(updates)
+    .eq("hospital_id", id)
+    .select()
+    .single();
+
+  if (error || !modules) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(camelize(modules));
 });
 
-// ── Staff login (public — nurse/receptionist authenticate with their username + password) ──
+// ── Staff login ──────────────────────────────────────────────────────────────
 router.post("/staff/login", async (req, res): Promise<void> => {
   const { username, password } = req.body ?? {};
   if (!username || !password) { res.status(400).json({ error: "Missing credentials" }); return; }
 
   const usernameUpper = username.trim().toUpperCase();
 
-  // Search all hospitals for matching nurse or receptionist username
-  const allCreds = await db.select().from(hospitalStaffCredentialsTable);
-  let matchedCreds = null;
+  const { data: allCreds } = await supabase.from("hospital_staff_credentials").select("*");
+  let matchedCreds: Record<string, unknown> | null = null;
   let matchedRole: "nurse" | "receptionist" | null = null;
 
-  for (const creds of allCreds) {
-    if (creds.nurseUsername.toUpperCase() === usernameUpper) {
+  for (const creds of allCreds ?? []) {
+    if ((creds.nurse_username as string).toUpperCase() === usernameUpper) {
       matchedCreds = creds; matchedRole = "nurse"; break;
     }
-    if (creds.receptionistUsername.toUpperCase() === usernameUpper) {
+    if ((creds.receptionist_username as string).toUpperCase() === usernameUpper) {
       matchedCreds = creds; matchedRole = "receptionist"; break;
     }
   }
 
   if (!matchedCreds || !matchedRole) { res.status(401).json({ error: "Invalid credentials" }); return; }
 
-  const hashField = matchedRole === "nurse" ? matchedCreds.nursePasswordHash : matchedCreds.receptionistPasswordHash;
+  const hashField = matchedRole === "nurse"
+    ? matchedCreds.nurse_password_hash as string
+    : matchedCreds.receptionist_password_hash as string;
   const [salt, storedHash] = hashField.split(":");
   if (hashPassword(password, salt) !== storedHash) { res.status(401).json({ error: "Invalid credentials" }); return; }
 
-  const [hospital] = await db.select().from(hospitalsTable).where(eq(hospitalsTable.id, matchedCreds.hospitalId));
+  const { data: hospital } = await supabase.from("hospitals").select("*").eq("id", matchedCreds.hospital_id).single();
   if (!hospital || !hospital.active) { res.status(403).json({ error: "Account inactive" }); return; }
 
-  const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, hospital.id));
-  const [modules] = await db.select().from(hospitalModulesTable).where(eq(hospitalModulesTable.hospitalId, hospital.id));
+  const [{ data: settings }, { data: modules }] = await Promise.all([
+    supabase.from("hospital_settings").select("*").eq("hospital_id", hospital.id).single(),
+    supabase.from("hospital_modules").select("*").eq("hospital_id", hospital.id).single(),
+  ]);
 
   res.json({
     role: matchedRole,
     hospital: { id: hospital.id, name: hospital.name, username: hospital.username },
-    departments: JSON.parse(settings?.departments ?? "[]"),
+    departments: JSON.parse((settings?.departments as string) ?? "[]"),
     modules: {
-      appointmentsEnabled: modules?.appointmentsEnabled ?? true,
-      feedbackEnabled: modules?.feedbackEnabled ?? true,
+      appointmentsEnabled: modules?.appointments_enabled ?? true,
+      feedbackEnabled: modules?.feedback_enabled ?? true,
     },
   });
 });
 
-// ── Staff credentials (admin can read + update nurse/receptionist passwords) ──
+// ── Staff credentials ──────────────────────────────────────────────────────────
 router.get("/hospital/staff-credentials", async (req, res): Promise<void> => {
   const token = req.headers["x-hospital-token"] as string;
   const hospitalId = token ? verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const [creds] = await db.select().from(hospitalStaffCredentialsTable).where(eq(hospitalStaffCredentialsTable.hospitalId, hospitalId));
+  const { data: creds } = await supabase.from("hospital_staff_credentials").select("*").eq("hospital_id", hospitalId).single();
   if (!creds) { res.status(404).json({ error: "Not found" }); return; }
 
-  res.json({ nurseUsername: creds.nurseUsername, receptionistUsername: creds.receptionistUsername });
+  res.json({ nurseUsername: creds.nurse_username, receptionistUsername: creds.receptionist_username });
 });
 
 router.put("/hospital/staff-credentials", async (req, res): Promise<void> => {
@@ -344,61 +367,59 @@ router.put("/hospital/staff-credentials", async (req, res): Promise<void> => {
 
   if (nursePassword) {
     const salt = crypto.randomBytes(16).toString("hex");
-    updates.nursePasswordHash = `${salt}:${hashPassword(nursePassword, salt)}`;
+    updates.nurse_password_hash = `${salt}:${hashPassword(nursePassword, salt)}`;
   }
   if (receptionistPassword) {
     const salt = crypto.randomBytes(16).toString("hex");
-    updates.receptionistPasswordHash = `${salt}:${hashPassword(receptionistPassword, salt)}`;
+    updates.receptionist_password_hash = `${salt}:${hashPassword(receptionistPassword, salt)}`;
   }
 
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No updates provided" }); return; }
 
-  await db.update(hospitalStaffCredentialsTable).set(updates).where(eq(hospitalStaffCredentialsTable.hospitalId, hospitalId));
+  await supabase.from("hospital_staff_credentials").update(updates).eq("hospital_id", hospitalId);
   res.json({ ok: true });
 });
 
-// ── Public hospital lookup (for staff login — returns name + config, no auth needed)
+// ── Public hospital lookup ────────────────────────────────────────────────────
 router.get("/hospital/lookup/:username", async (req, res): Promise<void> => {
   const username = req.params.username?.toLowerCase();
-  const [hospital] = await db
-    .select()
-    .from(hospitalsTable)
-    .where(eq(hospitalsTable.username, username));
+  const { data: hospital } = await supabase.from("hospitals").select("*").eq("username", username).single();
 
   if (!hospital || !hospital.active) { res.status(404).json({ error: "Hospital not found" }); return; }
 
-  const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, hospital.id));
-  const [modules] = await db.select().from(hospitalModulesTable).where(eq(hospitalModulesTable.hospitalId, hospital.id));
+  const [{ data: settings }, { data: modules }] = await Promise.all([
+    supabase.from("hospital_settings").select("*").eq("hospital_id", hospital.id).single(),
+    supabase.from("hospital_modules").select("*").eq("hospital_id", hospital.id).single(),
+  ]);
 
   res.json({
     id: hospital.id,
     name: hospital.name,
     username: hospital.username,
-    departments: JSON.parse(settings?.departments ?? "[]"),
+    departments: JSON.parse((settings?.departments as string) ?? "[]"),
     modules: {
-      appointmentsEnabled: modules?.appointmentsEnabled ?? true,
-      feedbackEnabled: modules?.feedbackEnabled ?? true,
+      appointmentsEnabled: modules?.appointments_enabled ?? true,
+      feedbackEnabled: modules?.feedback_enabled ?? true,
     },
   });
 });
 
-// ── Hospital Login (used by era-patient to validate hospital admin credentials)
+// ── Hospital Login ────────────────────────────────────────────────────────────
 router.post("/auth/hospital-login", async (req, res): Promise<void> => {
   const { username, password } = req.body ?? {};
   if (!username || !password) { res.status(400).json({ error: "Missing credentials" }); return; }
 
-  const [hospital] = await db
-    .select()
-    .from(hospitalsTable)
-    .where(eq(hospitalsTable.username, username.toLowerCase()));
+  const { data: hospital } = await supabase
+    .from("hospitals")
+    .select("*")
+    .eq("username", username.toLowerCase())
+    .single();
 
   if (!hospital) { res.status(401).json({ error: "Invalid credentials" }); return; }
   if (!hospital.active) { res.status(403).json({ error: "Account inactive" }); return; }
 
-  const [salt, storedHash] = hospital.passwordHash.split(":");
-  const inputHash = hashPassword(password, salt);
-
-  if (inputHash !== storedHash) { res.status(401).json({ error: "Invalid credentials" }); return; }
+  const [salt, storedHash] = hospital.password_hash.split(":");
+  if (hashPassword(password, salt) !== storedHash) { res.status(401).json({ error: "Invalid credentials" }); return; }
 
   res.json({
     id: hospital.id,
@@ -408,20 +429,22 @@ router.post("/auth/hospital-login", async (req, res): Promise<void> => {
   });
 });
 
-// ── Hospital config (used by era-patient after hospital login) ────────────────
+// ── Hospital config ───────────────────────────────────────────────────────────
 router.get("/hospital/config", async (req, res): Promise<void> => {
   const token = req.headers["x-hospital-token"] as string;
   const hospitalId = token ? verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const [settings] = await db.select().from(hospitalSettingsTable).where(eq(hospitalSettingsTable.hospitalId, hospitalId));
-  const [modules] = await db.select().from(hospitalModulesTable).where(eq(hospitalModulesTable.hospitalId, hospitalId));
+  const [{ data: settings }, { data: modules }] = await Promise.all([
+    supabase.from("hospital_settings").select("*").eq("hospital_id", hospitalId).single(),
+    supabase.from("hospital_modules").select("*").eq("hospital_id", hospitalId).single(),
+  ]);
 
   res.json({
-    departments: JSON.parse(settings?.departments ?? "[]"),
+    departments: JSON.parse((settings?.departments as string) ?? "[]"),
     modules: {
-      appointmentsEnabled: modules?.appointmentsEnabled ?? true,
-      feedbackEnabled: modules?.feedbackEnabled ?? true,
+      appointmentsEnabled: modules?.appointments_enabled ?? true,
+      feedbackEnabled: modules?.feedback_enabled ?? true,
     },
   });
 });

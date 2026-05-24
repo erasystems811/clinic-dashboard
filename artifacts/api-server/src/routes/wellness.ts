@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, wellnessNewsletterTable } from "@workspace/db";
+import { supabase } from "../lib/supabase.js";
+import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
-import { eq, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -10,8 +10,6 @@ const UpsertNewsletterBody = z.object({
   weekOf: z.string().min(1),
 });
 
-const MarkSentBody = z.object({ id: z.number().int() });
-
 function weekOfDate(date: Date) {
   const d = new Date(date);
   d.setDate(d.getDate() - d.getDay());
@@ -19,87 +17,68 @@ function weekOfDate(date: Date) {
 }
 
 router.get("/wellness", async (req, res): Promise<void> => {
-  const entries = await db
-    .select()
-    .from(wellnessNewsletterTable)
-    .orderBy(desc(wellnessNewsletterTable.updatedAt));
-
-  res.json(entries.map(e => ({
-    ...e,
-    updatedAt: e.updatedAt.toISOString(),
-    lastSentAt: e.lastSentAt?.toISOString() ?? null,
-  })));
+  const { data, error } = await supabase
+    .from("wellness_newsletter")
+    .select("*")
+    .order("updated_at", { ascending: false });
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json((data ?? []).map((e) => camelize(e)));
 });
 
-// GET current week's newsletter
 router.get("/wellness/current", async (req, res): Promise<void> => {
   const weekOf = weekOfDate(new Date());
-  const [entry] = await db
-    .select()
-    .from(wellnessNewsletterTable)
-    .where(eq(wellnessNewsletterTable.weekOf, weekOf));
-
-  if (!entry) {
-    res.json(null);
-    return;
-  }
-
-  res.json({
-    ...entry,
-    updatedAt: entry.updatedAt.toISOString(),
-    lastSentAt: entry.lastSentAt?.toISOString() ?? null,
-  });
+  const { data } = await supabase.from("wellness_newsletter").select("*").eq("week_of", weekOf).single();
+  if (!data) { res.json(null); return; }
+  res.json(camelize(data));
 });
 
-// PUT /wellness — create or update the current week's newsletter
 router.put("/wellness", async (req, res): Promise<void> => {
   const parsed = UpsertNewsletterBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const existing = await db
-    .select()
-    .from(wellnessNewsletterTable)
-    .where(eq(wellnessNewsletterTable.weekOf, parsed.data.weekOf));
+  const { data: existing } = await supabase
+    .from("wellness_newsletter")
+    .select("id")
+    .eq("week_of", parsed.data.weekOf)
+    .single();
 
   let entry;
-  if (existing.length > 0) {
-    [entry] = await db
-      .update(wellnessNewsletterTable)
-      .set({ content: parsed.data.content })
-      .where(eq(wellnessNewsletterTable.weekOf, parsed.data.weekOf))
-      .returning();
+  const now = new Date().toISOString();
+
+  if (existing) {
+    const { data } = await supabase
+      .from("wellness_newsletter")
+      .update({ content: parsed.data.content, updated_at: now })
+      .eq("week_of", parsed.data.weekOf)
+      .select()
+      .single();
+    entry = data;
   } else {
-    [entry] = await db
-      .insert(wellnessNewsletterTable)
-      .values(parsed.data)
-      .returning();
+    const { data } = await supabase
+      .from("wellness_newsletter")
+      .insert({ content: parsed.data.content, week_of: parsed.data.weekOf, updated_at: now })
+      .select()
+      .single();
+    entry = data;
   }
 
-  res.json({
-    ...entry,
-    updatedAt: entry.updatedAt.toISOString(),
-    lastSentAt: entry.lastSentAt?.toISOString() ?? null,
-  });
+  if (!entry) { res.status(500).json({ error: "Operation failed" }); return; }
+  res.json(camelize(entry));
 });
 
-// POST /wellness/:id/send — mark as sent
 router.post("/wellness/:id/send", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const [entry] = await db
-    .update(wellnessNewsletterTable)
-    .set({ lastSentAt: new Date() })
-    .where(eq(wellnessNewsletterTable.id, id))
-    .returning();
+  const { data, error } = await supabase
+    .from("wellness_newsletter")
+    .update({ last_sent_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
 
-  if (!entry) { res.status(404).json({ error: "Newsletter not found" }); return; }
-
-  res.json({
-    ...entry,
-    updatedAt: entry.updatedAt.toISOString(),
-    lastSentAt: entry.lastSentAt?.toISOString() ?? null,
-  });
+  if (error || !data) { res.status(404).json({ error: "Newsletter not found" }); return; }
+  res.json(camelize(data));
 });
 
 export default router;

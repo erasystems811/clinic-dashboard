@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, feedbackTable } from "@workspace/db";
+import { supabase } from "../lib/supabase.js";
+import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
-import { sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -13,19 +13,18 @@ const CreateFeedbackBody = z.object({
 });
 
 router.get("/feedback", async (req, res): Promise<void> => {
-  const entries = await db.select().from(feedbackTable).orderBy(feedbackTable.submittedAt);
+  const { data, error } = await supabase.from("feedback").select("*").order("submitted_at", { ascending: true });
+  if (error) { res.status(500).json({ error: error.message }); return; }
 
-  const [stats] = await db
-    .select({
-      avgRating: sql<number>`round(avg(rating)::numeric, 1)`,
-      total: sql<number>`cast(count(*) as int)`,
-    })
-    .from(feedbackTable);
+  const entries = data ?? [];
+  const avgRating = entries.length > 0
+    ? Math.round((entries.reduce((s, e) => s + (e.rating ?? 0), 0) / entries.length) * 10) / 10
+    : 0;
 
   res.json({
-    entries: entries.map(e => ({ ...e, submittedAt: e.submittedAt.toISOString() })),
-    avgRating: Number(stats.avgRating) || 0,
-    total: stats.total,
+    entries: entries.map((e) => camelize(e)),
+    avgRating,
+    total: entries.length,
   });
 });
 
@@ -33,8 +32,15 @@ router.post("/feedback", async (req, res): Promise<void> => {
   const parsed = CreateFeedbackBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [entry] = await db.insert(feedbackTable).values(parsed.data).returning();
-  res.status(201).json({ ...entry, submittedAt: entry.submittedAt.toISOString() });
+  const { data, error } = await supabase.from("feedback").insert({
+    patient_id: parsed.data.patientId ?? null,
+    patient_name: parsed.data.patientName ?? null,
+    rating: parsed.data.rating,
+    comment: parsed.data.comment ?? null,
+  }).select().single();
+
+  if (error || !data) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
+  res.status(201).json(camelize(data));
 });
 
 export default router;

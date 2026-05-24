@@ -42,3 +42,9 @@ externalPort = 3002
 [nix]
 channel = "stable-25_05"
 packages = ["zip"]
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://ittjtwjbpavhxcjmbmpn.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml0dGp0d2picGF2aHhjam1ibXBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1NjQyMDAsImV4cCI6MjA5NTE0MDIwMH0.ZZ-3RSQ3d_R8GFNQnEjfUDzn6JuhS0VqyesUhjASH1c"

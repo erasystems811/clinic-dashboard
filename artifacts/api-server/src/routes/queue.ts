@@ -1,32 +1,39 @@
 import { Router, type IRouter } from "express";
-import { eq, asc } from "drizzle-orm";
-import { db, queueTable, patientsTable } from "@workspace/db";
+import { supabase } from "../lib/supabase.js";
+import { camelize } from "../lib/camel.js";
 
 const router: IRouter = Router();
 
 router.get("/queue", async (req, res): Promise<void> => {
-  const entries = await db
-    .select({
-      id: queueTable.id,
-      patientId: queueTable.patientId,
-      patientName: queueTable.patientName,
-      position: queueTable.position,
-      addedAt: queueTable.addedAt,
-      appointmentId: queueTable.appointmentId,
-      phone: patientsTable.phone,
-      email: patientsTable.email,
-      whatsappNumber: patientsTable.whatsappNumber,
-      hospitalId: patientsTable.hospitalId,
-      stage: patientsTable.preQueueStage,
-    })
-    .from(queueTable)
-    .leftJoin(patientsTable, eq(queueTable.patientId, patientsTable.id))
-    .orderBy(asc(queueTable.position));
+  const { data: queueEntries, error } = await supabase
+    .from("queue")
+    .select("*")
+    .order("position", { ascending: true });
 
-  res.json(entries.map((e) => ({
-    ...e,
-    addedAt: e.addedAt.toISOString(),
-  })));
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (!queueEntries || queueEntries.length === 0) { res.json([]); return; }
+
+  const patientIds = queueEntries.map((e) => e.patient_id).filter(Boolean);
+  const { data: patients } = await supabase
+    .from("patients")
+    .select("id, phone, email, whatsapp_number, hospital_id, pre_queue_stage")
+    .in("id", patientIds);
+
+  const patientMap = Object.fromEntries((patients ?? []).map((p) => [p.id, p]));
+
+  const result = queueEntries.map((e) => {
+    const p = patientMap[e.patient_id] ?? {};
+    return {
+      ...camelize(e),
+      phone: p.phone ?? null,
+      email: p.email ?? null,
+      whatsappNumber: p.whatsapp_number ?? null,
+      hospitalId: p.hospital_id ?? null,
+      stage: p.pre_queue_stage ?? null,
+    };
+  });
+
+  res.json(result);
 });
 
 export default router;

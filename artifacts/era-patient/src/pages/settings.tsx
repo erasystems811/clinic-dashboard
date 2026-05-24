@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiUrl } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ export default function Settings() {
 
   useEffect(() => {
     if (!token) return;
-    fetch("/api/hospital/staff-credentials", {
+    fetch(apiUrl("/api/hospital/staff-credentials"), {
       headers: { "x-hospital-token": token },
     })
       .then(r => r.ok ? r.json() : null)
@@ -47,7 +48,7 @@ export default function Settings() {
       if (nursePass) body.nursePassword = nursePass;
       if (recepPass) body.receptionistPassword = recepPass;
 
-      const res = await fetch("/api/hospital/staff-credentials", {
+      const res = await fetch(apiUrl("/api/hospital/staff-credentials"), {
         method: "PUT",
         headers: { "Content-Type": "application/json", "x-hospital-token": token },
         body: JSON.stringify(body),

@@ -6,7 +6,7 @@ import {
   Phone, Clock, ChevronLeft, Inbox, Wifi,
 } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+import { apiUrl } from "@/lib/api";
 
 type Category = "queue" | "appointment" | "care" | "treatment" | "general" | "wellness";
 
@@ -94,7 +94,7 @@ export default function Messages() {
     if (!hospital?.token) return;
     setLoadingConvs(true);
     try {
-      const res = await fetch(`${BASE}/api/messages/conversations?role=${role}`, {
+      const res = await fetch(apiUrl(`/api/messages/conversations?role=${role}`), {
         headers: { "x-hospital-token": hospital.token },
       });
       if (res.ok) setConversations(await res.json());
@@ -108,7 +108,7 @@ export default function Messages() {
     setThread([]);
     try {
       const res = await fetch(
-        `${BASE}/api/messages/thread?phone=${encodeURIComponent(conv.phone)}`,
+        apiUrl(`/api/messages/thread?phone=${encodeURIComponent(conv.phone)}`),
         { headers: { "x-hospital-token": hospital.token } },
       );
       if (res.ok) {
@@ -141,7 +141,7 @@ export default function Messages() {
     const body = replyText.trim();
     setReplyText("");
     try {
-      const res = await fetch(`${BASE}/api/messages/reply`, {
+      const res = await fetch(apiUrl(`/api/messages/reply`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

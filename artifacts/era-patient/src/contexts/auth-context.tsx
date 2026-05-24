@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { apiUrl } from "@/lib/api";
 
 export type Role = "receptionist" | "nurse" | "admin";
 
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const loginAdmin = async (hospitalUsername: string, hospitalPassword: string): Promise<void> => {
-    const res = await fetch("/api/auth/hospital-login", {
+    const res = await fetch(apiUrl("/api/auth/hospital-login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: hospitalUsername.trim().toLowerCase(), password: hospitalPassword }),
@@ -75,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     setHospital({ id: data.id, name: data.name, username: data.username, token: data.token });
 
-    const cfgRes = await fetch("/api/hospital/config", {
+    const cfgRes = await fetch(apiUrl("/api/hospital/config"), {
       headers: { "x-hospital-token": data.token },
     });
     setHospitalConfig(cfgRes.ok
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginStaff = async (username: string, password: string): Promise<void> => {
-    const res = await fetch("/api/staff/login", {
+    const res = await fetch(apiUrl("/api/staff/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: username.trim(), password }),

@@ -15,7 +15,7 @@ import {
   Sparkles, Youtube, Link, RefreshCw, ChevronDown, ChevronUp,
 } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+import { apiUrl } from "@/lib/api";
 
 function weekOfDate(date: Date) {
   return format(startOfWeek(date), "yyyy-MM-dd");
@@ -56,7 +56,7 @@ export default function WellnessAdmin() {
 
   useEffect(() => {
     if (!hospital?.token) return;
-    fetch(`${BASE}/api/wellness/topics`, {
+    fetch(apiUrl(`/api/wellness/topics`), {
       headers: { "x-hospital-token": hospital.token },
     })
       .then(r => r.ok ? r.json() : null)
@@ -94,7 +94,7 @@ export default function WellnessAdmin() {
       // Lock the current subtopic → only the angle will change
       if (mode === "new-angle" && subtopic) body.subtopic = subtopic;
       // mode === "new-subtopic" sends only the topic, letting AI pick a completely new subtopic
-      const res = await fetch(`${BASE}/api/wellness/generate`, {
+      const res = await fetch(apiUrl(`/api/wellness/generate`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
         body: JSON.stringify(body),
@@ -142,7 +142,7 @@ export default function WellnessAdmin() {
     setSending(true);
     setSendResult(null);
     try {
-      const res = await fetch(`${BASE}/api/wellness/${id}/send`, {
+      const res = await fetch(apiUrl(`/api/wellness/${id}/send`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
       });

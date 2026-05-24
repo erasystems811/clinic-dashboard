@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiUrl } from "@/lib/api";
 import { useParams, Link, useLocation } from "wouter";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
@@ -89,7 +90,7 @@ export default function PatientDetail() {
     if (!hospital?.token) return;
     setGeneratingLink(true);
     try {
-      const res = await fetch(`/api/patients/${patientId}/feedback-link`, {
+      const res = await fetch(apiUrl(`/api/patients/${patientId}/feedback-link`), {
         method: "POST",
         headers: { "x-hospital-token": hospital.token },
       });

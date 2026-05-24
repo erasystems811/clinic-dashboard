@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { apiUrl } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
@@ -98,7 +99,7 @@ export default function FeedbackAdmin() {
   const { data, isLoading, dataUpdatedAt, refetch } = useQuery<FeedbackData>({
     queryKey: ["feedback", hospital?.id],
     queryFn: async () => {
-      const res = await fetch("/api/feedback", { headers: headers() });
+      const res = await fetch(apiUrl("/api/feedback"), { headers: headers() });
       if (!res.ok) throw new Error("Failed to load feedback");
       return res.json();
     },
@@ -109,7 +110,7 @@ export default function FeedbackAdmin() {
   const { data: configData, isLoading: configLoading } = useQuery<{ questions: FormQuestion[] }>({
     queryKey: ["feedback-config", hospital?.id],
     queryFn: async () => {
-      const res = await fetch("/api/feedback/form-config", { headers: headers() });
+      const res = await fetch(apiUrl("/api/feedback/form-config"), { headers: headers() });
       if (!res.ok) throw new Error("Failed to load config");
       return res.json();
     },
@@ -129,7 +130,7 @@ export default function FeedbackAdmin() {
 
   const saveConfig = useMutation({
     mutationFn: async (questions: FormQuestion[]) => {
-      const res = await fetch("/api/feedback/form-config", {
+      const res = await fetch(apiUrl("/api/feedback/form-config"), {
         method: "PUT",
         headers: { ...headers(), "Content-Type": "application/json" },
         body: JSON.stringify({ questions }),

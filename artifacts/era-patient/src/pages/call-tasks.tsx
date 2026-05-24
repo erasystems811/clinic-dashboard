@@ -16,7 +16,7 @@ import {
   Send, RefreshCw, Pencil, ChevronDown, ChevronUp, Flag, Sparkles,
 } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL?.replace(/\/$/, "") ?? "";
+import { apiUrl } from "@/lib/api";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-GB", {
@@ -79,7 +79,7 @@ function ActionPanel({ task }: { task: CallTask }) {
     }
     setGenerating(true);
     try {
-      const res = await fetch(`${BASE}/api/call-tasks/${task.id}/send-message`, {
+      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-message`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
       });

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiUrl } from "@/lib/api";
 import { Star, CheckCircle, XCircle, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export interface FormQuestion {
@@ -95,7 +96,7 @@ export default function FeedbackForm({ token, previewQuestions }: Props) {
   useEffect(() => {
     if (isPreview) return;
     if (!token) { setError("Invalid feedback link."); setLoading(false); return; }
-    fetch(`/api/feedback/form/${token}`)
+    fetch(apiUrl(`/api/feedback/form/${token}`))
       .then(r => r.json())
       .then(data => {
         if (data.error) { setError(data.error); }
@@ -124,7 +125,7 @@ export default function FeedbackForm({ token, previewQuestions }: Props) {
       if (wouldRecommend != null) body.wouldRecommend = wouldRecommend;
       if (comment.trim()) body.comment = comment.trim();
 
-      const res = await fetch("/api/feedback", {
+      const res = await fetch(apiUrl("/api/feedback"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

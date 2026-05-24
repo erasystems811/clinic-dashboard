@@ -1,2 +1,12 @@
 [phases.install]
-cmds = ["corepack enable && corepack prepare pnpm@10.26.1 --activate && pnpm install --no-frozen-lockfile"]
+cmds = ["corepack enable && corepack prepare pnpm@10.26.1 --activate && pnpm install --frozen-lockfile"]
+
+[phases.build]
+cmds = [
+  "pnpm --filter @workspace/api-server run build",
+  "pnpm --filter @workspace/era-patient run build",
+  "pnpm --filter @workspace/era-super-admin run build"
+]
+
+[start]
+cmd = "node artifacts/era-patient/server.cjs"

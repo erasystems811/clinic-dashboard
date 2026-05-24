@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   ArrowLeft, Calendar as CalendarIcon, Clock, Mail, Phone, Trash2,
-  CheckCircle, Activity, Stethoscope, Hash, FileText,
+  CheckCircle, Activity, Stethoscope, Hash, FileText, Link2, Copy, CheckCircle2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
@@ -33,7 +34,11 @@ export default function PatientDetail() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, hospital } = useAuth();
+
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [feedbackLink, setFeedbackLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const { data: patient, isLoading } = useGetPatient(patientId, {
     query: { enabled: !isNaN(patientId), queryKey: getGetPatientQueryKey(patientId) }
@@ -80,6 +85,42 @@ export default function PatientDetail() {
     }
   };
 
+  const handleGenerateFeedbackLink = async () => {
+    if (!hospital?.token) return;
+    setGeneratingLink(true);
+    try {
+      const res = await fetch(`/api/patients/${patientId}/feedback-link`, {
+        method: "POST",
+        headers: { "x-hospital-token": hospital.token },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast({ title: "Error", description: d.error ?? "Could not generate link", variant: "destructive" });
+        return;
+      }
+      const { token } = await res.json();
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const link = `${window.location.origin}${base}/feedback/${token}`;
+      setFeedbackLink(link);
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+      toast({ title: "Feedback link copied!", description: "Share it with the patient after their visit." });
+    } catch {
+      toast({ title: "Error", description: "Could not generate link", variant: "destructive" });
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const copyLink = async () => {
+    if (!feedbackLink) return;
+    await navigator.clipboard.writeText(feedbackLink);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+    toast({ title: "Link copied!" });
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -124,6 +165,29 @@ export default function PatientDetail() {
                   Full History
                 </Button>
               </Link>
+              {user?.role === "admin" && hospital?.token && (
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  disabled={generatingLink}
+                  onClick={feedbackLink ? copyLink : handleGenerateFeedbackLink}
+                >
+                  {linkCopied
+                    ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    : feedbackLink
+                    ? <Copy className="w-4 h-4" />
+                    : <Link2 className="w-4 h-4" />
+                  }
+                  {generatingLink
+                    ? "Generating…"
+                    : linkCopied
+                    ? "Copied!"
+                    : feedbackLink
+                    ? "Copy Link"
+                    : "Feedback Link"
+                  }
+                </Button>
+              )}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" className="gap-2">
@@ -149,6 +213,19 @@ export default function PatientDetail() {
             </div>
           </div>
         </div>
+
+        {feedbackLink && (
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <p className="text-xs text-emerald-400 flex-1 truncate font-mono">{feedbackLink}</p>
+            <button
+              onClick={copyLink}
+              className="text-xs text-emerald-400 hover:text-emerald-300 shrink-0 font-medium"
+            >
+              {linkCopied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        )}
 
         <div className="grid md:grid-cols-3 gap-6">
           {/* Sidebar */}

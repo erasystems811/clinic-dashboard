@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
+import { Switch, Route, Router as WouterRouter, Redirect, useRoute } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -38,12 +38,14 @@ function defaultPathForRole(role: Role): string {
 }
 
 function ProtectedRouter() {
+  const [matchesFeedback, feedbackParams] = useRoute("/feedback/:token");
   const { hospital, user, hospitalConfig } = useAuth();
 
-  // Not signed in at all
-  if (!user) return <Login />;
+  if (matchesFeedback) {
+    return <FeedbackForm token={feedbackParams?.token ?? ""} />;
+  }
 
-  // Admin must have a hospital session (their login provides it)
+  if (!user) return <Login />;
   if (user.role === "admin" && !hospital) return <Login />;
 
   const role = user.role;
@@ -56,9 +58,6 @@ function ProtectedRouter() {
       <Route path="/login">
         <Redirect to={defaultPathForRole(role)} />
       </Route>
-
-      {/* Public feedback form */}
-      <Route path="/feedback" component={FeedbackForm} />
 
       {/* Admin routes */}
       {role === "admin" && <Route path="/" component={Dashboard} />}

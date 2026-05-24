@@ -39,6 +39,16 @@ function hashPassword(password: string, salt: string): string {
   return crypto.scryptSync(password, salt, 64).toString("hex");
 }
 
+const ADJECTIVES = ["Blue","Swift","Clear","Bright","Strong","Fresh","Bold","Smart","Pure","Calm","Sharp","Quick"];
+const NOUNS = ["Star","Rock","Lake","Wave","Tree","Stone","Cloud","River","Eagle","Tiger","Falcon","Peak"];
+
+function generatePassword(): string {
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `${adj}${noun}${num}`;
+}
+
 function signHospitalToken(hospitalId: number): string {
   const expiry = Date.now() + TOKEN_TTL_MS;
   const payload = `h:${hospitalId}:${expiry}`;
@@ -99,7 +109,7 @@ router.post("/super-admin/auth/logout", (req, res): void => {
 const CreateHospitalBody = z.object({
   name: z.string().min(1),
   username: z.string().min(3),
-  password: z.string().min(6),
+  password: z.string().min(6).optional(),
   subscriptionStatus: z.enum(["active", "trial", "inactive"]).optional(),
 });
 
@@ -128,13 +138,15 @@ router.post("/super-admin/hospitals", requireSuperAdmin, async (req, res): Promi
   const parsed = CreateHospitalBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { name, username, password, subscriptionStatus } = parsed.data;
+  const { name, username, subscriptionStatus } = parsed.data;
+  const plainPassword = parsed.data.password ?? generatePassword();
   const slug = username.toLowerCase().replace(/[^a-z0-9]/g, "-");
   const salt = crypto.randomBytes(16).toString("hex");
-  const passwordHash = `${salt}:${hashPassword(password, salt)}`;
+  const passwordHash = `${salt}:${hashPassword(plainPassword, salt)}`;
 
   const { data: hospital, error } = await supabase.from("hospitals").insert({
     name, slug, username, password_hash: passwordHash,
+    current_password: plainPassword,
     active: subscriptionStatus !== "inactive",
     subscription_status: subscriptionStatus ?? "active",
   }).select().single();
@@ -145,17 +157,21 @@ router.post("/super-admin/hospitals", requireSuperAdmin, async (req, res): Promi
   await supabase.from("hospital_modules").insert({ hospital_id: hospital.id });
 
   const prefix = name.trim().split(/\s+/)[0].toUpperCase();
+  const nursePass = "nurse1234";
+  const recepPass = "recep1234";
   const nurseSalt = crypto.randomBytes(16).toString("hex");
   const recepSalt = crypto.randomBytes(16).toString("hex");
   await supabase.from("hospital_staff_credentials").insert({
     hospital_id: hospital.id,
     nurse_username: `${prefix} NURSE`,
-    nurse_password_hash: `${nurseSalt}:${hashPassword("nurse1234", nurseSalt)}`,
+    nurse_password_hash: `${nurseSalt}:${hashPassword(nursePass, nurseSalt)}`,
+    nurse_plain_password: nursePass,
     receptionist_username: `${prefix} RECEPTIONIST`,
-    receptionist_password_hash: `${recepSalt}:${hashPassword("recep1234", recepSalt)}`,
+    receptionist_password_hash: `${recepSalt}:${hashPassword(recepPass, recepSalt)}`,
+    receptionist_plain_password: recepPass,
   });
 
-  res.status(201).json(camelize(hospital));
+  res.status(201).json({ ...camelize(hospital), currentPassword: plainPassword });
 });
 
 router.get("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -165,12 +181,24 @@ router.get("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): Pr
   const { data: hospital } = await supabase.from("hospitals").select("*").eq("id", id).single();
   if (!hospital) { res.status(404).json({ error: "Not found" }); return; }
 
-  const [{ data: settings }, { data: modules }] = await Promise.all([
+  const [{ data: settings }, { data: modules }, { data: staffCreds }] = await Promise.all([
     supabase.from("hospital_settings").select("*").eq("hospital_id", id).single(),
     supabase.from("hospital_modules").select("*").eq("hospital_id", id).single(),
+    supabase.from("hospital_staff_credentials").select("*").eq("hospital_id", id).single(),
   ]);
 
-  res.json({ ...camelize(hospital), settings: settings ? camelize(settings) : null, modules: modules ? camelize(modules) : null });
+  res.json({
+    ...camelize(hospital),
+    currentPassword: hospital.current_password ?? null,
+    settings: settings ? camelize(settings) : null,
+    modules: modules ? camelize(modules) : null,
+    staffCredentials: staffCreds ? {
+      nurseUsername: staffCreds.nurse_username,
+      nursePlainPassword: staffCreds.nurse_plain_password ?? "nurse1234",
+      receptionistUsername: staffCreds.receptionist_username,
+      receptionistPlainPassword: staffCreds.receptionist_plain_password ?? "recep1234",
+    } : null,
+  });
 });
 
 const UpdateHospitalBody = z.object({
@@ -195,12 +223,33 @@ router.patch("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): 
   if (password) {
     const salt = crypto.randomBytes(16).toString("hex");
     updates.password_hash = `${salt}:${hashPassword(password, salt)}`;
+    updates.current_password = password;
   }
 
   const { data: hospital, error } = await supabase.from("hospitals").update(updates).eq("id", id).select().single();
   if (error || !hospital) { res.status(404).json({ error: "Not found" }); return; }
 
-  res.json(camelize(hospital));
+  res.json({ ...camelize(hospital), currentPassword: hospital.current_password ?? null });
+});
+
+// ── Regenerate hospital password ───────────────────────────────────────────────
+router.post("/super-admin/hospitals/:id/regenerate-password", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const newPassword = generatePassword();
+  const salt = crypto.randomBytes(16).toString("hex");
+  const passwordHash = `${salt}:${hashPassword(newPassword, salt)}`;
+
+  const { data: hospital, error } = await supabase.from("hospitals")
+    .update({ password_hash: passwordHash, current_password: newPassword })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error || !hospital) { res.status(404).json({ error: "Not found" }); return; }
+
+  res.json({ newPassword, hospital: camelize(hospital) });
 });
 
 // ── Hospital Settings ──────────────────────────────────────────────────────────

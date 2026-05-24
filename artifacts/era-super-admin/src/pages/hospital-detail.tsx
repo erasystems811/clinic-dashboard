@@ -6,8 +6,36 @@ import {
   Building2, Save, Loader2, AlertCircle, ChevronLeft,
   Settings, Puzzle, Shield, ToggleLeft, ToggleRight, RefreshCw,
   Eye, EyeOff, KeyRound, Plus, X, Zap, CheckCircle2, XCircle,
-  Clock, RotateCcw, Mail, MessageSquare, Filter,
+  Clock, RotateCcw, Mail, MessageSquare, Filter, Copy, Check, Link, Users,
 } from "lucide-react";
+
+const ERA_PATIENT_URL = (import.meta.env.VITE_ERA_PATIENT_URL ?? "https://app.erasystem.com.ng").replace(/\/$/, "");
+
+function CopyBtn({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => { navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); }}
+      className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
+      title="Copy"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
+function CredRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-2 border-b border-border last:border-0">
+      <div className="min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="text-sm font-mono text-foreground truncate">{value}</p>
+      </div>
+      <CopyBtn text={value} />
+    </div>
+  );
+}
 
 interface Props { id: number; }
 
@@ -85,6 +113,9 @@ export default function HospitalDetail({ id }: Props) {
   const [active, setActive] = useState(true);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [showAdminPass, setShowAdminPass] = useState(false);
+  const [allCopied, setAllCopied] = useState(false);
 
   // Settings form
   const [departments, setDepartments] = useState<string[]>([]);
@@ -231,6 +262,48 @@ export default function HospitalDetail({ id }: Props) {
     }
   };
 
+  const handleRegenerate = async () => {
+    setRegenerating(true);
+    setError("");
+    try {
+      const result = await api.regeneratePassword(id);
+      setHospital(result.hospital);
+      flash("Password regenerated — share new credentials with the hospital");
+    } catch (e: unknown) {
+      setError((e instanceof Error ? e.message : null) ?? "Regeneration failed");
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const copyAllCredentials = () => {
+    if (!hospital) return;
+    const loginUrl = `${ERA_PATIENT_URL}/?h=${hospital.username}`;
+    const staffCreds = hospital.staffCredentials;
+    const msg = [
+      `🏥 Era Patient — Login Details for ${hospital.name}`,
+      ``,
+      `🔗 Admin Login Link:`,
+      `${loginUrl}`,
+      ``,
+      `🔐 Admin Password: ${hospital.currentPassword ?? "(not available)"}`,
+      ``,
+      `👩‍⚕️ Nurse`,
+      `Username: ${staffCreds?.nurseUsername ?? ""}`,
+      `Password: ${staffCreds?.nursePlainPassword ?? "nurse1234"}`,
+      ``,
+      `🗂️ Receptionist`,
+      `Username: ${staffCreds?.receptionistUsername ?? ""}`,
+      `Password: ${staffCreds?.receptionistPlainPassword ?? "recep1234"}`,
+      ``,
+      `ℹ️ Staff log in at: ${ERA_PATIENT_URL} (Staff Login tab)`,
+    ].join("\n");
+    navigator.clipboard.writeText(msg).then(() => {
+      setAllCopied(true);
+      setTimeout(() => setAllCopied(false), 2500);
+    });
+  };
+
   const retryAutomation = async (logId: number) => {
     setRetryingId(logId);
     try {
@@ -346,7 +419,92 @@ export default function HospitalDetail({ id }: Props) {
 
       {/* ── GENERAL TAB ── */}
       {tab === "general" && (
-        <div className="rounded-xl bg-card border border-border p-6 space-y-5 max-w-lg">
+        <div className="space-y-4 max-w-lg">
+        {/* Credentials Card */}
+        {hospital && (
+          <div className="rounded-xl bg-card border border-border p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-foreground">Login Credentials</h2>
+              <button
+                type="button"
+                onClick={copyAllCredentials}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition"
+              >
+                {allCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {allCopied ? "Copied!" : "Copy All"}
+              </button>
+            </div>
+
+            {/* Login URL */}
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Link className="w-3.5 h-3.5 text-primary" />
+                <span className="text-xs font-semibold text-primary uppercase tracking-wider">Admin Login Link</span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-mono text-foreground break-all">{ERA_PATIENT_URL}/?h={hospital.username}</p>
+                <CopyBtn text={`${ERA_PATIENT_URL}/?h=${hospital.username}`} />
+              </div>
+            </div>
+
+            {/* Admin creds */}
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Admin Credentials</span>
+              </div>
+              <CredRow label="Username" value={hospital.username} />
+              <div className="flex items-center justify-between gap-2 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-muted-foreground">Password</p>
+                  <p className="text-sm font-mono text-foreground">
+                    {hospital.currentPassword
+                      ? (showAdminPass ? hospital.currentPassword : "•".repeat(hospital.currentPassword.length))
+                      : <span className="text-muted-foreground italic text-xs">Not stored — use Regenerate</span>}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  {hospital.currentPassword && (
+                    <>
+                      <button type="button" onClick={() => setShowAdminPass(v => !v)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                        {showAdminPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                      <CopyBtn text={hospital.currentPassword} />
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={handleRegenerate}
+                  disabled={regenerating}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 transition"
+                >
+                  {regenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  {regenerating ? "Regenerating…" : "Regenerate Password"}
+                </button>
+              </div>
+            </div>
+
+            {/* Staff creds */}
+            {hospital.staffCredentials && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Users className="w-3.5 h-3.5 text-blue-400" />
+                  <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Staff Credentials</span>
+                </div>
+                <CredRow label="Nurse Username" value={hospital.staffCredentials.nurseUsername} />
+                <CredRow label="Nurse Password" value={hospital.staffCredentials.nursePlainPassword} />
+                <CredRow label="Receptionist Username" value={hospital.staffCredentials.receptionistUsername} />
+                <CredRow label="Receptionist Password" value={hospital.staffCredentials.receptionistPlainPassword} />
+                <p className="text-xs text-muted-foreground mt-2">Staff log in at {ERA_PATIENT_URL} using the Staff Login tab</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="rounded-xl bg-card border border-border p-6 space-y-5">
           <h2 className="font-semibold text-foreground">Account Details</h2>
 
           <Field label="Hospital Name">
@@ -396,6 +554,7 @@ export default function HospitalDetail({ id }: Props) {
               {saving ? "Saving…" : "Save Changes"}
             </button>
           </div>
+        </div>
         </div>
       )}
 

@@ -42,6 +42,13 @@ export function put<T>(path: string, body: unknown) {
 }
 
 // ── Domain types ──────────────────────────────────────────────────────────────
+export interface StaffCredentials {
+  nurseUsername: string;
+  nursePlainPassword: string;
+  receptionistUsername: string;
+  receptionistPlainPassword: string;
+}
+
 export interface Hospital {
   id: number;
   name: string;
@@ -52,8 +59,10 @@ export interface Hospital {
   logoUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
+  currentPassword: string | null;
   settings: HospitalSettings | null;
   modules: HospitalModules | null;
+  staffCredentials: StaffCredentials | null;
 }
 
 export interface HospitalSettings {
@@ -112,11 +121,14 @@ export const api = {
   getHospital: (id: number) =>
     get<Hospital>(`/super-admin/hospitals/${id}`),
 
-  createHospital: (data: { name: string; username: string; password: string; subscriptionStatus?: string }) =>
+  createHospital: (data: { name: string; username: string; subscriptionStatus?: string }) =>
     post<Hospital>("/super-admin/hospitals", data),
 
   updateHospital: (id: number, data: Partial<{ name: string; active: boolean; subscriptionStatus: string; password: string }>) =>
     patch<Hospital>(`/super-admin/hospitals/${id}`, data),
+
+  regeneratePassword: (id: number) =>
+    post<{ newPassword: string; hospital: Hospital }>(`/super-admin/hospitals/${id}/regenerate-password`, {}),
 
   getSettings: (id: number) =>
     get<HospitalSettings>(`/super-admin/hospitals/${id}/settings`),

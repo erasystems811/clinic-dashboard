@@ -400,22 +400,8 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   }));
   await supabase.from("activity").insert(reminders);
 
-  // ── Automation: send care summary WhatsApp (Claude) ──
-  const hospitalIntId = await resolveHospitalIntId(patient!.hospital_id as string);
-  if (hospitalIntId) {
-    const phone = (patient!.whatsapp_number as string) || (patient!.phone as string);
-    if (phone) {
-      sendCareSummary(
-        hospitalIntId,
-        id,
-        patientName,
-        phone,
-        parsed.data.treatmentPlan,
-        parsed.data.treatmentType,
-        parsed.data.treatmentDurationDays,
-      ).catch(() => {});
-    }
-  }
+  // Care summary WhatsApp notification intentionally removed —
+  // patients are not notified about their care plan via WhatsApp.
 
   res.json(camelize(patient!));
 });

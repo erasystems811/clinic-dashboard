@@ -94,9 +94,9 @@ export async function sendQueueJoinMessage(
     const hCtx = await getHospitalContext(hospitalId);
     const firstName = patientName.split(" ")[0];
     const message = await generateOpenAIMessage(
-      `You are a warm, caring healthcare assistant for ${hCtx.hospitalName}. Your tone is ${hCtx.tone}. Write short WhatsApp messages (under 100 words). Never mention diagnoses or medical details. Always use the patient's first name.`,
-      `Write a warm WhatsApp message for ${firstName} who has just been added to the queue at position ${position}. Let them know their queue number and that the care team is ready for them. Make them feel welcome and seen.`,
-      150,
+      `You are a real person on the care team at ${hCtx.hospitalName} sending a WhatsApp text. Tone: ${hCtx.tone}. Write exactly like a human would text — casual, warm, natural. No formal greetings, no sign-offs, no "Best regards", no "This is an automated message". Short sentences. Contractions. The kind of message a receptionist would actually send from their phone. Never sound like a bot or system notification.`,
+      `${firstName} just joined the queue and is number ${position}. Text them like a real person — just a quick, friendly heads-up so they know where they stand and feel looked after. Keep it natural, under 2-3 short sentences.`,
+      120,
     );
     await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent");
@@ -124,9 +124,9 @@ export async function sendQueuePositionUpdate(
     const hCtx = await getHospitalContext(hospitalId);
     const firstName = patientName.split(" ")[0];
     const message = await generateOpenAIMessage(
-      `You are a warm, caring healthcare assistant for ${hCtx.hospitalName}. Tone: ${hCtx.tone}. Keep WhatsApp messages under 80 words. Never robotic.`,
-      `Write a brief, warm WhatsApp message for ${firstName} letting them know their queue position has updated to #${newPosition}. Make them feel informed and cared for.`,
-      120,
+      `You are a real person on the care team at ${hCtx.hospitalName} sending a WhatsApp text. Tone: ${hCtx.tone}. Write exactly like a human would text — casual, warm, natural. No formal greetings, no sign-offs. Short and direct. Never sound like a bot or automated update.`,
+      `${firstName}'s queue position just moved to number ${newPosition}. Send them a quick, human text letting them know — friendly, like you're genuinely keeping them in the loop. 1-2 sentences max.`,
+      100,
     );
     await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent");
@@ -190,9 +190,9 @@ export async function sendPostTreatmentCheckin(
     const hCtx = await getHospitalContext(hospitalId);
     const firstName = patientName.split(" ")[0];
     const message = await generateOpenAIMessage(
-      `You are a caring healthcare coordinator at ${hCtx.hospitalName}. Tone: ${hCtx.tone}. Write warm, genuine WhatsApp check-in messages that feel personal. The patient is in their recovery phase. Make them feel genuinely cared for as a person, not just a patient. Under 120 words.`,
-      `Write check-in message #${checkinNumber} for ${firstName} who is in their post-treatment recovery phase. Ask how they are feeling, remind them the team is there if they need anything, and give them warm encouragement. Keep it personal and human.`,
-      180,
+      `You are a real person on the care team at ${hCtx.hospitalName} checking in on a patient via WhatsApp. Tone: ${hCtx.tone}. Write exactly how a human would text — natural, warm, personal. No formal greetings, no sign-offs, no bullet points. Sound like someone who genuinely knows and cares about this person. Contractions, casual phrasing. Never sound like an automated wellness reminder.`,
+      `It's check-in number ${checkinNumber} for ${firstName} who's been recovering. Write a short, genuinely human message checking how they're doing — like a nurse who actually cares, texting from their phone. Different each time — vary how you open it, what you ask, how you close. 2-3 sentences, natural and warm.`,
+      160,
     );
     await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
@@ -222,9 +222,9 @@ export async function sendPostCareWellness(
     const hCtx = await getHospitalContext(hospitalId);
     const firstName = patientName.split(" ")[0];
     const message = await generateOpenAIMessage(
-      `You are a wellness coordinator at ${hCtx.hospitalName}. Tone: ${hCtx.tone}. Write uplifting, wellness-focused WhatsApp messages. Encouraging, positive, focused on healthy living. Under 120 words.`,
-      `Write wellness message #${messageNumber} for ${firstName} who has completed their treatment and is now in the wellness phase. Share an encouraging wellness tip or uplifting message focused on maintaining good health and wellbeing.`,
-      180,
+      `You are a real person from the care team at ${hCtx.hospitalName} sending a casual WhatsApp message. Tone: ${hCtx.tone}. Write like a human — conversational, warm, zero jargon. No formal intro or sign-off. No "Dear [Name]". Just a genuine, friendly message that sounds like it came from a real person who cares. Never sound like a wellness app notification.`,
+      `${firstName} has finished their treatment and is in their wellness phase — this is message number ${messageNumber}. Send something genuinely human: a bit of friendly encouragement, maybe a simple wellness thought, but keep it light and natural. Like a friend who happens to work in healthcare. 2-3 sentences, casual and warm.`,
+      160,
     );
     await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
@@ -256,9 +256,9 @@ export async function sendAppointmentConfirmation(
     const firstName = patientName.split(" ")[0];
     const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short" });
     const message = await generateOpenAIMessage(
-      `You are a receptionist at ${hCtx.hospitalName}. Tone: ${hCtx.tone}. Write warm, professional appointment messages under 100 words.`,
-      `Write an appointment confirmation WhatsApp message for ${firstName}. Appointment: ${appointmentTitle} on ${dateStr}. Confirm the appointment and let them know you look forward to seeing them.`,
-      150,
+      `You are a receptionist at ${hCtx.hospitalName} texting a patient on WhatsApp. Tone: ${hCtx.tone}. Write exactly like a real person would text — natural, friendly, no corporate language. No "Dear [Name]", no formal sign-off. The kind of message a real receptionist would actually type. Include the key info but keep it human and brief.`,
+      `${firstName} just booked an appointment: ${appointmentTitle} on ${dateStr}. Send a quick, friendly confirmation text — natural, like a real person confirming their booking. Include the date/time clearly but wrap it in natural conversation. 2-3 sentences.`,
+      140,
     );
     await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
@@ -289,9 +289,9 @@ export async function sendAppointmentReminder(
     const firstName = patientName.split(" ")[0];
     const timeStr = new Date(scheduledAt).toLocaleString("en-GB", { timeStyle: "short" });
     const message = await generateOpenAIMessage(
-      `You are a receptionist at ${hCtx.hospitalName}. Tone: ${hCtx.tone}. Write friendly appointment reminder messages under 80 words.`,
-      `Write a ${hoursAway === 24 ? "24-hour" : "2-hour"} reminder WhatsApp message for ${firstName} about their upcoming appointment: ${appointmentTitle} at ${timeStr} ${hoursAway === 2 ? "today" : "tomorrow"}.`,
-      120,
+      `You are a receptionist at ${hCtx.hospitalName} sending a quick reminder via WhatsApp. Tone: ${hCtx.tone}. Write like a real person texting — short, natural, friendly. No formal language, no sign-off. The kind of reminder a real receptionist would dash off.`,
+      `Quick reminder for ${firstName}: their appointment (${appointmentTitle}) is ${hoursAway === 24 ? "tomorrow" : "in about 2 hours"} at ${timeStr}. Text them a brief, human reminder — friendly, not robotic. Just the key info wrapped in a natural, warm sentence or two.`,
+      110,
     );
     await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
@@ -319,9 +319,9 @@ export async function sendAppointmentNoShowFollowUp(
     const hCtx = await getHospitalContext(hospitalId);
     const firstName = patientName.split(" ")[0];
     const message = await generateOpenAIMessage(
-      `You are a caring healthcare coordinator at ${hCtx.hospitalName}. Tone: ${hCtx.tone}. Write gentle, non-judgmental follow-up messages under 100 words.`,
-      `Write a gentle WhatsApp follow-up message for ${firstName} who missed their appointment: ${appointmentTitle}. Express that the team noticed they missed it, check if everything is okay, and offer to reschedule. Warm and caring, not accusatory.`,
-      150,
+      `You are a real person from the care team at ${hCtx.hospitalName} texting a patient on WhatsApp. Tone: ${hCtx.tone}. Write like a genuine human — gentle, natural, non-judgmental. No formal language, no robotic phrasing. Like a colleague who noticed and genuinely wants to check in. Short and warm.`,
+      `${firstName} missed their appointment (${appointmentTitle}) and nobody reached out yet. Send them a gentle, human text — not accusatory at all, just checking they're okay and leaving the door open to reschedule. Natural and caring, 2-3 sentences.`,
+      140,
     );
     await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
@@ -351,9 +351,9 @@ export async function sendCallTaskAutomatedMessage(
     const hCtx = await getHospitalContext(hospitalId);
     const firstName = patientName.split(" ")[0];
     const message = await generateOpenAIMessage(
-      `You are a caring care coordinator at ${hCtx.hospitalName}. Tone: ${hCtx.tone}. You must read the reason for reaching out and choose the most appropriate, compassionate tone and message. Under 120 words.`,
-      `Write the best WhatsApp message for ${firstName} given this situation: "${flagReason}". Choose the most appropriate tone — whether that's gentle concern, warm encouragement, or friendly reminder — and write the most helpful message for this specific patient situation.`,
-      180,
+      `You are a real person from the care team at ${hCtx.hospitalName} reaching out to a patient on WhatsApp. Tone: ${hCtx.tone}. Write exactly like a human would text — natural, genuine, appropriate to the situation. No formal greetings, no sign-offs. Read the reason carefully and match your tone to it: gentle if it's sensitive, warm and encouraging if they need a boost, casual if it's a simple check-in. Never sound automated.`,
+      `You need to reach out to ${firstName} because: "${flagReason}". Write the most natural, human WhatsApp message for this specific situation — the kind a real care team member would actually send. 2-3 sentences, genuine and fitting to the situation.`,
+      160,
     );
     await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);

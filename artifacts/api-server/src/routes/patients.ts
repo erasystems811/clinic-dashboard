@@ -405,25 +405,15 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   if (hospitalIntId) {
     const phone = (patient!.whatsapp_number as string) || (patient!.phone as string);
     if (phone) {
-      // Guard: only send if no care_summary has ever been sent to this patient
-      const { data: alreadySent } = await supabase
-        .from("automation_log")
-        .select("id")
-        .eq("patient_id", id)
-        .eq("automation_type", "care_summary")
-        .eq("status", "sent")
-        .maybeSingle();
-
-      if (!alreadySent) {
-        sendCareSummary(
-          hospitalIntId,
-          id,
-          patientName,
-          phone,
-          parsed.data.treatmentType,
-          parsed.data.treatmentDurationDays,
-        ).catch(() => {});
-      }
+      // Always send when nurse saves/edits the plan — patient needs to know the latest plan
+      sendCareSummary(
+        hospitalIntId,
+        id,
+        patientName,
+        phone,
+        parsed.data.treatmentType,
+        parsed.data.treatmentDurationDays,
+      ).catch(() => {});
     }
   }
 

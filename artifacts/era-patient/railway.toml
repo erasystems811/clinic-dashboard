@@ -1,8 +1,8 @@
 [build]
-buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/era-patient run build"
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @workspace/era-patient run build"
 
 [deploy]
-startCommand = "node server.cjs"
+startCommand = "pnpm --filter @workspace/era-patient run start"
 healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

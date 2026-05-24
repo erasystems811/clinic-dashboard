@@ -425,8 +425,11 @@ export async function generateWellnessNewsletter(
 
 Broad category: ${topic}
 
-The newsletter must include all of these sections:
-- A warm, engaging opening addressed to "Dear Friends" (1-2 sentences referencing the specific subtopic)
+The newsletter content field must begin with exactly this greeting on its own line:
+Dear Friends,
+
+Then continue with the following sections:
+- A warm, engaging 1-2 sentence opening referencing the specific subtopic (immediately after the greeting)
 - What is it? (2-3 sentences explaining simply)
 - Why it matters (2-3 sentences)
 - Common causes or triggers (3-4 bullet points)
@@ -454,7 +457,11 @@ Respond with this exact JSON structure (no extra keys, no markdown wrapping):
       .trim();
     const parsed = JSON.parse(cleaned) as { subtopic: string; content: string };
     if (typeof parsed.subtopic === "string" && typeof parsed.content === "string") {
-      return parsed;
+      // Guarantee the newsletter always starts with "Dear Friends,"
+      const content = parsed.content.trimStart();
+      const greeting = "Dear Friends,";
+      const finalContent = content.startsWith(greeting) ? content : `${greeting}\n\n${content}`;
+      return { subtopic: parsed.subtopic, content: finalContent };
     }
   } catch {
     // Fall back gracefully if Claude returns non-JSON

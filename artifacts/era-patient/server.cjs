@@ -5,6 +5,19 @@ const path = require('path');
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const ROOT = path.resolve(__dirname, 'dist', 'public');
 
+console.log('__dirname:', __dirname);
+console.log('ROOT:', ROOT);
+console.log('ROOT exists:', fs.existsSync(ROOT));
+if (fs.existsSync(ROOT)) {
+  console.log('ROOT contents:', fs.readdirSync(ROOT));
+} else {
+  var parent = path.dirname(ROOT);
+  console.log('parent dir exists:', fs.existsSync(parent));
+  if (fs.existsSync(parent)) {
+    console.log('parent contents:', fs.readdirSync(parent));
+  }
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -26,8 +39,12 @@ const MIME = {
 function sendFile(filePath, res) {
   fs.readFile(filePath, function (err, data) {
     if (err) {
+      console.log('sendFile failed for:', filePath, err.message);
       fs.readFile(path.join(ROOT, 'index.html'), function (err2, html) {
-        if (err2) { res.writeHead(500); res.end('Error'); return; }
+        if (err2) {
+          console.log('index.html fallback failed:', err2.message);
+          res.writeHead(500); res.end('Error'); return;
+        }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(html);
       });

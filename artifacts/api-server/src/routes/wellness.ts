@@ -16,7 +16,8 @@ const UpsertNewsletterBody = z.object({
 });
 
 const GenerateNewsletterBody = z.object({
-  topic: z.string().min(1),
+  topic:    z.string().min(1),
+  subtopic: z.string().optional(),
 });
 
 function weekOfDate(date: Date) {
@@ -235,8 +236,10 @@ router.post("/wellness/generate", async (req, res): Promise<void> => {
     topic = await pickNextTopic(hospitalId, departments);
   }
 
+  const fixedSubtopic = parsed.success ? parsed.data.subtopic : undefined;
+
   try {
-    const { subtopic, angle, content } = await generateWellnessNewsletter(hospitalId, topic, departments);
+    const { subtopic, angle, content } = await generateWellnessNewsletter(hospitalId, topic, departments, fixedSubtopic);
     await markTopicUsed(hospitalId, topic);
     res.json({ topic, subtopic, angle, content });
   } catch (err) {

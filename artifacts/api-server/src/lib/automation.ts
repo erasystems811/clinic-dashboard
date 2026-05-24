@@ -422,13 +422,45 @@ export async function generateWellnessNewsletter(
   hospitalId: number,
   topic: string,
   departments: string[],
+  fixedSubtopic?: string,
 ): Promise<{ subtopic: string; angle: string; content: string }> {
   const hCtx = await getHospitalContext(hospitalId);
   const deptList = departments.length > 0 ? departments.join(", ") : "General Practice";
 
-  const raw = await generateClaudeMessage(
-    `You are a wellness content writer for ${hCtx.hospitalName}. Write in a ${hCtx.tone} tone. You write detailed, helpful wellness newsletters that educate the community. Never mention diagnoses or specific patient cases. Write at a general public level. Always address recipients as "friends" — never use the word "patients". Always respond with valid JSON only — no markdown, no code fences, no extra text.`,
-    `You are given a broad wellness category. Your job is to choose TWO levels of focus, then write a newsletter about the specific combination:
+  // When a subtopic is fixed, skip subtopic selection and only vary the angle
+  const userPrompt = fixedSubtopic
+    ? `You are given a specific wellness subtopic. Your job is to choose a fresh, surprising angle on it — one that is DIFFERENT from anything obvious — then write the newsletter.
+
+Broad category: ${topic}
+Subtopic (fixed — do not change): ${fixedSubtopic}
+
+Choose a NEW angle: a specific, surprising, or overlooked perspective on "${fixedSubtopic}" — something most people don't think about. The angle must be genuinely different from the obvious take on this subtopic.
+
+Write a detailed weekly wellness newsletter for the community of ${hCtx.hospitalName} (departments: ${deptList}) focused on this new angle.
+
+The newsletter content field must begin with exactly this greeting on its own line:
+Dear Friends,
+
+Then continue with the following sections:
+- A warm, engaging 1-2 sentence opening referencing the specific angle (immediately after the greeting)
+- What is it? (2-3 sentences explaining simply)
+- Why it matters (2-3 sentences)
+- Common causes or triggers (3-4 bullet points)
+- Benefits of good practice (3-4 bullet points)
+- What to avoid (3-4 bullet points)
+- One Simple Action Step for this week (1 concrete, easy thing they can do)
+- A warm closing sign-off from ${hCtx.hospitalName} — e.g. "With care, The ${hCtx.hospitalName} Wellness Team"
+
+IMPORTANT: Never use the word "patients" anywhere in the newsletter. Use "friends", "you", or "our community" instead.
+Write in plain language, warm and encouraging. No markdown symbols in the content.
+
+Respond with this exact JSON structure (no extra keys, no markdown wrapping):
+{
+  "subtopic": "${fixedSubtopic}",
+  "angle": "the new angle you chose (max 12 words)",
+  "content": "the full newsletter text"
+}`
+    : `You are given a broad wellness category. Your job is to choose TWO levels of focus, then write a newsletter about the specific combination:
 
 LEVEL 1 — Subtopic: A specific area or branch within the broad category (e.g. if category is "Sleep Hygiene", a subtopic could be "Sleep Cycles" or "Pre-Sleep Nutrition" or "Napping Science").
 LEVEL 2 — Angle: A specific, surprising, or overlooked perspective on that subtopic — something most people don't think about (e.g. subtopic "Sleep Cycles" → angle "Why timing your wake-up to the end of a 90-minute cycle prevents morning grogginess").
@@ -458,7 +490,11 @@ Respond with this exact JSON structure (no extra keys, no markdown wrapping):
   "subtopic": "the subtopic you chose within the broad category (2-5 words)",
   "angle": "the specific angle or perspective on that subtopic (max 12 words)",
   "content": "the full newsletter text"
-}`,
+}`;
+
+  const raw = await generateClaudeMessage(
+    `You are a wellness content writer for ${hCtx.hospitalName}. Write in a ${hCtx.tone} tone. You write detailed, helpful wellness newsletters that educate the community. Never mention diagnoses or specific patient cases. Write at a general public level. Always address recipients as "friends" — never use the word "patients". Always respond with valid JSON only — no markdown, no code fences, no extra text.`,
+    userPrompt,
     1800,
   );
 

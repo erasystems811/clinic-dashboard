@@ -50,9 +50,10 @@ export async function updateAutomationLog(
 }
 
 async function getHospitalContext(hospitalId: number) {
-  const [{ data: hospital }, { data: settings }] = await Promise.all([
+  const [{ data: hospital }, { data: settings }, { data: modules }] = await Promise.all([
     supabase.from("hospitals").select("id, name, username").eq("id", hospitalId).single(),
     supabase.from("hospital_settings").select("tone, sending_email, departments, language").eq("hospital_id", hospitalId).single(),
+    supabase.from("hospital_modules").select("messages_enabled").eq("hospital_id", hospitalId).maybeSingle(),
   ]);
   const tones: string[] = settings?.tone ? JSON.parse(settings.tone) : [];
   const departments: string[] = settings?.departments ? JSON.parse(settings.departments) : [];
@@ -63,7 +64,15 @@ async function getHospitalContext(hospitalId: number) {
     tone: buildToneDescription(tones),
     departments,
     language: settings?.language ?? "English",
+    messagesEnabled: (modules?.messages_enabled as boolean) ?? false,
   };
+}
+
+// Appends a no-reply notice when the Messages inbox module is disabled,
+// so patients know their reply won't be seen.
+function withNoReply(body: string, messagesEnabled: boolean): string {
+  if (messagesEnabled) return body;
+  return `${body}\n\n_(This is a one-way notification — replies are not monitored.)_`;
 }
 
 // ── Queue WhatsApp ─────────────────────────────────────────────────────────────
@@ -89,7 +98,7 @@ export async function sendQueueJoinMessage(
       `Write a warm WhatsApp message for ${firstName} who has just been added to the queue at position ${position}. Let them know their queue number and that the care team is ready for them. Make them feel welcome and seen.`,
       150,
     );
-    await deliverWhatsApp({ to: phone, body: message });
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -119,7 +128,7 @@ export async function sendQueuePositionUpdate(
       `Write a brief, warm WhatsApp message for ${firstName} letting them know their queue position has updated to #${newPosition}. Make them feel informed and cared for.`,
       120,
     );
-    await deliverWhatsApp({ to: phone, body: message });
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -153,7 +162,7 @@ export async function sendCareSummary(
       `Write a warm care summary WhatsApp message for ${firstName} who has just had a treatment plan set up. The care involves: ${treatmentType} over ${durationDays} days. Explain what their care process will be like in simple, reassuring language. Let them know the team is with them throughout. Do NOT mention any diagnosis or medical condition.`,
       300,
     );
-    await deliverWhatsApp({ to: phone, body: message });
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -185,7 +194,7 @@ export async function sendPostTreatmentCheckin(
       `Write check-in message #${checkinNumber} for ${firstName} who is in their post-treatment recovery phase. Ask how they are feeling, remind them the team is there if they need anything, and give them warm encouragement. Keep it personal and human.`,
       180,
     );
-    await deliverWhatsApp({ to: phone, body: message });
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -217,7 +226,7 @@ export async function sendPostCareWellness(
       `Write wellness message #${messageNumber} for ${firstName} who has completed their treatment and is now in the wellness phase. Share an encouraging wellness tip or uplifting message focused on maintaining good health and wellbeing.`,
       180,
     );
-    await deliverWhatsApp({ to: phone, body: message });
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -251,7 +260,7 @@ export async function sendAppointmentConfirmation(
       `Write an appointment confirmation WhatsApp message for ${firstName}. Appointment: ${appointmentTitle} on ${dateStr}. Confirm the appointment and let them know you look forward to seeing them.`,
       150,
     );
-    await deliverWhatsApp({ to: phone, body: message });
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -284,7 +293,7 @@ export async function sendAppointmentReminder(
       `Write a ${hoursAway === 24 ? "24-hour" : "2-hour"} reminder WhatsApp message for ${firstName} about their upcoming appointment: ${appointmentTitle} at ${timeStr} ${hoursAway === 2 ? "today" : "tomorrow"}.`,
       120,
     );
-    await deliverWhatsApp({ to: phone, body: message });
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -314,7 +323,7 @@ export async function sendAppointmentNoShowFollowUp(
       `Write a gentle WhatsApp follow-up message for ${firstName} who missed their appointment: ${appointmentTitle}. Express that the team noticed they missed it, check if everything is okay, and offer to reschedule. Warm and caring, not accusatory.`,
       150,
     );
-    await deliverWhatsApp({ to: phone, body: message });
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -346,7 +355,7 @@ export async function sendCallTaskAutomatedMessage(
       `Write the best WhatsApp message for ${firstName} given this situation: "${flagReason}". Choose the most appropriate tone — whether that's gentle concern, warm encouragement, or friendly reminder — and write the most helpful message for this specific patient situation.`,
       180,
     );
-    await deliverWhatsApp({ to: phone, body: message });
+    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
     await updateAutomationLog(logId, "sent", message);
     return message;
   } catch (err) {

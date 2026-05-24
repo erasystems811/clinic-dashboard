@@ -9,4 +9,4 @@ cmds = [
 ]
 
 [start]
-cmd = "node artifacts/era-patient/server.cjs"
+cmd = "sh start.sh"

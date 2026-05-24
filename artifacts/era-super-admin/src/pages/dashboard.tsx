@@ -79,7 +79,7 @@ export default function Dashboard() {
     total: hospitals.length,
     active: hospitals.filter(h => h.active && h.subscriptionStatus === "active").length,
     trial: hospitals.filter(h => h.subscriptionStatus === "trial").length,
-    suspended: hospitals.filter(h => !h.active).length,
+    suspended: hospitals.filter(h => !h.active || h.subscriptionStatus === "inactive").length,
     expiringSoon: hospitals.filter(h => {
       if (!h.active || !h.subscriptionExpiresAt) return false;
       const exp = new Date(h.subscriptionExpiresAt).getTime();

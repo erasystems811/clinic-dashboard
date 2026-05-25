@@ -19,20 +19,43 @@ async function ensureStagesExist() {
   }
 }
 
+// ── Date bounds in Africa/Lagos (WAT = UTC+1) ─────────────────────────────────
+function getLagosBounds() {
+  const utcNow = new Date();
+  const LAGOS_OFFSET_MS = 60 * 60 * 1000; // UTC+1
+
+  // Shift to Lagos "wall clock" in UTC fields
+  const lagos = new Date(utcNow.getTime() + LAGOS_OFFSET_MS);
+  const y = lagos.getUTCFullYear();
+  const mo = lagos.getUTCMonth();
+  const d = lagos.getUTCDate();
+  const dow = lagos.getUTCDay(); // 0=Sun … 6=Sat
+
+  // Convert Lagos midnight back to UTC by subtracting the offset
+  const startOfDay  = new Date(Date.UTC(y, mo, d)     - LAGOS_OFFSET_MS);
+  const endOfDay    = new Date(Date.UTC(y, mo, d + 1) - LAGOS_OFFSET_MS);
+  const startOfMonth = new Date(Date.UTC(y, mo, 1)    - LAGOS_OFFSET_MS);
+
+  // Week starts Monday (ISO) — Sun(0) is 6 days after Monday
+  const daysToMonday = dow === 0 ? 6 : dow - 1;
+  const startOfWeek = new Date(Date.UTC(y, mo, d - daysToMonday)     - LAGOS_OFFSET_MS);
+  const endOfWeek   = new Date(Date.UTC(y, mo, d - daysToMonday + 7) - LAGOS_OFFSET_MS);
+
+  return { utcNow, startOfDay, endOfDay, startOfMonth, startOfWeek, endOfWeek };
+}
+
+// Statuses that should not count toward active appointment metrics
+const EXCLUDED_STATUSES = new Set(["cancelled", "no_show", "dismissed"]);
+
 router.get("/dashboard/summary", async (req, res): Promise<void> => {
   await ensureStagesExist();
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-  const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
-  const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
-  const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + 7).toISOString();
+  const { utcNow, startOfDay, endOfDay, startOfMonth, startOfWeek, endOfWeek } = getLagosBounds();
 
   const [
     { count: totalPatients },
     { count: newThisMonth },
-    { data: allAppointments },
+    { data: weekAppointments },
     { data: stages },
     { data: allPatientStages },
     { data: allFeedback },
@@ -40,8 +63,11 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     { data: queuedPatients },
   ] = await Promise.all([
     supabase.from("patients").select("*", { count: "exact", head: true }),
-    supabase.from("patients").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth),
-    supabase.from("appointments").select("scheduled_at, status"),
+    supabase.from("patients").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth.toISOString()),
+    // Only fetch appointments within the current week window — not all-time
+    supabase.from("appointments").select("scheduled_at, status")
+      .gte("scheduled_at", startOfWeek.toISOString())
+      .lt("scheduled_at", endOfWeek.toISOString()),
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
     supabase.from("patients").select("stage"),
     supabase.from("feedback").select("rating"),
@@ -49,11 +75,14 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     supabase.from("patients").select("checked_in_at").eq("stage", "Queued").not("checked_in_at", "is", null),
   ]);
 
-  const appointmentsToday = (allAppointments ?? []).filter(
-    a => a.scheduled_at >= startOfDay && a.scheduled_at < endOfDay && a.status !== "cancelled"
+  const startOfDayISO = startOfDay.toISOString();
+  const endOfDayISO   = endOfDay.toISOString();
+
+  const appointmentsToday = (weekAppointments ?? []).filter(
+    a => a.scheduled_at >= startOfDayISO && a.scheduled_at < endOfDayISO && !EXCLUDED_STATUSES.has(a.status)
   ).length;
-  const appointmentsThisWeek = (allAppointments ?? []).filter(
-    a => a.scheduled_at >= startOfWeek && a.scheduled_at < endOfWeek && a.status !== "cancelled"
+  const appointmentsThisWeek = (weekAppointments ?? []).filter(
+    a => !EXCLUDED_STATUSES.has(a.status)
   ).length;
 
   const countMap: Record<string, number> = {};
@@ -81,7 +110,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     const totalMins = (queuedPatients ?? []).reduce((sum, p) => {
       const checkedInAt = p.checked_in_at ? new Date(p.checked_in_at) : null;
       if (!checkedInAt) return sum;
-      return sum + (now.getTime() - checkedInAt.getTime()) / 60000;
+      return sum + (utcNow.getTime() - checkedInAt.getTime()) / 60000;
     }, 0);
     avgWaitMinutes = Math.round(totalMins / queuedPatients!.length);
   }

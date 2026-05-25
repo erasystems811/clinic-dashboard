@@ -3,8 +3,8 @@ import { supabase } from "../lib/supabase.js";
 import { camelize, snakify } from "../lib/camel.js";
 import { z } from "zod/v4";
 import {
-  sendAppointmentConfirmation,
-  sendAppointmentNoShowFollowUp,
+  sendAppointmentConfirmationEmail as sendAppointmentConfirmation,
+  sendAppointmentNoShowEmail as sendAppointmentNoShowFollowUp,
 } from "../lib/automation.js";
 import { getHospitalFromRequest, getPatientIdsForHospital } from "../lib/hospital-auth.js";
 

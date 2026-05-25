@@ -132,15 +132,35 @@ router.post("/patients", async (req, res): Promise<void> => {
   }
 
   const p = camelize<Record<string, unknown>>(patient);
+  const patientName = `${p.firstName} ${p.lastName}`;
+
+  // Stamp checked_in_at and add to the live queue immediately on registration
+  const nowIso = new Date().toISOString();
+  await supabase.from("patients").update({ checked_in_at: nowIso }).eq("id", patient.id);
+
+  const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true });
+  const position = (currentCount ?? 0) + 1;
+
+  await supabase.from("queue").insert({
+    patient_id: patient.id,
+    patient_name: patientName,
+    phone: patient.phone,
+    email: patient.email,
+    whatsapp_number: patient.whatsapp_number,
+    hospital_id: patient.hospital_id,
+    stage: "New",
+    position,
+  });
+
   await supabase.from("activity").insert({
     type: "patient_created",
-    description: `New patient registered: ${p.firstName} ${p.lastName}`,
+    description: `New patient registered: ${patientName} — added to queue at position ${position}`,
     patient_id: patient.id,
-    patient_name: `${p.firstName} ${p.lastName}`,
+    patient_name: patientName,
     hospital_id: hospital.intId,
   });
 
-  res.status(201).json(p);
+  res.status(201).json({ ...p, checkedInAt: nowIso });
 });
 
 router.get("/patients/:id", async (req, res): Promise<void> => {

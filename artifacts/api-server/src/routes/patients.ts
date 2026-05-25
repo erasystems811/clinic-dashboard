@@ -199,15 +199,22 @@ router.delete("/patients/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { data, error } = await supabase.from("patients").delete().eq("id", id).select().single();
-  if (error || !data) { res.status(404).json({ error: "Patient not found" }); return; }
+  // Fetch first so we have the name for the log
+  const { data: existing, error: fetchErr } = await supabase.from("patients").select("*").eq("id", id).single();
+  if (fetchErr || !existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  const patient = camelize<Record<string, unknown>>(data);
-  await supabase.from("activity").insert({
-    type: "patient_deleted",
-    description: `Patient record removed: ${patient.firstName} ${patient.lastName}`,
-    patient_name: `${patient.firstName} ${patient.lastName}`,
-  });
+  const patientName = `${existing.first_name} ${existing.last_name}`;
+
+  // Remove all child records that reference this patient before deleting the patient row
+  await Promise.all([
+    supabase.from("activity").delete().eq("patient_id", id),
+    supabase.from("appointments").delete().eq("patient_id", id),
+    supabase.from("call_tasks").delete().eq("patient_id", id),
+    supabase.from("queue").delete().eq("patient_id", id),
+  ]);
+
+  const { error: deleteErr } = await supabase.from("patients").delete().eq("id", id);
+  if (deleteErr) { res.status(500).json({ error: deleteErr.message }); return; }
 
   res.sendStatus(204);
 });

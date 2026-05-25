@@ -127,6 +127,7 @@ export default function HospitalDetail({ id }: Props) {
   const [sendingEmail, setSendingEmail] = useState("");
   const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [termiiSenderId, setTermiiSenderId] = useState("");
 
   // Modules form
   const [apptEnabled, setApptEnabled] = useState(true);
@@ -158,6 +159,7 @@ export default function HospitalDetail({ id }: Props) {
       setSendingEmail(s.sendingEmail ?? "");
       setNotificationChannel((s.notificationChannel as "whatsapp" | "sms") ?? "whatsapp");
       setPhoneNumber(s.phoneNumber ?? "");
+      setTermiiSenderId(s.termiiSenderId ?? "");
       setApptEnabled(m.appointmentsEnabled);
       setFeedbackEnabled(m.feedbackEnabled);
       setWellnessEnabled(m.wellnessNewsletterEnabled ?? true);
@@ -226,6 +228,7 @@ export default function HospitalDetail({ id }: Props) {
         sendingEmail: sendingEmail || null,
         notificationChannel,
         phoneNumber: phoneNumber || null,
+        termiiSenderId: termiiSenderId || null,
       } as Partial<HospitalSettings>);
       flash("Settings saved");
       load();
@@ -659,6 +662,13 @@ export default function HospitalDetail({ id }: Props) {
                   className={inputCls() + " pl-9"}
                 />
               </div>
+            </Field>
+            <Field label="Termii Sender ID" hint="Registered sender name or number in your Termii account — patients see this as the sender (e.g. CityClinic)">
+              <input
+                type="text" value={termiiSenderId} onChange={e => setTermiiSenderId(e.target.value)}
+                placeholder="e.g. CityClinic"
+                className={inputCls()}
+              />
             </Field>
           </div>
 

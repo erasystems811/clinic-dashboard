@@ -55,13 +55,14 @@ interface HospitalContext {
   sendingEmail: string;
   notificationChannel: "whatsapp" | "sms";
   phoneNumber: string | null;
+  termiiSenderId: string | null;
 }
 
 async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
   const [{ data: hospital }, { data: settings }] = await Promise.all([
     supabase.from("hospitals").select("id, name, username").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
-      .select("sending_email, notification_channel, phone_number, tone")
+      .select("sending_email, notification_channel, phone_number, tone, termii_sender_id")
       .eq("hospital_id", hospitalId).single(),
   ]);
   return {
@@ -70,6 +71,7 @@ async function getHospitalContext(hospitalId: number): Promise<HospitalContext> 
     sendingEmail: settings?.sending_email ?? "onboarding@resend.dev",
     notificationChannel: (settings?.notification_channel as "whatsapp" | "sms") ?? "whatsapp",
     phoneNumber: (settings?.phone_number as string) ?? null,
+    termiiSenderId: (settings?.termii_sender_id as string) ?? null,
   };
 }
 
@@ -96,7 +98,7 @@ export async function sendQueueJoinMessage(
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, welcome to ${hCtx.hospitalName}! You are currently number ${position} in the queue. We appreciate your patience and will keep you updated. Thank you for choosing us.`;
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -120,7 +122,7 @@ export async function sendQueueNextInLine(
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, you are next in line at ${hCtx.hospitalName}. Please be ready — you will be called in shortly. Thank you for your patience.`;
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -144,7 +146,7 @@ export async function sendQueueYourTurn(
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, it is your turn now at ${hCtx.hospitalName}. Please proceed, We are ready for you.`;
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -168,7 +170,7 @@ export async function sendQueueLongWaitApology(
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, we sincerely apologise for the longer than usual wait today at ${hCtx.hospitalName}. We are doing our best to attend to everyone as quickly as possible and we truly appreciate your patience. Thank you for being with us.`;
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -194,7 +196,7 @@ export async function sendCarePlanNotification(
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, your care plan at ${hCtx.hospitalName} has started. Please check your email for your full care plan details and your daily care reminders. We are with you every step of the way.`;
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -581,7 +583,7 @@ export async function sendCallTaskConfirmedMessage(
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

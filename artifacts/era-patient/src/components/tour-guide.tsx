@@ -40,6 +40,21 @@ const ADMIN_STEPS: Step[] = [
     target: '[data-tour="nav-activity"]',
   },
   {
+    title: "Patient Feedback",
+    body: "After a visit, patients can rate their experience via WhatsApp. All their responses show up here so you can spot trends and address issues quickly.",
+    target: '[data-tour="nav-feedback-admin"]',
+  },
+  {
+    title: "Wellness Newsletter",
+    body: "Send health tips, seasonal advice, or general wellness content to all your patients at once. It keeps your clinic top of mind between visits.",
+    target: '[data-tour="nav-wellness"]',
+  },
+  {
+    title: "Messages",
+    body: "View and manage WhatsApp conversations with patients here. Any message sent through Era — reminders, check-ins, replies — appears in this inbox.",
+    target: '[data-tour="nav-messages"]',
+  },
+  {
     title: "Settings",
     body: "Change your staff login passwords here — nurse and receptionist credentials are managed from this page.",
     target: '[data-tour="nav-settings"]',

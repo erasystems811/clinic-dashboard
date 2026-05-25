@@ -4,8 +4,8 @@ import { camelize, camelizeArr, snakify } from "../lib/camel.js";
 import { z } from "zod/v4";
 import {
   sendQueueJoinMessage,
-  sendQueuePositionUpdate,
-  sendCareSummary,
+  sendCarePlanNotification,
+  sendCarePlanEmail,
 } from "../lib/automation.js";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 
@@ -404,18 +404,26 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   }));
   await supabase.from("activity").insert(reminders);
 
-  // ── Automation: send care summary WhatsApp (once only) ──
+  // ── Automation: 1) WhatsApp/SMS notification + 2) OpenAI care plan email ──
   const hospitalIntId = await resolveHospitalIntId(patient!.hospital_id as string);
   if (hospitalIntId) {
     const phone = (patient!.whatsapp_number as string) || (patient!.phone as string);
+    const email = patient!.email as string | null;
+
+    // 1. Mobile notification (WhatsApp or SMS, templated)
     if (phone) {
-      // Always send when nurse saves/edits the plan — patient needs to know the latest plan
-      sendCareSummary(
+      sendCarePlanNotification(hospitalIntId, id, patientName, phone).catch(() => {});
+    }
+
+    // 2. Detailed care plan email (OpenAI generated)
+    if (email) {
+      sendCarePlanEmail(
         hospitalIntId,
         id,
         patientName,
-        phone,
+        email,
         parsed.data.treatmentType,
+        parsed.data.treatmentPlan,
         parsed.data.treatmentDurationDays,
       ).catch(() => {});
     }

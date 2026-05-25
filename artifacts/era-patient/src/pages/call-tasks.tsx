@@ -13,7 +13,7 @@ import {
 import type { CallTask } from "@workspace/api-client-react";
 import {
   Phone, CheckCircle, Clock, Loader2, MessageSquare, Bot, PhoneCall,
-  Send, RefreshCw, Pencil, ChevronDown, ChevronUp, Flag, Sparkles,
+  Send, RefreshCw, Pencil, ChevronDown, ChevronUp, Flag, Sparkles, Mail,
 } from "lucide-react";
 
 import { apiUrl } from "@/lib/api";
@@ -29,15 +29,15 @@ const ACTION_TYPES = [
     value: "automated_message",
     label: "Automated Message",
     icon: Bot,
-    description: "AI generates a personalised message based on the patient's situation",
+    description: "AI generates a personalised message — review before sending via WhatsApp/SMS",
     color: "text-violet-400",
     badge: "bg-violet-500/10 text-violet-400 border-violet-500/20",
   },
   {
     value: "manual_text",
-    label: "Manual Text",
-    icon: MessageSquare,
-    description: "Staff composes and sends a personal text message",
+    label: "Important Email",
+    icon: Mail,
+    description: "Staff composes an important email sent directly to the patient",
     color: "text-blue-400",
     badge: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   },
@@ -58,9 +58,12 @@ function ActionPanel({ task }: { task: CallTask }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  const [generatedMsg, setGeneratedMsg] = useState("");
+  const [draftMsg, setDraftMsg] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [editingGenerated, setEditingGenerated] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [editingDraft, setEditingDraft] = useState(false);
+  const [dailyCount, setDailyCount] = useState<number | null>(null);
+  const DAILY_LIMIT = 5;
 
   const logOutcome = useLogCallOutcome({
     mutation: {
@@ -72,26 +75,75 @@ function ActionPanel({ task }: { task: CallTask }) {
     },
   });
 
-  const handleGenerateAndSend = async () => {
+  const handleGenerateDraft = async () => {
     if (!hospital?.token) {
       toast({ title: "Not authenticated", variant: "destructive" });
       return;
     }
     setGenerating(true);
     try {
-      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-message`), {
+      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/generate-draft`), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        headers: { "x-hospital-token": hospital.token },
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Generation failed");
-      setGeneratedMsg(data.message);
-      setEditingGenerated(false);
-      toast({ title: "Message generated", description: "AI message queued for WhatsApp delivery." });
+      if (!res.ok) {
+        if (res.status === 429) {
+          toast({ title: "Daily limit reached", description: data.error ?? `${DAILY_LIMIT} messages already sent today.`, variant: "destructive" });
+          if (data.dailyCount !== undefined) setDailyCount(data.dailyCount);
+        } else {
+          throw new Error(data.error ?? "Generation failed");
+        }
+        return;
+      }
+      setDraftMsg(data.draft ?? "");
+      setEditingDraft(false);
+      if (data.dailyCount !== undefined) setDailyCount(data.dailyCount);
     } catch (err: unknown) {
       toast({ title: "Generation failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleSendDraft = async () => {
+    if (!hospital?.token || !draftMsg.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-message`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        body: JSON.stringify({ message: draftMsg }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Send failed");
+      if (data.dailyCount !== undefined) setDailyCount(data.dailyCount);
+      toast({ title: "Message sent", description: "Automated message delivered." });
+      logOutcome.mutate({ id: task.id, data: { outcome: `[Automated message sent] ${draftMsg}` } });
+    } catch (err: unknown) {
+      toast({ title: "Send failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSendManualEmail = async () => {
+    if (!hospital?.token || !text.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-manual-email`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Send failed");
+      toast({ title: "Email sent", description: `Important email sent to ${task.patientName}.` });
+      logOutcome.mutate({ id: task.id, data: { outcome: `[Important email sent] ${text}` } });
+    } catch (err: unknown) {
+      toast({ title: "Send failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+    } finally {
+      setSending(false);
     }
   };
 
@@ -126,24 +178,24 @@ function ActionPanel({ task }: { task: CallTask }) {
     );
   }
 
-  /* ── Manual Text ── */
+  /* ── Manual Text → Important Email ── */
   if (task.actionType === "manual_text") {
     return !open ? (
       <Button size="sm" variant="outline" className="w-full gap-2 border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300" onClick={() => setOpen(true)}>
-        <Pencil className="w-4 h-4" />
-        Compose Text Message
+        <Mail className="w-4 h-4" />
+        Compose Important Email
       </Button>
     ) : (
       <div className="space-y-2">
         <div className="rounded-md border border-blue-500/30 bg-blue-500/5 overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-500/20 bg-blue-500/10">
-            <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
+            <Mail className="w-3.5 h-3.5 text-blue-400" />
             <span className="text-xs font-medium text-blue-400">To: {task.patientName}</span>
-            <span className="text-xs text-muted-foreground ml-1">· {task.whatsappNumber ?? task.phone}</span>
+            <span className="text-xs bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full ml-auto border border-blue-500/30">Important</span>
           </div>
           <textarea
             className="w-full bg-transparent px-3 py-2.5 text-sm min-h-[100px] resize-none focus:outline-none"
-            placeholder="Type your message here..."
+            placeholder="Write the important message to send to the patient via email..."
             value={text}
             onChange={(e) => setText(e.target.value)}
             autoFocus
@@ -154,35 +206,46 @@ function ActionPanel({ task }: { task: CallTask }) {
         </div>
         <div className="flex gap-2">
           <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setOpen(false); setText(""); }}>Cancel</Button>
-          <Button size="sm" className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700 text-white" disabled={!text.trim() || logOutcome.isPending} onClick={() => submit(`[Text sent] ${text}`)}>
-            {logOutcome.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            Send Message
+          <Button size="sm" className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700 text-white" disabled={!text.trim() || sending} onClick={handleSendManualEmail}>
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Send Email
           </Button>
         </div>
       </div>
     );
   }
 
-  /* ── Automated Message (AI via OpenAI) ── */
+  /* ── Automated Message → Generate draft, review, then send ── */
+  const limitHit = dailyCount !== null && dailyCount >= DAILY_LIMIT;
+
   return (
     <div className="space-y-2">
-      {!generatedMsg ? (
+      {dailyCount !== null && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <MessageSquare className="w-3 h-3" />
+          <span>{dailyCount}/{DAILY_LIMIT} automated messages sent today</span>
+        </div>
+      )}
+
+      {!draftMsg ? (
         <div className="space-y-2">
           <div className="rounded-md bg-violet-500/5 border border-violet-500/20 px-3 py-2.5">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              AI will read the patient's situation and reason for flag, then generate the most appropriate personalised WhatsApp message.
+              AI will read the patient's situation and reason for flag, then generate a personalised message. You can review and edit it before sending via WhatsApp/SMS.
             </p>
           </div>
           <Button
             size="sm"
             variant="outline"
-            className="w-full gap-2 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
-            onClick={handleGenerateAndSend}
-            disabled={generating}
+            className="w-full gap-2 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 hover:text-violet-300 disabled:opacity-50"
+            onClick={handleGenerateDraft}
+            disabled={generating || limitHit}
           >
             {generating
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Generating &amp; queuing message…</>
-              : <><Sparkles className="w-4 h-4" />Generate &amp; Send AI Message</>}
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Generating draft…</>
+              : limitHit
+                ? <><Sparkles className="w-4 h-4" />Daily limit reached ({DAILY_LIMIT}/day)</>
+                : <><Sparkles className="w-4 h-4" />Generate Draft</>}
           </Button>
         </div>
       ) : (
@@ -190,32 +253,32 @@ function ActionPanel({ task }: { task: CallTask }) {
           <div className="rounded-md border border-violet-500/30 bg-violet-500/5 overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-2 border-b border-violet-500/20 bg-violet-500/10">
               <Bot className="w-3.5 h-3.5 text-violet-400" />
-              <span className="text-xs font-medium text-violet-400">AI Generated · Queued for WhatsApp</span>
-              <button type="button" className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={handleGenerateAndSend} disabled={generating}>
+              <span className="text-xs font-medium text-violet-400">AI Draft · Review before sending</span>
+              <button type="button" className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={handleGenerateDraft} disabled={generating || limitHit}>
                 <RefreshCw className={`w-3 h-3 ${generating ? "animate-spin" : ""}`} />
                 Regenerate
               </button>
             </div>
-            {editingGenerated ? (
-              <textarea className="w-full bg-transparent px-3 py-2.5 text-sm min-h-[110px] resize-none focus:outline-none" value={generatedMsg} onChange={(e) => setGeneratedMsg(e.target.value)} autoFocus />
+            {editingDraft ? (
+              <textarea className="w-full bg-transparent px-3 py-2.5 text-sm min-h-[110px] resize-none focus:outline-none" value={draftMsg} onChange={(e) => setDraftMsg(e.target.value)} autoFocus />
             ) : (
               <div className="px-3 py-2.5">
-                <p className="text-sm leading-relaxed">{generatedMsg}</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{draftMsg}</p>
               </div>
             )}
             <div className="flex items-center justify-between px-3 py-2 border-t border-violet-500/20 bg-violet-500/5">
-              <span className="text-xs text-muted-foreground">{generatedMsg.length} chars</span>
-              <button type="button" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={() => setEditingGenerated(!editingGenerated)}>
+              <span className="text-xs text-muted-foreground">{draftMsg.length} chars</span>
+              <button type="button" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={() => setEditingDraft(!editingDraft)}>
                 <Pencil className="w-3 h-3" />
-                {editingGenerated ? "Done editing" : "Edit"}
+                {editingDraft ? "Done" : "Edit"}
               </button>
             </div>
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setGeneratedMsg(""); setEditingGenerated(false); }}>Clear</Button>
-            <Button size="sm" className="flex-1 gap-2 bg-violet-600 hover:bg-violet-700 text-white" disabled={!generatedMsg.trim() || logOutcome.isPending} onClick={() => submit(`[AI message sent] ${generatedMsg}`)}>
-              {logOutcome.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              Mark Complete
+            <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setDraftMsg(""); setEditingDraft(false); }}>Discard</Button>
+            <Button size="sm" className="flex-1 gap-2 bg-violet-600 hover:bg-violet-700 text-white" disabled={!draftMsg.trim() || sending} onClick={handleSendDraft}>
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Send Message
             </Button>
           </div>
         </>

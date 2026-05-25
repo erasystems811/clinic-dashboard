@@ -2,7 +2,11 @@ import { Router, type IRouter } from "express";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
-import { sendCallTaskAutomatedMessage } from "../lib/automation.js";
+import {
+  generateCallTaskDraft,
+  sendCallTaskConfirmedMessage,
+  sendCallTaskManualEmail,
+} from "../lib/automation.js";
 import { verifyHospitalToken, getHospitalFromRequest, getPatientIdsForHospital } from "../lib/hospital-auth.js";
 
 const router: IRouter = Router();
@@ -16,10 +20,33 @@ const UpdateActionTypeBody = z.object({
   actionType: z.enum(["automated_message", "manual_text", "manual_call"]),
 });
 
+const SendMessageConfirmBody = z.object({
+  message: z.string().min(1),
+});
+
+const SendManualEmailBody = z.object({
+  message: z.string().min(1),
+});
+
 async function resolveHospitalIntId(usernameOrNull: string | null): Promise<number | null> {
   if (!usernameOrNull) return null;
   const { data } = await supabase.from("hospitals").select("id").eq("username", usernameOrNull.toLowerCase()).single();
   return data?.id ?? null;
+}
+
+// ── Daily automated message rate limit check ──────────────────────────────────
+// Max 5 automated messages (call_task_automated) per hospital per calendar day.
+async function getDailyAutomatedCount(hospitalId: number): Promise<number> {
+  const today = new Date().toISOString().split("T")[0];
+  const { count } = await supabase
+    .from("automation_log")
+    .select("*", { count: "exact", head: true })
+    .eq("hospital_id", hospitalId)
+    .eq("automation_type", "call_task_automated")
+    .eq("status", "sent")
+    .gte("created_at", `${today}T00:00:00Z`)
+    .lte("created_at", `${today}T23:59:59Z`);
+  return count ?? 0;
 }
 
 router.get("/call-tasks", async (req, res): Promise<void> => {
@@ -98,6 +125,48 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   res.json(camelize(task));
 });
 
+// ── Generate AI draft — does NOT send, returns draft for editing ───────────────
+router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  // Rate limit: max 5 automated messages per day per hospital
+  const count = await getDailyAutomatedCount(hospitalId);
+  if (count >= 5) {
+    res.status(429).json({
+      error: `Daily limit reached — automated messages are limited to 5 per day. ${count} sent today. Use Manual Email or Manual Call instead.`,
+      dailyCount: count,
+    });
+    return;
+  }
+
+  const { data: task, error } = await supabase
+    .from("call_tasks")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
+
+  try {
+    const draft = await generateCallTaskDraft(
+      hospitalId,
+      task.patient_id as number,
+      task.patient_name as string,
+      task.reason as string,
+    );
+    res.json({ draft, dailyCount: count, dailyLimit: 5 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Generation failed";
+    res.status(500).json({ error: msg });
+  }
+});
+
+// ── Confirm and send the (possibly edited) AI draft via WhatsApp/SMS ──────────
 router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -105,6 +174,19 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const parsed = SendMessageConfirmBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "message is required" }); return; }
+
+  // Rate limit check again at send time
+  const count = await getDailyAutomatedCount(hospitalId);
+  if (count >= 5) {
+    res.status(429).json({
+      error: `Daily limit reached — automated messages are limited to 5 per day.`,
+      dailyCount: count,
+    });
+    return;
+  }
 
   const { data: task, error } = await supabase
     .from("call_tasks")
@@ -117,27 +199,79 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
   const phone = (task.whatsapp_number as string) || (task.phone as string);
   if (!phone) { res.status(400).json({ error: "No phone number on record for this patient" }); return; }
 
-  const message = await sendCallTaskAutomatedMessage(
-    hospitalId,
-    task.patient_id as number,
-    task.patient_name as string,
-    phone,
-    task.reason as string,
-  );
+  try {
+    await sendCallTaskConfirmedMessage(
+      hospitalId,
+      task.patient_id as number,
+      task.patient_name as string,
+      phone,
+      parsed.data.message,
+    );
 
-  await supabase.from("call_tasks")
-    .update({ action_type: "automated_message" })
-    .eq("id", id);
+    await supabase.from("call_tasks").update({ action_type: "automated_message" }).eq("id", id);
+    await supabase.from("activity").insert({
+      type: "automated_message_sent",
+      description: `Automated ${(await supabase.from("hospital_settings").select("notification_channel").eq("hospital_id", hospitalId).single()).data?.notification_channel ?? "WhatsApp"} message sent to ${task.patient_name} (call task)`,
+      patient_id: task.patient_id,
+      patient_name: task.patient_name,
+      metadata: parsed.data.message.slice(0, 200),
+    });
 
-  await supabase.from("activity").insert({
-    type: "automated_message_sent",
-    description: `Automated WhatsApp message sent to ${task.patient_name} (call task)`,
-    patient_id: task.patient_id,
-    patient_name: task.patient_name,
-    metadata: message.slice(0, 200),
-  });
+    const newCount = count + 1;
+    res.json({ ok: true, dailyCount: newCount, dailyLimit: 5 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Send failed";
+    res.status(500).json({ error: msg });
+  }
+});
 
-  res.json({ ok: true, message });
+// ── Manual email — sends as Important email to patient ────────────────────────
+router.post("/call-tasks/:id/send-manual-email", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const parsed = SendManualEmailBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "message is required" }); return; }
+
+  const { data: task, error } = await supabase
+    .from("call_tasks")
+    .select("*, patients(email)")
+    .eq("id", id)
+    .single();
+
+  if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
+
+  const patientRecord = (task as Record<string, unknown>).patients as Record<string, unknown> | null;
+  const email = patientRecord?.email as string | undefined;
+  if (!email) { res.status(400).json({ error: "No email on record for this patient" }); return; }
+
+  try {
+    await sendCallTaskManualEmail(
+      hospitalId,
+      task.patient_id as number,
+      task.patient_name as string,
+      email,
+      parsed.data.message,
+    );
+
+    await supabase.from("call_tasks").update({ action_type: "manual_text" }).eq("id", id);
+    await supabase.from("activity").insert({
+      type: "manual_email_sent",
+      description: `Important email sent to ${task.patient_name} (manual call task message)`,
+      patient_id: task.patient_id,
+      patient_name: task.patient_name,
+      metadata: parsed.data.message.slice(0, 200),
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Send failed";
+    res.status(500).json({ error: msg });
+  }
 });
 
 export default router;

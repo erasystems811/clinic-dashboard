@@ -125,15 +125,13 @@ export default function HospitalDetail({ id }: Props) {
   const [tones, setTones] = useState<string[]>([]);
   const [clinicDescription, setClinicDescription] = useState("");
   const [sendingEmail, setSendingEmail] = useState("");
-  const [postTreatmentCheckinDays, setPostTreatmentCheckinDays] = useState("");
-  const [postCareCheckinDays, setPostCareCheckinDays] = useState("");
-  const [whatsappFromNumber, setWhatsappFromNumber] = useState("");
+  const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
+  const [phoneNumber, setPhoneNumber] = useState("");
 
   // Modules form
   const [apptEnabled, setApptEnabled] = useState(true);
   const [feedbackEnabled, setFeedbackEnabled] = useState(true);
   const [wellnessEnabled, setWellnessEnabled] = useState(true);
-  const [messagesEnabled, setMessagesEnabled] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -158,13 +156,11 @@ export default function HospitalDetail({ id }: Props) {
       setTones(Array.isArray(s.tone) ? s.tone : []);
       setClinicDescription(s.clinicDescription ?? "");
       setSendingEmail(s.sendingEmail ?? "");
-      setPostTreatmentCheckinDays(s.postTreatmentCheckinDays?.toString() ?? "");
-      setPostCareCheckinDays(s.postCareCheckinDays?.toString() ?? "");
-      setWhatsappFromNumber(s.whatsappFromNumber ?? "");
+      setNotificationChannel((s.notificationChannel as "whatsapp" | "sms") ?? "whatsapp");
+      setPhoneNumber(s.phoneNumber ?? "");
       setApptEnabled(m.appointmentsEnabled);
       setFeedbackEnabled(m.feedbackEnabled);
       setWellnessEnabled(m.wellnessNewsletterEnabled ?? true);
-      setMessagesEnabled(m.messagesEnabled ?? false);
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : null) ?? "Failed to load hospital");
     } finally {
@@ -228,9 +224,8 @@ export default function HospitalDetail({ id }: Props) {
         tone: tones.length > 0 ? tones : null,
         clinicDescription: clinicDescription || null,
         sendingEmail: sendingEmail || null,
-        postTreatmentCheckinDays: postTreatmentCheckinDays ? parseInt(postTreatmentCheckinDays) : null,
-        postCareCheckinDays: postCareCheckinDays ? parseInt(postCareCheckinDays) : null,
-        whatsappFromNumber: whatsappFromNumber || null,
+        notificationChannel,
+        phoneNumber: phoneNumber || null,
       } as Partial<HospitalSettings>);
       flash("Settings saved");
       load();
@@ -250,7 +245,6 @@ export default function HospitalDetail({ id }: Props) {
         feedbackEnabled,
         wellnessNewsletterEnabled: wellnessEnabled,
         whatsappEnabled: true,
-        messagesEnabled,
       });
       flash("Modules saved");
       load();
@@ -626,22 +620,6 @@ export default function HospitalDetail({ id }: Props) {
             </Field>
           </div>
 
-          {/* Automation frequency */}
-          <div className="pt-2 border-t border-border space-y-3">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Automation Check-in Frequency</p>
-              <p className="text-xs text-muted-foreground">How often automated WhatsApp check-ins are sent to patients.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Post-Treatment Check-in (days)" hint="e.g. every 3 days">
-                <input type="number" value={postTreatmentCheckinDays} onChange={e => setPostTreatmentCheckinDays(e.target.value)} className={inputCls()} placeholder="3" min="1" />
-              </Field>
-              <Field label="Post-Care Wellness (days)" hint="e.g. every 7 days">
-                <input type="number" value={postCareCheckinDays} onChange={e => setPostCareCheckinDays(e.target.value)} className={inputCls()} placeholder="7" min="1" />
-              </Field>
-            </div>
-          </div>
-
           {/* Email */}
           <div className="pt-2 border-t border-border space-y-3">
             <div>
@@ -660,17 +638,23 @@ export default function HospitalDetail({ id }: Props) {
             </Field>
           </div>
 
-          {/* WhatsApp */}
+          {/* Notification Channel */}
           <div className="pt-2 border-t border-border space-y-3">
             <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">WhatsApp</p>
-              <p className="text-xs text-muted-foreground">WhatsApp Business number (once Meta verification is complete).</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Notification Channel</p>
+              <p className="text-xs text-muted-foreground">Channel used to deliver automated patient notifications (queue updates, care plan alerts, etc.).</p>
             </div>
-            <Field label="WhatsApp From Number" hint="International format, e.g. +971501234567">
+            <Field label="Channel">
+              <select value={notificationChannel} onChange={e => setNotificationChannel(e.target.value as "whatsapp" | "sms")} className={inputCls()}>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="sms">SMS</option>
+              </select>
+            </Field>
+            <Field label="Phone Number" hint="International format, e.g. +971501234567 — the number used as the sending line">
               <div className="relative">
                 <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
-                  type="text" value={whatsappFromNumber} onChange={e => setWhatsappFromNumber(e.target.value)}
+                  type="text" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
                   placeholder="+971501234567"
                   className={inputCls() + " pl-9"}
                 />
@@ -761,7 +745,6 @@ export default function HospitalDetail({ id }: Props) {
             { key: "appointments", label: "Appointments", desc: "Calendar scheduling and appointment management", value: apptEnabled, set: setApptEnabled },
             { key: "feedback", label: "Patient Feedback", desc: "Post-visit feedback collection and analytics", value: feedbackEnabled, set: setFeedbackEnabled },
             { key: "wellness", label: "Wellness Newsletter", desc: "Weekly AI-generated wellness emails to patients", value: wellnessEnabled, set: setWellnessEnabled },
-            { key: "messages", label: "Messages Inbox", desc: "WhatsApp inbox for two-way patient communication (requires WhatsApp setup)", value: messagesEnabled, set: setMessagesEnabled },
           ].map(mod => (
             <div key={mod.key} className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted border border-border">
               <div>

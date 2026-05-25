@@ -2,9 +2,9 @@ import * as Sentry from "@sentry/node";
 import { supabase } from "./supabase.js";
 import { generateOpenAIMessage, generateClaudeMessage, buildToneDescription } from "./ai.js";
 import { sendEmail, wrapHtml } from "./email.js";
-import { deliverWhatsApp } from "./whatsapp.js";
+import { deliverMobileMessage } from "./messaging.js";
 
-export type AutomationChannel = "whatsapp" | "email";
+export type AutomationChannel = "whatsapp" | "sms" | "email";
 export type AutomationStatus = "queued" | "sent" | "failed";
 
 export interface AutomationContext {
@@ -49,33 +49,36 @@ export async function updateAutomationLog(
   }).eq("id", id);
 }
 
-async function getHospitalContext(hospitalId: number) {
-  const [{ data: hospital }, { data: settings }, { data: modules }] = await Promise.all([
+interface HospitalContext {
+  hospitalName: string;
+  hospitalUsername: string;
+  sendingEmail: string;
+  notificationChannel: "whatsapp" | "sms";
+  phoneNumber: string | null;
+}
+
+async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
+  const [{ data: hospital }, { data: settings }] = await Promise.all([
     supabase.from("hospitals").select("id, name, username").eq("id", hospitalId).single(),
-    supabase.from("hospital_settings").select("tone, sending_email, departments, language").eq("hospital_id", hospitalId).single(),
-    supabase.from("hospital_modules").select("messages_enabled").eq("hospital_id", hospitalId).maybeSingle(),
+    supabase.from("hospital_settings")
+      .select("sending_email, notification_channel, phone_number, tone")
+      .eq("hospital_id", hospitalId).single(),
   ]);
-  const tones: string[] = settings?.tone ? JSON.parse(settings.tone) : [];
-  const departments: string[] = settings?.departments ? JSON.parse(settings.departments) : [];
   return {
     hospitalName: hospital?.name ?? "The Hospital",
     hospitalUsername: hospital?.username ?? "",
     sendingEmail: settings?.sending_email ?? "onboarding@resend.dev",
-    tone: buildToneDescription(tones),
-    departments,
-    language: settings?.language ?? "English",
-    messagesEnabled: (modules?.messages_enabled as boolean) ?? false,
+    notificationChannel: (settings?.notification_channel as "whatsapp" | "sms") ?? "whatsapp",
+    phoneNumber: (settings?.phone_number as string) ?? null,
   };
 }
 
-// Appends a no-reply notice when the Messages inbox module is disabled,
-// so patients know their reply won't be seen.
-function withNoReply(body: string, messagesEnabled: boolean): string {
-  if (messagesEnabled) return body;
-  return `${body}\n\n_(This is a one-way notification — replies are not monitored.)_`;
+function contactLine(phoneNumber: string | null): string {
+  if (phoneNumber) return `contact us directly on ${phoneNumber}`;
+  return "contact us directly";
 }
 
-// ── Queue WhatsApp ─────────────────────────────────────────────────────────────
+// ── Queue Messages — WhatsApp/SMS — Templated ──────────────────────────────────
 
 export async function sendQueueJoinMessage(
   hospitalId: number,
@@ -84,22 +87,17 @@ export async function sendQueueJoinMessage(
   phone: string,
   position: number,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType: "queue_join",
-    channel: "whatsapp",
+    channel: hCtx.notificationChannel,
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
-    const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a WhatsApp message. Tone: ${hCtx.tone}. Write in a warm, human way — like a real person on the team. Start with "Hi ${firstName}!" and use the hospital name. Make the patient feel seen and valued, not just like a number. Include their queue position clearly. End with a warm, encouraging note about patience.`,
-      `${firstName} has just joined the queue at position number ${position} at ${hCtx.hospitalName}. Write a welcoming message that tells them their queue number, makes them feel seen, and thanks them for their patience. Example feel: "Hi ${firstName}! Welcome to ${hCtx.hospitalName}. You are currently number ${position} in the queue. We see you and we will keep you updated as things move. Thank you for your patience today." — keep this exact tone but write it naturally.`,
-      140,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent");
+    const message = `Hi ${patientName}, welcome to ${hCtx.hospitalName}! You are currently number ${position} in the queue. We appreciate your patience and will keep you updated. Thank you for choosing us.`;
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);
@@ -107,29 +105,23 @@ export async function sendQueueJoinMessage(
   }
 }
 
-export async function sendQueuePositionUpdate(
+export async function sendQueueNextInLine(
   hospitalId: number,
   patientId: number,
   patientName: string,
   phone: string,
-  newPosition: number,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
-    automationType: "queue_position_update",
-    channel: "whatsapp",
+    automationType: "queue_next_in_line",
+    channel: hCtx.notificationChannel,
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
-    const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a WhatsApp message. Tone: ${hCtx.tone}. Keep it short, warm and reassuring — like a real person giving a quick update. Start with "Hi ${firstName}".`,
-      `${firstName}'s queue position has updated to number ${newPosition}. Write a short, friendly update. Example feel: "Hi ${firstName}, just a quick update — you are now number ${newPosition} in the queue. It will not be long now. We appreciate your patience." — same warmth, written naturally.`,
-      110,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent");
+    const message = `Hi ${patientName}, you are next in line at ${hCtx.hospitalName}. Please be ready — you will be called in shortly. Thank you for your patience.`;
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);
@@ -137,32 +129,119 @@ export async function sendQueuePositionUpdate(
   }
 }
 
-// ── Care Summary (Claude) ─────────────────────────────────────────────────────
-
-export async function sendCareSummary(
+export async function sendQueueYourTurn(
   hospitalId: number,
   patientId: number,
   patientName: string,
   phone: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "queue_your_turn",
+    channel: hCtx.notificationChannel,
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const message = `Hi ${patientName}, it is your turn now at ${hCtx.hospitalName}. Please proceed, We are ready for you.`;
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await updateAutomationLog(logId, "sent", message);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
+export async function sendQueueLongWaitApology(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  phone: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "queue_long_wait_apology",
+    channel: hCtx.notificationChannel,
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const message = `Hi ${patientName}, we sincerely apologise for the longer than usual wait today at ${hCtx.hospitalName}. We are doing our best to attend to everyone as quickly as possible and we truly appreciate your patience. Thank you for being with us.`;
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await updateAutomationLog(logId, "sent", message);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
+// ── Care Plan — WhatsApp/SMS Notification (Templated) + Email (OpenAI) ─────────
+
+export async function sendCarePlanNotification(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  phone: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "care_plan_notification",
+    channel: hCtx.notificationChannel,
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const message = `Hi ${patientName}, your care plan at ${hCtx.hospitalName} has started. Please check your email for your full care plan details and your daily care reminders. We are with you every step of the way.`;
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await updateAutomationLog(logId, "sent", message);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
+export async function sendCarePlanEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
   treatmentType: string,
+  treatmentPlan: string,
   durationDays: number,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
-    automationType: "care_summary",
-    channel: "whatsapp",
+    automationType: "care_plan_email",
+    channel: "email",
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
     const firstName = patientName.split(" ")[0];
-    const message = await generateClaudeMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a WhatsApp message to a patient whose care plan is now in place. Tone: ${hCtx.tone}. Be warm, reassuring and informative — but NEVER mention the diagnosis or any medical condition. No clinical jargon. Start with "Hi ${firstName}," and include the hospital name. Explain the care process simply, reassure them the team is with them every step, and let them know what to expect over the coming days. Keep it under 5 sentences.`,
-      `${firstName}'s care plan at ${hCtx.hospitalName} has just been set up — it involves ${treatmentType} over ${durationDays} days. Write a warm, reassuring WhatsApp message letting them know their care is in place and the team is with them. Example feel: "Hi ${firstName}, your care plan at ${hCtx.hospitalName} is now in place. Over the next ${durationDays} days our team will be actively supporting your health journey. You will have a combination of care and check-ins — we will guide you through every step. You are not alone in this, and we are here for you." — write in this tone, naturally.`,
-      300,
+
+    const emailBody = await generateOpenAIMessage(
+      `You are writing a care plan explanation email for a patient of ${hCtx.hospitalName}. Be warm, clear and patient-friendly. Never use clinical jargon. Never mention a diagnosis. Explain what the plan means in simple terms. Keep it under 200 words of body text. End with a closed statement — make clear the patient does not need to reply to this email and should ${contactLine(hCtx.phoneNumber)} if they have questions.`,
+      `Write a warm, friendly email explaining ${firstName}'s care plan at ${hCtx.hospitalName}. Treatment type: ${treatmentType}. Duration: ${durationDays} days. Care plan details: ${treatmentPlan}. Explain what this means for the patient in plain, reassuring language — what they can expect, how the team will support them, and what they should do. End with: "If you have any questions please do not hesitate to ${contactLine(hCtx.phoneNumber)}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team."`,
+      350,
     );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent", message);
+
+    const html = wrapHtml(
+      `<p>${emailBody.replace(/\n/g, "</p><p>")}</p>`,
+      hCtx.hospitalName,
+    );
+
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.sendingEmail,
+      subject: `Your care plan has started — ${hCtx.hospitalName}`,
+      html,
+      text: emailBody,
+    });
+
+    await updateAutomationLog(logId, "sent", `Care plan email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);
@@ -170,38 +249,49 @@ export async function sendCareSummary(
   }
 }
 
-// ── In-Care Daily Message (OpenAI) ────────────────────────────────────────────
+// ── Post-Treatment Check-ins — Email — Templated — Day 1, 4, 7 only ──────────
 
-export async function sendInCareDailyMessage(
+export async function sendPostTreatmentCheckinEmail(
   hospitalId: number,
   patientId: number,
   patientName: string,
-  phone: string,
-  treatmentPlan: string,
-  medicationTiming: string | null,
-  treatmentType: string,
-  dayNumber: number,
-  totalDays: number,
+  patientEmail: string,
+  day: 1 | 4 | 7,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const automationType = `post_treatment_day${day}`;
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
-    automationType: "in_care_daily",
-    channel: "whatsapp",
+    automationType,
+    channel: "email",
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
-    const timingNote = medicationTiming
-      ? `Their medication is scheduled for: ${medicationTiming}.`
-      : "They may have medication or a hospital visit today.";
-    const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a daily WhatsApp check-in to a patient who is currently in their treatment. Tone: ${hCtx.tone}. Write like a real, caring human — warm, direct, personal. Greet them by first name with a time-appropriate greeting (good morning/afternoon). Mention any relevant care activities for today based on the plan. Encourage them not to miss it. Keep it short — 2-3 sentences. No sign-off. Never sound automated.`,
-      `Today is day ${dayNumber} of ${totalDays} for ${firstName}'s treatment at ${hCtx.hospitalName}. Treatment type: ${treatmentType}. Treatment plan details: ${treatmentPlan}. ${timingNote} Write a warm daily message that references today's specific care — medication, a hospital visit, or both. Example feel: "Good morning ${firstName}, you have medication this morning and are expected to visit the hospital today — please don't miss this, it's important for your recovery. Wishing you a good day 💙" or "Good afternoon ${firstName}, don't forget your medication this afternoon. Make sure you rest well and take care of yourself."`,
-      160,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent", message);
+    const contact = contactLine(hCtx.phoneNumber);
+    let subject: string;
+    let body: string;
+
+    if (day === 1) {
+      subject = `Checking in on you — ${hCtx.hospitalName}`;
+      body = `Hi ${patientName},\n\nWe hope you are resting and taking things easy today. Your treatment at ${hCtx.hospitalName} has just concluded and we wanted to reach out on this first day to let you know we are thinking of you. Recovery takes time and that is completely okay. Please take care of yourself.\n\nIf you have any questions or concerns please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+    } else if (day === 4) {
+      subject = `How are you feeling? — ${hCtx.hospitalName}`;
+      body = `Hi ${patientName},\n\nIt has been a few days since your treatment at ${hCtx.hospitalName} and we just wanted to check in on you. We hope you are feeling a little better each day. Recovery is a journey and we want you to know we are rooting for you.\n\nIf anything feels off or you have any concerns at all please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nTake good care of yourself.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+    } else {
+      subject = `One week check-in — ${hCtx.hospitalName}`;
+      body = `Hi ${patientName},\n\nA week has passed since your treatment at ${hCtx.hospitalName} and we hope you are feeling much better. You have come a long way and we are proud of your progress.\n\nIf you need anything at all please do not hesitate to ${contact}. Please do not reply to this email directly. We are always here for you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+    }
+
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.sendingEmail,
+      subject,
+      html,
+      text: body,
+    });
+
+    await updateAutomationLog(logId, "sent", `Post-treatment Day ${day} email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);
@@ -209,58 +299,36 @@ export async function sendInCareDailyMessage(
   }
 }
 
-// ── Medication Timing Reminder (OpenAI) ──────────────────────────────────────
+// ── Post-Care Wellness — Email — Templated — after 30 days ────────────────────
 
-export type MedicationPeriod = "morning" | "afternoon" | "night";
-
-export async function sendCareReminder(
+export async function sendPostCareEmail(
   hospitalId: number,
   patientId: number,
   patientName: string,
-  phone: string,
-  treatmentPlan: string,
-  medicationTiming: string,
-  period: MedicationPeriod,
-  dayNumber: number,
-  totalDays: number,
+  patientEmail: string,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
-    automationType: `care_reminder_${period}`,
-    channel: "whatsapp",
+    automationType: "post_care_email",
+    channel: "email",
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
-    const greetMap: Record<MedicationPeriod, string> = {
-      morning: "Good morning",
-      afternoon: "Good afternoon",
-      night: "Good evening",
-    };
-    const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a WhatsApp care reminder for the ${period}. Tone: ${hCtx.tone}. You must read the FULL treatment plan carefully and identify EVERY care activity that applies to the ${period} — this includes medication, hospital visits, procedures, exercises, dietary instructions, or any other care step scheduled for this time of day. Combine all ${period} activities into ONE warm, human message. Start with "${greetMap[period]} ${firstName},". Be warm and encouraging, not clinical. Keep it brief (2-3 sentences max). Never mention just one activity if multiple apply — always cover everything the patient needs to do in this ${period}.`,
-      `Today is day ${dayNumber} of ${totalDays} for ${firstName}'s treatment at ${hCtx.hospitalName}.
+    const contact = contactLine(hCtx.phoneNumber);
+    const subject = `Thinking of you — ${hCtx.hospitalName}`;
+    const body = `Hi ${patientName},\n\nIt has been a little while since we last saw you at ${hCtx.hospitalName} and we just wanted to check in and see how you are doing. We hope you are feeling well and taking good care of yourself. Your health and wellbeing mean a lot to us.\n\nIf you ever need anything or feel it is time for a check-up please do not hesitate to ${contact}. Please do not reply to this email directly. We are always here when you need us.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
 
-FULL TREATMENT PLAN:
-${treatmentPlan}
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.sendingEmail,
+      subject,
+      html,
+      text: body,
+    });
 
-MEDICATION SCHEDULE (time-of-day breakdown):
-${medicationTiming}
-
-TIME WINDOW: ${period.toUpperCase()}
-
-Carefully read the treatment plan above. Identify ALL activities for the ${period} — for example, if the plan says they have a hospital visit AND morning medication, mention BOTH in the message. If they only have medication, mention just that. If they have a hospital visit but no medication at this time, focus on the visit. Write ONE combined message covering everything relevant to the ${period}. 
-
-Example when both apply: "${greetMap[period]} ${firstName}, remember to take your morning medication and also come in to the hospital for your treatment session today — we are expecting you! 💙"
-Example medication only: "${greetMap[period]} ${firstName}, just a reminder to take your ${period} medication 💊 — keep it up, you're doing great!"
-Example hospital visit only: "${greetMap[period]} ${firstName}, don't forget you have a hospital visit at ${hCtx.hospitalName} this ${period} — we will see you soon! 💙"
-
-Write naturally in the hospital's tone. Never sound automated.`,
-      180,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent", message);
+    await updateAutomationLog(logId, "sent", `Post-care email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);
@@ -268,31 +336,36 @@ Write naturally in the hospital's tone. Never sound automated.`,
   }
 }
 
-// ── Post Treatment Check-in (OpenAI) ─────────────────────────────────────────
+// ── Dormant — Email — Templated — after 250 days inactivity ──────────────────
 
-export async function sendPostTreatmentCheckin(
+export async function sendDormantEmail(
   hospitalId: number,
   patientId: number,
   patientName: string,
-  phone: string,
-  checkinNumber: number,
+  patientEmail: string,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
-    automationType: "post_treatment_checkin",
-    channel: "whatsapp",
+    automationType: "dormant_email",
+    channel: "email",
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
-    const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a post-treatment check-in WhatsApp message. Tone: ${hCtx.tone}. Write like a genuinely caring person, not a system. Start with "Hi ${firstName},". Let them know their treatment has ended, check how they are feeling, and remind them you are there if they need anything.`,
-      `This is check-in number ${checkinNumber} for ${firstName} whose treatment at ${hCtx.hospitalName} has ended. Write a warm, caring message checking how they are doing. Example feel: "Hi ${firstName}, we are just checking in on you. Your treatment period has ended and we want to know how you are feeling. Please do not hesitate to reach out if you need anything — we are always here for you." — write with this warmth, naturally. Vary the phrasing from previous check-ins.`,
-      160,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent", message);
+    const contact = contactLine(hCtx.phoneNumber);
+    const subject = `Just saying hi — ${hCtx.hospitalName}`;
+    const body = `Hi ${patientName},\n\nIt has been a while since we last saw you at ${hCtx.hospitalName} and honestly that could be really good news — it might mean you have been staying healthy and feeling well. We just wanted to pop in and say hi and let you know we are thinking of you. We hope you are taking care of yourself and staying on top of your health.\n\nWhenever you need us we are right here. Please do not reply to this email directly — to reach us please ${contact}.\n\nTake good care of yourself.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.sendingEmail,
+      subject,
+      html,
+      text: body,
+    });
+
+    await updateAutomationLog(logId, "sent", `Dormant email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);
@@ -300,65 +373,38 @@ export async function sendPostTreatmentCheckin(
   }
 }
 
-// ── Post Care Wellness (OpenAI) ───────────────────────────────────────────────
+// ── Appointment Messages — Email — Templated ──────────────────────────────────
 
-export async function sendPostCareWellness(
+export async function sendAppointmentConfirmationEmail(
   hospitalId: number,
   patientId: number,
   patientName: string,
-  phone: string,
-  messageNumber: number,
-): Promise<void> {
-  const ctx: AutomationContext = {
-    hospitalId, patientId, patientName,
-    automationType: "post_care_wellness",
-    channel: "whatsapp",
-  };
-  const logId = await logAutomation(ctx, "queued");
-  try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
-    const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a wellness WhatsApp message to a patient who has completed their treatment. Tone: ${hCtx.tone}. Write like a genuine, caring person — warm, encouraging, personal. Start with "Hi ${firstName},". Share a simple wellness thought or encouragement. Keep it brief and uplifting.`,
-      `This is wellness message number ${messageNumber} for ${firstName} who has completed their treatment at ${hCtx.hospitalName} and is in their wellness phase. Write a friendly, encouraging message — share a simple wellness reminder or tip and let them know the team is thinking of them. Start with "Hi ${firstName}," and keep it warm, brief, and human. Vary the wellness focus each message.`,
-      160,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent", message);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await updateAutomationLog(logId, "failed", msg);
-    Sentry.captureException(err, { extra: { ...ctx } });
-  }
-}
-
-// ── Appointment WhatsApp (OpenAI) ─────────────────────────────────────────────
-
-export async function sendAppointmentConfirmation(
-  hospitalId: number,
-  patientId: number,
-  patientName: string,
-  phone: string,
-  appointmentTitle: string,
+  patientEmail: string,
   scheduledAt: string,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType: "appointment_confirmation",
-    channel: "whatsapp",
+    channel: "email",
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
+    const contact = contactLine(hCtx.phoneNumber);
     const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short" });
-    const message = await generateOpenAIMessage(
-      `You are a receptionist at ${hCtx.hospitalName} sending an appointment confirmation via WhatsApp. Tone: ${hCtx.tone}. Write warmly and clearly — start with "Hi ${firstName},", include the hospital name, state the appointment clearly, and end on a welcoming note.`,
-      `${firstName} has just booked an appointment: "${appointmentTitle}" on ${dateStr} at ${hCtx.hospitalName}. Write a warm confirmation message. Example feel: "Hi ${firstName}, your appointment at ${hCtx.hospitalName} is confirmed for ${dateStr}. We look forward to seeing you!" — write with this clarity and warmth, naturally.`,
-      140,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent", message);
+    const subject = `Appointment Confirmed — ${hCtx.hospitalName}`;
+    const body = `Hi ${patientName},\n\nYour appointment at ${hCtx.hospitalName} has been confirmed for ${dateStr}. Please arrive a few minutes early.\n\nIf you need to reschedule please do not hesitate to ${contact} as soon as possible. Please do not reply to this email directly. We look forward to seeing you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.sendingEmail,
+      subject,
+      html,
+      text: body,
+    });
+
+    await updateAutomationLog(logId, "sent", `Appointment confirmation → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);
@@ -366,34 +412,43 @@ export async function sendAppointmentConfirmation(
   }
 }
 
-export async function sendAppointmentReminder(
+export async function sendAppointmentReminderEmail(
   hospitalId: number,
   patientId: number,
   patientName: string,
-  phone: string,
-  appointmentTitle: string,
+  patientEmail: string,
   scheduledAt: string,
   hoursAway: 24 | 2,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const automationType = hoursAway === 24 ? "appointment_reminder_24h" : "appointment_reminder_2h";
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
-    automationType: hoursAway === 24 ? "appointment_reminder_24h" : "appointment_reminder_2h",
-    channel: "whatsapp",
+    automationType,
+    channel: "email",
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
+    const contact = contactLine(hCtx.phoneNumber);
+    const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short" });
     const timeStr = new Date(scheduledAt).toLocaleString("en-GB", { timeStyle: "short" });
-    const message = await generateOpenAIMessage(
-      `You are a receptionist at ${hCtx.hospitalName} sending a WhatsApp appointment reminder. Tone: ${hCtx.tone}. Start with "Hi ${firstName},". Include the hospital name and appointment time clearly. Keep it short and friendly.`,
-      hoursAway === 24
-        ? `${firstName} has an appointment (${appointmentTitle}) tomorrow at ${timeStr} at ${hCtx.hospitalName}. Write a friendly 24-hour reminder. Example feel: "Hi ${firstName}, just a reminder that your appointment at ${hCtx.hospitalName} is tomorrow at ${timeStr}. See you soon!" — same warmth, written naturally.`
-        : `${firstName} has an appointment (${appointmentTitle}) in about 2 hours at ${timeStr} at ${hCtx.hospitalName}. Write a short 2-hour reminder. Example feel: "Hi ${firstName}, your appointment at ${hCtx.hospitalName} is in 2 hours at ${timeStr}. We will see you shortly!" — same energy, written naturally.`,
-      110,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent", message);
+    const subject = hoursAway === 24
+      ? `Reminder — Your appointment is tomorrow — ${hCtx.hospitalName}`
+      : `Your appointment is in 2 hours — ${hCtx.hospitalName}`;
+    const body = hoursAway === 24
+      ? `Hi ${patientName},\n\nThis is a friendly reminder that your appointment at ${hCtx.hospitalName} is tomorrow ${dateStr}. We look forward to seeing you.\n\nIf you need to reschedule please do not hesitate to ${contact} as soon as possible. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`
+      : `Hi ${patientName},\n\nJust a quick reminder that your appointment at ${hCtx.hospitalName} is in 2 hours at ${timeStr}. We will see you soon.\n\nIf you need to reschedule please do not hesitate to ${contact} immediately. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.sendingEmail,
+      subject,
+      html,
+      text: body,
+    });
+
+    await updateAutomationLog(logId, "sent", `Appointment reminder (${hoursAway}h) → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);
@@ -401,29 +456,34 @@ export async function sendAppointmentReminder(
   }
 }
 
-export async function sendAppointmentNoShowFollowUp(
+export async function sendAppointmentNoShowEmail(
   hospitalId: number,
   patientId: number,
   patientName: string,
-  phone: string,
-  appointmentTitle: string,
+  patientEmail: string,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType: "appointment_no_show",
-    channel: "whatsapp",
+    channel: "email",
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
-    const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} following up with a patient who missed their appointment, via WhatsApp. Tone: ${hCtx.tone}. Start with "Hi ${firstName},". Be gentle and caring — not accusatory. Check if they are okay, and invite them to reschedule.`,
-      `${firstName} missed their appointment "${appointmentTitle}" at ${hCtx.hospitalName}. Write a warm, caring follow-up. Example feel: "Hi ${firstName}, we noticed you were not able to make your appointment today — we hope you are well? Please reach out if you would like to reschedule, we are here for you." — write with this gentleness and care, naturally.`,
-      140,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent", message);
+    const contact = contactLine(hCtx.phoneNumber);
+    const subject = `We missed you today — ${hCtx.hospitalName}`;
+    const body = `Hi ${patientName},\n\nWe noticed you were not able to make your appointment at ${hCtx.hospitalName} today. We hope you are doing good?\n\nIf you want to rebook please do not hesitate to ${contact}. Please do not reply to this email directly. We are here for you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.sendingEmail,
+      subject,
+      html,
+      text: body,
+    });
+
+    await updateAutomationLog(logId, "sent", `No-show email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);
@@ -431,50 +491,17 @@ export async function sendAppointmentNoShowFollowUp(
   }
 }
 
-// ── Call Task Automated Message (OpenAI) ──────────────────────────────────────
-
-export async function sendCallTaskAutomatedMessage(
-  hospitalId: number,
-  patientId: number,
-  patientName: string,
-  phone: string,
-  flagReason: string,
-): Promise<string> {
-  const ctx: AutomationContext = {
-    hospitalId, patientId, patientName,
-    automationType: "call_task_automated",
-    channel: "whatsapp",
-  };
-  const logId = await logAutomation(ctx, "queued");
-  try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
-    const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} reaching out to a patient via WhatsApp. Tone: ${hCtx.tone}. Start with "Hi ${firstName},". Read the reason carefully and choose the right tone — gentle if sensitive, encouraging if they need support, friendly if it is a simple check-in. Write like a real, caring person. Never sound automated.`,
-      `You need to contact ${firstName} because: "${flagReason}". Write a warm, human WhatsApp message appropriate to this exact situation. Match your tone to the reason — be caring and specific, not generic. 2-3 sentences, genuine and human.`,
-      160,
-    );
-    await deliverWhatsApp({ to: phone, body: withNoReply(message, hCtx.messagesEnabled) });
-    await updateAutomationLog(logId, "sent", message);
-    return message;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await updateAutomationLog(logId, "failed", msg);
-    Sentry.captureException(err, { extra: { ...ctx } });
-    throw err;
-  }
-}
-
-// ── Feedback Email (Resend + OpenAI) ─────────────────────────────────────────
+// ── Feedback Email — Templated ─────────────────────────────────────────────────
 
 export async function sendFeedbackEmail(
   hospitalId: number,
   patientId: number,
   patientName: string,
   patientEmail: string,
-  feedbackToken: string,
+  _feedbackToken: string,
   feedbackUrl: string,
 ): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType: "feedback_email",
@@ -482,28 +509,25 @@ export async function sendFeedbackEmail(
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const hCtx = await getHospitalContext(hospitalId);
-    const firstName = patientName.split(" ")[0];
-
-    const emailBody = await generateOpenAIMessage(
-      `You are writing a patient feedback request email for ${hCtx.hospitalName}. Tone: ${hCtx.tone}. Write warm, personal emails. The email should make the patient feel their feedback truly matters and will be used to improve care. Keep it under 150 words of body text.`,
-      `Write a feedback request email for ${firstName} who visited ${hCtx.hospitalName} today. Ask them to share their experience using the button below. Make it personal and warm.`,
-      200,
-    );
+    const contact = contactLine(hCtx.phoneNumber);
+    const subject = `How was your visit? — ${hCtx.hospitalName}`;
+    const intro = `Hi ${patientName},\n\nThank you for visiting ${hCtx.hospitalName} today. We hope your experience was a positive one. We would love to hear your thoughts so we can continue to improve our service. Please take a moment to share your feedback using the link below.`;
+    const closing = `Your feedback means a lot to us. Please do not reply to this email directly — if you need to reach us please ${contact}.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
 
     const html = wrapHtml(
-      `<p>${emailBody.replace(/\n/g, "</p><p>")}</p>
+      `<p>${intro.replace(/\n/g, "</p><p>")}</p>
        <p style="text-align:center"><a href="${feedbackUrl}" class="btn">Share Your Feedback →</a></p>
-       <p style="font-size:13px;color:#8b949e;text-align:center">This link is unique to you and expires after submission.</p>`,
+       <p style="font-size:13px;color:#8b949e;text-align:center">This link is unique to you and expires after submission.</p>
+       <p>${closing.replace(/\n/g, "</p><p>")}</p>`,
       hCtx.hospitalName,
     );
 
     await sendEmail({
       to: patientEmail,
       from: hCtx.sendingEmail,
-      subject: `How was your visit today, ${firstName}? — ${hCtx.hospitalName}`,
+      subject,
       html,
-      text: `${emailBody}\n\nShare your feedback: ${feedbackUrl}`,
+      text: `${intro}\n\nShare your feedback: ${feedbackUrl}\n\n${closing}`,
     });
 
     await updateAutomationLog(logId, "sent", `Feedback email → ${patientEmail}`);
@@ -515,7 +539,98 @@ export async function sendFeedbackEmail(
   }
 }
 
-// ── Wellness Newsletter Email (Claude + Resend) ───────────────────────────────
+// ── Call Task — Nurse-Flagged Automated Message — OpenAI — WhatsApp/SMS ───────
+// Returns the generated draft message WITHOUT sending.
+// The receptionist edits and confirms, then calls sendCallTaskConfirmedMessage.
+
+export async function generateCallTaskDraft(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  flagReason: string,
+): Promise<string> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const firstName = patientName.split(" ")[0];
+  const tones = await (async () => {
+    const { data } = await supabase.from("hospital_settings").select("tone").eq("hospital_id", hospitalId).single();
+    return data?.tone ? (Array.isArray(data.tone) ? data.tone : JSON.parse(data.tone as string)) as string[] : [];
+  })();
+  const tone = buildToneDescription(tones);
+  const contact = contactLine(hCtx.phoneNumber);
+
+  const message = await generateOpenAIMessage(
+    `You are a care team member at ${hCtx.hospitalName} reaching out to a patient via ${hCtx.notificationChannel === "sms" ? "SMS" : "WhatsApp"}. Tone: ${tone}. Start with "Hi ${firstName},". Read the reason carefully and choose the right tone — gentle if sensitive, encouraging if they need support, friendly if it is a simple check-in. Write like a real, caring person. Never sound automated. End with a closed statement — tell the patient not to reply to this message and to ${contact} if they have any questions.`,
+    `You need to contact ${firstName} because: "${flagReason}". Write a warm, human message appropriate to this exact situation. Match your tone to the reason — be caring and specific, not generic. 2-4 sentences, genuine and human.`,
+    180,
+  );
+  return message;
+}
+
+export async function sendCallTaskConfirmedMessage(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  phone: string,
+  message: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "call_task_automated",
+    channel: hCtx.notificationChannel,
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message);
+    await updateAutomationLog(logId, "sent", message);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+    throw err;
+  }
+}
+
+// ── Call Task — Manual Email — Templated — Marked Important ───────────────────
+
+export async function sendCallTaskManualEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+  customMessage: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "call_task_manual_email",
+    channel: "email",
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const contact = contactLine(hCtx.phoneNumber);
+    const subject = `Important message from ${hCtx.hospitalName}`;
+    const body = `Hi ${patientName},\n\nWe are reaching out from ${hCtx.hospitalName} regarding your care.\n\n${customMessage}\n\nIf you have any questions please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.sendingEmail,
+      subject,
+      html,
+      text: body,
+    });
+
+    await updateAutomationLog(logId, "sent", `Manual email → ${patientEmail}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+    throw err;
+  }
+}
+
+// ── Wellness Newsletter — Claude API ──────────────────────────────────────────
 
 export async function generateWellnessNewsletter(
   hospitalId: number,
@@ -524,9 +639,13 @@ export async function generateWellnessNewsletter(
   fixedSubtopic?: string,
 ): Promise<{ subtopic: string; angle: string; content: string }> {
   const hCtx = await getHospitalContext(hospitalId);
+  const tones = await (async () => {
+    const { data } = await supabase.from("hospital_settings").select("tone").eq("hospital_id", hospitalId).single();
+    return data?.tone ? (Array.isArray(data.tone) ? data.tone : JSON.parse(data.tone as string)) as string[] : [];
+  })();
+  const tone = buildToneDescription(tones);
   const deptList = departments.length > 0 ? departments.join(", ") : "General Practice";
 
-  // When a subtopic is fixed, skip subtopic selection and only vary the angle
   const userPrompt = fixedSubtopic
     ? `You are given a specific wellness subtopic. Your job is to choose a fresh, surprising angle on it — one that is DIFFERENT from anything obvious — then write the newsletter.
 
@@ -549,6 +668,7 @@ Then continue with the following sections:
 - What to avoid (3-4 bullet points)
 - One Simple Action Step for this week (1 concrete, easy thing they can do)
 - A warm closing sign-off from ${hCtx.hospitalName} — e.g. "With care, The ${hCtx.hospitalName} Wellness Team"
+- End with: "This newsletter is for general wellness information only. Please do not reply to this email. For any health concerns please contact us directly."
 
 IMPORTANT: Never use the word "patients" anywhere in the newsletter. Use "friends", "you", or "our community" instead.
 Write in plain language, warm and encouraging. No markdown symbols in the content.
@@ -561,8 +681,8 @@ Respond with this exact JSON structure (no extra keys, no markdown wrapping):
 }`
     : `You are given a broad wellness category. Your job is to choose TWO levels of focus, then write a newsletter about the specific combination:
 
-LEVEL 1 — Subtopic: A specific area or branch within the broad category (e.g. if category is "Sleep Hygiene", a subtopic could be "Sleep Cycles" or "Pre-Sleep Nutrition" or "Napping Science").
-LEVEL 2 — Angle: A specific, surprising, or overlooked perspective on that subtopic — something most people don't think about (e.g. subtopic "Sleep Cycles" → angle "Why timing your wake-up to the end of a 90-minute cycle prevents morning grogginess").
+LEVEL 1 — Subtopic: A specific area or branch within the broad category.
+LEVEL 2 — Angle: A specific, surprising, or overlooked perspective on that subtopic.
 
 Broad category: ${topic}
 
@@ -580,6 +700,7 @@ Then continue with the following sections:
 - What to avoid (3-4 bullet points)
 - One Simple Action Step for this week (1 concrete, easy thing they can do)
 - A warm closing sign-off from ${hCtx.hospitalName} — e.g. "With care, The ${hCtx.hospitalName} Wellness Team"
+- End with: "This newsletter is for general wellness information only. Please do not reply to this email. For any health concerns please contact us directly."
 
 IMPORTANT: Never use the word "patients" anywhere in the newsletter. Use "friends", "you", or "our community" instead.
 Write in plain language, warm and encouraging. No markdown symbols in the content.
@@ -592,30 +713,24 @@ Respond with this exact JSON structure (no extra keys, no markdown wrapping):
 }`;
 
   const raw = await generateClaudeMessage(
-    `You are a wellness content writer for ${hCtx.hospitalName}. Write in a ${hCtx.tone} tone. You write detailed, helpful wellness newsletters that educate the community. Never mention diagnoses or specific patient cases. Write at a general public level. Always address recipients as "friends" — never use the word "patients". Always respond with valid JSON only — no markdown, no code fences, no extra text.`,
+    `You are a wellness content writer for ${hCtx.hospitalName}. Write in a ${tone} tone. You write detailed, helpful wellness newsletters that educate the community. Never mention diagnoses or specific patient cases. Write at a general public level. Always address recipients as "friends" — never use the word "patients". Always respond with valid JSON only — no markdown, no code fences, no extra text.`,
     userPrompt,
     1800,
   );
 
   try {
-    // Strip markdown code fences if Claude wraps the JSON
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```\s*$/, "")
-      .trim();
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
     const parsed = JSON.parse(cleaned) as { subtopic: string; angle: string; content: string };
     if (typeof parsed.subtopic === "string" && typeof parsed.angle === "string" && typeof parsed.content === "string") {
-      // Guarantee the newsletter always starts with "Dear Friends,"
       const content = parsed.content.trimStart();
       const greeting = "Dear Friends,";
       const finalContent = content.startsWith(greeting) ? content : `${greeting}\n\n${content}`;
       return { subtopic: parsed.subtopic, angle: parsed.angle, content: finalContent };
     }
   } catch {
-    // Fall back gracefully if Claude returns non-JSON
+    // fall through
   }
 
-  // Fallback: treat entire response as content with generic labels
   return { subtopic: topic, angle: topic, content: raw };
 }
 
@@ -649,9 +764,10 @@ export async function sendWellnessNewsletterEmails(
 
   for (const patient of patients ?? []) {
     const firstName = patient.first_name;
+    if (!patient.email) continue;
     const ctx: AutomationContext = {
       hospitalId,
-      patientId: patient.id,
+      patientId: patient.id as number,
       patientName: `${patient.first_name} ${patient.last_name}`,
       automationType: "wellness_newsletter",
       channel: "email",
@@ -659,27 +775,23 @@ export async function sendWellnessNewsletterEmails(
     const logId = await logAutomation(ctx, "queued");
     try {
       const html = wrapHtml(
-        `<h2 style="font-size:18px;font-weight:700;margin:0 0 16px;">This Week: ${topic}</h2>
-         <p>Hi ${firstName},</p>
-         <div style="line-height:1.8;">${formattedContent}</div>
-         ${mediaSection}`,
+        `<p style="font-size:13px;color:#8b949e;margin-bottom:16px;">Weekly Wellness — ${topic}</p>
+         <div style="font-size:15px;line-height:1.8;color:#c9d1d9;">${formattedContent}</div>
+         ${mediaSection}
+         <p style="font-size:12px;color:#8b949e;margin-top:24px;border-top:1px solid #30363d;padding-top:16px;">This newsletter is for general wellness information only. Please do not reply to this email.</p>`,
         hCtx.hospitalName,
       );
-
       await sendEmail({
-        to: patient.email,
+        to: patient.email as string,
         from: hCtx.sendingEmail,
-        subject: `${hCtx.hospitalName} Wellness Newsletter — ${topic}`,
+        subject: `Your weekly wellness update — ${hCtx.hospitalName}`,
         html,
-        text: `${newsletterContent}${youtubeLink ? `\n\nWatch: ${youtubeLink}` : ""}`,
+        text: `Hi ${firstName},\n\n${newsletterContent}\n\nThis newsletter is for general wellness information only. Please do not reply to this email.\n\n${hCtx.hospitalName} Team`,
       });
-
-      await updateAutomationLog(logId, "sent", `Newsletter → ${patient.email}`);
+      await updateAutomationLog(logId, "sent");
       sent++;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      await updateAutomationLog(logId, "failed", msg);
-      Sentry.captureException(err, { extra: { ...ctx } });
+    } catch {
+      await updateAutomationLog(logId, "failed");
       failed++;
     }
   }

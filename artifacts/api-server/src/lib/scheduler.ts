@@ -2,14 +2,12 @@ import cron from "node-cron";
 import * as Sentry from "@sentry/node";
 import { supabase } from "./supabase.js";
 import {
-  sendPostTreatmentCheckin,
-  sendPostCareWellness,
-  sendAppointmentReminder,
-  sendAppointmentNoShowFollowUp,
+  sendPostTreatmentCheckinEmail,
+  sendPostCareEmail,
+  sendDormantEmail,
+  sendAppointmentReminderEmail,
+  sendAppointmentNoShowEmail,
   sendFeedbackEmail,
-  sendInCareDailyMessage,
-  sendCareReminder,
-  type MedicationPeriod,
 } from "./automation.js";
 import { signFeedbackToken } from "./feedbackToken.js";
 
@@ -20,6 +18,7 @@ function log(msg: string) {
 }
 
 // ── Appointment Reminders — runs every 15 minutes ─────────────────────────────
+// All reminders now go to the patient's email address.
 async function runAppointmentReminders() {
   try {
     const now = new Date();
@@ -30,32 +29,32 @@ async function runAppointmentReminders() {
 
     const { data: appts } = await supabase
       .from("appointments")
-      .select("*, patients(id, first_name, last_name, phone, whatsapp_number, hospital_id)")
+      .select("*, patients(id, first_name, last_name, email, hospital_id)")
       .eq("status", "scheduled")
       .is("reminder_24h_sent_at", null);
 
     for (const appt of appts ?? []) {
       const scheduledAt = new Date(appt.scheduled_at);
       const patient = (appt as Record<string, unknown>).patients as Record<string, unknown> | null;
-      if (!patient || !patient.phone) continue;
+      if (!patient || !patient.email) continue;
 
       const hospitalUsername = patient.hospital_id as string;
       const { data: hospital } = await supabase.from("hospitals").select("id").eq("username", hospitalUsername).single();
       if (!hospital) continue;
 
-      const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+      const patientEmail = patient.email as string;
       const patientName = `${patient.first_name} ${patient.last_name}`;
 
       if (scheduledAt >= in24h && scheduledAt < in24hPlus15) {
-        await sendAppointmentReminder(hospital.id, patient.id as number, patientName, phone, appt.title, appt.scheduled_at, 24);
+        await sendAppointmentReminderEmail(hospital.id, patient.id as number, patientName, patientEmail, appt.scheduled_at, 24);
         await supabase.from("appointments").update({ reminder_24h_sent_at: now.toISOString() }).eq("id", appt.id);
-        log(`Sent 24h reminder for appt ${appt.id}`);
+        log(`Sent 24h email reminder for appt ${appt.id}`);
       }
 
       if (scheduledAt >= in2h && scheduledAt < in2hPlus15 && !appt.reminder_2h_sent_at) {
-        await sendAppointmentReminder(hospital.id, patient.id as number, patientName, phone, appt.title, appt.scheduled_at, 2);
+        await sendAppointmentReminderEmail(hospital.id, patient.id as number, patientName, patientEmail, appt.scheduled_at, 2);
         await supabase.from("appointments").update({ reminder_2h_sent_at: now.toISOString() }).eq("id", appt.id);
-        log(`Sent 2h reminder for appt ${appt.id}`);
+        log(`Sent 2h email reminder for appt ${appt.id}`);
       }
     }
   } catch (err) {
@@ -64,194 +63,45 @@ async function runAppointmentReminders() {
   }
 }
 
-// ── In-Care Daily Messages — runs daily ───────────────────────────────────────
-async function runInCareDailyMessages() {
-  try {
-    const today = new Date().toISOString().split("T")[0];
-
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
-    for (const h of hospitals ?? []) {
-      const { data: patients } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, phone, whatsapp_number, treatment_plan, medication_timing, treatment_type, treatment_duration_days, treatment_started_at")
-        .eq("stage", "In Care")
-        .eq("hospital_id", h.username);
-
-      for (const p of patients ?? []) {
-        const phone = (p.whatsapp_number as string) || (p.phone as string);
-        if (!phone) continue;
-
-        // Check if we already sent a daily message today
-        const { data: alreadySent } = await supabase
-          .from("automation_log")
-          .select("id")
-          .eq("patient_id", p.id)
-          .eq("automation_type", "in_care_daily")
-          .eq("status", "sent")
-          .gte("created_at", `${today}T00:00:00Z`)
-          .lte("created_at", `${today}T23:59:59Z`)
-          .maybeSingle();
-
-        if (alreadySent) continue;
-
-        const startedAt = p.treatment_started_at ? new Date(p.treatment_started_at as string) : new Date();
-        const dayNumber = Math.max(1, Math.floor((Date.now() - startedAt.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-        const totalDays = (p.treatment_duration_days as number) ?? 30;
-
-        const patientName = `${p.first_name} ${p.last_name}`;
-        await sendInCareDailyMessage(
-          h.id,
-          p.id as number,
-          patientName,
-          phone,
-          (p.treatment_plan as string) ?? "",
-          (p.medication_timing as string | null) ?? null,
-          (p.treatment_type as string) ?? "treatment",
-          dayNumber,
-          totalDays,
-        );
-        log(`In-care daily message sent to patient ${p.id} (day ${dayNumber}/${totalDays})`);
-      }
-    }
-  } catch (err) {
-    Sentry.captureException(err);
-    log(`In-care daily messages error: ${err}`);
-  }
-}
-
-// ── Medication Timing Reminders — runs every 30 min ──────────────────────────
-// Nigeria WAT = UTC+1. Windows (UTC hours):
-//   Morning   → 6–9   (7am–10am WAT)
-//   Afternoon → 11–14 (12pm–3pm WAT)
-//   Night     → 18–20 (7pm–9pm WAT)
-
-function currentPeriod(): MedicationPeriod | null {
-  const utcHour = new Date().getUTCHours();
-  if (utcHour >= 6 && utcHour < 9) return "morning";
-  if (utcHour >= 11 && utcHour < 14) return "afternoon";
-  if (utcHour >= 18 && utcHour < 20) return "night";
-  return null;
-}
-
-function hasPeriod(timing: string, period: MedicationPeriod): boolean {
-  const t = timing.toLowerCase();
-  if (period === "night") return t.includes("night") || t.includes("evening");
-  return t.includes(period);
-}
-
-async function runMedicationReminders() {
-  const period = currentPeriod();
-  if (!period) return; // outside all reminder windows
-
-  try {
-    const today = new Date().toISOString().split("T")[0];
-
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
-    for (const h of hospitals ?? []) {
-      const { data: patients } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, phone, whatsapp_number, treatment_plan, medication_timing, treatment_type, treatment_duration_days, treatment_started_at")
-        .eq("stage", "In Care")
-        .eq("hospital_id", h.username);
-
-      for (const p of patients ?? []) {
-        const medicationTiming = (p.medication_timing as string | null) ?? "";
-        if (!medicationTiming || !hasPeriod(medicationTiming, period)) continue;
-
-        const phone = (p.whatsapp_number as string) || (p.phone as string);
-        if (!phone) continue;
-
-        // Skip if already sent this period today
-        const automationType = `care_reminder_${period}`;
-        const { data: alreadySent } = await supabase
-          .from("automation_log")
-          .select("id")
-          .eq("patient_id", p.id)
-          .eq("automation_type", automationType)
-          .eq("status", "sent")
-          .gte("created_at", `${today}T00:00:00Z`)
-          .lte("created_at", `${today}T23:59:59Z`)
-          .maybeSingle();
-
-        if (alreadySent) continue;
-
-        const startedAt = p.treatment_started_at ? new Date(p.treatment_started_at as string) : new Date();
-        const dayNumber = Math.max(1, Math.floor((Date.now() - startedAt.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-        const totalDays = (p.treatment_duration_days as number) ?? 30;
-        const patientName = `${p.first_name} ${p.last_name}`;
-
-        await sendCareReminder(
-          h.id,
-          p.id as number,
-          patientName,
-          phone,
-          (p.treatment_plan as string) ?? "",
-          medicationTiming,
-          period,
-          dayNumber,
-          totalDays,
-        );
-        log(`Medication reminder (${period}) sent to patient ${p.id}`);
-      }
-    }
-  } catch (err) {
-    Sentry.captureException(err);
-    log(`Medication reminders error: ${err}`);
-  }
-}
-
-// ── Post-Treatment Check-ins — runs daily ─────────────────────────────────────
+// ── Post-Treatment Check-ins — runs daily — Day 1, 4, 7 emails only ───────────
 async function runPostTreatmentCheckins() {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
 
-    const { data: hospitals } = await supabase
-      .from("hospital_settings")
-      .select("hospital_id, post_treatment_checkin_days");
-
-    for (const hs of hospitals ?? []) {
-      // post_treatment_checkin_days = total number of days to send daily check-ins after treatment ends
-      const durationDays = (hs.post_treatment_checkin_days as number) ?? 14;
-      const windowStart = new Date(Date.now() - durationDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-
-      const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hs.hospital_id).single();
-      if (!hospital) continue;
-
-      // Only patients whose treatment ended within the check-in window
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
+    for (const h of hospitals ?? []) {
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, phone, whatsapp_number, treatment_end_date")
+        .select("id, first_name, last_name, email, treatment_end_date")
         .eq("stage", "Post Treatment")
-        .eq("hospital_id", hospital.username)
-        .gte("treatment_end_date", windowStart);
+        .eq("hospital_id", h.username);
 
       for (const p of patients ?? []) {
-        const phone = (p.whatsapp_number as string) || (p.phone as string);
-        if (!phone) continue;
+        if (!p.email || !p.treatment_end_date) continue;
 
-        // Only once per day — skip if already sent today
-        const { data: sentToday } = await supabase
-          .from("automation_log")
-          .select("id")
-          .eq("patient_id", p.id)
-          .eq("automation_type", "post_treatment_checkin")
-          .eq("status", "sent")
-          .gte("created_at", `${today}T00:00:00Z`)
-          .lte("created_at", `${today}T23:59:59Z`)
-          .maybeSingle();
-
-        if (sentToday) continue;
-
+        const endDate = new Date(p.treatment_end_date as string);
+        const daysSinceEnd = Math.floor((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
         const patientName = `${p.first_name} ${p.last_name}`;
 
-        const { count } = await supabase
-          .from("automation_log")
-          .select("*", { count: "exact", head: true })
-          .eq("patient_id", p.id)
-          .eq("automation_type", "post_treatment_checkin");
+        for (const day of [1, 4, 7] as const) {
+          if (daysSinceEnd < day) continue; // not yet time
+          if (daysSinceEnd > day + 2) continue; // too late (missed window — skip to avoid very delayed sends)
 
-        await sendPostTreatmentCheckin(hs.hospital_id as number, p.id as number, patientName, phone, (count ?? 0) + 1);
-        log(`Post-treatment check-in sent to patient ${p.id} (day ${(count ?? 0) + 1} of ${durationDays})`);
+          const automationType = `post_treatment_day${day}`;
+          const { data: alreadySent } = await supabase
+            .from("automation_log")
+            .select("id")
+            .eq("patient_id", p.id)
+            .eq("automation_type", automationType)
+            .eq("status", "sent")
+            .maybeSingle();
+
+          if (alreadySent) continue;
+
+          await sendPostTreatmentCheckinEmail(h.id, p.id as number, patientName, p.email as string, day);
+          log(`Post-treatment Day ${day} email → patient ${p.id} (${daysSinceEnd} days since treatment end)`);
+        }
       }
     }
   } catch (err) {
@@ -260,46 +110,42 @@ async function runPostTreatmentCheckins() {
   }
 }
 
-// ── Post-Care Wellness Messages — runs daily ──────────────────────────────────
-async function runPostCareWellness() {
+// ── Post-Care Email — runs daily — once after 30 days in Post Care ─────────────
+async function runPostCareEmails() {
   try {
-    const { data: hospitals } = await supabase
-      .from("hospital_settings")
-      .select("hospital_id, post_care_checkin_days");
+    const cutoff30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    for (const hs of hospitals ?? []) {
-      const freqDays = (hs.post_care_checkin_days as number) ?? 30;
-      const cutoff = new Date(Date.now() - freqDays * 24 * 60 * 60 * 1000).toISOString();
-
-      const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hs.hospital_id).single();
-      if (!hospital) continue;
-
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
+    for (const h of hospitals ?? []) {
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, phone, whatsapp_number")
+        .select("id, first_name, last_name, email, updated_at")
         .eq("stage", "Post Care")
-        .eq("hospital_id", hospital.username)
-        .or(`last_wellness_sent_at.is.null,last_wellness_sent_at.lt.${cutoff}`);
+        .eq("hospital_id", h.username)
+        .lt("updated_at", cutoff30);
 
       for (const p of patients ?? []) {
-        const phone = (p.whatsapp_number as string) || (p.phone as string);
-        if (!phone) continue;
-        const patientName = `${p.first_name} ${p.last_name}`;
+        if (!p.email) continue;
 
-        const { count } = await supabase
+        // Only send once
+        const { data: alreadySent } = await supabase
           .from("automation_log")
-          .select("*", { count: "exact", head: true })
+          .select("id")
           .eq("patient_id", p.id)
-          .eq("automation_type", "post_care_wellness");
+          .eq("automation_type", "post_care_email")
+          .eq("status", "sent")
+          .maybeSingle();
 
-        await sendPostCareWellness(hs.hospital_id as number, p.id as number, patientName, phone, (count ?? 0) + 1);
-        await supabase.from("patients").update({ last_wellness_sent_at: new Date().toISOString() }).eq("id", p.id);
-        log(`Post-care wellness sent to patient ${p.id}`);
+        if (alreadySent) continue;
+
+        const patientName = `${p.first_name} ${p.last_name}`;
+        await sendPostCareEmail(h.id, p.id as number, patientName, p.email as string);
+        log(`Post-care email → patient ${p.id}`);
       }
     }
   } catch (err) {
     Sentry.captureException(err);
-    log(`Post-care wellness error: ${err}`);
+    log(`Post-care emails error: ${err}`);
   }
 }
 
@@ -344,6 +190,45 @@ async function runDormantDetection() {
   }
 }
 
+// ── Dormant Email — runs daily — once after 250 days total inactivity ─────────
+async function runDormantEmails() {
+  try {
+    const cutoff250 = new Date(Date.now() - 250 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
+    for (const h of hospitals ?? []) {
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, email, updated_at")
+        .eq("stage", "Dormant")
+        .eq("hospital_id", h.username)
+        .lt("updated_at", cutoff250);
+
+      for (const p of patients ?? []) {
+        if (!p.email) continue;
+
+        // Only send once ever
+        const { data: alreadySent } = await supabase
+          .from("automation_log")
+          .select("id")
+          .eq("patient_id", p.id)
+          .eq("automation_type", "dormant_email")
+          .eq("status", "sent")
+          .maybeSingle();
+
+        if (alreadySent) continue;
+
+        const patientName = `${p.first_name} ${p.last_name}`;
+        await sendDormantEmail(h.id, p.id as number, patientName, p.email as string);
+        log(`Dormant email → patient ${p.id} (>250 days inactive)`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Dormant emails error: ${err}`);
+  }
+}
+
 // ── Post Treatment → Post Care Transition — runs daily ───────────────────────
 async function runPostTreatmentTransitions() {
   try {
@@ -351,6 +236,7 @@ async function runPostTreatmentTransitions() {
 
     const { data: hospitals } = await supabase.from("hospitals").select("id, username");
     for (const h of hospitals ?? []) {
+      // In Care → Post Treatment when treatment_end_date has passed
       const { data: patients } = await supabase
         .from("patients")
         .select("id, first_name, last_name, treatment_end_date")
@@ -373,7 +259,7 @@ async function runPostTreatmentTransitions() {
       }
     }
 
-    // Post Treatment → Post Care
+    // Post Treatment → Post Care (configurable days)
     const { data: hsSettings } = await supabase
       .from("hospital_settings")
       .select("hospital_id, pipeline_post_treatment_days");
@@ -470,9 +356,6 @@ async function runFeedbackEmails() {
 }
 
 // ── Auto No-Show Detection ────────────────────────────────────────────────────
-// Runs every 15 min — marks past-due scheduled appointments as no_show and
-// creates a receptionist call task. The follow-up message is intentionally
-// NOT sent here; it goes out 1 hour later via runNoShowFollowup().
 async function runNoShowDetection() {
   try {
     const now = new Date();
@@ -488,13 +371,12 @@ async function runNoShowDetection() {
 
       const { data: patient } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, phone, whatsapp_number, hospital_id")
+        .select("id, first_name, last_name, hospital_id")
         .eq("id", appt.patient_id)
         .single();
 
       if (patient) {
         const patientName = `${patient.first_name} ${patient.last_name}`;
-
         await supabase.from("activity").insert({
           type: "no_show",
           description: `Auto no-show: ${patientName} missed appointment "${appt.title}"`,
@@ -512,17 +394,13 @@ async function runNoShowDetection() {
   }
 }
 
-// ── Auto No-Show Follow-up (1 hour after missed) ──────────────────────────────
-// Runs every 15 min — finds no_show appointments where exactly 1 hour has
-// passed since the scheduled time (uses a rolling 30-min window so the check
-// fires once and never re-fires for the same appointment).
+// ── Auto No-Show Follow-up Email (1 hour after missed) ───────────────────────
 async function runNoShowFollowup() {
   try {
     const now = new Date();
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
     const ninetyMinAgo = new Date(now.getTime() - 90 * 60 * 1000);
 
-    // Only appointments where scheduled_at is between 60 and 90 minutes ago
     const { data: appts } = await supabase
       .from("appointments")
       .select("id, title, scheduled_at, patient_id, patient_name")
@@ -533,21 +411,18 @@ async function runNoShowFollowup() {
     for (const appt of appts ?? []) {
       const { data: patient } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, phone, whatsapp_number, hospital_id")
+        .select("id, first_name, last_name, email, hospital_id")
         .eq("id", appt.patient_id)
         .single();
 
-      if (patient) {
+      if (patient && patient.email) {
         const patientName = `${patient.first_name} ${patient.last_name}`;
         const { data: hospital } = await supabase
           .from("hospitals").select("id").eq("username", (patient.hospital_id as string).toLowerCase()).single();
 
         if (hospital) {
-          const phone = (patient.whatsapp_number as string) || (patient.phone as string);
-          if (phone) {
-            await sendAppointmentNoShowFollowUp(hospital.id, patient.id, patientName, phone, appt.title).catch(() => {});
-            log(`No-show follow-up sent: appt ${appt.id} (${patientName})`);
-          }
+          await sendAppointmentNoShowEmail(hospital.id, patient.id, patientName, patient.email).catch(() => {});
+          log(`No-show follow-up email: appt ${appt.id} (${patientName})`);
         }
       }
     }
@@ -558,8 +433,6 @@ async function runNoShowFollowup() {
 }
 
 // ── Auto No-Show Dismissal at 11 PM ──────────────────────────────────────────
-// Runs at 23:00 daily — dismisses all no_show appointments from that calendar
-// day so they are cleared from the tab overnight.
 async function runNoShowDismissal() {
   try {
     const now = new Date();
@@ -611,40 +484,36 @@ async function checkSubscriptionExpirations() {
 }
 
 export function startScheduler() {
-  // Every 15 minutes: appointment reminders + no-show detection + 1-hour follow-up
+  // Every 15 minutes: appointment reminders + no-show detection + 1-hour follow-up email
   cron.schedule("*/15 * * * *", async () => {
     await runAppointmentReminders();
     await runNoShowDetection();
     await runNoShowFollowup();
   });
 
-  // 11:00 PM daily: dismiss no-show appointments from today
-  cron.schedule("0 23 * * *", runNoShowDismissal);
-
-  // Every 30 minutes: in-care daily general message + medication timing reminders
-  cron.schedule("*/30 * * * *", async () => {
-    await runInCareDailyMessages();
-    await runMedicationReminders();
-  });
-
-  // Every 10 minutes: pipeline stage transitions + dormant detection (pure data flow, no patient messages)
-  cron.schedule("*/10 * * * *", async () => {
+  // Daily at 6:00 AM: pipeline transitions + post-treatment check-ins + post-care + dormant
+  cron.schedule("0 6 * * *", async () => {
     await runPostTreatmentTransitions();
+    await runPostTreatmentCheckins();
+    await runPostCareEmails();
     await runDormantDetection();
+    await runDormantEmails();
   });
 
-  // Post-treatment check-ins: 7am and 6pm daily (dedup prevents double-sends on same day)
-  cron.schedule("0 7 * * *", runPostTreatmentCheckins);
-  cron.schedule("0 18 * * *", runPostTreatmentCheckins);
+  // Daily at 9:00 PM: end-of-day feedback emails
+  cron.schedule("0 21 * * *", async () => {
+    await runFeedbackEmails();
+  });
 
-  // Daily at 9pm: end-of-day feedback emails
-  cron.schedule("0 21 * * *", runFeedbackEmails);
+  // Daily at 11:00 PM: dismiss any no-shows from today
+  cron.schedule("0 23 * * *", async () => {
+    await runNoShowDismissal();
+  });
 
-  // Daily at 10am: post-care wellness (sends once to patients with 30+ days no contact, then every 30 days)
-  cron.schedule("0 10 * * *", runPostCareWellness);
+  // Every 6 hours: subscription expiration check
+  cron.schedule("0 */6 * * *", async () => {
+    await checkSubscriptionExpirations();
+  });
 
-  // Daily at 1am UTC (2am WAT): auto-suspend hospitals with expired subscriptions
-  cron.schedule("0 1 * * *", checkSubscriptionExpirations);
-
-  log("Scheduler started");
+  log("Scheduler started — all automations are email-first");
 }

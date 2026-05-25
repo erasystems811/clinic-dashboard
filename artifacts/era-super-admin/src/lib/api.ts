@@ -79,6 +79,8 @@ export interface HospitalSettings {
   postTreatmentCheckinDays: number | null;
   postCareCheckinDays: number | null;
   whatsappFromNumber: string | null;
+  notificationChannel: "whatsapp" | "sms" | null;
+  phoneNumber: string | null;
 }
 
 export interface HospitalModules {

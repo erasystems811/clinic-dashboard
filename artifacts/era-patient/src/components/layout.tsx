@@ -15,7 +15,6 @@ import {
   Star,
   Newspaper,
   Building2,
-  MessageSquare,
   HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,7 +34,6 @@ interface NavItem {
 
 function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): NavItem[] {
   const appt = modules?.appointmentsEnabled ?? true;
-  const msgs = modules?.messagesEnabled ?? false;
 
   if (role === "receptionist") {
     const items: NavItem[] = [
@@ -43,15 +41,12 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
       { icon: Phone, label: "Call Tasks", href: "/call-tasks" },
     ];
     if (appt) items.push({ icon: Calendar, label: "Appointments", href: "/appointments" });
-    if (msgs) items.push({ icon: MessageSquare, label: "Messages", href: "/messages" });
     return items;
   }
   if (role === "nurse") {
-    const items: NavItem[] = [
+    return [
       { icon: Stethoscope, label: "Nurse Station", href: "/nurse-station" },
     ];
-    if (msgs) items.push({ icon: MessageSquare, label: "Messages", href: "/messages" });
-    return items;
   }
   // admin
   const items: NavItem[] = [
@@ -67,7 +62,6 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
     items.push({ icon: Star, label: "Feedback", href: "/feedback-admin" });
   }
   items.push({ icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" });
-  if (msgs) items.push({ icon: MessageSquare, label: "Messages", href: "/messages" });
   return items;
 }
 

@@ -225,6 +225,27 @@ router.post("/wellness/generate", async (req, res): Promise<void> => {
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
+  const WEEKLY_LIMIT = 5;
+  const weekOf = weekOfDate(new Date());
+
+  // Check weekly regeneration limit
+  const { data: weekRecord } = await supabase
+    .from("wellness_newsletter")
+    .select("id, generate_count")
+    .eq("hospital_id", hospitalId)
+    .eq("week_of", weekOf)
+    .maybeSingle();
+
+  const currentCount = (weekRecord?.generate_count as number) ?? 0;
+  if (currentCount >= WEEKLY_LIMIT) {
+    res.status(429).json({
+      error: `You have reached the maximum of ${WEEKLY_LIMIT} generations for this week. The limit resets next Monday.`,
+      generateCount: currentCount,
+      weeklyLimit: WEEKLY_LIMIT,
+    });
+    return;
+  }
+
   const parsed = GenerateNewsletterBody.safeParse(req.body);
   const { data: settings } = await supabase.from("hospital_settings").select("departments").eq("hospital_id", hospitalId).single();
   const departments: string[] = settings?.departments ? JSON.parse(settings.departments) : [];
@@ -239,9 +260,25 @@ router.post("/wellness/generate", async (req, res): Promise<void> => {
   const fixedSubtopic = parsed.success ? parsed.data.subtopic : undefined;
 
   try {
+    // Increment count before generating (fail-safe against concurrent calls)
+    const newCount = currentCount + 1;
+    if (weekRecord) {
+      await supabase.from("wellness_newsletter")
+        .update({ generate_count: newCount })
+        .eq("id", weekRecord.id);
+    } else {
+      await supabase.from("wellness_newsletter").upsert({
+        hospital_id: hospitalId,
+        week_of: weekOf,
+        generate_count: newCount,
+        content: "",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "hospital_id,week_of" });
+    }
+
     const { subtopic, angle, content } = await generateWellnessNewsletter(hospitalId, topic, departments, fixedSubtopic);
     await markTopicUsed(hospitalId, topic);
-    res.json({ topic, subtopic, angle, content });
+    res.json({ topic, subtopic, angle, content, generateCount: newCount, weeklyLimit: WEEKLY_LIMIT });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: msg });

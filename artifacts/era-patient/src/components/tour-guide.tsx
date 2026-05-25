@@ -50,11 +50,6 @@ const ADMIN_STEPS: Step[] = [
     target: '[data-tour="nav-wellness"]',
   },
   {
-    title: "Messages",
-    body: "View and manage WhatsApp conversations with patients here. Any message sent through Era — reminders, check-ins, replies — appears in this inbox.",
-    target: '[data-tour="nav-messages"]',
-  },
-  {
     title: "Settings",
     body: "Change your staff login passwords here — nurse and receptionist credentials are managed from this page.",
     target: '[data-tour="nav-settings"]',

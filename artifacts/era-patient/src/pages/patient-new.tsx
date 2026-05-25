@@ -75,8 +75,11 @@ export default function NewPatient() {
           setLocation(isReceptionist ? "/queue" : `/patients/${result.id}/history`);
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-          toast({ title: "Error", description: msg ?? "Failed to create patient. Please try again.", variant: "destructive" });
+          const msg =
+            (err as { data?: { error?: string } })?.data?.error ??
+            (err as { message?: string })?.message ??
+            "Failed to create patient. Please try again.";
+          toast({ title: "Could not create patient", description: msg, variant: "destructive" });
         }
       }
     );

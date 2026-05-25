@@ -3,9 +3,12 @@ import { useParams, Link, useLocation } from "wouter";
 import { format, parseISO } from "date-fns";
 import { useGetPatientHistory, useDeletePatient } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { apiUrl } from "@/lib/api";
 import { Layout } from "@/components/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-context";
 import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
@@ -15,7 +18,7 @@ import {
 import {
   ArrowLeft, Phone, Mail, Calendar, Stethoscope,
   ClipboardList, PhoneCall, MessageSquare, Bot, Activity,
-  Clock, CheckCircle2, AlertTriangle, Flag, Trash2,
+  Clock, CheckCircle2, AlertTriangle, Flag, Trash2, Pencil, X, Save,
 } from "lucide-react";
 
 function fmt(iso: string | null | undefined) {
@@ -111,6 +114,58 @@ export default function PatientHistory() {
   const [, setLocation] = useLocation();
 
   const [showFollowUp, setShowFollowUp] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const startEditing = (patient: Record<string, unknown>) => {
+    setEditForm({
+      patientId:      String(patient.patientId ?? ""),
+      firstName:      String(patient.firstName ?? ""),
+      lastName:       String(patient.lastName ?? ""),
+      email:          String(patient.email ?? ""),
+      phone:          String(patient.phone ?? ""),
+      whatsappNumber: String(patient.whatsappNumber ?? ""),
+      dateOfBirth:    String(patient.dateOfBirth ?? ""),
+      age:            patient.age != null ? String(patient.age) : "",
+      gender:         String(patient.gender ?? ""),
+      department:     String(patient.department ?? ""),
+    });
+    setSaveError(null);
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const payload: Record<string, unknown> = { ...editForm };
+      if (editForm.age) payload.age = parseInt(editForm.age, 10);
+      else delete payload.age;
+      // Remove empty strings so we don't overwrite with blanks
+      Object.keys(payload).forEach(k => { if (payload[k] === "") delete payload[k]; });
+
+      const res = await fetch(apiUrl(`/api/patients/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Failed to save");
+
+      queryClient.invalidateQueries();
+      setEditing(false);
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setEditForm(f => ({ ...f, [key]: e.target.value }));
 
   const deletePatient = useDeletePatient();
   const handleDelete = () => {
@@ -191,57 +246,129 @@ export default function PatientHistory() {
                   )}
                 </div>
               </div>
-              {/* Admin flag actions */}
-              {isAdmin && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => setShowFollowUp(true)}
-                  >
-                    <Flag className="w-3.5 h-3.5" />
-                    Flag Follow-Up
-                  </Button>
-                </div>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {editing ? (
+                  <>
+                    <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => { setEditing(false); setSaveError(null); }} disabled={saving}>
+                      <X className="w-3.5 h-3.5" />
+                      Cancel
+                    </Button>
+                    <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={saving}>
+                      <Save className="w-3.5 h-3.5" />
+                      {saving ? "Saving…" : "Save"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => startEditing(patient as unknown as Record<string, unknown>)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                      Edit
+                    </Button>
+                    {isAdmin && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => setShowFollowUp(true)}
+                      >
+                        <Flag className="w-3.5 h-3.5" />
+                        Flag Follow-Up
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 pt-4 border-t border-border">
-              <InfoRow label="Patient ID" value={patient.patientId} />
-              <InfoRow label="Date of Birth" value={fmtDate(patient.dateOfBirth)} />
-              <InfoRow label="Age / Gender" value={[patient.age ? `${patient.age} yrs` : null, patient.gender].filter(Boolean).join(" · ") || null} />
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Phone</span>
-                <span className="text-sm font-medium flex items-center gap-1.5">
-                  <Phone className="w-3 h-3 text-muted-foreground" />
-                  {patient.phone}
-                </span>
+            {editing ? (
+              /* ── Inline edit form ── */
+              <div className="pt-4 border-t border-border space-y-4">
+                {saveError && (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {saveError}
+                  </div>
+                )}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">First Name</Label>
+                    <Input value={editForm.firstName} onChange={field("firstName")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Last Name</Label>
+                    <Input value={editForm.lastName} onChange={field("lastName")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Patient ID</Label>
+                    <Input value={editForm.patientId} onChange={field("patientId")} placeholder="e.g. PT-00123" className="font-mono" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Phone</Label>
+                    <Input value={editForm.phone} onChange={field("phone")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">WhatsApp</Label>
+                    <Input value={editForm.whatsappNumber} onChange={field("whatsappNumber")} placeholder="+1234567890" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Email</Label>
+                    <Input type="email" value={editForm.email} onChange={field("email")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Date of Birth</Label>
+                    <Input type="date" value={editForm.dateOfBirth} onChange={field("dateOfBirth")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Age</Label>
+                    <Input type="number" min={0} max={150} value={editForm.age} onChange={field("age")} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Gender</Label>
+                    <Input value={editForm.gender} onChange={field("gender")} placeholder="e.g. Female" />
+                  </div>
+                  <div className="space-y-1 md:col-span-3">
+                    <Label className="text-xs">Department</Label>
+                    <Input value={editForm.department} onChange={field("department")} />
+                  </div>
+                </div>
               </div>
-              {patient.whatsappNumber && patient.whatsappNumber !== patient.phone && (
+            ) : (
+              /* ── Read-only info grid ── */
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 pt-4 border-t border-border">
+                <InfoRow label="Patient ID" value={patient.patientId} />
+                <InfoRow label="Date of Birth" value={fmtDate(patient.dateOfBirth)} />
+                <InfoRow label="Age / Gender" value={[patient.age ? `${patient.age} yrs` : null, patient.gender].filter(Boolean).join(" · ") || null} />
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">WhatsApp</span>
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Phone</span>
                   <span className="text-sm font-medium flex items-center gap-1.5">
-                    <MessageSquare className="w-3 h-3 text-muted-foreground" />
-                    {patient.whatsappNumber}
+                    <Phone className="w-3 h-3 text-muted-foreground" />
+                    {patient.phone}
                   </span>
                 </div>
-              )}
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Email</span>
-                <span className="text-sm font-medium flex items-center gap-1.5 min-w-0">
-                  <Mail className="w-3 h-3 text-muted-foreground shrink-0" />
-                  <span className="truncate">{patient.email}</span>
-                </span>
+                {patient.whatsappNumber && patient.whatsappNumber !== patient.phone && (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">WhatsApp</span>
+                    <span className="text-sm font-medium flex items-center gap-1.5">
+                      <MessageSquare className="w-3 h-3 text-muted-foreground" />
+                      {patient.whatsappNumber}
+                    </span>
+                  </div>
+                )}
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Email</span>
+                  <span className="text-sm font-medium flex items-center gap-1.5 min-w-0">
+                    <Mail className="w-3 h-3 text-muted-foreground shrink-0" />
+                    <span className="truncate">{patient.email}</span>
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Registered</span>
+                  <span className="text-sm font-medium flex items-center gap-1.5">
+                    <Clock className="w-3 h-3 text-muted-foreground" />
+                    {fmtDate(patient.createdAt)}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Registered</span>
-                <span className="text-sm font-medium flex items-center gap-1.5">
-                  <Clock className="w-3 h-3 text-muted-foreground" />
-                  {fmtDate(patient.createdAt)}
-                </span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 

@@ -201,6 +201,24 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
   const parsed = UpdatePatientBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  // If patientId is being changed, enforce uniqueness within this hospital
+  if (parsed.data.patientId) {
+    const hospital = await getHospitalFromRequest(req);
+    if (hospital) {
+      const { data: conflict } = await supabase
+        .from("patients")
+        .select("id")
+        .eq("hospital_id", hospital.username)
+        .eq("patient_id", parsed.data.patientId)
+        .neq("id", id)
+        .maybeSingle();
+      if (conflict) {
+        res.status(409).json({ error: `Patient ID "${parsed.data.patientId}" is already in use by another patient in this hospital.` });
+        return;
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from("patients")
     .update({ ...snakify(parsed.data as Record<string, unknown>), updated_at: new Date().toISOString() })

@@ -465,49 +465,30 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
   const parsed = UpdateModulesBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  // Step 1: update schema-cached columns via standard client
-  const knownUpdates: Record<string, unknown> = {};
-  if (parsed.data.appointmentsEnabled !== undefined) knownUpdates.appointments_enabled = parsed.data.appointmentsEnabled;
-  if (parsed.data.feedbackEnabled !== undefined) knownUpdates.feedback_enabled = parsed.data.feedbackEnabled;
+  const updates: Record<string, unknown> = {};
+  if (parsed.data.appointmentsEnabled !== undefined) updates.appointments_enabled = parsed.data.appointmentsEnabled;
+  if (parsed.data.feedbackEnabled !== undefined) updates.feedback_enabled = parsed.data.feedbackEnabled;
+  if (parsed.data.wellnessNewsletterEnabled !== undefined) updates.wellness_newsletter_enabled = parsed.data.wellnessNewsletterEnabled;
+  if (parsed.data.whatsappEnabled !== undefined) updates.whatsapp_enabled = parsed.data.whatsappEnabled;
+  if (parsed.data.messagesEnabled !== undefined) updates.messages_enabled = parsed.data.messagesEnabled;
 
-  if (Object.keys(knownUpdates).length > 0) {
-    const { error: knownErr } = await supabase
-      .from("hospital_modules").update(knownUpdates).eq("hospital_id", id);
-    if (knownErr) { res.status(500).json({ error: knownErr.message }); return; }
+  if (Object.keys(updates).length > 0) {
+    const { error: updateErr } = await supabase
+      .from("hospital_modules").update(updates).eq("hospital_id", id);
+    if (updateErr) { res.status(500).json({ error: updateErr.message }); return; }
   }
 
-  // Step 2: update new columns via void RPC (bypasses schema cache)
-  const hasNewCols = parsed.data.wellnessNewsletterEnabled !== undefined
-    || parsed.data.whatsappEnabled !== undefined
-    || parsed.data.messagesEnabled !== undefined;
-
-  if (hasNewCols) {
-    const { data: current } = await supabase
-      .from("hospital_modules").select("appointments_enabled,feedback_enabled").eq("hospital_id", id).single();
-    if (!current) { res.status(404).json({ error: "Not found" }); return; }
-
-    const { error: rpcErr } = await supabase.rpc("set_hospital_module_flags", {
-      p_hospital_id: id,
-      p_wellness_newsletter_enabled: parsed.data.wellnessNewsletterEnabled ?? true,
-      p_whatsapp_enabled: parsed.data.whatsappEnabled ?? false,
-      p_messages_enabled: parsed.data.messagesEnabled ?? false,
-    });
-    if (rpcErr) { res.status(500).json({ error: rpcErr.message }); return; }
-  }
-
-  // Step 3: return refreshed row (only schema-cached columns + known booleans)
   const { data: refreshed } = await supabase
     .from("hospital_modules").select("*").eq("hospital_id", id).single();
   if (!refreshed) { res.status(404).json({ error: "Not found" }); return; }
 
-  // Merge the new-column values from the request since PostgREST won't return them yet
-  const merged = {
+  res.json({
     ...camelize(refreshed),
-    wellnessNewsletterEnabled: parsed.data.wellnessNewsletterEnabled ?? true,
-    whatsappEnabled: parsed.data.whatsappEnabled ?? false,
-    messagesEnabled: parsed.data.messagesEnabled ?? false,
-  };
-  res.json(merged);
+    wellnessNewsletterEnabled: (refreshed as Record<string, unknown>).wellness_newsletter_enabled ?? parsed.data.wellnessNewsletterEnabled ?? true,
+    whatsappEnabled: (refreshed as Record<string, unknown>).whatsapp_enabled ?? parsed.data.whatsappEnabled ?? false,
+    messagesEnabled: (refreshed as Record<string, unknown>).messages_enabled ?? parsed.data.messagesEnabled ?? false,
+  });
+  return;
 });
 
 // ── Staff login ──────────────────────────────────────────────────────────────

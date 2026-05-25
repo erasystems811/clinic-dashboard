@@ -377,6 +377,9 @@ const UpdateSettingsBody = z.object({
   postTreatmentCheckinDays: z.number().int().min(1).nullish(),
   postCareCheckinDays: z.number().int().min(1).nullish(),
   whatsappFromNumber: z.string().nullish(),
+  notificationChannel: z.enum(["whatsapp", "sms"]).nullish(),
+  phoneNumber: z.string().nullish(),
+  termiiSenderId: z.string().nullish(),
 });
 
 router.get("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -401,7 +404,7 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   const parsed = UpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { departments, tone, pipelinePostTreatmentDays, pipelineDormantDays, language, clinicDescription, sendingEmail, postTreatmentCheckinDays, postCareCheckinDays, whatsappFromNumber } = parsed.data;
+  const { departments, tone, pipelinePostTreatmentDays, pipelineDormantDays, language, clinicDescription, sendingEmail, postTreatmentCheckinDays, postCareCheckinDays, whatsappFromNumber, notificationChannel, phoneNumber, termiiSenderId } = parsed.data;
   const updates: Record<string, unknown> = {};
   if (departments !== undefined) updates.departments = JSON.stringify(departments);
   if (tone !== undefined) updates.tone = JSON.stringify(tone);
@@ -413,6 +416,9 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   if (postTreatmentCheckinDays !== undefined) updates.post_treatment_checkin_days = postTreatmentCheckinDays;
   if (postCareCheckinDays !== undefined) updates.post_care_checkin_days = postCareCheckinDays;
   if (whatsappFromNumber !== undefined) updates.whatsapp_from_number = whatsappFromNumber;
+  if (notificationChannel !== undefined) updates.notification_channel = notificationChannel;
+  if (phoneNumber !== undefined) updates.phone_number = phoneNumber;
+  if (termiiSenderId !== undefined) updates.termii_sender_id = termiiSenderId;
 
   const { data: settings, error } = await supabase
     .from("hospital_settings")

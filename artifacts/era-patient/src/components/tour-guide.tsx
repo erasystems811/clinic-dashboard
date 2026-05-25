@@ -41,7 +41,7 @@ const ADMIN_STEPS: Step[] = [
   },
   {
     title: "Settings",
-    body: "Configure your departments, automation tone, WhatsApp number, and more. This is where you make Era feel like your own hospital.",
+    body: "Change your staff login passwords here — nurse and receptionist credentials are managed from this page.",
     target: '[data-tour="nav-settings"]',
   },
   {

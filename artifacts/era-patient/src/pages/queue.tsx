@@ -118,9 +118,7 @@ export default function QueueManagement() {
   };
 
 
-  const filteredPatients = search.trim().length >= 2
-    ? searchResults.filter((p) => !queue.some((q) => q.patientId === p.id))
-    : [];
+  const filteredPatients = search.trim().length >= 2 ? searchResults : [];
 
   return (
     <Layout>
@@ -337,29 +335,38 @@ export default function QueueManagement() {
             {search.trim().length >= 2 && (
               <div className="space-y-2">
                 {filteredPatients.length > 0 ? (
-                  filteredPatients.map((patient) => (
-                    <div key={patient.id} className="flex items-center gap-3 p-3 rounded-md border border-border bg-muted/30">
-                      <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0">
-                        {patient.firstName[0]}{patient.lastName[0]}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
-                          {patient.patientId && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">ID: {patient.patientId}</span>}
-                          <span>{patient.stage}</span>
-                          <span>{patient.email}</span>
-                          {patient.whatsappNumber && <span>WA: {patient.whatsappNumber}</span>}
+                  filteredPatients.map((patient) => {
+                    const alreadyQueued = queue.some((q) => q.patientId === patient.id);
+                    return (
+                      <div key={patient.id} className={`flex items-center gap-3 p-3 rounded-md border bg-muted/30 ${alreadyQueued ? "border-amber-400/50 bg-amber-50/30 dark:bg-amber-950/20" : "border-border"}`}>
+                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0">
+                          {patient.firstName[0]}{patient.lastName[0]}
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
+                            {patient.patientId && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">ID: {patient.patientId}</span>}
+                            <span>{patient.stage}</span>
+                            <span>{patient.email}</span>
+                            {patient.whatsappNumber && <span>WA: {patient.whatsappNumber}</span>}
+                          </div>
+                        </div>
+                        {alreadyQueued ? (
+                          <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2.5 py-1 rounded-full whitespace-nowrap">
+                            Already in queue
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => checkin.mutate({ id: patient.id })}
+                            disabled={checkin.isPending}
+                          >
+                            Add to Queue
+                          </Button>
+                        )}
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => checkin.mutate({ id: patient.id })}
-                        disabled={checkin.isPending}
-                      >
-                        Add to Queue
-                      </Button>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="text-center py-4 space-y-2">
                     <p className="text-sm text-muted-foreground">No patient found for "{search}"</p>

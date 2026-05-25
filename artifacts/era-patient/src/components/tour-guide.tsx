@@ -275,7 +275,7 @@ function TooltipCard({
 export function TourGuide() {
   const { user, hospital } = useAuth();
   const role = user?.role ?? "admin";
-  const slug = hospital?.slug ?? "default";
+  const slug = hospital?.username ?? "default";
 
   const steps = STEPS_FOR_ROLE[role] ?? ADMIN_STEPS;
   const key = tourKey(slug, role);

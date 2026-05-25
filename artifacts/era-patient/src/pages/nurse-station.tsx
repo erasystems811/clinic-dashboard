@@ -70,11 +70,13 @@ export default function NurseStation() {
 
   const { data: searchResults = [], isFetching: searching } = useListPatients(
     { search },
-    { enabled: search.trim().length >= 2 }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: search.trim().length >= 2 } as any }
   );
   const { data: flagSearchResults = [], isFetching: flagSearching } = useListPatients(
     { search: flagSearch },
-    { enabled: flagSearch.trim().length >= 2 }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: flagSearch.trim().length >= 2 } as any }
   );
 
   const logPlan = useLogTreatmentPlan({

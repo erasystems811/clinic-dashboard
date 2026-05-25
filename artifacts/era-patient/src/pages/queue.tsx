@@ -46,11 +46,13 @@ export default function QueueManagement() {
   const { data: queue = [], refetch: refetchQueue, isLoading: queueLoading } = useListQueue();
   const { data: searchResults = [], isFetching: searching } = useListPatients(
     { search },
-    { enabled: search.trim().length >= 2 }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: search.trim().length >= 2 } as any }
   );
   const { data: aptSearchResults = [], isFetching: aptSearching } = useListPatients(
     { search: aptSearch },
-    { enabled: aptSearch.trim().length >= 2 }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: aptSearch.trim().length >= 2 } as any }
   );
 
   const checkin = useCheckinPatient({

@@ -108,7 +108,8 @@ export default function PatientHistory() {
   const [showFollowUp, setShowFollowUp] = useState(false);
 
   const { data, isLoading, error } = useGetPatientHistory(id, {
-    query: { enabled: !isNaN(id) },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query: { enabled: !isNaN(id) } as any,
   });
 
   if (isLoading) {
@@ -366,7 +367,7 @@ export default function PatientHistory() {
                           {/* Task type badge */}
                           {isCheckIn ? (
                             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                              <CheckCircle className="w-3 h-3" />
+                              <CheckCircle2 className="w-3 h-3" />
                               {checkInType ?? "Check-In"}
                             </span>
                           ) : (

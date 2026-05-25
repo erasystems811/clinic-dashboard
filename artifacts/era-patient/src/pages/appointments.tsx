@@ -74,7 +74,8 @@ function BookModal({
 
   const { data: results = [], isFetching } = useListPatients(
     { search },
-    { enabled: search.trim().length >= 2 }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: search.trim().length >= 2 } as any }
   );
 
   const create = useCreateAppointment({

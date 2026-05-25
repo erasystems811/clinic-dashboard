@@ -69,9 +69,9 @@ export default function WellnessAdmin() {
   useEffect(() => {
     if (currentNewsletter) {
       setContent(currentNewsletter.content);
-      setTopic((currentNewsletter as Record<string, unknown>).topic as string ?? "");
-      setYoutubeLink((currentNewsletter as Record<string, unknown>).youtubeLink as string ?? "");
-      setTiktokLink((currentNewsletter as Record<string, unknown>).tiktokLink as string ?? "");
+      setTopic(((currentNewsletter as unknown) as Record<string, unknown>).topic as string ?? "");
+      setYoutubeLink(((currentNewsletter as unknown) as Record<string, unknown>).youtubeLink as string ?? "");
+      setTiktokLink(((currentNewsletter as unknown) as Record<string, unknown>).tiktokLink as string ?? "");
     }
   }, [currentNewsletter]);
 
@@ -124,12 +124,13 @@ export default function WellnessAdmin() {
     if (!id || editing) {
       const saved = await new Promise<number | null>((resolve) => {
         upsert.mutate(
-          { data: { content, weekOf: currentWeekOf, topic: topic || undefined, youtubeLink: youtubeLink || undefined, tiktokLink: tiktokLink || undefined } },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { data: { content, weekOf: currentWeekOf, topic: topic || undefined, youtubeLink: youtubeLink || undefined, tiktokLink: tiktokLink || undefined } as any },
           {
             onSuccess: (res) => {
               queryClient.invalidateQueries({ queryKey: getListWellnessNewslettersQueryKey() });
               setEditing(false);
-              resolve((res as Record<string, unknown>).id as number);
+              resolve((res as unknown as Record<string, unknown>).id as number);
             },
             onError: () => { toast({ title: "Save failed", variant: "destructive" }); resolve(null); },
           }
@@ -339,7 +340,8 @@ export default function WellnessAdmin() {
                   )}
                   <Button
                     variant="outline"
-                    onClick={() => upsert.mutate({ data: { content, weekOf: currentWeekOf, topic: topic || undefined, youtubeLink: youtubeLink || undefined, tiktokLink: tiktokLink || undefined } })}
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    onClick={() => upsert.mutate({ data: { content, weekOf: currentWeekOf, topic: topic || undefined, youtubeLink: youtubeLink || undefined, tiktokLink: tiktokLink || undefined } as any })}
                     disabled={!content.trim() || upsert.isPending || generating}
                     className="gap-2"
                   >
@@ -398,15 +400,15 @@ export default function WellnessAdmin() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium">Week of {format(parseISO(n.weekOf), "MMMM d, yyyy")}</p>
-                        {(n as Record<string, unknown>).topic && (
-                          <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">{(n as Record<string, unknown>).topic as string}</span>
+                        {!!(n as unknown as Record<string, unknown>).topic && (
+                          <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">{String((n as unknown as Record<string, unknown>).topic)}</span>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.content}</p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      {(n as Record<string, unknown>).recipientCount && (
-                        <span className="text-xs text-muted-foreground">{(n as Record<string, unknown>).recipientCount as number} sent</span>
+                      {!!(n as unknown as Record<string, unknown>).recipientCount && (
+                        <span className="text-xs text-muted-foreground">{Number((n as unknown as Record<string, unknown>).recipientCount)} sent</span>
                       )}
                       {n.lastSentAt ? (
                         <span className="flex items-center gap-1 text-xs text-green-400">

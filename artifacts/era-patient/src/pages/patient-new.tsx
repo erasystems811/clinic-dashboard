@@ -32,6 +32,8 @@ export default function NewPatient() {
     age: "",
     gender: "",
     stage: "Booked",
+    diagnosis: "",
+    notes: "",
   });
 
   const field = (key: keyof typeof form) =>

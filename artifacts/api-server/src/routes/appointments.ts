@@ -47,7 +47,7 @@ router.get("/appointments", async (req, res): Promise<void> => {
   if (query.data.status) {
     q = q.eq("status", query.data.status);
   } else {
-    q = q.neq("status", "completed").neq("status", "dismissed");
+    q = q.neq("status", "completed").neq("status", "dismissed").neq("status", "cancelled");
   }
 
   if (query.data.patientId) {

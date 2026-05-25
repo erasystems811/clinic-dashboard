@@ -212,9 +212,9 @@ function BookModal({
 /* ──────────────────────────────────────────────
    Appointment Card
 ────────────────────────────────────────────── */
-function AppointmentCard({ apt, onNoShow, onReschedule, showActions }: {
+function AppointmentCard({ apt, onCancel, onReschedule, showActions }: {
   apt: Appointment;
-  onNoShow: (id: number) => void;
+  onCancel: (id: number) => void;
   onReschedule: (apt: Appointment) => void;
   showActions: boolean;
 }) {
@@ -241,8 +241,8 @@ function AppointmentCard({ apt, onNoShow, onReschedule, showActions }: {
       </div>
       {showActions && apt.status === "scheduled" && (
         <div className="flex gap-2 shrink-0">
-          <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60" onClick={() => onNoShow(apt.id)}>
-            <X className="w-3.5 h-3.5" />No Show
+          <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60" onClick={() => onCancel(apt.id)}>
+            <X className="w-3.5 h-3.5" />Cancel
           </Button>
           <Button variant="outline" size="sm" onClick={() => onReschedule(apt)}>
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" />Reschedule
@@ -455,10 +455,10 @@ export default function Appointments() {
     },
   });
 
-  const handleNoShow = (id: number) => {
-    if (!confirm("Mark this patient as a no-show? A call task will be created for follow-up.")) return;
-    updateAppointment.mutate({ id, data: { status: "no_show" } });
-    toast({ title: "No-show recorded", description: "A call task has been created." });
+  const handleCancel = (id: number) => {
+    if (!confirm("Cancel this appointment?")) return;
+    updateAppointment.mutate({ id, data: { status: "cancelled" } });
+    toast({ title: "Appointment cancelled" });
   };
 
   const handleReschedule = (e: React.FormEvent) => {
@@ -556,7 +556,7 @@ export default function Appointments() {
                     Scheduled ({scheduled.length})
                   </h2>
                   {scheduled.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onNoShow={handleNoShow} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
+                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
                   ))}
                 </div>
               )}
@@ -567,7 +567,7 @@ export default function Appointments() {
                     <h2 className="text-xs font-semibold text-destructive uppercase tracking-wide">No Shows ({noShows.length})</h2>
                   </div>
                   {noShows.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onNoShow={handleNoShow} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
+                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
                   ))}
                 </div>
               )}
@@ -575,7 +575,7 @@ export default function Appointments() {
                 <div className="space-y-3">
                   <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rescheduled ({rescheduled.length})</h2>
                   {rescheduled.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onNoShow={handleNoShow} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
+                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
                   ))}
                 </div>
               )}

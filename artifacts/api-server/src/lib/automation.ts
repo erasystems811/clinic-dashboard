@@ -52,7 +52,8 @@ export async function updateAutomationLog(
 interface HospitalContext {
   hospitalName: string;
   hospitalUsername: string;
-  sendingEmail: string;
+  /** Ready-to-use "Display Name <email>" from address for Resend */
+  fromAddress: string;
   notificationChannel: "whatsapp" | "sms";
   phoneNumber: string | null;
   termiiSenderId: string | null;
@@ -65,10 +66,18 @@ async function getHospitalContext(hospitalId: number): Promise<HospitalContext> 
       .select("sending_email, notification_channel, phone_number, tone, termii_sender_id")
       .eq("hospital_id", hospitalId).single(),
   ]);
+  const hospitalName = hospital?.name ?? "The Hospital";
+  // Use hospital's own sending email if set; fall back to platform email env var.
+  // Always wrap with hospital display name so patients see "City Clinic <...>" as sender.
+  const rawEmail =
+    (settings?.sending_email as string | null)?.trim() ||
+    process.env.PLATFORM_FROM_EMAIL ||
+    "onboarding@resend.dev";
+  const fromAddress = `${hospitalName} <${rawEmail}>`;
   return {
-    hospitalName: hospital?.name ?? "The Hospital",
+    hospitalName,
     hospitalUsername: hospital?.username ?? "",
-    sendingEmail: settings?.sending_email ?? "onboarding@resend.dev",
+    fromAddress,
     notificationChannel: (settings?.notification_channel as "whatsapp" | "sms") ?? "whatsapp",
     phoneNumber: (settings?.phone_number as string) ?? null,
     termiiSenderId: (settings?.termii_sender_id as string) ?? null,
@@ -237,7 +246,7 @@ export async function sendCarePlanEmail(
 
     await sendEmail({
       to: patientEmail,
-      from: hCtx.sendingEmail,
+      from: hCtx.fromAddress,
       subject: `Your care plan has started — ${hCtx.hospitalName}`,
       html,
       text: emailBody,
@@ -287,7 +296,7 @@ export async function sendPostTreatmentCheckinEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
       to: patientEmail,
-      from: hCtx.sendingEmail,
+      from: hCtx.fromAddress,
       subject,
       html,
       text: body,
@@ -324,7 +333,7 @@ export async function sendPostCareEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
       to: patientEmail,
-      from: hCtx.sendingEmail,
+      from: hCtx.fromAddress,
       subject,
       html,
       text: body,
@@ -361,7 +370,7 @@ export async function sendDormantEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
       to: patientEmail,
-      from: hCtx.sendingEmail,
+      from: hCtx.fromAddress,
       subject,
       html,
       text: body,
@@ -400,7 +409,7 @@ export async function sendAppointmentConfirmationEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
       to: patientEmail,
-      from: hCtx.sendingEmail,
+      from: hCtx.fromAddress,
       subject,
       html,
       text: body,
@@ -444,7 +453,7 @@ export async function sendAppointmentReminderEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
       to: patientEmail,
-      from: hCtx.sendingEmail,
+      from: hCtx.fromAddress,
       subject,
       html,
       text: body,
@@ -479,7 +488,7 @@ export async function sendAppointmentNoShowEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
       to: patientEmail,
-      from: hCtx.sendingEmail,
+      from: hCtx.fromAddress,
       subject,
       html,
       text: body,
@@ -526,7 +535,7 @@ export async function sendFeedbackEmail(
 
     await sendEmail({
       to: patientEmail,
-      from: hCtx.sendingEmail,
+      from: hCtx.fromAddress,
       subject,
       html,
       text: `${intro}\n\nShare your feedback: ${feedbackUrl}\n\n${closing}`,
@@ -617,7 +626,7 @@ export async function sendCallTaskManualEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
       to: patientEmail,
-      from: hCtx.sendingEmail,
+      from: hCtx.fromAddress,
       subject,
       html,
       text: body,
@@ -785,7 +794,7 @@ export async function sendWellnessNewsletterEmails(
       );
       await sendEmail({
         to: patient.email as string,
-        from: hCtx.sendingEmail,
+        from: hCtx.fromAddress,
         subject: `Your weekly wellness update — ${hCtx.hospitalName}`,
         html,
         text: `Hi ${firstName},\n\n${newsletterContent}\n\nThis newsletter is for general wellness information only. Please do not reply to this email.\n\n${hCtx.hospitalName} Team`,

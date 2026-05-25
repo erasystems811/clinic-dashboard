@@ -362,7 +362,9 @@ function TaskCard({ task }: { task: CallTask }) {
 
           {showMethodPicker && (
             <div className="grid grid-cols-3 gap-2">
-              {ACTION_TYPES.map((action) => {
+              {ACTION_TYPES.filter(a =>
+                task.taskType === "follow_up" ? true : a.value !== "automated_message"
+              ).map((action) => {
                 const AI = action.icon;
                 const isSelected = task.actionType === action.value;
                 return (

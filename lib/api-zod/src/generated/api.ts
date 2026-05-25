@@ -465,6 +465,7 @@ export const ListActivityResponse = zod.array(ListActivityResponseItem)
 export const ListQueueResponseItem = zod.object({
   "id": zod.number(),
   "patientId": zod.number(),
+  "patientCode": zod.string().nullish(),
   "patientName": zod.string(),
   "position": zod.number(),
   "addedAt": zod.string(),

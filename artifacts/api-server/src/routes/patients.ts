@@ -139,7 +139,7 @@ router.post("/patients", async (req, res): Promise<void> => {
   const nowIso = new Date().toISOString();
   await supabase.from("patients").update({ checked_in_at: nowIso }).eq("id", patient.id);
 
-  const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true });
+  const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true }).eq("hospital_id", patient.hospital_id);
   const position = (currentCount ?? 0) + 1;
 
   await supabase.from("queue").insert({
@@ -393,12 +393,12 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
     if (Math.abs(diffMins) <= 60) hasTimedAppointment = true;
   }
 
-  const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true });
+  const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true }).eq("hospital_id", existing.hospital_id);
   const queueSize = currentCount ?? 0;
 
   let position: number;
   if (hasTimedAppointment && queueSize > 0) {
-    const { data: existingQueue } = await supabase.from("queue").select("id, position").order("position", { ascending: true });
+    const { data: existingQueue } = await supabase.from("queue").select("id, position").eq("hospital_id", existing.hospital_id).order("position", { ascending: true });
     for (const entry of existingQueue ?? []) {
       await supabase.from("queue").update({ position: entry.position + 1 }).eq("id", entry.id);
     }

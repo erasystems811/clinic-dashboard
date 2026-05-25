@@ -281,7 +281,7 @@ export default function QueueManagement() {
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-muted-foreground">
-                      {entry.patientId && <span className="font-mono">ID: {entry.patientId}</span>}
+                      {entry.patientCode && <span className="font-mono">ID: {entry.patientCode}</span>}
                       {entry.stage && <span>was: {entry.stage}</span>}
                       {entry.email && <span>{entry.email}</span>}
                       {entry.whatsappNumber && <span>WA: {entry.whatsappNumber}</span>}

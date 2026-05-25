@@ -9,6 +9,8 @@
 export interface QueueEntry {
   id: number;
   patientId: number;
+  /** @nullable */
+  patientCode?: string | null;
   patientName: string;
   position: number;
   addedAt: string;

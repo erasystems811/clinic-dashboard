@@ -208,7 +208,7 @@ export default function PatientHistory() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4 pt-4 border-t border-border">
-              <InfoRow label="Hospital ID" value={patient.hospitalId} />
+              <InfoRow label="Patient ID" value={patient.patientId} />
               <InfoRow label="Date of Birth" value={fmtDate(patient.dateOfBirth)} />
               <InfoRow label="Age / Gender" value={[patient.age ? `${patient.age} yrs` : null, patient.gender].filter(Boolean).join(" · ") || null} />
               <div className="flex flex-col gap-0.5">

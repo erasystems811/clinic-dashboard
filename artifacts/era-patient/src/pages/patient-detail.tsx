@@ -268,12 +268,12 @@ export default function PatientDetail() {
               </div>
 
               <div className="pt-5 space-y-4">
-                {patient.hospitalId && (
+                {patient.patientId && (
                   <div className="flex items-center gap-3">
                     <Hash className="w-4 h-4 text-muted-foreground shrink-0" />
                     <div>
-                      <p className="text-xs text-muted-foreground">Hospital ID</p>
-                      <p className="font-medium font-mono text-sm">{patient.hospitalId}</p>
+                      <p className="text-xs text-muted-foreground">Patient ID</p>
+                      <p className="font-medium font-mono text-sm">{patient.patientId}</p>
                     </div>
                   </div>
                 )}

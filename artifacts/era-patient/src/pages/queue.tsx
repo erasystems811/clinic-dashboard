@@ -191,7 +191,7 @@ export default function QueueManagement() {
                             <div className="flex-1 min-w-0">
                               <p className="font-medium">{p.firstName} {p.lastName}</p>
                               <p className="text-xs text-muted-foreground">
-                                {p.hospitalId && <span className="mr-2">ID: {p.hospitalId}</span>}
+                                {p.patientId && <span className="mr-2">ID: {p.patientId}</span>}
                                 {p.stage}
                               </p>
                             </div>
@@ -281,7 +281,7 @@ export default function QueueManagement() {
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-muted-foreground">
-                      {entry.hospitalId && <span className="font-mono">ID: {entry.hospitalId}</span>}
+                      {entry.patientId && <span className="font-mono">ID: {entry.patientId}</span>}
                       {entry.stage && <span>was: {entry.stage}</span>}
                       {entry.email && <span>{entry.email}</span>}
                       {entry.whatsappNumber && <span>WA: {entry.whatsappNumber}</span>}
@@ -345,7 +345,7 @@ export default function QueueManagement() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
-                          {patient.hospitalId && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">ID: {patient.hospitalId}</span>}
+                          {patient.patientId && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">ID: {patient.patientId}</span>}
                           <span>{patient.stage}</span>
                           <span>{patient.email}</span>
                           {patient.whatsappNumber && <span>WA: {patient.whatsappNumber}</span>}

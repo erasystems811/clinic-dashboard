@@ -20,7 +20,7 @@ router.get("/queue", async (req, res): Promise<void> => {
   const patientIds = queueEntries.map((e) => e.patient_id).filter(Boolean);
   const { data: patients } = await supabase
     .from("patients")
-    .select("id, phone, email, whatsapp_number, hospital_id, pre_queue_stage")
+    .select("id, phone, email, whatsapp_number, hospital_id, pre_queue_stage, patient_id")
     .in("id", patientIds)
     .eq("hospital_id", hospital.username);
 
@@ -36,6 +36,7 @@ router.get("/queue", async (req, res): Promise<void> => {
         email: p.email ?? null,
         whatsappNumber: p.whatsapp_number ?? null,
         hospitalId: p.hospital_id ?? null,
+        patientId: p.patient_id ?? null,
         stage: p.pre_queue_stage ?? null,
       };
     });

@@ -194,7 +194,7 @@ export default function NurseStation() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
                           <p className="text-xs text-muted-foreground">
-                            {patient.hospitalId && <span className="mr-2 font-mono">ID: {patient.hospitalId}</span>}
+                            {patient.patientId && <span className="mr-2 font-mono">ID: {patient.patientId}</span>}
                             {patient.phone} · <span className={patient.stage === "Queued" ? "text-primary font-medium" : ""}>{patient.stage}</span>
                           </p>
                         </div>
@@ -213,7 +213,7 @@ export default function NurseStation() {
                   <div className="flex-1">
                     <p className="font-semibold text-sm">{selectedPatient.firstName} {selectedPatient.lastName}</p>
                     <p className="text-xs text-muted-foreground">
-                      {selectedPatient.hospitalId && <span className="font-mono mr-2">ID: {selectedPatient.hospitalId}</span>}
+                      {selectedPatient.patientId && <span className="font-mono mr-2">ID: {selectedPatient.patientId}</span>}
                       Stage: {selectedPatient.stage}
                     </p>
                   </div>

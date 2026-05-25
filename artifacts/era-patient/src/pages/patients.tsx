@@ -98,7 +98,7 @@ export default function Patients() {
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow>
                   <TableHead>Patient</TableHead>
-                  <TableHead>Hospital ID</TableHead>
+                  <TableHead>Patient ID</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Stage</TableHead>
                   <TableHead>Department</TableHead>
@@ -141,7 +141,7 @@ export default function Patients() {
                           </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm font-mono">
-                          {patient.hospitalId || <span className="opacity-40">—</span>}
+                          {patient.patientId || <span className="opacity-40">—</span>}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col">

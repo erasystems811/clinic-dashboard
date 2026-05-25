@@ -189,28 +189,6 @@ export default function PatientDetail() {
                   }
                 </Button>
               )}
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" className="gap-2">
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete patient?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete the record for {patient.firstName} {patient.lastName}.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
             </div>
           </div>
         </div>
@@ -362,6 +340,32 @@ export default function PatientDetail() {
             </CardContent>
           </Card>
         </div>
+        {user?.role === "admin" && (
+          <div className="pt-4 border-t border-border/40">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="text-xs text-muted-foreground/50 hover:text-destructive transition-colors flex items-center gap-1.5">
+                  <Trash2 className="w-3 h-3" />
+                  Delete patient record
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete patient record?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently remove all data for {patient.firstName} {patient.lastName} including appointments, activity history, and call tasks. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Permanently Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
       </div>
     </Layout>
   );

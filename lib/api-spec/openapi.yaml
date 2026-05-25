@@ -45,6 +45,14 @@ paths:
           in: query
           schema:
             type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
       responses:
         "200":
           description: List of patients
@@ -988,6 +996,14 @@ components:
           type: string
         content:
           type: string
+        topic:
+          type: ["string", "null"]
+        youtubeLink:
+          type: ["string", "null"]
+        tiktokLink:
+          type: ["string", "null"]
+        recipientCount:
+          type: ["integer", "null"]
         lastSentAt:
           type: ["string", "null"]
         updatedAt:
@@ -1000,4 +1016,10 @@ components:
         content:
           type: string
         weekOf:
+          type: string
+        topic:
+          type: string
+        youtubeLink:
+          type: string
+        tiktokLink:
           type: string

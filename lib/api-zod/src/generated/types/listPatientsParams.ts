@@ -9,4 +9,6 @@
 export type ListPatientsParams = {
 stage?: string;
 search?: string;
+limit?: number;
+offset?: number;
 };

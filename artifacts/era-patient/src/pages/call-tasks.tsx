@@ -224,7 +224,7 @@ function TaskCard({ task }: { task: CallTask }) {
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-sm">{task.patientName}</p>
             {isComplete && <span className="text-xs bg-green-500/10 text-green-400 px-1.5 py-0.5 rounded-full font-medium border border-green-500/20">Completed</span>}
-            {!!(task as unknown as Record<string, unknown>).department && <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{(task as unknown as Record<string, string>).department}</span>}
+            {!!task.department && <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{task.department}</span>}
           </div>
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
             <span className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{task.phone}</span>
@@ -238,9 +238,9 @@ function TaskCard({ task }: { task: CallTask }) {
 
       <div className="mx-4 mb-4 space-y-2">
         <div className="flex items-center gap-2">
-          {(task as unknown as Record<string, unknown>).taskType === "check_in" ? (
+          {task.taskType === "check_in" ? (
             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-              <CheckCircle className="w-3 h-3" />{(task as unknown as Record<string, string | undefined>).checkInType ?? "Check-In"}
+              <CheckCircle className="w-3 h-3" />{task.checkInType ?? "Check-In"}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">

@@ -11,6 +11,14 @@ export interface WellnessNewsletter {
   weekOf: string;
   content: string;
   /** @nullable */
+  topic?: string | null;
+  /** @nullable */
+  youtubeLink?: string | null;
+  /** @nullable */
+  tiktokLink?: string | null;
+  /** @nullable */
+  recipientCount?: number | null;
+  /** @nullable */
   lastSentAt?: string | null;
   updatedAt: string;
 }

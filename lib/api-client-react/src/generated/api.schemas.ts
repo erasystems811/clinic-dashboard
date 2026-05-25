@@ -121,7 +121,13 @@ export interface CallTask {
   phone: string;
   /** @nullable */
   whatsappNumber?: string | null;
+  /** @nullable */
+  department?: string | null;
   reason: string;
+  /** follow_up | check_in */
+  taskType: string;
+  /** @nullable */
+  checkInType?: string | null;
   /** automated_message | manual_text | manual_call */
   actionType: string;
   /** @nullable */
@@ -171,38 +177,6 @@ export interface QueueEntry {
   stage?: string | null;
   /** @nullable */
   appointmentId?: number | null;
-}
-
-export interface CallTask {
-  id: number;
-  patientId: number;
-  patientName: string;
-  phone: string;
-  /** @nullable */
-  whatsappNumber?: string | null;
-  /** @nullable */
-  department?: string | null;
-  reason: string;
-  /** follow_up | check_in */
-  taskType: string;
-  /** @nullable */
-  checkInType?: string | null;
-  /** automated_message | manual_text | manual_call */
-  actionType: string;
-  /** @nullable */
-  outcome?: string | null;
-  /** @nullable */
-  completedAt?: string | null;
-  flaggedAt: string;
-}
-
-export interface FlagMissedInput {
-  reason: string;
-  /** automated_message | manual_text | manual_call */
-  actionType?: string;
-  /** follow_up | check_in */
-  taskType?: string;
-  checkInType?: string;
 }
 
 export interface CallOutcomeInput {
@@ -294,6 +268,14 @@ export interface WellnessNewsletter {
   weekOf: string;
   content: string;
   /** @nullable */
+  topic?: string | null;
+  /** @nullable */
+  youtubeLink?: string | null;
+  /** @nullable */
+  tiktokLink?: string | null;
+  /** @nullable */
+  recipientCount?: number | null;
+  /** @nullable */
   lastSentAt?: string | null;
   updatedAt: string;
 }
@@ -301,11 +283,16 @@ export interface WellnessNewsletter {
 export interface WellnessNewsletterInput {
   content: string;
   weekOf: string;
+  topic?: string;
+  youtubeLink?: string;
+  tiktokLink?: string;
 }
 
 export type ListPatientsParams = {
 stage?: string;
 search?: string;
+limit?: number;
+offset?: number;
 };
 
 export type ListAppointmentsParams = {

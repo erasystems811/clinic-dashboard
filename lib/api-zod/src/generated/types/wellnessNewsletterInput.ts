@@ -9,4 +9,7 @@
 export interface WellnessNewsletterInput {
   content: string;
   weekOf: string;
+  topic?: string;
+  youtubeLink?: string;
+  tiktokLink?: string;
 }

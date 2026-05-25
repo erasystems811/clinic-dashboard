@@ -1,28 +1,54 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { useListPatients, getListPatientsQueryKey, useListPipelineStages, getListPipelineStagesQueryKey } from "@workspace/api-client-react";
+import { useListPatients, useListPipelineStages, getListPipelineStagesQueryKey, type Patient } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Filter, ChevronRight } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight, ChevronLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const PAGE_SIZE = 50;
 
 export default function Patients() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
+  const [page, setPage] = useState(0);
+  const [allPatients, setAllPatients] = useState<Patient[]>([]);
+
+  const offset = page * PAGE_SIZE;
 
   const { data: stages } = useListPipelineStages({
     query: { queryKey: getListPipelineStagesQueryKey() }
   });
 
-  const { data: patients, isLoading } = useListPatients(
-    { search: search || undefined, stage: stageFilter !== "all" ? stageFilter : undefined },
-    { query: { queryKey: getListPatientsQueryKey({ search: search || undefined, stage: stageFilter !== "all" ? stageFilter : undefined }) } }
+  const { data: pageData, isLoading } = useListPatients(
+    {
+      search: search || undefined,
+      stage: stageFilter !== "all" ? stageFilter : undefined,
+      limit: PAGE_SIZE,
+      offset,
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: true } as any }
   );
+
+  useEffect(() => {
+    if (pageData !== undefined) {
+      setAllPatients(pageData);
+    }
+  }, [pageData]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [search, stageFilter]);
+
+  const hasMore = (pageData?.length ?? 0) === PAGE_SIZE;
+  const start = offset + 1;
+  const end = offset + (pageData?.length ?? 0);
 
   return (
     <Layout>
@@ -91,14 +117,14 @@ export default function Patients() {
                       <TableCell></TableCell>
                     </TableRow>
                   ))
-                ) : patients?.length === 0 ? (
+                ) : allPatients.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
                       No patients found matching your criteria.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  patients?.map((patient) => {
+                  allPatients.map((patient) => {
                     const stageColor = stages?.find(s => s.name === patient.stage)?.color || "gray";
                     return (
                       <TableRow
@@ -142,6 +168,37 @@ export default function Patients() {
               </TableBody>
             </Table>
           </div>
+
+          {!isLoading && allPatients.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-card shrink-0">
+              <span className="text-xs text-muted-foreground">
+                Showing {start}–{end} patients
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  Previous
+                </Button>
+                <span className="text-xs text-muted-foreground px-1">Page {page + 1}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={!hasMore}
+                  className="gap-1"
+                >
+                  Next
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </Layout>

@@ -14,6 +14,8 @@ const router: IRouter = Router();
 const ListPatientsQuery = z.object({
   stage: z.string().optional(),
   search: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional().default(100),
+  offset: z.coerce.number().int().min(0).optional().default(0),
 });
 
 const CreatePatientBody = z.object({
@@ -88,6 +90,8 @@ router.get("/patients", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
+  const { limit, offset } = query.data;
+
   let q = supabase.from("patients").select("*").eq("hospital_id", hospital.username);
 
   if (query.data.stage) {
@@ -97,7 +101,9 @@ router.get("/patients", async (req, res): Promise<void> => {
     q = q.or(`first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
   }
 
-  const { data, error } = await q.order("created_at", { ascending: true });
+  const { data, error } = await q
+    .order("created_at", { ascending: true })
+    .range(offset, offset + limit - 1);
   if (error) { res.status(500).json({ error: error.message }); return; }
 
   res.json(camelizeArr(data ?? []));

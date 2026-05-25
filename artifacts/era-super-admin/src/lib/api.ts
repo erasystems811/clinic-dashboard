@@ -128,7 +128,7 @@ export const api = {
   createHospital: (data: { name: string; username: string; subscriptionStatus?: string }) =>
     post<Hospital>("/super-admin/hospitals", data),
 
-  updateHospital: (id: number, data: Partial<{ name: string; active: boolean; subscriptionStatus: string; password: string }>) =>
+  updateHospital: (id: number, data: Partial<{ name: string; active: boolean; subscriptionStatus: string; subscriptionExpiresAt: string | null; password: string }>) =>
     patch<Hospital>(`/super-admin/hospitals/${id}`, data),
 
   regeneratePassword: (id: number) =>

@@ -203,9 +203,8 @@ export default function HospitalDetail({ id }: Props) {
         name,
         subscriptionStatus: subStatus,
         active,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         subscriptionExpiresAt: subscriptionExpiresAt ? new Date(subscriptionExpiresAt).toISOString() : null,
-      } as any);
+      });
       flash("Hospital updated");
       load();
     } catch (e: unknown) {

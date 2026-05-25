@@ -18,7 +18,9 @@ export const HealthCheckResponse = zod.object({
 
 export const ListPatientsQueryParams = zod.object({
   "stage": zod.coerce.string().optional(),
-  "search": zod.coerce.string().optional()
+  "search": zod.coerce.string().optional(),
+  "limit": zod.coerce.number().optional(),
+  "offset": zod.coerce.number().optional()
 })
 
 export const ListPatientsResponseItem = zod.object({
@@ -589,6 +591,10 @@ export const ListWellnessNewslettersResponseItem = zod.object({
   "id": zod.number(),
   "weekOf": zod.string(),
   "content": zod.string(),
+  "topic": zod.string().nullish(),
+  "youtubeLink": zod.string().nullish(),
+  "tiktokLink": zod.string().nullish(),
+  "recipientCount": zod.number().nullish(),
   "lastSentAt": zod.string().nullish(),
   "updatedAt": zod.string()
 })
@@ -597,13 +603,20 @@ export const ListWellnessNewslettersResponse = zod.array(ListWellnessNewsletters
 
 export const UpsertWellnessNewsletterBody = zod.object({
   "content": zod.string(),
-  "weekOf": zod.string()
+  "weekOf": zod.string(),
+  "topic": zod.string().optional(),
+  "youtubeLink": zod.string().optional(),
+  "tiktokLink": zod.string().optional()
 })
 
 export const UpsertWellnessNewsletterResponse = zod.object({
   "id": zod.number(),
   "weekOf": zod.string(),
   "content": zod.string(),
+  "topic": zod.string().nullish(),
+  "youtubeLink": zod.string().nullish(),
+  "tiktokLink": zod.string().nullish(),
+  "recipientCount": zod.number().nullish(),
   "lastSentAt": zod.string().nullish(),
   "updatedAt": zod.string()
 })
@@ -613,6 +626,10 @@ export const GetCurrentWellnessNewsletterResponse = zod.union([zod.object({
   "id": zod.number(),
   "weekOf": zod.string(),
   "content": zod.string(),
+  "topic": zod.string().nullish(),
+  "youtubeLink": zod.string().nullish(),
+  "tiktokLink": zod.string().nullish(),
+  "recipientCount": zod.number().nullish(),
   "lastSentAt": zod.string().nullish(),
   "updatedAt": zod.string()
 }),zod.null()])
@@ -626,6 +643,10 @@ export const MarkNewsletterSentResponse = zod.object({
   "id": zod.number(),
   "weekOf": zod.string(),
   "content": zod.string(),
+  "topic": zod.string().nullish(),
+  "youtubeLink": zod.string().nullish(),
+  "tiktokLink": zod.string().nullish(),
+  "recipientCount": zod.number().nullish(),
   "lastSentAt": zod.string().nullish(),
   "updatedAt": zod.string()
 })

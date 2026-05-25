@@ -52,12 +52,12 @@ export default function NewPatient() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.firstName || !form.lastName || !form.email || !form.phone || !form.dateOfBirth) return;
+    if (!form.patientId || !form.firstName || !form.lastName || !form.email || !form.phone || !form.dateOfBirth) return;
 
     createPatient.mutate(
       {
         data: {
-          patientId: form.patientId || undefined,
+          patientId: form.patientId,
           firstName: form.firstName,
           lastName: form.lastName,
           dateOfBirth: form.dateOfBirth,
@@ -74,8 +74,9 @@ export default function NewPatient() {
           toast({ title: "Patient created", description: "New patient record has been added." });
           setLocation(isReceptionist ? "/queue" : `/patients/${result.id}/history`);
         },
-        onError: () => {
-          toast({ title: "Error", description: "Failed to create patient. Please try again.", variant: "destructive" });
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+          toast({ title: "Error", description: msg ?? "Failed to create patient. Please try again.", variant: "destructive" });
         }
       }
     );
@@ -105,8 +106,8 @@ export default function NewPatient() {
             <CardContent className="space-y-6">
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Patient ID</label>
-                <Input placeholder="e.g. PT-00123 (optional)" value={form.patientId} onChange={field("patientId")} />
+                <label className="text-sm font-medium">Patient ID *</label>
+                <Input placeholder="e.g. PT-00123" value={form.patientId} onChange={field("patientId")} required />
               </div>
 
               <div className="grid md:grid-cols-2 gap-5">

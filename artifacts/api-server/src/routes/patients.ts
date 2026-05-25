@@ -19,7 +19,7 @@ const ListPatientsQuery = z.object({
 });
 
 const CreatePatientBody = z.object({
-  patientId: z.string().optional(),
+  patientId: z.string().min(1),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   dateOfBirth: z.string().optional(),
@@ -120,7 +120,15 @@ router.post("/patients", async (req, res): Promise<void> => {
   const { hospitalId: _ignored, ...rest } = parsed.data;
   const data = snakify({ ...rest, stage: "Queued", hospitalId: hospital.username });
   const { data: patient, error } = await supabase.from("patients").insert(data).select().single();
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) {
+    const isDuplicate = error.code === "23505";
+    res.status(isDuplicate ? 409 : 500).json({
+      error: isDuplicate
+        ? `A patient with ID "${parsed.data.patientId}" is already registered.`
+        : error.message
+    });
+    return;
+  }
 
   const p = camelize<Record<string, unknown>>(patient);
   await supabase.from("activity").insert({

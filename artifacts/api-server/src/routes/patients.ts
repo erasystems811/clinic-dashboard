@@ -226,6 +226,14 @@ router.delete("/patients/:id", async (req, res): Promise<void> => {
   const { error: deleteErr } = await supabase.from("patients").delete().eq("id", id);
   if (deleteErr) { res.status(500).json({ error: deleteErr.message }); return; }
 
+  // Log the deletion to activity (no patient_id since the row is gone)
+  await supabase.from("activity").insert({
+    type: "patient_deleted",
+    description: `Patient record permanently deleted: ${patientName}`,
+    patient_name: patientName,
+    hospital_id: existing.hospital_id ? (await resolveHospitalIntId(existing.hospital_id as string)) : null,
+  });
+
   res.sendStatus(204);
 });
 

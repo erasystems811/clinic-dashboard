@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { format, parseISO } from "date-fns";
-import { useGetPatientHistory } from "@workspace/api-client-react";
+import { useGetPatientHistory, useDeletePatient } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/layout";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,9 +9,13 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft, Phone, Mail, Calendar, Stethoscope,
   ClipboardList, PhoneCall, MessageSquare, Bot, Activity,
-  Clock, CheckCircle2, AlertTriangle, Flag,
+  Clock, CheckCircle2, AlertTriangle, Flag, Trash2,
 } from "lucide-react";
 
 function fmt(iso: string | null | undefined) {
@@ -104,8 +108,16 @@ export default function PatientHistory() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const [showFollowUp, setShowFollowUp] = useState(false);
+
+  const deletePatient = useDeletePatient();
+  const handleDelete = () => {
+    deletePatient.mutate({ id }, {
+      onSuccess: () => setLocation("/patients"),
+    });
+  };
 
   const { data, isLoading, error } = useGetPatientHistory(id, {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -447,6 +459,34 @@ export default function PatientHistory() {
           )}
         </Section>
       </div>
+
+      {/* Admin-only: subtle delete at very bottom */}
+      {isAdmin && (
+        <div className="pt-2 border-t border-border/40">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="text-xs text-muted-foreground/50 hover:text-destructive transition-colors flex items-center gap-1.5">
+                <Trash2 className="w-3 h-3" />
+                Delete patient record
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete patient record?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently remove all data for {patientFullName} including appointments, activity history, and call tasks. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Permanently Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
 
       {/* Modals */}
       {showFollowUp && (

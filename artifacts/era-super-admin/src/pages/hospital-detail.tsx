@@ -746,16 +746,23 @@ export default function HospitalDetail({ id }: Props) {
       )}
 
       {/* ── MODULES TAB ── */}
+      {tab === "modules" && !modules && !loading && (
+        <div className="rounded-xl bg-card border border-border p-6 text-center text-muted-foreground">
+          <p className="text-sm">Module settings could not be loaded. Try refreshing the page.</p>
+        </div>
+      )}
       {tab === "modules" && modules && (
         <div className="rounded-xl bg-card border border-border p-6 space-y-4 max-w-lg">
           <h2 className="font-semibold text-foreground">Feature Modules</h2>
           <p className="text-sm text-muted-foreground">Control which features are available to this hospital's staff.</p>
 
-          {[
-            { key: "appointments", label: "Appointments", desc: "Calendar scheduling and appointment management", value: apptEnabled, set: setApptEnabled },
-            { key: "feedback", label: "Patient Feedback", desc: "Post-visit feedback collection and analytics", value: feedbackEnabled, set: setFeedbackEnabled },
-            { key: "wellness", label: "Wellness Newsletter", desc: "Weekly AI-generated wellness emails to patients", value: wellnessEnabled, set: setWellnessEnabled },
-          ].map(mod => (
+          {(
+            [
+              { key: "appointments", label: "Appointments", desc: "Calendar scheduling and appointment management", value: apptEnabled, set: setApptEnabled },
+              { key: "feedback", label: "Patient Feedback", desc: "Post-visit feedback collection and analytics", value: feedbackEnabled, set: setFeedbackEnabled },
+              { key: "wellness", label: "Wellness Newsletter", desc: "Weekly AI-generated wellness emails to patients", value: wellnessEnabled, set: setWellnessEnabled },
+            ] as { key: string; label: string; desc: string; value: boolean; set: (v: boolean) => void }[]
+          ).map(mod => (
             <div key={mod.key} className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted border border-border">
               <div>
                 <p className="text-sm font-medium text-foreground">{mod.label}</p>

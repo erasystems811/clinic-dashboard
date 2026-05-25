@@ -9,6 +9,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+function calcAge(dob: string): number | undefined {
+  if (!dob) return undefined;
+  const today = new Date();
+  const birth = new Date(dob);
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age >= 0 ? age : undefined;
+}
+
 export default function NewPatient() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -24,7 +34,6 @@ export default function NewPatient() {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
-    hospitalId: "",
     dateOfBirth: "",
     email: "",
     phone: "",
@@ -40,17 +49,22 @@ export default function NewPatient() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm(f => ({ ...f, [key]: e.target.value }));
 
+  function onDobChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const dob = e.target.value;
+    const age = calcAge(dob);
+    setForm(f => ({ ...f, dateOfBirth: dob, age: age !== undefined ? String(age) : f.age }));
+  }
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.firstName || !form.lastName || !form.email || !form.phone) return;
+    if (!form.firstName || !form.lastName || !form.email || !form.phone || !form.dateOfBirth) return;
 
     createPatient.mutate(
       {
         data: {
           firstName: form.firstName,
           lastName: form.lastName,
-          hospitalId: form.hospitalId || undefined,
-          dateOfBirth: form.dateOfBirth || undefined,
+          dateOfBirth: form.dateOfBirth,
           email: form.email,
           phone: form.phone,
           whatsappNumber: form.whatsappNumber || undefined,
@@ -123,20 +137,24 @@ export default function NewPatient() {
                   <label className="text-sm font-medium">WhatsApp Number</label>
                   <Input placeholder="If different from phone" value={form.whatsappNumber} onChange={field("whatsappNumber")} />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Hospital ID</label>
-                  <Input placeholder="e.g. H-00123" value={form.hospitalId} onChange={field("hospitalId")} />
-                </div>
               </div>
 
               <div className="grid md:grid-cols-3 gap-5">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Date of Birth *</label>
-                  <Input type="date" value={form.dateOfBirth} onChange={field("dateOfBirth")} required />
+                  <Input type="date" value={form.dateOfBirth} onChange={onDobChange} required />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Age</label>
-                  <Input type="number" placeholder="e.g. 34" min={0} value={form.age} onChange={field("age")} />
+                  <Input
+                    type="number"
+                    placeholder="Auto-filled from DOB"
+                    min={0}
+                    value={form.age}
+                    readOnly={!!form.dateOfBirth}
+                    className={form.dateOfBirth ? "bg-muted text-muted-foreground cursor-default" : ""}
+                    onChange={field("age")}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Gender</label>
@@ -154,6 +172,21 @@ export default function NewPatient() {
                 <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" value={form.stage} onChange={field("stage")}>
                   {stages?.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
                 </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Diagnosis</label>
+                <Input placeholder="e.g. Hypertension" value={form.diagnosis} onChange={field("diagnosis")} />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Notes</label>
+                <textarea
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
+                  placeholder="Any additional notes..."
+                  value={form.notes}
+                  onChange={field("notes")}
+                />
               </div>
 
               <div className="flex justify-end gap-4 pt-4 border-t border-border">

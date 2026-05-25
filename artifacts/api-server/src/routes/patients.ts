@@ -110,10 +110,14 @@ router.get("/patients", async (req, res): Promise<void> => {
 });
 
 router.post("/patients", async (req, res): Promise<void> => {
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const parsed = CreatePatientBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const data = snakify({ ...parsed.data, stage: parsed.data.stage ?? "Booked" });
+  const { hospitalId: _ignored, ...rest } = parsed.data;
+  const data = snakify({ ...rest, stage: parsed.data.stage ?? "Booked", hospitalId: hospital.username });
   const { data: patient, error } = await supabase.from("patients").insert(data).select().single();
   if (error) { res.status(500).json({ error: error.message }); return; }
 
@@ -123,6 +127,7 @@ router.post("/patients", async (req, res): Promise<void> => {
     description: `New patient registered: ${p.firstName} ${p.lastName}`,
     patient_id: patient.id,
     patient_name: `${p.firstName} ${p.lastName}`,
+    hospital_id: hospital.intId,
   });
 
   res.status(201).json(p);

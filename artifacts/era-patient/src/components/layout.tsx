@@ -21,6 +21,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth, type Role, type HospitalConfig } from "@/contexts/auth-context";
 import { TourGuide } from "@/components/tour-guide";
 
@@ -92,6 +102,7 @@ export function Layout({ children }: LayoutProps) {
   const { user, hospital, hospitalConfig, logout } = useAuth();
   const role = user?.role ?? "admin";
   const navItems = getNavItems(role, hospitalConfig?.modules ?? null);
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) === "true"; } catch { return false; }
@@ -207,7 +218,7 @@ export function Layout({ children }: LayoutProps) {
                 </span>
               </div>
               <button
-                onClick={() => { if (confirm("Are you sure you want to sign out?")) logout(); }}
+                onClick={() => setShowLogoutDialog(true)}
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 title="Sign out"
               >
@@ -227,7 +238,7 @@ export function Layout({ children }: LayoutProps) {
               </div>
               <RestartTourButton />
               <button
-                onClick={() => { if (confirm("Are you sure you want to sign out?")) logout(); }}
+                onClick={() => setShowLogoutDialog(true)}
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 title="Sign out completely"
               >
@@ -266,6 +277,26 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </main>
       <TourGuide />
+
+      <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sign out</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to sign out? You'll need to log in again to continue.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={logout}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Sign out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -17,7 +17,7 @@ const CallOutcomeBody = z.object({
 });
 
 const UpdateActionTypeBody = z.object({
-  actionType: z.enum(["automated_message", "manual_text", "manual_call"]),
+  actionType: z.enum(["manual_text", "manual_call"]),
 });
 
 const SendMessageConfirmBody = z.object({

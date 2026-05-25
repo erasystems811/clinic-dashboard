@@ -7,6 +7,7 @@ import {
   sendQueuePositionUpdate,
   sendCareSummary,
 } from "../lib/automation.js";
+import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 
 const router: IRouter = Router();
 
@@ -84,13 +85,16 @@ router.get("/patients", async (req, res): Promise<void> => {
   const query = ListPatientsQuery.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
 
-  let q = supabase.from("patients").select("*");
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  let q = supabase.from("patients").select("*").eq("hospital_id", hospital.username);
 
   if (query.data.stage) {
     q = q.eq("stage", query.data.stage);
   } else if (query.data.search) {
     const term = `%${query.data.search}%`;
-    q = q.or(`first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},phone.ilike.${term},hospital_id.ilike.${term}`);
+    q = q.or(`first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
   }
 
   const { data, error } = await q.order("created_at", { ascending: true });

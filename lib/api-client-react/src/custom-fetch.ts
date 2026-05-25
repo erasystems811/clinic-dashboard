@@ -17,6 +17,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _hospitalTokenGetter: AuthTokenGetter | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +43,18 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Register a getter that supplies a hospital auth token. Before every fetch
+ * the getter is invoked; when it returns a non-null string, an
+ * `x-hospital-token` header is attached to the request.
+ *
+ * Used for multi-tenant hospital data isolation in era-patient.
+ * Pass `null` to clear the getter.
+ */
+export function setHospitalTokenGetter(getter: AuthTokenGetter | null): void {
+  _hospitalTokenGetter = getter;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -355,6 +368,14 @@ export async function customFetch<T = unknown>(
     const token = await _authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
+    }
+  }
+
+  // Attach hospital token when a getter is configured and no explicit header provided.
+  if (_hospitalTokenGetter && !headers.has("x-hospital-token")) {
+    const token = await _hospitalTokenGetter();
+    if (token) {
+      headers.set("x-hospital-token", token);
     }
   }
 

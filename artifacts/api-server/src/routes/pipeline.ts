@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { supabase } from "../lib/supabase.js";
 import { ListPipelineStagesResponse } from "@workspace/api-zod";
+import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 
 const router: IRouter = Router();
 
@@ -21,11 +22,14 @@ async function ensureStagesExist() {
 }
 
 router.get("/pipeline/stages", async (req, res): Promise<void> => {
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   await ensureStagesExist();
 
   const [{ data: stages }, { data: patients }] = await Promise.all([
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
-    supabase.from("patients").select("stage"),
+    supabase.from("patients").select("stage").eq("hospital_id", hospital.username),
   ]);
 
   const countMap: Record<string, number> = {};

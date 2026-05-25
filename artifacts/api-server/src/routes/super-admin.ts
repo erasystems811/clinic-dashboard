@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
+import { signHospitalToken, verifyHospitalToken as _verifyHospitalToken } from "../lib/hospital-auth.js";
 
 const execAsync = promisify(exec);
 
@@ -54,30 +55,7 @@ function generatePassword(): string {
   return `${adj}${noun}${num}`;
 }
 
-function signHospitalToken(hospitalId: number): string {
-  const expiry = Date.now() + TOKEN_TTL_MS;
-  const payload = `h:${hospitalId}:${expiry}`;
-  const sig = crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
-  return Buffer.from(`${payload}:${sig}`).toString("base64url");
-}
-
-export function verifyHospitalToken(token: string): number | null {
-  try {
-    const decoded = Buffer.from(token, "base64url").toString("utf8");
-    const lastColon = decoded.lastIndexOf(":");
-    const payload = decoded.slice(0, lastColon);
-    const sig = decoded.slice(lastColon + 1);
-    const parts = payload.split(":");
-    if (parts[0] !== "h") return null;
-    const expiry = parseInt(parts[2], 10);
-    if (Date.now() > expiry) return null;
-    const expected = crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
-    if (!crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
-    return parseInt(parts[1], 10);
-  } catch {
-    return false as unknown as null;
-  }
-}
+export { verifyHospitalToken } from "../lib/hospital-auth.js";
 
 function parseToneJson(raw: string | null): string[] {
   if (!raw) return [];
@@ -570,6 +548,7 @@ router.post("/staff/login", async (req, res): Promise<void> => {
 
   res.json({
     role: matchedRole,
+    token: signHospitalToken(hospital.id),
     hospital: { id: hospital.id, name: hospital.name, username: hospital.username },
     departments: JSON.parse((settings?.departments as string) ?? "[]"),
     modules: {
@@ -583,7 +562,7 @@ router.post("/staff/login", async (req, res): Promise<void> => {
 // ── Staff credentials ──────────────────────────────────────────────────────────
 router.get("/hospital/staff-credentials", async (req, res): Promise<void> => {
   const token = req.headers["x-hospital-token"] as string;
-  const hospitalId = token ? verifyHospitalToken(token) : null;
+  const hospitalId = token ? _verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const { data: creds } = await supabase.from("hospital_staff_credentials").select("*").eq("hospital_id", hospitalId).single();
@@ -594,7 +573,7 @@ router.get("/hospital/staff-credentials", async (req, res): Promise<void> => {
 
 router.put("/hospital/staff-credentials", async (req, res): Promise<void> => {
   const token = req.headers["x-hospital-token"] as string;
-  const hospitalId = token ? verifyHospitalToken(token) : null;
+  const hospitalId = token ? _verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const { nursePassword, receptionistPassword } = req.body ?? {};
@@ -668,7 +647,7 @@ router.post("/auth/hospital-login", async (req, res): Promise<void> => {
 // ── Hospital config ───────────────────────────────────────────────────────────
 router.get("/hospital/config", async (req, res): Promise<void> => {
   const token = req.headers["x-hospital-token"] as string;
-  const hospitalId = token ? verifyHospitalToken(token) : null;
+  const hospitalId = token ? _verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const [{ data: settings }, { data: modules }] = await Promise.all([

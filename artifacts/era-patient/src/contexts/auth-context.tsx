@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { apiUrl } from "@/lib/api";
+import { setHospitalTokenGetter } from "@workspace/api-client-react";
 
 export type Role = "receptionist" | "nurse" | "admin";
 
@@ -52,6 +53,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => readJson(USER_KEY));
 
   useEffect(() => {
+    const token = hospital?.token || null;
+    setHospitalTokenGetter(token ? () => token : null);
+  }, [hospital]);
+
+  useEffect(() => {
     hospital ? localStorage.setItem(HOSPITAL_KEY, JSON.stringify(hospital)) : localStorage.removeItem(HOSPITAL_KEY);
   }, [hospital]);
 
@@ -97,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.error ?? "Invalid credentials");
     }
     const data = await res.json();
-    setHospital({ id: data.hospital.id, name: data.hospital.name, username: data.hospital.username, token: "" });
+    setHospital({ id: data.hospital.id, name: data.hospital.name, username: data.hospital.username, token: data.token ?? "" });
     setHospitalConfig({ departments: data.departments, modules: data.modules });
     const displayName = data.role === "nurse" ? "Nurse" : "Receptionist";
     setUser({ username: data.role, role: data.role, displayName });

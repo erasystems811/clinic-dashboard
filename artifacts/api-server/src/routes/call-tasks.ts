@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
 import { sendCallTaskAutomatedMessage } from "../lib/automation.js";
-import { verifyHospitalToken } from "./super-admin.js";
+import { verifyHospitalToken, getHospitalFromRequest, getPatientIdsForHospital } from "../lib/hospital-auth.js";
 
 const router: IRouter = Router();
 
@@ -23,9 +23,15 @@ async function resolveHospitalIntId(usernameOrNull: string | null): Promise<numb
 }
 
 router.get("/call-tasks", async (req, res): Promise<void> => {
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const completed = req.query.completed === "true";
 
-  let q = supabase.from("call_tasks").select("*").order("flagged_at", { ascending: true });
+  const patientIds = await getPatientIdsForHospital(hospital.username);
+  const safePatientIds = patientIds.length ? patientIds : [-1];
+
+  let q = supabase.from("call_tasks").select("*").in("patient_id", safePatientIds).order("flagged_at", { ascending: true });
   if (completed) {
     q = q.not("completed_at", "is", null);
   } else {

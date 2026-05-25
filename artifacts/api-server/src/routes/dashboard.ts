@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { supabase } from "../lib/supabase.js";
+import { getHospitalFromRequest, getPatientIdsForHospital } from "../lib/hospital-auth.js";
 
 const router: IRouter = Router();
 
@@ -48,9 +49,16 @@ function getLagosBounds() {
 const EXCLUDED_STATUSES = new Set(["cancelled", "no_show", "dismissed"]);
 
 router.get("/dashboard/summary", async (req, res): Promise<void> => {
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   await ensureStagesExist();
 
   const { utcNow, startOfDay, endOfDay, startOfMonth, startOfWeek, endOfWeek } = getLagosBounds();
+
+  // Get patient IDs for this hospital (needed for appointments + feedback)
+  const patientIds = await getPatientIdsForHospital(hospital.username);
+  const safePatientIds = patientIds.length ? patientIds : [-1];
 
   const [
     { count: totalPatients },
@@ -62,17 +70,18 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     { data: newsletters },
     { data: queuedPatients },
   ] = await Promise.all([
-    supabase.from("patients").select("*", { count: "exact", head: true }),
-    supabase.from("patients").select("*", { count: "exact", head: true }).gte("created_at", startOfMonth.toISOString()),
+    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username),
+    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username).gte("created_at", startOfMonth.toISOString()),
     // Only fetch appointments within the current week window — not all-time
     supabase.from("appointments").select("scheduled_at, status")
+      .in("patient_id", safePatientIds)
       .gte("scheduled_at", startOfWeek.toISOString())
       .lt("scheduled_at", endOfWeek.toISOString()),
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
-    supabase.from("patients").select("stage"),
-    supabase.from("feedback").select("rating"),
-    supabase.from("wellness_newsletter").select("last_sent_at").order("last_sent_at", { ascending: false }).limit(1),
-    supabase.from("patients").select("checked_in_at").eq("stage", "Queued").not("checked_in_at", "is", null),
+    supabase.from("patients").select("stage").eq("hospital_id", hospital.username),
+    supabase.from("feedback").select("rating").in("patient_id", safePatientIds),
+    supabase.from("wellness_newsletter").select("last_sent_at").eq("hospital_id", hospital.intId).order("last_sent_at", { ascending: false }).limit(1),
+    supabase.from("patients").select("checked_in_at").eq("hospital_id", hospital.username).eq("stage", "Queued").not("checked_in_at", "is", null),
   ]);
 
   const startOfDayISO = startOfDay.toISOString();

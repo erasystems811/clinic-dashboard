@@ -6,6 +6,7 @@ import {
   sendAppointmentConfirmation,
   sendAppointmentNoShowFollowUp,
 } from "../lib/automation.js";
+import { getHospitalFromRequest, getPatientIdsForHospital } from "../lib/hospital-auth.js";
 
 const router: IRouter = Router();
 
@@ -42,7 +43,12 @@ router.get("/appointments", async (req, res): Promise<void> => {
   const query = ListAppointmentsQuery.safeParse(req.query);
   if (!query.success) { res.status(400).json({ error: query.error.message }); return; }
 
-  let q = supabase.from("appointments").select("*");
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const patientIds = await getPatientIdsForHospital(hospital.username);
+
+  let q = supabase.from("appointments").select("*").in("patient_id", patientIds.length ? patientIds : [-1]);
 
   if (query.data.status) {
     q = q.eq("status", query.data.status);

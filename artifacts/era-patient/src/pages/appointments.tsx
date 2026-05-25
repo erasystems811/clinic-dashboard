@@ -241,11 +241,11 @@ function AppointmentCard({ apt, onCancel, onReschedule, showActions }: {
       </div>
       {showActions && apt.status === "scheduled" && (
         <div className="flex gap-2 shrink-0">
-          <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60" onClick={() => onCancel(apt.id)}>
-            <X className="w-3.5 h-3.5" />Cancel
-          </Button>
           <Button variant="outline" size="sm" onClick={() => onReschedule(apt)}>
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" />Reschedule
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60" onClick={() => onCancel(apt.id)}>
+            <X className="w-3.5 h-3.5" />Cancel
           </Button>
         </div>
       )}

@@ -121,6 +121,7 @@ router.post("/patients", async (req, res): Promise<void> => {
   const data = snakify({ ...rest, stage: "Queued", hospitalId: hospital.username });
   const { data: patient, error } = await supabase.from("patients").insert(data).select().single();
   if (error) {
+    console.error("[create patient] supabase error:", JSON.stringify({ code: error.code, message: error.message, details: error.details, hint: error.hint }));
     const isDuplicate = error.code === "23505";
     res.status(isDuplicate ? 409 : 500).json({
       error: isDuplicate

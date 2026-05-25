@@ -92,6 +92,12 @@ router.post("/appointments", async (req, res): Promise<void> => {
     metadata: appt.scheduled_at,
   });
 
+  // Move patient to Booked stage (unless they're actively Queued or In Care)
+  await supabase.from("patients")
+    .update({ stage: "Booked", updated_at: new Date().toISOString() })
+    .eq("id", parsed.data.patientId)
+    .not("stage", "in", '("Queued","In Care")');
+
   // ── Automation: WhatsApp confirmation ──
   if (patient) {
     const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);

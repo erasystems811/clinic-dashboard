@@ -213,15 +213,21 @@ function BookModal({
 /* ──────────────────────────────────────────────
    Appointment Card
 ────────────────────────────────────────────── */
-function AppointmentCard({ apt, onCancel, onReschedule, showActions }: {
+function isOverdue2Hours(scheduledAt: string) {
+  return new Date().getTime() - new Date(scheduledAt).getTime() > 2 * 60 * 60 * 1000;
+}
+
+function AppointmentCard({ apt, onCancel, onReschedule, onNoShow, showActions }: {
   apt: Appointment;
   onCancel: (id: number) => void;
   onReschedule: (apt: Appointment) => void;
+  onNoShow: (id: number) => void;
   showActions: boolean;
 }) {
   const soon = isUpcomingNow(apt.scheduledAt);
+  const overdue = isOverdue2Hours(apt.scheduledAt);
   return (
-    <div className={`flex flex-col sm:flex-row sm:items-center gap-4 p-4 border rounded-lg bg-background transition-colors ${soon ? "border-primary/50 bg-primary/5" : "border-border hover:border-border/80"}`}>
+    <div className={`flex flex-col sm:flex-row sm:items-center gap-4 p-4 border rounded-lg bg-background transition-colors ${soon ? "border-primary/50 bg-primary/5" : overdue && apt.status === "scheduled" ? "border-destructive/30 bg-destructive/5" : "border-border hover:border-border/80"}`}>
       <div className="w-16 h-16 rounded-lg bg-secondary flex flex-col items-center justify-center shrink-0 border border-border">
         <span className="text-xs font-bold text-primary uppercase">{format(new Date(apt.scheduledAt), "MMM")}</span>
         <span className="text-xl font-bold leading-none">{format(new Date(apt.scheduledAt), "d")}</span>
@@ -233,6 +239,7 @@ function AppointmentCard({ apt, onCancel, onReschedule, showActions }: {
             {STATUS_LABELS[apt.status] ?? apt.status}
           </span>
           {soon && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">Upcoming now</span>}
+          {overdue && apt.status === "scheduled" && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-destructive/20 text-destructive">2h+ overdue</span>}
         </div>
         <div className="text-sm font-medium text-primary mb-1">{apt.title}</div>
         <span className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -241,10 +248,20 @@ function AppointmentCard({ apt, onCancel, onReschedule, showActions }: {
         </span>
       </div>
       {showActions && apt.status === "scheduled" && (
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap justify-end">
           <Button variant="outline" size="sm" onClick={() => onReschedule(apt)}>
             <RefreshCw className="w-3.5 h-3.5 mr-1.5" />Reschedule
           </Button>
+          {overdue && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-amber-500 hover:text-amber-400 border-amber-500/30 hover:border-amber-400/60"
+              onClick={() => onNoShow(apt.id)}
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />No Show
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive border-destructive/30 hover:border-destructive/60" onClick={() => onCancel(apt.id)}>
             <X className="w-3.5 h-3.5" />Cancel
           </Button>
@@ -462,6 +479,12 @@ export default function Appointments() {
     toast({ title: "Appointment cancelled" });
   };
 
+  const handleNoShow = (id: number) => {
+    if (!confirm("Flag this patient as a no-show? This will create a follow-up call task.")) return;
+    updateAppointment.mutate({ id, data: { status: "no_show" } });
+    toast({ title: "No-show flagged", description: "A follow-up call task has been created." });
+  };
+
   const handleReschedule = (e: React.FormEvent) => {
     e.preventDefault();
     if (!rescheduleTarget || !newDate || !newTime) return;
@@ -557,7 +580,7 @@ export default function Appointments() {
                     Scheduled ({scheduled.length})
                   </h2>
                   {scheduled.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
+                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} showActions={isReceptionist} />
                   ))}
                 </div>
               )}
@@ -568,7 +591,7 @@ export default function Appointments() {
                     <h2 className="text-xs font-semibold text-destructive uppercase tracking-wide">No Shows ({noShows.length})</h2>
                   </div>
                   {noShows.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
+                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} showActions={isReceptionist} />
                   ))}
                 </div>
               )}
@@ -576,7 +599,7 @@ export default function Appointments() {
                 <div className="space-y-3">
                   <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rescheduled ({rescheduled.length})</h2>
                   {rescheduled.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} showActions={isReceptionist} />
+                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} showActions={isReceptionist} />
                   ))}
                 </div>
               )}

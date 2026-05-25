@@ -272,7 +272,7 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
     const diffMins = (apptTime.getTime() - now.getTime()) / 60000;
     await supabase.from("appointments").update({ status: "completed" }).eq("id", appt.id);
     matchedAppointmentId = appt.id;
-    if (Math.abs(diffMins) <= 30) hasTimedAppointment = true;
+    if (Math.abs(diffMins) <= 60) hasTimedAppointment = true;
   }
 
   const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true });
@@ -316,22 +316,6 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
     const phone = (patient.whatsapp_number as string) || (patient.phone as string);
     sendQueueJoinMessage(hospitalIntId, patient.id, patientName, phone, position).catch(() => {});
 
-    // Notify patients whose position changed (bumped by priority check-in)
-    if (hasTimedAppointment && queueSize > 0) {
-      const { data: updatedQueue } = await supabase
-        .from("queue")
-        .select("patient_id, patient_name, whatsapp_number, phone, position")
-        .eq("hospital_id", patient.hospital_id)
-        .gt("position", 1)
-        .order("position", { ascending: true });
-
-      for (const qEntry of (updatedQueue ?? []).slice(0, 5)) {
-        const qPhone = (qEntry.whatsapp_number as string) || (qEntry.phone as string);
-        if (qPhone) {
-          sendQueuePositionUpdate(hospitalIntId, qEntry.patient_id as number, qEntry.patient_name as string, qPhone, qEntry.position as number).catch(() => {});
-        }
-      }
-    }
   }
 
   res.json(camelize(patient));
@@ -344,10 +328,11 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   const { data: existing } = await supabase.from("patients").select("*").eq("id", id).single();
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  // Dequeue logic: restore pre_queue_stage, or Post Care if was Dormant
-  let restoreStage = existing.pre_queue_stage ?? "Booked";
-  if (restoreStage === "Dormant") restoreStage = "Post Care";
-  if (restoreStage === "Booked") restoreStage = existing.pre_queue_stage ?? "Post Care";
+  // Dequeue: restore previous stage, but transient/invalid stages all go to Post Care
+  let restoreStage: string = existing.pre_queue_stage ?? "";
+  if (!restoreStage || restoreStage === "Queued" || restoreStage === "Booked" || restoreStage === "Dormant") {
+    restoreStage = "Post Care";
+  }
 
   const { data: patient } = await supabase
     .from("patients")
@@ -374,18 +359,6 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
     patient_id: id,
     patient_name: `${patient!.first_name} ${patient!.last_name}`,
   });
-
-  // ── Automation: notify remaining patients of position updates ──
-  const hospitalIntId = await resolveHospitalIntId(existing.hospital_id as string);
-  if (hospitalIntId && (remaining ?? []).length > 0) {
-    for (let i = 0; i < Math.min((remaining ?? []).length, 5); i++) {
-      const qEntry = remaining![i];
-      const qPhone = (qEntry.whatsapp_number as string) || (qEntry.phone as string);
-      if (qPhone) {
-        sendQueuePositionUpdate(hospitalIntId, qEntry.patient_id as number, qEntry.patient_name as string, qPhone, i + 1).catch(() => {});
-      }
-    }
-  }
 
   res.json(camelize(patient!));
 });

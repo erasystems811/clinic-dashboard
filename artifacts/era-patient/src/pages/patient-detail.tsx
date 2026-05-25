@@ -40,6 +40,7 @@ export default function PatientDetail() {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [feedbackLink, setFeedbackLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [completingTreatment, setCompletingTreatment] = useState(false);
 
   const { data: patient, isLoading } = useGetPatient(patientId, {
     query: { enabled: !isNaN(patientId), queryKey: getGetPatientQueryKey(patientId) }
@@ -83,6 +84,26 @@ export default function PatientDetail() {
         },
         onError: () => toast({ title: "Error", variant: "destructive" }),
       });
+    }
+  };
+
+  const handleCompleteTreatment = async () => {
+    if (!confirm("Mark treatment as complete? This will move the patient to Post Treatment.")) return;
+    setCompletingTreatment(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(apiUrl(`/api/patients/${patientId}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ stage: "Post Treatment" }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: "Treatment complete", description: "Patient moved to Post Treatment." });
+      queryClient.invalidateQueries({ queryKey: getGetPatientQueryKey(patientId) });
+    } catch {
+      toast({ title: "Failed to update stage", variant: "destructive" });
+    } finally {
+      setCompletingTreatment(false);
     }
   };
 
@@ -231,6 +252,18 @@ export default function PatientDetail() {
                       Patient called in
                     </label>
                   </div>
+                )}
+
+                {patient.stage === "In Care" && (
+                  <Button
+                    className="w-full mt-4"
+                    variant="outline"
+                    onClick={handleCompleteTreatment}
+                    disabled={completingTreatment}
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    {completingTreatment ? "Updating..." : "Complete Treatment → Post Treatment"}
+                  </Button>
                 )}
               </div>
 

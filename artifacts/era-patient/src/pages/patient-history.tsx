@@ -155,7 +155,7 @@ export default function PatientHistory() {
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "Failed to save");
 
-      queryClient.invalidateQueries();
+      await refetch();
       setEditing(false);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : "Unknown error");
@@ -174,7 +174,7 @@ export default function PatientHistory() {
     });
   };
 
-  const { data, isLoading, error } = useGetPatientHistory(id, {
+  const { data, isLoading, error, refetch } = useGetPatientHistory(id, {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     query: { enabled: !isNaN(id) } as any,
   });

@@ -235,9 +235,11 @@ router.delete("/patients/:id", async (req, res): Promise<void> => {
 
   const patientName = `${existing.first_name} ${existing.last_name}`;
 
-  // Remove all child records that reference this patient before deleting the patient row
+  // Null out patient_id on activity so history is preserved as an audit trail after deletion
+  await supabase.from("activity").update({ patient_id: null }).eq("patient_id", id);
+
+  // Remove child records that would block the patient row deletion
   await Promise.all([
-    supabase.from("activity").delete().eq("patient_id", id),
     supabase.from("appointments").delete().eq("patient_id", id),
     supabase.from("call_tasks").delete().eq("patient_id", id),
     supabase.from("queue").delete().eq("patient_id", id),

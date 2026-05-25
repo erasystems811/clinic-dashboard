@@ -54,8 +54,8 @@ export default function ActivityLog() {
               {activities?.map((activity) => {
                 const destructive = isDestructive(activity.type);
                 return (
-                  <div key={activity.id} className={`relative pl-6 rounded-md transition-colors ${destructive ? "bg-red-50 dark:bg-red-950/30 -ml-2 pl-8 pr-2 py-2" : ""}`}>
-                    <div className={`absolute top-1 w-8 h-8 rounded-full flex items-center justify-center z-10 ${destructive ? "-left-[9px] bg-red-100 dark:bg-red-900/50 border border-red-300 dark:border-red-700" : "-left-[17px] bg-card border border-border"}`}>
+                  <div key={activity.id} className="relative pl-6">
+                    <div className="absolute -left-[17px] top-1 w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center z-10">
                       {getIconForType(activity.type)}
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,7 @@ export default function QueueManagement() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [aptSearch, setAptSearch] = useState("");
 
-  const { data: queue = [], refetch: refetchQueue, isLoading: queueLoading } = useListQueue({
+  const { data: queue = [], refetch: refetchQueue, isLoading: queueLoading, isFetching: queueFetching } = useListQueue({
     query: { refetchInterval: 5000 },
   });
   const { data: searchResults = [], isFetching: searching } = useListPatients(
@@ -94,10 +94,6 @@ export default function QueueManagement() {
     },
   });
 
-  useEffect(() => {
-    const interval = setInterval(() => refetchQueue(), 30000);
-    return () => clearInterval(interval);
-  }, [refetchQueue]);
 
   const handleScheduleApt = (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,16 +122,16 @@ export default function QueueManagement() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Queue Management</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">Live patient queue — auto-refreshes every 30 seconds</p>
+            <p className="text-muted-foreground text-sm mt-0.5">Live patient queue</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowSchedule(true)} className="gap-2">
               <CalendarPlus className="w-4 h-4" />
               Schedule Appointment
             </Button>
-            <Button variant="outline" size="sm" onClick={() => refetchQueue()} className="gap-2">
-              <RefreshCw className="w-4 h-4" />
-              Refresh
+            <Button variant="outline" size="sm" onClick={() => refetchQueue()} disabled={queueFetching} className="gap-2">
+              <RefreshCw className={`w-4 h-4 ${queueFetching ? "animate-spin" : ""}`} />
+              {queueFetching ? "Refreshing…" : "Refresh"}
             </Button>
           </div>
         </div>

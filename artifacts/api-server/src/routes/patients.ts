@@ -117,7 +117,7 @@ router.post("/patients", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { hospitalId: _ignored, ...rest } = parsed.data;
-  const data = snakify({ ...rest, stage: parsed.data.stage ?? "Booked", hospitalId: hospital.username });
+  const data = snakify({ ...rest, stage: "Queued", hospitalId: hospital.username });
   const { data: patient, error } = await supabase.from("patients").insert(data).select().single();
   if (error) { res.status(500).json({ error: error.message }); return; }
 

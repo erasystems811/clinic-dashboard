@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useCreatePatient, useListPipelineStages, getListPipelineStagesQueryKey } from "@workspace/api-client-react";
+import { useCreatePatient } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/auth-context";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -25,10 +25,6 @@ export default function NewPatient() {
   const { user } = useAuth();
   const isReceptionist = user?.role === "receptionist";
 
-  const { data: stages } = useListPipelineStages({
-    query: { queryKey: getListPipelineStagesQueryKey() }
-  });
-
   const createPatient = useCreatePatient();
 
   const [form, setForm] = useState({
@@ -40,8 +36,6 @@ export default function NewPatient() {
     whatsappNumber: "",
     age: "",
     gender: "",
-    stage: "Booked",
-    diagnosis: "",
     notes: "",
   });
 
@@ -70,8 +64,6 @@ export default function NewPatient() {
           whatsappNumber: form.whatsappNumber || undefined,
           age: form.age ? parseInt(form.age) : undefined,
           gender: form.gender || undefined,
-          stage: form.stage,
-          diagnosis: form.diagnosis || undefined,
           notes: form.notes || undefined,
         }
       },
@@ -165,13 +157,6 @@ export default function NewPatient() {
                     <option value="Other">Other</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Pipeline Stage</label>
-                <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" value={form.stage} onChange={field("stage")}>
-                  {stages?.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                </select>
               </div>
 
               <div className="space-y-1.5">

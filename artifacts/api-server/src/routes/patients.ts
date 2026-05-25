@@ -19,7 +19,7 @@ const ListPatientsQuery = z.object({
 });
 
 const CreatePatientBody = z.object({
-  patientId: z.string().min(1),
+  patientId: z.string().min(1).transform((s) => s.trim().toUpperCase()),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   dateOfBirth: z.string().optional(),
@@ -37,7 +37,7 @@ const CreatePatientBody = z.object({
 });
 
 const UpdatePatientBody = z.object({
-  patientId: z.string().optional(),
+  patientId: z.string().transform((s) => s.trim().toUpperCase()).optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   dateOfBirth: z.string().optional(),
@@ -117,6 +117,18 @@ router.post("/patients", async (req, res): Promise<void> => {
 
   const parsed = CreatePatientBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  // Case-insensitive uniqueness check before insert
+  const { data: existing } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("hospital_id", hospital.username)
+    .ilike("patient_id", parsed.data.patientId)
+    .maybeSingle();
+  if (existing) {
+    res.status(409).json({ error: `A patient with ID "${parsed.data.patientId}" is already registered.` });
+    return;
+  }
 
   const { hospitalId: _ignored, ...rest } = parsed.data;
   const data = snakify({ ...rest, stage: "Queued", hospitalId: hospital.username });
@@ -206,15 +218,15 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
   const { data: before, error: beforeErr } = await supabase.from("patients").select("*").eq("id", id).single();
   if (beforeErr || !before) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  // If patientId is being changed, enforce uniqueness within this hospital
-  if (parsed.data.patientId && parsed.data.patientId !== before.patient_id) {
+  // If patientId is being changed, enforce uniqueness within this hospital (case-insensitive)
+  if (parsed.data.patientId && parsed.data.patientId !== before.patient_id?.toUpperCase()) {
     const hospital = await getHospitalFromRequest(req);
     if (hospital) {
       const { data: conflict } = await supabase
         .from("patients")
         .select("id")
         .eq("hospital_id", hospital.username)
-        .eq("patient_id", parsed.data.patientId)
+        .ilike("patient_id", parsed.data.patientId)
         .neq("id", id)
         .maybeSingle();
       if (conflict) {

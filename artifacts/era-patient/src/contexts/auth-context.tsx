@@ -48,7 +48,13 @@ function readJson<T>(key: string): T | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [hospital, setHospital] = useState<HospitalSession | null>(() => readJson(HOSPITAL_KEY));
+  const [hospital, setHospital] = useState<HospitalSession | null>(() => {
+    const stored = readJson<HospitalSession>(HOSPITAL_KEY);
+    // Register token synchronously so React Query has it before the first fetch
+    const token = stored?.token || null;
+    setHospitalTokenGetter(token ? () => token : null);
+    return stored;
+  });
   const [hospitalConfig, setHospitalConfig] = useState<HospitalConfig | null>(() => readJson(CONFIG_KEY));
   const [user, setUser] = useState<User | null>(() => readJson(USER_KEY));
 

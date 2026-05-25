@@ -207,7 +207,7 @@ export function Layout({ children }: LayoutProps) {
                 </span>
               </div>
               <button
-                onClick={logout}
+                onClick={() => { if (confirm("Are you sure you want to sign out?")) logout(); }}
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 title="Sign out"
               >
@@ -227,7 +227,7 @@ export function Layout({ children }: LayoutProps) {
               </div>
               <RestartTourButton />
               <button
-                onClick={logout}
+                onClick={() => { if (confirm("Are you sure you want to sign out?")) logout(); }}
                 className="text-muted-foreground hover:text-foreground transition-colors"
                 title="Sign out completely"
               >

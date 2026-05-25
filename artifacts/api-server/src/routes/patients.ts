@@ -19,6 +19,7 @@ const ListPatientsQuery = z.object({
 });
 
 const CreatePatientBody = z.object({
+  patientId: z.string().optional(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   dateOfBirth: z.string().optional(),

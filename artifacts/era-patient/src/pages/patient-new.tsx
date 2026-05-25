@@ -28,6 +28,7 @@ export default function NewPatient() {
   const createPatient = useCreatePatient();
 
   const [form, setForm] = useState({
+    patientId: "",
     firstName: "",
     lastName: "",
     dateOfBirth: "",
@@ -56,6 +57,7 @@ export default function NewPatient() {
     createPatient.mutate(
       {
         data: {
+          patientId: form.patientId || undefined,
           firstName: form.firstName,
           lastName: form.lastName,
           dateOfBirth: form.dateOfBirth,
@@ -101,6 +103,11 @@ export default function NewPatient() {
               <CardDescription>Fields marked * are required.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Patient ID</label>
+                <Input placeholder="e.g. PT-00123 (optional)" value={form.patientId} onChange={field("patientId")} />
+              </div>
 
               <div className="grid md:grid-cols-2 gap-5">
                 <div className="space-y-1.5">

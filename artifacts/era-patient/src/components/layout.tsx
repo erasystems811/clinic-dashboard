@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth, type Role, type HospitalConfig } from "@/contexts/auth-context";
-import { TourGuide, useRestartTour } from "@/components/tour-guide";
+import { TourGuide } from "@/components/tour-guide";
 
 interface LayoutProps {
   children: ReactNode;
@@ -78,10 +78,9 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 
 function RestartTourButton() {
-  const restartTour = useRestartTour();
   return (
     <button
-      onClick={restartTour}
+      onClick={() => window.dispatchEvent(new Event("era:start-tour"))}
       className="text-muted-foreground hover:text-foreground transition-colors"
       title="Restart guided tour"
     >

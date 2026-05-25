@@ -361,14 +361,3 @@ export function TourGuide() {
   );
 }
 
-export function useRestartTour() {
-  const { user, hospital } = useAuth();
-  const role = user?.role ?? "admin";
-  const slug = hospital?.slug ?? "default";
-
-  return useCallback(() => {
-    const key = tourKey(slug, role);
-    localStorage.removeItem(key);
-    window.dispatchEvent(new Event("era:start-tour"));
-  }, [slug, role]);
-}

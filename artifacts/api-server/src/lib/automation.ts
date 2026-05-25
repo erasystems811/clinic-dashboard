@@ -570,29 +570,40 @@ export async function generateCallTaskDraft(
   const contact = contactLine(hCtx.phoneNumber);
 
   const message = await generateOpenAIMessage(
-    `You are a care team member at ${hCtx.hospitalName} reaching out to a patient via ${hCtx.notificationChannel === "sms" ? "SMS" : "WhatsApp"}. Tone: ${tone}. Start with "Hi ${firstName},". Read the reason carefully and choose the right tone — gentle if sensitive, encouraging if they need support, friendly if it is a simple check-in. Write like a real, caring person. Never sound automated. End with a closed statement — tell the patient not to reply to this message and to ${contact} if they have any questions.`,
+    `You are a care team member at ${hCtx.hospitalName} reaching out to a patient via email. Tone: ${tone}. Start with "Hi ${firstName},". Read the reason carefully and choose the right tone — gentle if sensitive, encouraging if they need support, friendly if it is a simple check-in. Write like a real, caring person. Never sound automated. End with a closed statement — tell the patient not to reply to this email and to ${contact} if they have any questions.`,
     `You need to contact ${firstName} because: "${flagReason}". Write a warm, human message appropriate to this exact situation. Match your tone to the reason — be caring and specific, not generic. 2-4 sentences, genuine and human.`,
     180,
   );
   return message;
 }
 
+// Receptionist reviews/edits the AI draft, then sends it as an Important email.
 export async function sendCallTaskConfirmedMessage(
   hospitalId: number,
   patientId: number,
   patientName: string,
-  phone: string,
+  patientEmail: string,
   message: string,
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType: "call_task_automated",
-    channel: hCtx.notificationChannel,
+    channel: "email",
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
+    const subject = `IMPORTANT - ${hCtx.hospitalName}`;
+    const contact = contactLine(hCtx.phoneNumber);
+    const body = `${message}\n\nIf you have any questions please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.fromAddress,
+      subject,
+      html,
+      text: body,
+    });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

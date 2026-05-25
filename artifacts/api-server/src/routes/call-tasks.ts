@@ -17,7 +17,7 @@ const CallOutcomeBody = z.object({
 });
 
 const UpdateActionTypeBody = z.object({
-  actionType: z.enum(["manual_text", "manual_call"]),
+  actionType: z.enum(["automated_message", "manual_call"]),
 });
 
 const SendMessageConfirmBody = z.object({
@@ -125,7 +125,7 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   res.json(camelize(task));
 });
 
-// ── Generate AI draft — does NOT send, returns draft for editing ───────────────
+// ── Generate AI draft — does NOT send, returns draft for receptionist to review ─
 router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -133,16 +133,6 @@ router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> =>
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  // Rate limit: max 5 automated messages per day per hospital
-  const count = await getDailyAutomatedCount(hospitalId);
-  if (count >= 5) {
-    res.status(429).json({
-      error: `Daily limit reached — automated messages are limited to 5 per day. ${count} sent today. Use Manual Email or Manual Call instead.`,
-      dailyCount: count,
-    });
-    return;
-  }
 
   const { data: task, error } = await supabase
     .from("call_tasks")
@@ -159,14 +149,14 @@ router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> =>
       task.patient_name as string,
       task.reason as string,
     );
-    res.json({ draft, dailyCount: count, dailyLimit: 5 });
+    res.json({ draft });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Generation failed";
     res.status(500).json({ error: msg });
   }
 });
 
-// ── Confirm and send the (possibly edited) AI draft via WhatsApp/SMS ──────────
+// ── Confirm and send the reviewed AI draft as an Important email ───────────────
 router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -178,47 +168,37 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
   const parsed = SendMessageConfirmBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "message is required" }); return; }
 
-  // Rate limit check again at send time
-  const count = await getDailyAutomatedCount(hospitalId);
-  if (count >= 5) {
-    res.status(429).json({
-      error: `Daily limit reached — automated messages are limited to 5 per day.`,
-      dailyCount: count,
-    });
-    return;
-  }
-
   const { data: task, error } = await supabase
     .from("call_tasks")
-    .select("*")
+    .select("*, patients(email)")
     .eq("id", id)
     .single();
 
   if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
 
-  const phone = (task.whatsapp_number as string) || (task.phone as string);
-  if (!phone) { res.status(400).json({ error: "No phone number on record for this patient" }); return; }
+  const patientRecord = (task as Record<string, unknown>).patients as Record<string, unknown> | null;
+  const email = patientRecord?.email as string | undefined;
+  if (!email) { res.status(400).json({ error: "No email on record for this patient" }); return; }
 
   try {
     await sendCallTaskConfirmedMessage(
       hospitalId,
       task.patient_id as number,
       task.patient_name as string,
-      phone,
+      email,
       parsed.data.message,
     );
 
     await supabase.from("call_tasks").update({ action_type: "automated_message" }).eq("id", id);
     await supabase.from("activity").insert({
       type: "automated_message_sent",
-      description: `Automated ${(await supabase.from("hospital_settings").select("notification_channel").eq("hospital_id", hospitalId).single()).data?.notification_channel ?? "WhatsApp"} message sent to ${task.patient_name} (call task)`,
+      description: `Important email sent to ${task.patient_name} via call task`,
       patient_id: task.patient_id,
       patient_name: task.patient_name,
       metadata: parsed.data.message.slice(0, 200),
     });
 
-    const newCount = count + 1;
-    res.json({ ok: true, dailyCount: newCount, dailyLimit: 5 });
+    res.json({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Send failed";
     res.status(500).json({ error: msg });

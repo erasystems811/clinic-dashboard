@@ -13,7 +13,7 @@ import {
 import type { CallTask } from "@workspace/api-client-react";
 import {
   Phone, CheckCircle, Clock, Loader2, PhoneCall,
-  Send, ChevronDown, ChevronUp, Flag, Mail,
+  Send, ChevronDown, ChevronUp, Flag, Bot, Sparkles, RefreshCw, Pencil,
 } from "lucide-react";
 
 import { apiUrl } from "@/lib/api";
@@ -26,12 +26,12 @@ function formatDate(iso: string) {
 
 const ACTION_TYPES = [
   {
-    value: "manual_text",
-    label: "Important Email",
-    icon: Mail,
-    description: "Staff composes an important email sent directly to the patient",
-    color: "text-blue-400",
-    badge: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    value: "automated_message",
+    label: "Automated Message",
+    icon: Bot,
+    description: "AI generates a personalised message — review and edit before sending as Important Email",
+    color: "text-violet-400",
+    badge: "bg-violet-500/10 text-violet-400 border-violet-500/20",
   },
   {
     value: "manual_call",
@@ -50,7 +50,10 @@ function ActionPanel({ task }: { task: CallTask }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [draftMsg, setDraftMsg] = useState("");
+  const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [editingDraft, setEditingDraft] = useState(false);
 
   const logOutcome = useLogCallOutcome({
     mutation: {
@@ -62,19 +65,38 @@ function ActionPanel({ task }: { task: CallTask }) {
     },
   });
 
-  const handleSendManualEmail = async () => {
-    if (!hospital?.token || !text.trim()) return;
+  const handleGenerateDraft = async () => {
+    if (!hospital?.token) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
+    setGenerating(true);
+    try {
+      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/generate-draft`), {
+        method: "POST",
+        headers: { "x-hospital-token": hospital.token },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Generation failed");
+      setDraftMsg(data.draft ?? "");
+      setEditingDraft(false);
+    } catch (err: unknown) {
+      toast({ title: "Generation failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSendDraft = async () => {
+    if (!hospital?.token || !draftMsg.trim()) return;
     setSending(true);
     try {
-      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-manual-email`), {
+      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-message`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: draftMsg }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Send failed");
       toast({ title: "Email sent", description: `Important email sent to ${task.patientName}.` });
-      logOutcome.mutate({ id: task.id, data: { outcome: `[Important email sent] ${text}` } });
+      logOutcome.mutate({ id: task.id, data: { outcome: `[Important email sent] ${draftMsg}` } });
     } catch (err: unknown) {
       toast({ title: "Send failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
     } finally {
@@ -113,44 +135,65 @@ function ActionPanel({ task }: { task: CallTask }) {
     );
   }
 
-  /* ── Manual Text → Important Email ── */
-  if (task.actionType === "manual_text") {
-    return !open ? (
-      <Button size="sm" variant="outline" className="w-full gap-2 border-blue-500/40 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300" onClick={() => setOpen(true)}>
-        <Mail className="w-4 h-4" />
-        Compose Important Email
-      </Button>
-    ) : (
-      <div className="space-y-2">
-        <div className="rounded-md border border-blue-500/30 bg-blue-500/5 overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-500/20 bg-blue-500/10">
-            <Mail className="w-3.5 h-3.5 text-blue-400" />
-            <span className="text-xs font-medium text-blue-400">To: {task.patientName}</span>
-            <span className="text-xs bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded-full ml-auto border border-blue-500/30">Important</span>
+  /* ── Automated Message → AI draft → receptionist edits → sends as Important Email ── */
+  return (
+    <div className="space-y-2">
+      {!draftMsg ? (
+        <div className="space-y-2">
+          <div className="rounded-md bg-violet-500/5 border border-violet-500/20 px-3 py-2.5">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              AI will read the patient's situation and reason for flag, then generate a personalised message. You can review and edit it before sending as an Important email.
+            </p>
           </div>
-          <textarea
-            className="w-full bg-transparent px-3 py-2.5 text-sm min-h-[100px] resize-none focus:outline-none"
-            placeholder="Write the important message to send to the patient via email..."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            autoFocus
-          />
-          <div className="flex items-center justify-between px-3 py-2 border-t border-blue-500/20 bg-blue-500/5">
-            <span className="text-xs text-muted-foreground">{text.length} characters</span>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setOpen(false); setText(""); }}>Cancel</Button>
-          <Button size="sm" className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700 text-white" disabled={!text.trim() || sending} onClick={handleSendManualEmail}>
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            Send Email
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full gap-2 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
+            onClick={handleGenerateDraft}
+            disabled={generating}
+          >
+            {generating
+              ? <><Loader2 className="w-4 h-4 animate-spin" />Generating draft…</>
+              : <><Sparkles className="w-4 h-4" />Generate Draft</>}
           </Button>
         </div>
-      </div>
-    );
-  }
-
-  return null;
+      ) : (
+        <>
+          <div className="rounded-md border border-violet-500/30 bg-violet-500/5 overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-violet-500/20 bg-violet-500/10">
+              <Bot className="w-3.5 h-3.5 text-violet-400" />
+              <span className="text-xs font-medium text-violet-400">AI Draft · Review before sending</span>
+              <button type="button" className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={handleGenerateDraft} disabled={generating}>
+                <RefreshCw className={`w-3 h-3 ${generating ? "animate-spin" : ""}`} />
+                Regenerate
+              </button>
+            </div>
+            {editingDraft ? (
+              <textarea className="w-full bg-transparent px-3 py-2.5 text-sm min-h-[110px] resize-none focus:outline-none" value={draftMsg} onChange={(e) => setDraftMsg(e.target.value)} autoFocus />
+            ) : (
+              <div className="px-3 py-2.5">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{draftMsg}</p>
+              </div>
+            )}
+            <div className="flex items-center justify-between px-3 py-2 border-t border-violet-500/20 bg-violet-500/5">
+              <span className="text-xs text-muted-foreground">{draftMsg.length} chars</span>
+              <button type="button" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={() => setEditingDraft(!editingDraft)}>
+                <Pencil className="w-3 h-3" />
+                {editingDraft ? "Done" : "Edit"}
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setDraftMsg(""); setEditingDraft(false); }}>Discard</Button>
+            <Button size="sm" className="flex-1 gap-2 bg-violet-600 hover:bg-violet-700 text-white" disabled={!draftMsg.trim() || sending} onClick={handleSendDraft}>
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              Send as Important Email
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 /* ── Task Card ── */

@@ -495,15 +495,6 @@ async function runNoShowDetection() {
       if (patient) {
         const patientName = `${patient.first_name} ${patient.last_name}`;
 
-        await supabase.from("call_tasks").insert({
-          patient_id: patient.id,
-          patient_name: patientName,
-          phone: patient.phone,
-          whatsapp_number: patient.whatsapp_number,
-          reason: `No-show for appointment: ${appt.title} on ${new Date(appt.scheduled_at).toLocaleDateString()}`,
-          action_type: "manual_call",
-        }).then(() => {}).catch(() => {});
-
         await supabase.from("activity").insert({
           type: "no_show",
           description: `Auto no-show: ${patientName} missed appointment "${appt.title}"`,

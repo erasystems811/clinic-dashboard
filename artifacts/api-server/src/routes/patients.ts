@@ -37,6 +37,7 @@ const CreatePatientBody = z.object({
 });
 
 const UpdatePatientBody = z.object({
+  patientId: z.string().optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   dateOfBirth: z.string().optional(),

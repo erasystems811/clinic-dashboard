@@ -175,11 +175,6 @@ export default function NewPatient() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-medium">Diagnosis</label>
-                <Input placeholder="e.g. Hypertension" value={form.diagnosis} onChange={field("diagnosis")} />
-              </div>
-
-              <div className="space-y-1.5">
                 <label className="text-sm font-medium">Notes</label>
                 <textarea
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"

@@ -469,12 +469,14 @@ async function runFeedbackEmails() {
   }
 }
 
-// ── Auto No-Show + 1-Day Dismiss ──────────────────────────────────────────────
-async function runNoShowAutomation() {
+// ── Auto No-Show Detection ────────────────────────────────────────────────────
+// Runs every 15 min — marks past-due scheduled appointments as no_show and
+// creates a receptionist call task. The follow-up message is intentionally
+// NOT sent here; it goes out 1 hour later via runNoShowFollowup().
+async function runNoShowDetection() {
   try {
     const now = new Date();
 
-    // 1. Auto-mark past scheduled appointments as no_show
     const { data: pastAppts } = await supabase
       .from("appointments")
       .select("id, title, scheduled_at, patient_id, patient_name")
@@ -482,7 +484,6 @@ async function runNoShowAutomation() {
       .lt("scheduled_at", now.toISOString());
 
     for (const appt of pastAppts ?? []) {
-      // Mark as no_show
       await supabase.from("appointments").update({ status: "no_show" }).eq("id", appt.id);
 
       const { data: patient } = await supabase
@@ -494,7 +495,6 @@ async function runNoShowAutomation() {
       if (patient) {
         const patientName = `${patient.first_name} ${patient.last_name}`;
 
-        // Create call task for receptionist
         await supabase.from("call_tasks").insert({
           patient_id: patient.id,
           patient_name: patientName,
@@ -504,17 +504,6 @@ async function runNoShowAutomation() {
           action_type: "manual_call",
         }).then(() => {}).catch(() => {});
 
-        // Send WhatsApp no-show follow-up
-        const { data: hospital } = await supabase
-          .from("hospitals").select("id").eq("username", (patient.hospital_id as string).toLowerCase()).single();
-        if (hospital) {
-          const phone = (patient.whatsapp_number as string) || (patient.phone as string);
-          if (phone) {
-            await sendAppointmentNoShowFollowUp(hospital.id, patient.id, patientName, phone, appt.title).catch(() => {});
-          }
-        }
-
-        // Log to activity
         await supabase.from("activity").insert({
           type: "no_show",
           description: `Auto no-show: ${patientName} missed appointment "${appt.title}"`,
@@ -526,22 +515,80 @@ async function runNoShowAutomation() {
 
       log(`Auto no-show: appt ${appt.id} (${appt.patient_name})`);
     }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`No-show detection error: ${err}`);
+  }
+}
 
-    // 2. Dismiss no_show appointments older than 24 hours
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const { data: oldNoShows } = await supabase
+// ── Auto No-Show Follow-up (1 hour after missed) ──────────────────────────────
+// Runs every 15 min — finds no_show appointments where exactly 1 hour has
+// passed since the scheduled time (uses a rolling 30-min window so the check
+// fires once and never re-fires for the same appointment).
+async function runNoShowFollowup() {
+  try {
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    const ninetyMinAgo = new Date(now.getTime() - 90 * 60 * 1000);
+
+    // Only appointments where scheduled_at is between 60 and 90 minutes ago
+    const { data: appts } = await supabase
       .from("appointments")
-      .select("id, patient_name, title")
+      .select("id, title, scheduled_at, patient_id, patient_name")
       .eq("status", "no_show")
-      .lt("scheduled_at", oneDayAgo.toISOString());
+      .lt("scheduled_at", oneHourAgo.toISOString())
+      .gt("scheduled_at", ninetyMinAgo.toISOString());
 
-    for (const appt of oldNoShows ?? []) {
-      await supabase.from("appointments").update({ status: "dismissed" }).eq("id", appt.id);
-      log(`Auto-dismissed no-show appt ${appt.id} (${appt.patient_name})`);
+    for (const appt of appts ?? []) {
+      const { data: patient } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, phone, whatsapp_number, hospital_id")
+        .eq("id", appt.patient_id)
+        .single();
+
+      if (patient) {
+        const patientName = `${patient.first_name} ${patient.last_name}`;
+        const { data: hospital } = await supabase
+          .from("hospitals").select("id").eq("username", (patient.hospital_id as string).toLowerCase()).single();
+
+        if (hospital) {
+          const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+          if (phone) {
+            await sendAppointmentNoShowFollowUp(hospital.id, patient.id, patientName, phone, appt.title).catch(() => {});
+            log(`No-show follow-up sent: appt ${appt.id} (${patientName})`);
+          }
+        }
+      }
     }
   } catch (err) {
     Sentry.captureException(err);
-    log(`No-show automation error: ${err}`);
+    log(`No-show follow-up error: ${err}`);
+  }
+}
+
+// ── Auto No-Show Dismissal at 11 PM ──────────────────────────────────────────
+// Runs at 23:00 daily — dismisses all no_show appointments from that calendar
+// day so they are cleared from the tab overnight.
+async function runNoShowDismissal() {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+    const { data: appts } = await supabase
+      .from("appointments")
+      .select("id, patient_name")
+      .eq("status", "no_show")
+      .gte("scheduled_at", todayStart.toISOString())
+      .lte("scheduled_at", todayEnd.toISOString());
+
+    for (const appt of appts ?? []) {
+      await supabase.from("appointments").update({ status: "dismissed" }).eq("id", appt.id);
+      log(`Dismissed no-show appt ${appt.id} (${appt.patient_name}) at end of day`);
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`No-show dismissal error: ${err}`);
   }
 }
 
@@ -573,11 +620,15 @@ async function checkSubscriptionExpirations() {
 }
 
 export function startScheduler() {
-  // Every 15 minutes: appointment reminders + auto no-show detection + 1-day dismiss
+  // Every 15 minutes: appointment reminders + no-show detection + 1-hour follow-up
   cron.schedule("*/15 * * * *", async () => {
     await runAppointmentReminders();
-    await runNoShowAutomation();
+    await runNoShowDetection();
+    await runNoShowFollowup();
   });
+
+  // 11:00 PM daily: dismiss no-show appointments from today
+  cron.schedule("0 23 * * *", runNoShowDismissal);
 
   // Every 30 minutes: in-care daily general message + medication timing reminders
   cron.schedule("*/30 * * * *", async () => {

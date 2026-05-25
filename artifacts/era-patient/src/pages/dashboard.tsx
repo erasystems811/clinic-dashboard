@@ -7,7 +7,7 @@ import { format, parseISO } from "date-fns";
 
 export default function Dashboard() {
   const { data: summary, isLoading } = useGetDashboardSummary({
-    query: { queryKey: getGetDashboardSummaryQueryKey() }
+    query: { queryKey: getGetDashboardSummaryQueryKey(), refetchInterval: 30000 },
   });
 
   return (

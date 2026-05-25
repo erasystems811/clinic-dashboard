@@ -321,7 +321,10 @@ function TaskCard({ task }: { task: CallTask }) {
 /* ── Page ── */
 export default function CallTasks() {
   const [showCompleted, setShowCompleted] = useState(false);
-  const { data: tasks = [], isLoading } = useListCallTasks({ completed: showCompleted }, {});
+  const { data: tasks = [], isLoading } = useListCallTasks(
+    { completed: showCompleted },
+    { query: { refetchInterval: 10000 } },
+  );
 
   return (
     <Layout>

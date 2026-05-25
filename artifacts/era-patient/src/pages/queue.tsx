@@ -43,7 +43,9 @@ export default function QueueManagement() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [aptSearch, setAptSearch] = useState("");
 
-  const { data: queue = [], refetch: refetchQueue, isLoading: queueLoading } = useListQueue();
+  const { data: queue = [], refetch: refetchQueue, isLoading: queueLoading } = useListQueue({
+    query: { refetchInterval: 5000 },
+  });
   const { data: searchResults = [], isFetching: searching } = useListPatients(
     { search },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -201,8 +201,12 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
   const parsed = UpdatePatientBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  // Fetch existing record so we can detect changes and propagate them
+  const { data: before, error: beforeErr } = await supabase.from("patients").select("*").eq("id", id).single();
+  if (beforeErr || !before) { res.status(404).json({ error: "Patient not found" }); return; }
+
   // If patientId is being changed, enforce uniqueness within this hospital
-  if (parsed.data.patientId) {
+  if (parsed.data.patientId && parsed.data.patientId !== before.patient_id) {
     const hospital = await getHospitalFromRequest(req);
     if (hospital) {
       const { data: conflict } = await supabase
@@ -226,18 +230,85 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
     .select()
     .single();
 
-  if (error || !data) { res.status(404).json({ error: "Patient not found" }); return; }
+  if (error || !data) { res.status(500).json({ error: error?.message ?? "Update failed" }); return; }
 
   const patient = camelize<Record<string, unknown>>(data);
+  const newName = `${data.first_name} ${data.last_name}`;
+  const oldName = `${before.first_name} ${before.last_name}`;
 
+  // ── Stage change: log to activity ──
   if (parsed.data.stage) {
     await supabase.from("activity").insert({
       type: "stage_changed",
-      description: `${patient.firstName} ${patient.lastName} moved to ${parsed.data.stage}`,
+      description: `${newName} moved to ${parsed.data.stage}`,
       patient_id: id,
-      patient_name: `${patient.firstName} ${patient.lastName}`,
+      patient_name: newName,
+      hospital_id: before.hospital_id ? (await resolveHospitalIntId(before.hospital_id as string)) : null,
       metadata: parsed.data.stage,
     });
+  }
+
+  // ── Info edit: propagate name + contact changes to queue and call_tasks ──
+  const isInfoEdit = !parsed.data.stage && (
+    parsed.data.firstName || parsed.data.lastName ||
+    parsed.data.phone || parsed.data.email || parsed.data.whatsappNumber ||
+    parsed.data.dateOfBirth || parsed.data.age || parsed.data.gender ||
+    parsed.data.department || parsed.data.diagnosis || parsed.data.patientId || parsed.data.notes
+  );
+
+  if (isInfoEdit) {
+    // Detect what actually changed for the activity log
+    const changes: string[] = [];
+    if (data.first_name !== before.first_name || data.last_name !== before.last_name)
+      changes.push(`name: "${oldName}" → "${newName}"`);
+    if (parsed.data.phone && data.phone !== before.phone) changes.push("phone");
+    if (parsed.data.email && data.email !== before.email) changes.push("email");
+    if (parsed.data.whatsappNumber && data.whatsapp_number !== before.whatsapp_number) changes.push("WhatsApp");
+    if (parsed.data.gender && data.gender !== before.gender) changes.push("gender");
+    if (parsed.data.dateOfBirth && data.date_of_birth !== before.date_of_birth) changes.push("date of birth");
+    if (parsed.data.age && data.age !== before.age) changes.push("age");
+    if (parsed.data.department && data.department !== before.department) changes.push("department");
+    if (parsed.data.diagnosis && data.diagnosis !== before.diagnosis) changes.push("diagnosis");
+    if (parsed.data.patientId && data.patient_id !== before.patient_id) changes.push(`patient ID: "${before.patient_id}" → "${data.patient_id}"`);
+    if (parsed.data.notes && data.notes !== before.notes) changes.push("notes");
+
+    // Build queue update payload (sync whatever changed)
+    const queueUpdate: Record<string, unknown> = {};
+    if (data.first_name !== before.first_name || data.last_name !== before.last_name) queueUpdate.patient_name = newName;
+    if (parsed.data.phone) queueUpdate.phone = data.phone;
+    if (parsed.data.email) queueUpdate.email = data.email;
+    if (parsed.data.whatsappNumber) queueUpdate.whatsapp_number = data.whatsapp_number;
+
+    const propagations: Promise<unknown>[] = [];
+
+    // Sync queue row if patient is currently queued
+    if (Object.keys(queueUpdate).length > 0) {
+      propagations.push(
+        supabase.from("queue").update(queueUpdate).eq("patient_id", id)
+      );
+    }
+
+    // Sync patient_name in open call tasks
+    if (data.first_name !== before.first_name || data.last_name !== before.last_name) {
+      propagations.push(
+        supabase.from("call_tasks").update({ patient_name: newName }).eq("patient_id", id)
+      );
+    }
+
+    // Log activity entry for the edit
+    if (changes.length > 0) {
+      propagations.push(
+        supabase.from("activity").insert({
+          type: "patient_info_updated",
+          description: `Patient info updated for ${newName}: ${changes.join(", ")}`,
+          patient_id: id,
+          patient_name: newName,
+          hospital_id: before.hospital_id ? (await resolveHospitalIntId(before.hospital_id as string)) : null,
+        })
+      );
+    }
+
+    await Promise.all(propagations);
   }
 
   res.json(patient);

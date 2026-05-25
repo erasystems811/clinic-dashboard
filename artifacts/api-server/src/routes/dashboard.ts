@@ -72,7 +72,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     { data: newsletters },
     { data: queuedPatients },
     { data: allAppointments },
-    { data: histWaitPatients },
+    { data: dequeuedActivity },
   ] = await Promise.all([
     supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username),
     supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username).gte("created_at", startOfMonth.toISOString()),
@@ -88,13 +88,12 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     supabase.from("patients").select("checked_in_at").eq("hospital_id", hospital.username).eq("stage", "Queued").not("checked_in_at", "is", null),
     // All-time appointments for no-show rate calculation
     supabase.from("appointments").select("status, scheduled_at").in("patient_id", safePatientIds),
-    // Patients who've been through the queue (have check-in time, are no longer queued) for avg wait trend
-    supabase.from("patients")
-      .select("checked_in_at, updated_at")
-      .eq("hospital_id", hospital.username)
-      .not("checked_in_at", "is", null)
-      .neq("stage", "Queued")
-      .gte("updated_at", startOfLastMonth.toISOString()),
+    // All-time dequeue events with stamped wait_minutes in metadata
+    supabase.from("activity")
+      .select("metadata, created_at")
+      .eq("hospital_id", hospital.intId)
+      .eq("type", "dequeued")
+      .not("metadata", "is", null),
   ]);
 
   const startOfDayISO = startOfDay.toISOString();
@@ -127,15 +126,19 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     ? Math.round((feedbackList.reduce((s, f) => s + (f.rating ?? 0), 0) / feedbackList.length) * 10) / 10
     : 0;
 
-  let avgWaitMinutes = 0;
-  if ((queuedPatients ?? []).length > 0) {
-    const totalMins = (queuedPatients ?? []).reduce((sum, p) => {
-      const checkedInAt = p.checked_in_at ? new Date(p.checked_in_at) : null;
-      if (!checkedInAt) return sum;
-      return sum + (utcNow.getTime() - checkedInAt.getTime()) / 60000;
-    }, 0);
-    avgWaitMinutes = Math.round(totalMins / queuedPatients!.length);
-  }
+  // ── All-time avg wait: completed waits (from dequeue activity) + live waits (currently queued) ──
+  const completedWaits = (dequeuedActivity ?? [])
+    .map(a => parseFloat(a.metadata ?? ""))
+    .filter(m => !isNaN(m) && m >= 0);
+
+  const liveWaits = (queuedPatients ?? [])
+    .map(p => p.checked_in_at ? (utcNow.getTime() - new Date(p.checked_in_at).getTime()) / 60000 : null)
+    .filter((m): m is number => m !== null && m >= 0);
+
+  const allWaits = [...completedWaits, ...liveWaits];
+  const avgWaitMinutes = allWaits.length > 0
+    ? Math.round(allWaits.reduce((s, m) => s + m, 0) / allWaits.length)
+    : 0;
 
   // ── No-show rate (overall, all-time) ─────────────────────────────────────────
   const aptList = allAppointments ?? [];
@@ -156,19 +159,14 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     else if (thisMonthNoShowRate < lastMonthNoShowRate - 0.01) noShowTrend = "down";
   }
 
-  // ── Avg wait trend (this month vs last month, using processed patients) ──────
-  const calcAvgWaitMins = (rows: { checked_in_at: string | null; updated_at: string | null }[]) => {
-    const valid = rows.filter(p => p.checked_in_at && p.updated_at);
-    if (valid.length === 0) return null;
-    const total = valid.reduce((sum, p) => {
-      const diff = (new Date(p.updated_at!).getTime() - new Date(p.checked_in_at!).getTime()) / 60000;
-      return diff > 0 ? sum + diff : sum;
-    }, 0);
-    return total / valid.length;
+  // ── Avg wait trend (this month vs last month, from stamped dequeue activity) ──
+  const calcAvgFromActivity = (rows: { metadata: string | null }[]) => {
+    const vals = rows.map(r => parseFloat(r.metadata ?? "")).filter(m => !isNaN(m) && m >= 0);
+    return vals.length > 0 ? vals.reduce((s, m) => s + m, 0) / vals.length : null;
   };
-  const waitList = histWaitPatients ?? [];
-  const thisMonthWait = calcAvgWaitMins(waitList.filter(p => (p.updated_at ?? "") >= startOfMonthISO));
-  const lastMonthWait = calcAvgWaitMins(waitList.filter(p => (p.updated_at ?? "") >= startOfLastMonthISO && (p.updated_at ?? "") < startOfMonthISO));
+  const actList = dequeuedActivity ?? [];
+  const thisMonthWait = calcAvgFromActivity(actList.filter(a => a.created_at >= startOfMonthISO));
+  const lastMonthWait = calcAvgFromActivity(actList.filter(a => a.created_at >= startOfLastMonthISO && a.created_at < startOfMonthISO));
   let avgWaitTrend: "up" | "down" | "stable" = "stable";
   if (thisMonthWait !== null && lastMonthWait !== null) {
     if (thisMonthWait > lastMonthWait * 1.05) avgWaitTrend = "up";

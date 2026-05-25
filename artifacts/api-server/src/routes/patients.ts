@@ -483,11 +483,19 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
     await supabase.from("queue").update({ position: i + 1 }).eq("id", remaining![i].id);
   }
 
+  // Compute how long this patient actually waited (checked_in_at → now)
+  const waitMins = existing.checked_in_at
+    ? Math.max(0, Math.round((Date.now() - new Date(existing.checked_in_at).getTime()) / 60000))
+    : null;
+
   await supabase.from("activity").insert({
     type: "dequeued",
     description: `${patient!.first_name} ${patient!.last_name} removed from queue — returned to ${restoreStage}`,
     patient_id: id,
     patient_name: `${patient!.first_name} ${patient!.last_name}`,
+    hospital_id: await resolveHospitalIntId(existing.hospital_id as string),
+    // metadata stores wait_minutes as a numeric string so dashboard can compute all-time avg
+    metadata: waitMins !== null ? String(waitMins) : null,
   });
 
   res.json(camelize(patient!));

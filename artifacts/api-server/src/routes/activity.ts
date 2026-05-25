@@ -18,10 +18,12 @@ router.get("/activity", async (req, res): Promise<void> => {
   const patientIds = await getPatientIdsForHospital(hospital.username);
   const safePatientIds = patientIds.length ? patientIds : [-1];
 
+  // Fetch both patient-linked activity AND hospital-level activity (e.g. patient_deleted
+  // entries where patient_id is nulled out to preserve the audit trail after deletion).
   const { data, error } = await supabase
     .from("activity")
     .select("*")
-    .in("patient_id", safePatientIds)
+    .or(`patient_id.in.(${safePatientIds.join(",")}),and(patient_id.is.null,hospital_id.eq.${hospital.intId})`)
     .order("created_at", { ascending: false })
     .limit(limit);
 

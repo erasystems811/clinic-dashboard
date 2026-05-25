@@ -61,7 +61,8 @@ export default function Dashboard() {
   const stats = {
     total: hospitals.length,
     active: hospitals.filter(h => h.active && h.subscriptionStatus === "active").length,
-    trial: hospitals.filter(h => h.subscriptionStatus === "trial").length,
+    // Trial only counts if the account is still active (not deactivated/suspended)
+    trial: hospitals.filter(h => h.active && h.subscriptionStatus === "trial").length,
     suspended: hospitals.filter(h => !h.active || h.subscriptionStatus === "inactive").length,
     expiringSoon: hospitals.filter(h => {
       if (!h.active || !h.subscriptionExpiresAt) return false;

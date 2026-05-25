@@ -468,7 +468,16 @@ router.get("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
   const { data: modules } = await supabase.from("hospital_modules").select("*").eq("hospital_id", id).single();
   if (!modules) { res.status(404).json({ error: "Not found" }); return; }
 
-  res.json(camelize(modules));
+  const base = camelize(modules) as Record<string, unknown>;
+
+  // Columns added via RPC may not be in PostgREST schema cache —
+  // always emit them with explicit defaults so the UI never silently resets.
+  res.json({
+    ...base,
+    wellnessNewsletterEnabled: base.wellnessNewsletterEnabled ?? true,
+    whatsappEnabled: base.whatsappEnabled ?? false,
+    messagesEnabled: base.messagesEnabled ?? false,
+  });
 });
 
 router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, res): Promise<void> => {

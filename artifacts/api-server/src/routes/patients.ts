@@ -231,7 +231,13 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
     .select()
     .single();
 
-  if (error || !data) { res.status(500).json({ error: error?.message ?? "Update failed" }); return; }
+  if (error || !data) {
+    const isDuplicate = error?.code === "23505" || error?.message?.includes("unique constraint");
+    res.status(isDuplicate ? 409 : 500).json({
+      error: isDuplicate ? "Patient ID already exists in this hospital." : (error?.message ?? "Update failed"),
+    });
+    return;
+  }
 
   const patient = camelize<Record<string, unknown>>(data);
   const newName = `${data.first_name} ${data.last_name}`;

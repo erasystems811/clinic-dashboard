@@ -3,9 +3,12 @@
  *
  * Both WhatsApp and SMS are delivered via Termii.
  *
- * Required environment variables:
- *   TERMII_API_KEY     — Termii API key
- *   TERMII_SENDER_ID   — Approved sender ID (used for both channels)
+ * Platform-level environment variables (Railway API Server):
+ *   TERMII_API_KEY     — Termii API key (shared across all hospitals)
+ *   TERMII_SENDER_ID   — Fallback sender ID when a hospital hasn't set their own
+ *
+ * Per-hospital sender ID is stored in hospital_settings.termii_sender_id.
+ * Pass it via the `senderId` option to override the platform default.
  *
  * Termii docs: https://developers.termii.com/messaging
  */
@@ -17,12 +20,18 @@ export interface MobileMessage {
   body: string;
 }
 
+export interface MessagingOptions {
+  /** Per-hospital Termii sender ID. Falls back to TERMII_SENDER_ID env var. */
+  senderId?: string | null;
+}
+
 async function termiiSend(
   msg: MobileMessage,
   channel: "whatsapp" | "generic",
+  opts: MessagingOptions = {},
 ): Promise<void> {
   const apiKey = process.env.TERMII_API_KEY;
-  const senderId = process.env.TERMII_SENDER_ID;
+  const senderId = opts.senderId?.trim() || process.env.TERMII_SENDER_ID;
 
   if (!apiKey || !senderId) {
     console.warn(`[messaging] Termii not configured — skipping ${channel} message to ${msg.to}`);
@@ -48,22 +57,23 @@ async function termiiSend(
   }
 }
 
-export async function deliverWhatsApp(msg: MobileMessage): Promise<void> {
-  await termiiSend(msg, "whatsapp");
+export async function deliverWhatsApp(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
+  await termiiSend(msg, "whatsapp", opts);
 }
 
-export async function deliverSms(msg: MobileMessage): Promise<void> {
-  await termiiSend(msg, "generic");
+export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
+  await termiiSend(msg, "generic", opts);
 }
 
 export async function deliverMobileMessage(
   channel: "whatsapp" | "sms",
   to: string,
   body: string,
+  opts: MessagingOptions = {},
 ): Promise<void> {
   if (channel === "sms") {
-    await deliverSms({ to, body });
+    await deliverSms({ to, body }, opts);
   } else {
-    await deliverWhatsApp({ to, body });
+    await deliverWhatsApp({ to, body }, opts);
   }
 }

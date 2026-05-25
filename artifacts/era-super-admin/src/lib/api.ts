@@ -81,6 +81,7 @@ export interface HospitalSettings {
   whatsappFromNumber: string | null;
   notificationChannel: "whatsapp" | "sms" | null;
   phoneNumber: string | null;
+  termiiSenderId: string | null;
 }
 
 export interface HospitalModules {

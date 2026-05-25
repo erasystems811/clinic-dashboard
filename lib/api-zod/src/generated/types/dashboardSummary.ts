@@ -22,4 +22,10 @@ export interface DashboardSummary {
   wellnessLastSentAt?: string | null;
   /** @nullable */
   avgWaitMinutes?: number | null;
+  /** @nullable */
+  noShowRate?: number | null;
+  /** @nullable */
+  noShowTrend?: "up" | "down" | "stable" | null;
+  /** @nullable */
+  avgWaitTrend?: "up" | "down" | "stable" | null;
 }

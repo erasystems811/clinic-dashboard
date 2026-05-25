@@ -42,7 +42,9 @@ function getLagosBounds() {
   const startOfWeek = new Date(Date.UTC(y, mo, d - daysToMonday)     - LAGOS_OFFSET_MS);
   const endOfWeek   = new Date(Date.UTC(y, mo, d - daysToMonday + 7) - LAGOS_OFFSET_MS);
 
-  return { utcNow, startOfDay, endOfDay, startOfMonth, startOfWeek, endOfWeek };
+  const startOfLastMonth = new Date(Date.UTC(y, mo - 1, 1) - LAGOS_OFFSET_MS);
+
+  return { utcNow, startOfDay, endOfDay, startOfMonth, startOfLastMonth, startOfWeek, endOfWeek };
 }
 
 // Statuses that should not count toward active appointment metrics
@@ -54,7 +56,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
 
   await ensureStagesExist();
 
-  const { utcNow, startOfDay, endOfDay, startOfMonth, startOfWeek, endOfWeek } = getLagosBounds();
+  const { utcNow, startOfDay, endOfDay, startOfMonth, startOfLastMonth, startOfWeek, endOfWeek } = getLagosBounds();
 
   // Get patient IDs for this hospital (needed for appointments + feedback)
   const patientIds = await getPatientIdsForHospital(hospital.username);
@@ -69,6 +71,8 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     { data: allFeedback },
     { data: newsletters },
     { data: queuedPatients },
+    { data: allAppointments },
+    { data: histWaitPatients },
   ] = await Promise.all([
     supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username),
     supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username).gte("created_at", startOfMonth.toISOString()),
@@ -82,6 +86,15 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     supabase.from("feedback").select("rating").in("patient_id", safePatientIds),
     supabase.from("wellness_newsletter").select("last_sent_at").eq("hospital_id", hospital.intId).order("last_sent_at", { ascending: false }).limit(1),
     supabase.from("patients").select("checked_in_at").eq("hospital_id", hospital.username).eq("stage", "Queued").not("checked_in_at", "is", null),
+    // All-time appointments for no-show rate calculation
+    supabase.from("appointments").select("status, scheduled_at").in("patient_id", safePatientIds),
+    // Patients who've been through the queue (have check-in time, are no longer queued) for avg wait trend
+    supabase.from("patients")
+      .select("checked_in_at, updated_at")
+      .eq("hospital_id", hospital.username)
+      .not("checked_in_at", "is", null)
+      .neq("stage", "Queued")
+      .gte("updated_at", startOfLastMonth.toISOString()),
   ]);
 
   const startOfDayISO = startOfDay.toISOString();
@@ -124,6 +137,44 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     avgWaitMinutes = Math.round(totalMins / queuedPatients!.length);
   }
 
+  // ── No-show rate (overall, all-time) ─────────────────────────────────────────
+  const aptList = allAppointments ?? [];
+  const totalAppts = aptList.length;
+  const noShows = aptList.filter(a => a.status === "no_show").length;
+  const noShowRate = totalAppts > 0 ? Math.round((noShows / totalAppts) * 1000) / 10 : 0;
+
+  // Trend: compare this month vs last month
+  const startOfMonthISO = startOfMonth.toISOString();
+  const startOfLastMonthISO = startOfLastMonth.toISOString();
+  const thisMonthAppts = aptList.filter(a => a.scheduled_at >= startOfMonthISO);
+  const lastMonthAppts = aptList.filter(a => a.scheduled_at >= startOfLastMonthISO && a.scheduled_at < startOfMonthISO);
+  const thisMonthNoShowRate = thisMonthAppts.length > 0 ? thisMonthAppts.filter(a => a.status === "no_show").length / thisMonthAppts.length : null;
+  const lastMonthNoShowRate = lastMonthAppts.length > 0 ? lastMonthAppts.filter(a => a.status === "no_show").length / lastMonthAppts.length : null;
+  let noShowTrend: "up" | "down" | "stable" = "stable";
+  if (thisMonthNoShowRate !== null && lastMonthNoShowRate !== null) {
+    if (thisMonthNoShowRate > lastMonthNoShowRate + 0.01) noShowTrend = "up";
+    else if (thisMonthNoShowRate < lastMonthNoShowRate - 0.01) noShowTrend = "down";
+  }
+
+  // ── Avg wait trend (this month vs last month, using processed patients) ──────
+  const calcAvgWaitMins = (rows: { checked_in_at: string | null; updated_at: string | null }[]) => {
+    const valid = rows.filter(p => p.checked_in_at && p.updated_at);
+    if (valid.length === 0) return null;
+    const total = valid.reduce((sum, p) => {
+      const diff = (new Date(p.updated_at!).getTime() - new Date(p.checked_in_at!).getTime()) / 60000;
+      return diff > 0 ? sum + diff : sum;
+    }, 0);
+    return total / valid.length;
+  };
+  const waitList = histWaitPatients ?? [];
+  const thisMonthWait = calcAvgWaitMins(waitList.filter(p => (p.updated_at ?? "") >= startOfMonthISO));
+  const lastMonthWait = calcAvgWaitMins(waitList.filter(p => (p.updated_at ?? "") >= startOfLastMonthISO && (p.updated_at ?? "") < startOfMonthISO));
+  let avgWaitTrend: "up" | "down" | "stable" = "stable";
+  if (thisMonthWait !== null && lastMonthWait !== null) {
+    if (thisMonthWait > lastMonthWait * 1.05) avgWaitTrend = "up";
+    else if (thisMonthWait < lastMonthWait * 0.95) avgWaitTrend = "down";
+  }
+
   res.json({
     totalPatients: totalPatients ?? 0,
     newPatientsThisMonth: newThisMonth ?? 0,
@@ -135,6 +186,9 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     totalFeedback: feedbackList.length,
     wellnessLastSentAt: newsletters?.[0]?.last_sent_at ?? null,
     avgWaitMinutes,
+    noShowRate,
+    noShowTrend,
+    avgWaitTrend,
   });
 });
 

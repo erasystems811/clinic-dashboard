@@ -439,7 +439,10 @@ export const GetDashboardSummaryResponse = zod.object({
   "avgFeedbackRating": zod.number().nullish(),
   "totalFeedback": zod.number().nullish(),
   "wellnessLastSentAt": zod.string().nullish(),
-  "avgWaitMinutes": zod.number().nullish()
+  "avgWaitMinutes": zod.number().nullish(),
+  "noShowRate": zod.number().nullish(),
+  "noShowTrend": zod.enum(["up", "down", "stable"]).nullish(),
+  "avgWaitTrend": zod.enum(["up", "down", "stable"]).nullish()
 })
 
 

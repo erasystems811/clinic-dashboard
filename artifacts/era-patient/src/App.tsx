@@ -39,7 +39,12 @@ function defaultPathForRole(role: Role): string {
 
 function ProtectedRouter() {
   const [matchesFeedback, feedbackParams] = useRoute("/feedback/:token");
+  const [matchesFeedbackH, feedbackHParams] = useRoute("/feedback/h/:slug");
   const { hospital, user, hospitalConfig } = useAuth();
+
+  if (matchesFeedbackH) {
+    return <FeedbackForm hospitalSlug={feedbackHParams?.slug ?? ""} />;
+  }
 
   if (matchesFeedback) {
     return <FeedbackForm token={feedbackParams?.token ?? ""} />;

@@ -136,6 +136,57 @@ async function getFormQuestions(hospitalId: number) {
   return (data?.questions as typeof DEFAULT_QUESTIONS) ?? DEFAULT_QUESTIONS;
 }
 
+// ── Public hospital-level feedback form (permanent per-hospital link) ─────────
+router.get("/feedback/h/:slug", async (req, res): Promise<void> => {
+  const { data: hospital } = await supabase
+    .from("hospitals")
+    .select("id, name, feedback_slug")
+    .eq("feedback_slug", req.params.slug)
+    .single();
+  if (!hospital) { res.status(404).json({ error: "Form not found" }); return; }
+
+  const questions = await getFormQuestions(hospital.id);
+  res.json({ hospitalId: hospital.id, hospitalName: hospital.name, questions });
+});
+
+const SubmitHospitalFeedbackBody = z.object({
+  rating: z.number().int().min(1).max(5),
+  waitTimeRating: z.number().int().min(1).max(5).optional(),
+  staffFriendlinessRating: z.number().int().min(1).max(5).optional(),
+  qualityOfCareRating: z.number().int().min(1).max(5).optional(),
+  wouldRecommend: z.boolean().optional(),
+  comment: z.string().optional(),
+});
+
+router.post("/feedback/h/:slug", async (req, res): Promise<void> => {
+  const { data: hospital } = await supabase
+    .from("hospitals")
+    .select("id")
+    .eq("feedback_slug", req.params.slug)
+    .single();
+  if (!hospital) { res.status(404).json({ error: "Form not found" }); return; }
+
+  const parsed = SubmitHospitalFeedbackBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const d = parsed.data;
+  const { data, error } = await supabase.from("feedback").insert({
+    hospital_id: hospital.id,
+    patient_id: null,
+    patient_name: null,
+    rating: d.rating,
+    wait_time_rating: d.waitTimeRating ?? null,
+    staff_friendliness_rating: d.staffFriendlinessRating ?? null,
+    quality_of_care_rating: d.qualityOfCareRating ?? null,
+    would_recommend: d.wouldRecommend ?? null,
+    comment: d.comment ?? null,
+    feedback_token: null,
+  }).select().single();
+
+  if (error || !data) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
+  res.status(201).json(camelize(data));
+});
+
 router.get("/feedback/form-config", async (req, res): Promise<void> => {
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;

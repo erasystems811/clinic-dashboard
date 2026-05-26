@@ -89,8 +89,8 @@ export default function FeedbackAdmin() {
   const polledAt = useRef<number>(0);
   const [tab, setTab] = useState<Tab>("dashboard");
 
-  const feedbackLink = hospital
-    ? `${window.location.origin}${import.meta.env.BASE_URL}feedback/`.replace(/\/+/g, "/").replace(":/", "://")
+  const feedbackLink = hospital?.feedbackSlug
+    ? `${window.location.origin}${import.meta.env.BASE_URL}feedback/h/${hospital.feedbackSlug}`.replace(/\/+/g, "/").replace(":/", "://")
     : "";
 
   const headers = (): Record<string, string> =>
@@ -215,23 +215,29 @@ export default function FeedbackAdmin() {
 
         {tab === "dashboard" && (
           <>
-            <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-2">Patient Feedback Link</p>
-              <p className="text-xs text-muted-foreground mb-3">
-                Generate a unique link per patient from their profile page, or share this general link.
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="text-xs bg-muted px-3 py-1.5 rounded-lg flex-1 truncate text-foreground/70 border border-border">
-                  {feedbackLink}<span className="text-muted-foreground">[patient-token]</span>
-                </code>
-                <button
-                  onClick={() => copyLink(feedbackLink)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-muted transition shrink-0"
-                >
-                  {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copied ? "Copied" : "Copy"}
-                </button>
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-0.5">Your Hospital Feedback Link</p>
+                <p className="text-xs text-muted-foreground">
+                  This is your hospital's permanent feedback link. Share it with patients after their visit — they fill out the form without creating an account.
+                </p>
               </div>
+              {feedbackLink ? (
+                <div className="flex items-center gap-2">
+                  <code className="text-xs bg-muted px-3 py-1.5 rounded-lg flex-1 truncate text-foreground/80 border border-border font-mono">
+                    {feedbackLink}
+                  </code>
+                  <button
+                    onClick={() => copyLink(feedbackLink)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-muted transition shrink-0"
+                  >
+                    {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? "Copied" : "Copy Link"}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">Link unavailable — please log out and log back in to refresh.</p>
+              )}
             </div>
 
             {isLoading ? (

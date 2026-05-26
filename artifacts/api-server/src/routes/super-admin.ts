@@ -244,6 +244,7 @@ router.post("/super-admin/hospitals", requireSuperAdmin, async (req, res): Promi
     current_password: plainPassword,
     active: subscriptionStatus !== "inactive",
     subscription_status: subscriptionStatus ?? "active",
+    feedback_slug: crypto.randomUUID(),
   }).select().single();
 
   if (error || !hospital) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
@@ -632,6 +633,7 @@ router.post("/auth/hospital-login", async (req, res): Promise<void> => {
     id: hospital.id,
     name: hospital.name,
     username: hospital.username,
+    feedbackSlug: hospital.feedback_slug ?? null,
     token: signHospitalToken(hospital.id),
   });
 });

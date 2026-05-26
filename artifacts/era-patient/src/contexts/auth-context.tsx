@@ -9,6 +9,7 @@ export interface HospitalSession {
   name: string;
   username: string;
   token: string; // empty for staff (nurse/receptionist)
+  feedbackSlug?: string | null;
 }
 
 export interface HospitalConfig {
@@ -86,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.error ?? "Invalid credentials");
     }
     const data = await res.json();
-    setHospital({ id: data.id, name: data.name, username: data.username, token: data.token });
+    setHospital({ id: data.id, name: data.name, username: data.username, token: data.token, feedbackSlug: data.feedbackSlug ?? null });
 
     const cfgRes = await fetch(apiUrl("/api/hospital/config"), {
       headers: { "x-hospital-token": data.token },

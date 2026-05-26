@@ -74,12 +74,14 @@ const DEFAULT_QUESTIONS: FormQuestion[] = [
 ];
 
 interface Props {
-  token: string;
+  token?: string;
+  hospitalSlug?: string;
   previewQuestions?: FormQuestion[];
 }
 
-export default function FeedbackForm({ token, previewQuestions }: Props) {
+export default function FeedbackForm({ token, hospitalSlug, previewQuestions }: Props) {
   const isPreview = !!previewQuestions;
+  const isHospitalSlug = !!hospitalSlug;
   const [ctx, setCtx] = useState<FormContext | null>(null);
   const [loading, setLoading] = useState(!isPreview);
   const [error, setError] = useState("");
@@ -95,6 +97,18 @@ export default function FeedbackForm({ token, previewQuestions }: Props) {
 
   useEffect(() => {
     if (isPreview) return;
+    if (isHospitalSlug) {
+      if (!hospitalSlug) { setError("Invalid feedback link."); setLoading(false); return; }
+      fetch(apiUrl(`/api/feedback/h/${hospitalSlug}`))
+        .then(r => r.json())
+        .then(data => {
+          if (data.error) { setError(data.error); }
+          else { setCtx({ patientId: 0, patientName: "", hospitalName: data.hospitalName, alreadySubmitted: false, questions: data.questions }); }
+        })
+        .catch(() => setError("Failed to load form. Please try again."))
+        .finally(() => setLoading(false));
+      return;
+    }
     if (!token) { setError("Invalid feedback link."); setLoading(false); return; }
     fetch(apiUrl(`/api/feedback/form/${token}`))
       .then(r => r.json())
@@ -107,7 +121,7 @@ export default function FeedbackForm({ token, previewQuestions }: Props) {
       })
       .catch(() => setError("Failed to load form. Please try again."))
       .finally(() => setLoading(false));
-  }, [token, isPreview]);
+  }, [token, hospitalSlug, isPreview, isHospitalSlug]);
 
   const handleSubmit = async () => {
     if (isPreview) return;
@@ -116,16 +130,20 @@ export default function FeedbackForm({ token, previewQuestions }: Props) {
     setSubmitting(true);
     try {
       const body: Record<string, unknown> = {
-        token,
         rating: ratings["overall"] ?? 1,
       };
+      if (!isHospitalSlug) body.token = token;
       if (ratings["wait_time"]) body.waitTimeRating = ratings["wait_time"];
       if (ratings["staff_friendliness"]) body.staffFriendlinessRating = ratings["staff_friendliness"];
       if (ratings["quality_of_care"]) body.qualityOfCareRating = ratings["quality_of_care"];
       if (wouldRecommend != null) body.wouldRecommend = wouldRecommend;
       if (comment.trim()) body.comment = comment.trim();
 
-      const res = await fetch(apiUrl("/api/feedback"), {
+      const url = isHospitalSlug
+        ? apiUrl(`/api/feedback/h/${hospitalSlug}`)
+        : apiUrl("/api/feedback");
+
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

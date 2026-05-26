@@ -95,6 +95,20 @@ router.get("/queue", async (req, res): Promise<void> => {
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
+  // ── Fetch appointment times for any entries that have an appointment_id ──
+  const appointmentIds = (finalEntries ?? [])
+    .map((e) => e.appointment_id)
+    .filter((id): id is number => id != null);
+
+  let appointmentScheduledMap: Record<number, string> = {};
+  if (appointmentIds.length > 0) {
+    const { data: apts } = await supabase
+      .from("appointments")
+      .select("id, scheduled_at")
+      .in("id", appointmentIds);
+    appointmentScheduledMap = Object.fromEntries((apts ?? []).map((a) => [a.id, a.scheduled_at]));
+  }
+
   const patientMap = Object.fromEntries(queuedPatients.map((p) => [p.id, p]));
 
   const result = (finalEntries ?? []).map((e) => {
@@ -108,6 +122,7 @@ router.get("/queue", async (req, res): Promise<void> => {
       whatsappNumber: p.whatsapp_number ?? e.whatsapp_number ?? null,
       hospitalId: hospital.username,
       stage: p.pre_queue_stage ?? null,
+      appointmentScheduledAt: e.appointment_id ? (appointmentScheduledMap[e.appointment_id] ?? null) : null,
     };
   });
 

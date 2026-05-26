@@ -26,4 +26,6 @@ export interface QueueEntry {
   stage?: string | null;
   /** @nullable */
   appointmentId?: number | null;
+  /** @nullable */
+  appointmentScheduledAt?: string | null;
 }

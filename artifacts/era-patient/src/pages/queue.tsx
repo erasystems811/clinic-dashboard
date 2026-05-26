@@ -271,6 +271,11 @@ export default function QueueManagement() {
                         <span className="flex items-center gap-1 text-xs text-amber-400 font-medium">
                           <Star className="w-3 h-3" />
                           Appointment
+                          {entry.appointmentScheduledAt && (
+                            <span className="text-muted-foreground font-normal">
+                              · {new Date(entry.appointmentScheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
                         </span>
                       )}
                     </div>
@@ -291,11 +296,7 @@ export default function QueueManagement() {
                       className="w-4 h-4 accent-primary cursor-pointer"
                       onChange={(e) => {
                         if (e.target.checked) {
-                          if (confirm(`Mark ${entry.patientName} as called in?`)) {
-                            dequeue.mutate({ id: entry.patientId });
-                          } else {
-                            e.target.checked = false;
-                          }
+                          dequeue.mutate({ id: entry.patientId });
                         }
                       }}
                     />

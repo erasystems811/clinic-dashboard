@@ -702,18 +702,17 @@ export default function HospitalDetail({ id }: Props) {
               </select>
             </Field>
             <Field
-              label="SMS Sender ID"
-              hint={notificationChannel === "sms"
-                ? "This is what patients see as the sender on their phone. Two options: (1) Enter a phone number like +2348012345678 — works immediately, no approval needed, patients see a number. (2) Enter a short name like CityClinic (max 11 chars) — patients see the hospital name, but requires Termii registration which can take a few days."
-                : "Only used when channel is SMS."}
+              label="Sender ID / Number"
+              hint={notificationChannel === "whatsapp"
+                ? "The WhatsApp number this hospital's messages are sent from. Each hospital must have their own registered number — if two hospitals share one number, a patient who visits both will see both hospitals' messages in the same WhatsApp chat. Enter the number in international format, e.g. +2348012345678."
+                : "What patients see as the sender on their phone. Two options: (1) A phone number like +2348012345678 — works immediately, no approval needed. (2) A short name like CityClinic (max 11 chars) — patients see the hospital name, but requires Termii registration which takes a few days. Each hospital must have their own — shared senders mix messages in one thread."}
             >
               <input
                 type="text"
                 value={termiiSenderId}
                 onChange={e => setTermiiSenderId(e.target.value)}
-                placeholder={notificationChannel === "sms" ? "+2348012345678 or HospitalName" : "Not needed for WhatsApp"}
+                placeholder={notificationChannel === "whatsapp" ? "+2348012345678 (hospital WhatsApp number)" : "+2348012345678 or HospitalName"}
                 className={inputCls()}
-                disabled={notificationChannel !== "sms"}
               />
             </Field>
           </div>

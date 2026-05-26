@@ -533,13 +533,16 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
     medication_timing: parsed.data.medicationTiming ?? null,
     treatment_duration_days: parsed.data.treatmentDurationDays,
     treatment_end_date: treatmentEndDate.toISOString().split("T")[0],
+    stage: "In Care",
     treatment_started_at: now.toISOString(),
+    pre_queue_stage: null,
     updated_at: now.toISOString(),
   };
   if (parsed.data.diagnosis) updateData.diagnosis = parsed.data.diagnosis;
   if (parsed.data.department) updateData.department = parsed.data.department;
 
   const { data: patient } = await supabase.from("patients").update(updateData).eq("id", id).select().single();
+  await supabase.from("queue").delete().eq("patient_id", id);
 
   const patientName = `${patient!.first_name} ${patient!.last_name}`;
   await supabase.from("activity").insert({

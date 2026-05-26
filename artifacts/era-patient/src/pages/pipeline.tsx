@@ -27,11 +27,9 @@ export default function Pipeline() {
     
     const grouped: Record<string, typeof patients> = {};
     stages.forEach(stage => {
-      if (stage.name === "In Care") {
-        grouped[stage.name] = patients.filter(p => !!p.treatmentPlan);
-      } else {
-        grouped[stage.name] = patients.filter(p => p.stage === stage.name);
-      }
+      grouped[stage.name] = patients.filter(
+        p => p.stage === stage.name || p.preQueueStage === stage.name
+      );
     });
     return grouped;
   }, [patients, stages]);

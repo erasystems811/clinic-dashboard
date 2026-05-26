@@ -63,6 +63,7 @@ export interface Hospital {
   currentPassword: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  feedbackSlug: string | null;
   settings: HospitalSettings | null;
   modules: HospitalModules | null;
   staffCredentials: StaffCredentials | null;

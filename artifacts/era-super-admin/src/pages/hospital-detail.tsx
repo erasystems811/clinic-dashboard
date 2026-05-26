@@ -461,6 +461,22 @@ export default function HospitalDetail({ id }: Props) {
               </div>
             </div>
 
+            {/* Feedback link */}
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <div className="flex items-center gap-1.5 mb-2">
+                <MessageSquare className="w-3.5 h-3.5 text-teal-400" />
+                <span className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Patient Feedback Link</span>
+              </div>
+              {hospital.feedbackSlug ? (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-mono text-foreground break-all">{ERA_PATIENT_URL}/feedback/h/{hospital.feedbackSlug}</p>
+                  <CopyBtn text={`${ERA_PATIENT_URL}/feedback/h/${hospital.feedbackSlug}`} />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">Not generated yet — will appear after the hospital first logs in.</p>
+              )}
+            </div>
+
             {/* Admin creds */}
             <div className="rounded-lg border border-border bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">

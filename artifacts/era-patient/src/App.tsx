@@ -45,8 +45,22 @@ function ProtectedRouter() {
     return <FeedbackForm token={feedbackParams?.token ?? ""} />;
   }
 
-  if (!user) return <Login />;
-  if (user.role === "admin" && !hospital) return <Login />;
+  if (!user) {
+    return (
+      <Switch>
+        <Route path="/login"><Login /></Route>
+        <Route><Redirect to="/login" /></Route>
+      </Switch>
+    );
+  }
+  if (user.role === "admin" && !hospital) {
+    return (
+      <Switch>
+        <Route path="/login"><Login /></Route>
+        <Route><Redirect to="/login" /></Route>
+      </Switch>
+    );
+  }
 
   const role = user.role;
   const modules = hospitalConfig?.modules;

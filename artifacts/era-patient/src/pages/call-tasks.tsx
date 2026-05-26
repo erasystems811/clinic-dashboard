@@ -147,24 +147,12 @@ function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedTo
     }
   };
 
-  const handleSendText = async () => {
+  const handleSendText = () => {
     if (!textMsg.trim()) return;
-    if (!hospital?.token) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
-    setSending(true);
-    try {
-      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-message`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
-        body: JSON.stringify({ message: textMsg }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Send failed");
-      toast({ title: "Text sent", description: `Message sent to ${task.patientName}.` });
-      logOutcome.mutate({ id: task.id, data: { outcome: `[Text sent] ${textMsg}` } });
-    } catch (err: unknown) {
-      toast({ title: "Send failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
-      setSending(false);
-    }
+    logOutcome.mutate(
+      { id: task.id, data: { outcome: `[Text sent] ${textMsg}` } },
+      { onError: () => setSending(false) },
+    );
   };
 
   return (

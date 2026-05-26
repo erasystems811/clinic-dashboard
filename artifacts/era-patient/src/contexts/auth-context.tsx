@@ -97,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       : { departments: [], modules: { appointmentsEnabled: true, feedbackEnabled: true } }
     );
     setUser({ username: "admin", role: "admin", displayName: "Admin" });
+    sessionStorage.setItem("era_tour_pending", "1");
   };
 
   const loginStaff = async (username: string, password: string): Promise<void> => {
@@ -114,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setHospitalConfig({ departments: data.departments, modules: data.modules });
     const displayName = data.role === "nurse" ? "Nurse" : "Receptionist";
     setUser({ username: data.role, role: data.role, displayName });
+    sessionStorage.setItem("era_tour_pending", "1");
   };
 
   const logout = () => {

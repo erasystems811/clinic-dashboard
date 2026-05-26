@@ -12,93 +12,98 @@ interface Step {
 const ADMIN_STEPS: Step[] = [
   {
     title: "Welcome to Era Patient 👋",
-    body: "This quick tour walks you through the key features so your team can start using the system right away. It takes less than 2 minutes.",
+    body: "This quick tour walks you through every section of the system so your team can hit the ground running. It takes under 2 minutes.",
   },
   {
-    title: "Register Patients",
-    body: "Use the New Patient button to register a new patient. Their records, treatment plan, and contact details are all stored here.",
+    title: "Add a New Patient",
+    body: "Tap this button to register a new patient. You'll enter their name, contact info, treatment notes, and care plan — everything in one place.",
     target: '[data-tour="new-patient"]',
   },
   {
     title: "Patient Records",
-    body: "Browse all your patients, search by name or ID, and open any profile to see their full visit history and treatment notes.",
+    body: "Your full patient list lives here. Search by name or ID, open any profile to view their visit history, treatment notes, pipeline stage, and all messages sent to them.",
     target: '[data-tour="nav-patients"]',
   },
   {
     title: "Appointments",
-    body: "Schedule appointments from here. Patients can receive automatic reminders before their visit so they don't miss it.",
+    body: "Book and manage appointments from this calendar view. Patients automatically receive a reminder before their visit — no manual follow-up needed.",
     target: '[data-tour="nav-appointments"]',
   },
   {
-    title: "The Pipeline",
-    body: "This is Era's automation engine. After treatment, patients move through stages automatically and the system sends WhatsApp or email check-ins on your behalf — without you lifting a finger.",
+    title: "Automation Pipeline",
+    body: "This is Era's automation engine. After treatment, each patient moves through stages (In Care → Post Care → Dormant) and the system sends WhatsApp messages or emails on your behalf at each stage — completely hands-free.",
     target: '[data-tour="nav-pipeline"]',
   },
   {
     title: "Activity Log",
-    body: "Every message, reminder, and automated action is logged here. If a message failed to send, you can retry it from this screen.",
+    body: "Every message, reminder, and automated action is recorded here with its delivery status. If anything failed to send, you can retry it directly from this screen.",
     target: '[data-tour="nav-activity"]',
   },
   {
     title: "Patient Feedback",
-    body: "After a visit, patients can rate their experience via WhatsApp. All their responses show up here so you can spot trends and address issues quickly.",
+    body: "After each visit, patients receive a link to rate their experience. All their star ratings and comments appear here so you can monitor satisfaction and act on any issues.",
     target: '[data-tour="nav-feedback-admin"]',
   },
   {
     title: "Wellness Newsletter",
-    body: "Send health tips, seasonal advice, or general wellness content to all your patients at once. It keeps your clinic top of mind between visits.",
+    body: "Compose and send health tips or seasonal wellness content to all your active patients at once. It keeps your clinic top-of-mind between visits.",
     target: '[data-tour="nav-wellness"]',
   },
   {
     title: "Settings",
-    body: "Change your staff login passwords here — nurse and receptionist credentials are managed from this page.",
+    body: "Manage your clinic configuration here — update staff login passwords for your nurse and receptionist, and adjust system preferences.",
     target: '[data-tour="nav-settings"]',
   },
   {
     title: "You're all set! 🎉",
-    body: "Your receptionist and nurse each have their own tour when they first log in. You can restart this tour any time using the ? button at the bottom of the sidebar.",
+    body: "Your receptionist and nurse each have their own tour when they log in. You can restart this tour any time by tapping the ? icon at the bottom of the sidebar.",
   },
 ];
 
 const RECEPTIONIST_STEPS: Step[] = [
   {
     title: "Welcome! 👋",
-    body: "You're logged in as the Receptionist. This quick tour shows the tools you'll use every day.",
+    body: "You're logged in as the Receptionist. This quick tour covers the tools you'll use every day.",
   },
   {
     title: "Queue Management",
-    body: "When a patient arrives, find them here and check them in. The queue shows the waiting room in real time so the whole team stays in sync.",
+    body: "When a patient arrives at reception, find them here and check them in. The queue updates in real time so the doctor and nurse always know who's waiting.",
     target: '[data-tour="nav-queue"]',
   },
   {
-    title: "New Patient",
-    body: "If a patient is visiting for the first time, register them here before checking them into the queue.",
+    title: "Register a New Patient",
+    body: "First-time visitor? Use this button to register them before checking them into the queue. Takes about 60 seconds.",
     target: '[data-tour="new-patient"]',
   },
   {
     title: "Call Tasks",
-    body: "Patients flagged for a follow-up call appear here. Work through this list daily so no patient falls through the cracks.",
+    body: "Patients flagged for a follow-up phone call show up here. Work through this list daily — each card tells you who to call and why.",
     target: '[data-tour="nav-call-tasks"]',
   },
   {
+    title: "Appointments",
+    body: "Book and view upcoming appointments from here. You can also reschedule or cancel directly from the calendar.",
+    target: '[data-tour="nav-appointments"]',
+  },
+  {
     title: "You're ready! 🎉",
-    body: "That's everything you need. Check in your first patient when you're ready. You can restart this tour any time using the ? button at the bottom of the sidebar.",
+    body: "That covers your workspace. Check in your first patient when you're ready. You can restart this tour any time using the ? icon at the bottom of the sidebar.",
   },
 ];
 
 const NURSE_STEPS: Step[] = [
   {
     title: "Welcome, Nurse! 👋",
-    body: "This tour covers your workspace in Era Patient.",
+    body: "This short tour covers your workspace in Era Patient.",
   },
   {
     title: "Nurse Station",
-    body: "Once a patient is checked in by the receptionist, their card appears here. Review their history, record vitals, and update their treatment plan.",
+    body: "Once the receptionist checks a patient in from the queue, their card appears here. Review their visit history and existing notes, then record vitals and update their treatment plan after the consultation.",
     target: '[data-tour="nav-nurse-station"]',
   },
   {
     title: "You're all set! 🎉",
-    body: "When a patient is ready for you, they'll appear in your Nurse Station. The receptionist manages the queue before they reach you. You can restart this tour any time using the ? button at the bottom of the sidebar.",
+    body: "Patients appear in your station as soon as reception checks them in. You can restart this tour any time using the ? icon at the bottom of the sidebar.",
   },
 ];
 
@@ -107,10 +112,6 @@ const STEPS_FOR_ROLE: Record<Role, Step[]> = {
   receptionist: RECEPTIONIST_STEPS,
   nurse: NURSE_STEPS,
 };
-
-function tourKey(hospitalSlug: string, role: Role) {
-  return `era_tour_done_${hospitalSlug}_${role}`;
-}
 
 interface Rect { top: number; left: number; width: number; height: number; }
 
@@ -163,7 +164,7 @@ function TooltipCard({
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === total - 1;
   const CARD_W = 320;
-  const CARD_H_EST = 180;
+  const CARD_H_EST = 200;
   const PAD = 14;
 
   let top = "50%";
@@ -189,6 +190,14 @@ function TooltipCard({
     }
   }
 
+  // Keep card within viewport horizontally
+  if (transform === "none") {
+    const leftNum = parseFloat(left);
+    if (leftNum + CARD_W > window.innerWidth - 16) {
+      left = `${Math.max(16, window.innerWidth - CARD_W - 16)}px`;
+    }
+  }
+
   return (
     <div
       style={{
@@ -196,7 +205,7 @@ function TooltipCard({
         top,
         left,
         transform,
-        width: CARD_W,
+        width: Math.min(CARD_W, window.innerWidth - 32),
         zIndex: 9999,
         background: "hsl(var(--card))",
         border: "1px solid hsl(var(--border))",
@@ -217,7 +226,7 @@ function TooltipCard({
         <button
           onClick={onSkip}
           className="text-muted-foreground hover:text-foreground shrink-0 transition-colors"
-          title="Skip tour"
+          title="Close tour"
         >
           <X className="w-4 h-4" />
         </button>
@@ -275,15 +284,28 @@ function TooltipCard({
 export function TourGuide() {
   const { user, hospital } = useAuth();
   const role = user?.role ?? "admin";
-  const slug = hospital?.username ?? "default";
 
   const steps = STEPS_FOR_ROLE[role] ?? ADMIN_STEPS;
-  const key = tourKey(slug, role);
 
   const [active, setActive] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
 
+  // Auto-start on login (sessionStorage flag set by auth context after each login)
+  useEffect(() => {
+    if (!user || !hospital) return;
+    if (sessionStorage.getItem("era_tour_pending") === "1") {
+      sessionStorage.removeItem("era_tour_pending");
+      // Small delay so sidebar nav items are fully rendered
+      const t = setTimeout(() => {
+        setStepIndex(0);
+        setActive(true);
+      }, 600);
+      return () => clearTimeout(t);
+    }
+  }, [user, hospital]);
+
+  // Manual restart via ? button
   useEffect(() => {
     const handler = () => {
       setStepIndex(0);
@@ -310,26 +332,24 @@ export function TourGuide() {
 
   const advance = useCallback(() => {
     if (stepIndex >= steps.length - 1) {
-      localStorage.setItem(key, "done");
       setActive(false);
       return;
     }
-    // If next step target doesn't exist, skip past it
+    // Skip steps whose target element is absent (e.g. disabled module)
     let next = stepIndex + 1;
     while (next < steps.length - 1 && steps[next].target && !document.querySelector(steps[next].target!)) {
       next++;
     }
     setStepIndex(next);
-  }, [stepIndex, steps, key]);
+  }, [stepIndex, steps]);
 
   const retreat = useCallback(() => {
     if (stepIndex > 0) setStepIndex(stepIndex - 1);
   }, [stepIndex]);
 
   const skip = useCallback(() => {
-    localStorage.setItem(key, "done");
     setActive(false);
-  }, [key]);
+  }, []);
 
   if (!active) return null;
 
@@ -355,4 +375,3 @@ export function TourGuide() {
     document.body
   );
 }
-

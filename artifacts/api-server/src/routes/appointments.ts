@@ -70,6 +70,11 @@ router.post("/appointments", async (req, res): Promise<void> => {
   const parsed = CreateAppointmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  if (new Date(parsed.data.scheduledAt) < new Date()) {
+    res.status(400).json({ error: "Appointment time cannot be in the past." });
+    return;
+  }
+
   const { data: patient } = await supabase
     .from("patients")
     .select("first_name, last_name, phone, whatsapp_number, hospital_id")

@@ -92,6 +92,10 @@ function BookModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatient || !title || !date || !time) return;
+    if (new Date(`${date}T${time}:00`) < new Date()) {
+      toast({ title: "Cannot book in the past", description: "Please choose a future date and time.", variant: "destructive" });
+      return;
+    }
     create.mutate({
       data: {
         patientId: selectedPatient.id,
@@ -176,7 +180,7 @@ function BookModal({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Date *</label>
-            <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
+            <Input type="date" value={date} min={new Date().toISOString().split("T")[0]} onChange={e => setDate(e.target.value)} required />
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Time *</label>

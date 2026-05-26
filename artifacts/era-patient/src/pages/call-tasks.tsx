@@ -13,7 +13,7 @@ import {
 import type { CallTask } from "@workspace/api-client-react";
 import {
   Phone, CheckCircle, Clock, Loader2, PhoneCall,
-  Send, ChevronDown, ChevronUp, Flag, Bot, Sparkles, RefreshCw, Pencil,
+  Send, ChevronDown, ChevronUp, Flag, MessageSquare, Sparkles,
 } from "lucide-react";
 
 import { apiUrl } from "@/lib/api";
@@ -26,34 +26,38 @@ function formatDate(iso: string) {
 
 const ACTION_TYPES = [
   {
-    value: "automated_message",
-    label: "Automated Message",
-    icon: Bot,
-    description: "AI generates a personalised message — review and edit before sending as Important Email",
-    color: "text-violet-400",
-    badge: "bg-violet-500/10 text-violet-400 border-violet-500/20",
-  },
-  {
     value: "manual_call",
-    label: "Manual Call",
+    label: "Call",
     icon: PhoneCall,
-    description: "Staff makes a direct phone call and logs the outcome",
+    description: "Call patient and log the outcome",
     color: "text-primary",
     badge: "bg-primary/10 text-primary border-primary/20",
   },
+  {
+    value: "manual_text",
+    label: "Text",
+    icon: MessageSquare,
+    description: "Compose or AI-generate a message to send",
+    color: "text-blue-400",
+    badge: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  },
 ] as const;
+
+const AI_DAILY_LIMIT = 5;
 
 /* ── Action Panel ── */
 function ActionPanel({ task }: { task: CallTask }) {
   const { toast } = useToast();
   const { hospital } = useAuth();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState("");
-  const [draftMsg, setDraftMsg] = useState("");
+
+  const [callOpen, setCallOpen] = useState(false);
+  const [callText, setCallText] = useState("");
+
+  const [textMsg, setTextMsg] = useState("");
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
-  const [editingDraft, setEditingDraft] = useState(false);
+  const [aiUsedToday, setAiUsedToday] = useState<number | null>(null);
 
   const logOutcome = useLogCallOutcome({
     mutation: {
@@ -65,8 +69,78 @@ function ActionPanel({ task }: { task: CallTask }) {
     },
   });
 
+  /* ── Call panel ── */
+  if (task.actionType === "manual_call") {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <PhoneCall className="w-4 h-4 text-primary shrink-0" />
+          <span className="text-sm font-semibold tracking-wide">
+            {task.phone || "No number on file"}
+          </span>
+          {task.phone && (
+            <a
+              href={`tel:${task.phone}`}
+              className="ml-auto text-xs font-medium text-primary underline underline-offset-2 hover:opacity-80"
+            >
+              Dial
+            </a>
+          )}
+        </div>
+
+        {!callOpen ? (
+          <Button size="sm" className="w-full gap-2" onClick={() => setCallOpen(true)}>
+            <CheckCircle className="w-4 h-4" />
+            Log Call Outcome
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <textarea
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="What happened on the call? Patient's response, next steps..."
+              value={callText}
+              onChange={(e) => setCallText(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                onClick={() => { setCallOpen(false); setCallText(""); }}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 gap-2"
+                disabled={!callText.trim() || logOutcome.isPending}
+                onClick={() => logOutcome.mutate({ id: task.id, data: { outcome: callText } })}
+              >
+                {logOutcome.isPending
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <CheckCircle className="w-4 h-4" />}
+                Save & Complete
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* ── Text panel ── */
+  const aiRemaining = aiUsedToday !== null
+    ? Math.max(0, AI_DAILY_LIMIT - aiUsedToday)
+    : AI_DAILY_LIMIT;
+
   const handleGenerateDraft = async () => {
     if (!hospital?.token) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
+    if (aiRemaining === 0) {
+      toast({ title: "Daily AI limit reached", description: `Max ${AI_DAILY_LIMIT} AI drafts per day.`, variant: "destructive" });
+      return;
+    }
     setGenerating(true);
     try {
       const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/generate-draft`), {
@@ -75,8 +149,8 @@ function ActionPanel({ task }: { task: CallTask }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
-      setDraftMsg(data.draft ?? "");
-      setEditingDraft(false);
+      setTextMsg(data.draft ?? "");
+      setAiUsedToday(data.dailyCount ?? null);
     } catch (err: unknown) {
       toast({ title: "Generation failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
     } finally {
@@ -84,114 +158,61 @@ function ActionPanel({ task }: { task: CallTask }) {
     }
   };
 
-  const handleSendDraft = async () => {
-    if (!hospital?.token || !draftMsg.trim()) return;
+  const handleSendText = async () => {
+    if (!textMsg.trim()) return;
+    if (!hospital?.token) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
     setSending(true);
     try {
       const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-message`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
-        body: JSON.stringify({ message: draftMsg }),
+        body: JSON.stringify({ message: textMsg }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Send failed");
-      toast({ title: "Email sent", description: `Important email sent to ${task.patientName}.` });
-      logOutcome.mutate({ id: task.id, data: { outcome: `[Important email sent] ${draftMsg}` } });
+      toast({ title: "Text sent", description: `Message sent to ${task.patientName}.` });
+      logOutcome.mutate({ id: task.id, data: { outcome: `[Text sent] ${textMsg}` } });
     } catch (err: unknown) {
       toast({ title: "Send failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
-    } finally {
       setSending(false);
     }
   };
 
-  const submit = (outcome: string) => {
-    logOutcome.mutate({ id: task.id, data: { outcome } });
-  };
-
-  /* ── Manual Call ── */
-  if (task.actionType === "manual_call") {
-    return !open ? (
-      <Button size="sm" className="w-full gap-2" onClick={() => setOpen(true)}>
-        <CheckCircle className="w-4 h-4" />
-        Log Call Outcome
-      </Button>
-    ) : (
-      <div className="space-y-2">
-        <textarea
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-          placeholder="What happened on the call? Notes on patient's condition, next steps..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          autoFocus
-        />
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setOpen(false); setText(""); }}>Cancel</Button>
-          <Button size="sm" className="flex-1 gap-2" disabled={!text.trim() || logOutcome.isPending} onClick={() => submit(text)}>
-            {logOutcome.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-            Save Outcome
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── Automated Message → AI draft → receptionist edits → sends as Important Email ── */
   return (
     <div className="space-y-2">
-      {!draftMsg ? (
-        <div className="space-y-2">
-          <div className="rounded-md bg-violet-500/5 border border-violet-500/20 px-3 py-2.5">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              AI will read the patient's situation and reason for flag, then generate a personalised message. You can review and edit it before sending as an Important email.
-            </p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full gap-2 border-violet-500/40 text-violet-400 hover:bg-violet-500/10 hover:text-violet-300"
-            onClick={handleGenerateDraft}
-            disabled={generating}
-          >
-            {generating
-              ? <><Loader2 className="w-4 h-4 animate-spin" />Generating draft…</>
-              : <><Sparkles className="w-4 h-4" />Generate Draft</>}
-          </Button>
-        </div>
-      ) : (
-        <>
-          <div className="rounded-md border border-violet-500/30 bg-violet-500/5 overflow-hidden">
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-violet-500/20 bg-violet-500/10">
-              <Bot className="w-3.5 h-3.5 text-violet-400" />
-              <span className="text-xs font-medium text-violet-400">AI Draft · Review before sending</span>
-              <button type="button" className="ml-auto text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={handleGenerateDraft} disabled={generating}>
-                <RefreshCw className={`w-3 h-3 ${generating ? "animate-spin" : ""}`} />
-                Regenerate
-              </button>
-            </div>
-            {editingDraft ? (
-              <textarea className="w-full bg-transparent px-3 py-2.5 text-sm min-h-[110px] resize-none focus:outline-none" value={draftMsg} onChange={(e) => setDraftMsg(e.target.value)} autoFocus />
-            ) : (
-              <div className="px-3 py-2.5">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{draftMsg}</p>
-              </div>
-            )}
-            <div className="flex items-center justify-between px-3 py-2 border-t border-violet-500/20 bg-violet-500/5">
-              <span className="text-xs text-muted-foreground">{draftMsg.length} chars</span>
-              <button type="button" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1" onClick={() => setEditingDraft(!editingDraft)}>
-                <Pencil className="w-3 h-3" />
-                {editingDraft ? "Done" : "Edit"}
-              </button>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => { setDraftMsg(""); setEditingDraft(false); }}>Discard</Button>
-            <Button size="sm" className="flex-1 gap-2 bg-violet-600 hover:bg-violet-700 text-white" disabled={!draftMsg.trim() || sending} onClick={handleSendDraft}>
-              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              Send as Important Email
-            </Button>
-          </div>
-        </>
-      )}
+      <textarea
+        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[90px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+        placeholder="Type your message here, or generate one with AI…"
+        value={textMsg}
+        onChange={(e) => setTextMsg(e.target.value)}
+      />
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-violet-400 border-violet-500/40 hover:bg-violet-500/10 shrink-0"
+          onClick={handleGenerateDraft}
+          disabled={generating || aiRemaining === 0}
+          title={aiRemaining === 0 ? `Daily AI limit reached (${AI_DAILY_LIMIT}/${AI_DAILY_LIMIT})` : `${aiRemaining} AI generations left today`}
+        >
+          {generating
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : <Sparkles className="w-3.5 h-3.5" />}
+          AI Draft ({aiRemaining}/{AI_DAILY_LIMIT})
+        </Button>
+        <Button
+          size="sm"
+          className="flex-1 gap-2"
+          disabled={!textMsg.trim() || sending || logOutcome.isPending}
+          onClick={handleSendText}
+        >
+          {(sending || logOutcome.isPending)
+            ? <Loader2 className="w-4 h-4 animate-spin" />
+            : <Send className="w-4 h-4" />}
+          Send Text
+        </Button>
+      </div>
     </div>
   );
 }
@@ -211,8 +232,13 @@ function TaskCard({ task }: { task: CallTask }) {
   });
 
   const isComplete = !!task.completedAt;
-  const currentAction = ACTION_TYPES.find((a) => a.value === task.actionType) ?? ACTION_TYPES[1];
+  const currentAction = ACTION_TYPES.find((a) => a.value === task.actionType) ?? ACTION_TYPES[0];
   const Icon = currentAction.icon;
+
+  const outcomeText = task.outcome?.startsWith("[Text sent] ")
+    ? task.outcome.slice("[Text sent] ".length)
+    : task.outcome;
+  const wasText = task.outcome?.startsWith("[Text sent] ");
 
   return (
     <div className={`rounded-xl border bg-card overflow-hidden ${isComplete ? "opacity-60 border-border" : "border-border"}`}>
@@ -227,8 +253,12 @@ function TaskCard({ task }: { task: CallTask }) {
             {!!task.department && <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">{task.department}</span>}
           </div>
           <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-            <span className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{task.phone}</span>
-            {task.whatsappNumber && task.whatsappNumber !== task.phone && <span className="text-xs text-muted-foreground">WA: {task.whatsappNumber}</span>}
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Phone className="w-3 h-3" />{task.phone || "No number"}
+            </span>
+            {task.whatsappNumber && task.whatsappNumber !== task.phone && (
+              <span className="text-xs text-muted-foreground">WA: {task.whatsappNumber}</span>
+            )}
           </div>
         </div>
         <div className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
@@ -305,10 +335,12 @@ function TaskCard({ task }: { task: CallTask }) {
         <div className="mx-4 mb-4 rounded-md bg-green-500/10 border border-green-500/20 px-3 py-2">
           <div className="flex items-center gap-1.5 mb-1">
             <CheckCircle className="w-3.5 h-3.5 text-green-400" />
-            <p className="text-xs font-medium text-green-400 uppercase tracking-wide">Completed</p>
+            <p className="text-xs font-medium text-green-400 uppercase tracking-wide">
+              {wasText ? "Text Sent" : "Call Logged"}
+            </p>
             <span className="text-xs text-muted-foreground ml-auto">{formatDate(task.completedAt!)}</span>
           </div>
-          <p className="text-sm text-foreground leading-relaxed">{task.outcome}</p>
+          <p className="text-sm text-foreground leading-relaxed">{outcomeText}</p>
           <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
             <Icon className="w-3 h-3" />via {currentAction.label}
           </p>
@@ -333,7 +365,7 @@ export default function CallTasks() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Call Tasks</h1>
             <p className="text-muted-foreground text-sm mt-0.5">
-              Patients flagged for follow-up — pick the right method per patient
+              Patients flagged for follow-up — call or text to resolve
             </p>
           </div>
           <div className="flex items-center gap-1 bg-muted rounded-lg p-1">

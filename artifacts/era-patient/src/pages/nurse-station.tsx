@@ -13,12 +13,11 @@ import {
 } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/auth-context";
 import type { Patient } from "@workspace/api-client-react";
-import { Search, Stethoscope, Flag, Loader2, CheckCircle, Bot, MessageSquare, PhoneCall, Building2 } from "lucide-react";
+import { Search, Stethoscope, Flag, Loader2, CheckCircle, MessageSquare, PhoneCall, Building2 } from "lucide-react";
 
 const FOLLOWUP_TYPES = [
-  { value: "automated_message", label: "Automated Message", sub: "AI generates a check-in message", icon: Bot, color: "text-violet-400", active: "border-violet-500 bg-violet-500/10 text-violet-400" },
-  { value: "manual_text", label: "Manual Text", sub: "Staff composes a personal text", icon: MessageSquare, color: "text-blue-400", active: "border-blue-500 bg-blue-500/10 text-blue-400" },
-  { value: "manual_call", label: "Manual Call", sub: "Staff makes a direct phone call", icon: PhoneCall, color: "text-primary", active: "border-primary bg-primary/10 text-primary" },
+  { value: "manual_call", label: "Call", sub: "Call patient and log the outcome", icon: PhoneCall, color: "text-primary", active: "border-primary bg-primary/10 text-primary" },
+  { value: "manual_text", label: "Text", sub: "Compose or AI-generate a message", icon: MessageSquare, color: "text-blue-400", active: "border-blue-500 bg-blue-500/10 text-blue-400" },
 ] as const;
 
 type FollowupType = typeof FOLLOWUP_TYPES[number]["value"];
@@ -359,7 +358,7 @@ export default function NurseStation() {
               <div className="space-y-3">
                 <div className="relative">
                   <Input
-                    placeholder="Search In Care patient..."
+                    placeholder="Search by name or ID..."
                     value={flagSearch}
                     onChange={e => setFlagSearch(e.target.value)}
                     className="pr-9"
@@ -422,7 +421,7 @@ export default function NurseStation() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Follow-up Method *</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {FOLLOWUP_TYPES.map(ft => {
                       const Icon = ft.icon;
                       const isSelected = flagActionType === ft.value;

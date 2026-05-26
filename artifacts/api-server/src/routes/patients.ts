@@ -70,7 +70,7 @@ const TreatmentPlanBody = z.object({
 
 const FlagMissedBody = z.object({
   reason: z.string().min(1),
-  actionType: z.enum(["automated_message", "manual_text", "manual_call"]).optional(),
+  actionType: z.enum(["manual_text", "manual_call"]).optional(),
   taskType: z.enum(["follow_up", "check_in"]).optional(),
   checkInType: z.string().optional(),
 });

@@ -17,7 +17,7 @@ const CallOutcomeBody = z.object({
 });
 
 const UpdateActionTypeBody = z.object({
-  actionType: z.enum(["automated_message", "manual_call"]),
+  actionType: z.enum(["manual_text", "manual_call"]),
 });
 
 const SendMessageConfirmBody = z.object({
@@ -125,6 +125,20 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   res.json(camelize(task));
 });
 
+const AI_DRAFT_DAILY_LIMIT = 5;
+
+async function getDailyDraftCount(hospitalId: number): Promise<number> {
+  const today = new Date().toISOString().split("T")[0];
+  const { count } = await supabase
+    .from("automation_log")
+    .select("*", { count: "exact", head: true })
+    .eq("hospital_id", hospitalId)
+    .eq("automation_type", "call_task_draft_generated")
+    .gte("created_at", `${today}T00:00:00Z`)
+    .lte("created_at", `${today}T23:59:59Z`);
+  return count ?? 0;
+}
+
 // ── Generate AI draft — does NOT send, returns draft for receptionist to review ─
 router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
@@ -133,6 +147,12 @@ router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> =>
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const currentCount = await getDailyDraftCount(hospitalId);
+  if (currentCount >= AI_DRAFT_DAILY_LIMIT) {
+    res.status(429).json({ error: `Daily AI generation limit reached (${AI_DRAFT_DAILY_LIMIT}/day)`, dailyCount: currentCount, dailyLimit: AI_DRAFT_DAILY_LIMIT });
+    return;
+  }
 
   const { data: task, error } = await supabase
     .from("call_tasks")
@@ -149,7 +169,15 @@ router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> =>
       task.patient_name as string,
       task.reason as string,
     );
-    res.json({ draft });
+
+    await supabase.from("automation_log").insert({
+      hospital_id: hospitalId,
+      automation_type: "call_task_draft_generated",
+      status: "sent",
+    });
+
+    const newCount = currentCount + 1;
+    res.json({ draft, dailyCount: newCount, dailyLimit: AI_DRAFT_DAILY_LIMIT });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Generation failed";
     res.status(500).json({ error: msg });

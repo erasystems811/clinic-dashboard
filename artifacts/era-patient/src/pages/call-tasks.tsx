@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -46,7 +46,7 @@ const ACTION_TYPES = [
 const AI_DAILY_LIMIT = 5;
 
 /* ── Action Panel ── */
-function ActionPanel({ task }: { task: CallTask }) {
+function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedToday: number; onAiUsed: (newCount: number) => void }) {
   const { toast } = useToast();
   const { hospital } = useAuth();
   const queryClient = useQueryClient();
@@ -57,7 +57,6 @@ function ActionPanel({ task }: { task: CallTask }) {
   const [textMsg, setTextMsg] = useState("");
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
-  const [aiUsedToday, setAiUsedToday] = useState<number | null>(null);
 
   const logOutcome = useLogCallOutcome({
     mutation: {
@@ -123,14 +122,12 @@ function ActionPanel({ task }: { task: CallTask }) {
   }
 
   /* ── Text panel ── */
-  const aiRemaining = aiUsedToday !== null
-    ? Math.max(0, AI_DAILY_LIMIT - aiUsedToday)
-    : AI_DAILY_LIMIT;
+  const aiRemaining = Math.max(0, AI_DAILY_LIMIT - aiUsedToday);
 
   const handleGenerateDraft = async () => {
     if (!hospital?.token) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
     if (aiRemaining === 0) {
-      toast({ title: "Daily AI limit reached", description: `Max ${AI_DAILY_LIMIT} AI drafts per day.`, variant: "destructive" });
+      toast({ title: "Daily AI limit reached", description: `Max ${AI_DAILY_LIMIT} AI drafts per day across all flags.`, variant: "destructive" });
       return;
     }
     setGenerating(true);
@@ -142,7 +139,7 @@ function ActionPanel({ task }: { task: CallTask }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
       setTextMsg(data.draft ?? "");
-      setAiUsedToday(data.dailyCount ?? null);
+      if (data.dailyCount !== undefined) onAiUsed(data.dailyCount);
     } catch (err: unknown) {
       toast({ title: "Generation failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
     } finally {
@@ -210,7 +207,7 @@ function ActionPanel({ task }: { task: CallTask }) {
 }
 
 /* ── Task Card ── */
-function TaskCard({ task }: { task: CallTask }) {
+function TaskCard({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedToday: number; onAiUsed: (n: number) => void }) {
   const queryClient = useQueryClient();
   const [showMethodPicker, setShowMethodPicker] = useState(false);
 
@@ -319,7 +316,7 @@ function TaskCard({ task }: { task: CallTask }) {
             </div>
           )}
 
-          <ActionPanel task={task} />
+          <ActionPanel task={task} aiUsedToday={aiUsedToday} onAiUsed={onAiUsed} />
         </div>
       )}
 
@@ -344,11 +341,29 @@ function TaskCard({ task }: { task: CallTask }) {
 
 /* ── Page ── */
 export default function CallTasks() {
+  const { hospital } = useAuth();
   const [showCompleted, setShowCompleted] = useState(false);
+  const [aiUsedToday, setAiUsedToday] = useState(0);
+
   const { data: tasks = [], isLoading } = useListCallTasks(
     { completed: showCompleted },
     { query: { refetchInterval: 10000 } },
   );
+
+  const fetchAiCount = useCallback(async () => {
+    if (!hospital?.token) return;
+    try {
+      const res = await fetch(apiUrl("/api/call-tasks/ai-draft-count"), {
+        headers: { "x-hospital-token": hospital.token },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiUsedToday(data.dailyCount ?? 0);
+      }
+    } catch { /* silent */ }
+  }, [hospital?.token]);
+
+  useEffect(() => { fetchAiCount(); }, [fetchAiCount]);
 
   return (
     <Layout>
@@ -377,7 +392,14 @@ export default function CallTasks() {
           </div>
         ) : (
           <div className="space-y-4">
-            {tasks.map((task) => <TaskCard key={task.id} task={task} />)}
+            {tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                aiUsedToday={aiUsedToday}
+                onAiUsed={setAiUsedToday}
+              />
+            ))}
           </div>
         )}
       </div>

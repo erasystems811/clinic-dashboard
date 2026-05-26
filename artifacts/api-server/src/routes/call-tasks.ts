@@ -49,6 +49,21 @@ async function getDailyAutomatedCount(hospitalId: number): Promise<number> {
   return count ?? 0;
 }
 
+router.get("/call-tasks/ai-draft-count", async (req, res): Promise<void> => {
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const hospitalIntId = await (async () => {
+    const { data } = await supabase.from("hospitals").select("id").eq("username", hospital.username.toLowerCase()).single();
+    return data?.id ?? null;
+  })();
+
+  if (!hospitalIntId) { res.json({ dailyCount: 0, dailyLimit: AI_DRAFT_DAILY_LIMIT }); return; }
+
+  const count = await getDailyDraftCount(hospitalIntId);
+  res.json({ dailyCount: count, dailyLimit: AI_DRAFT_DAILY_LIMIT });
+});
+
 router.get("/call-tasks", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }

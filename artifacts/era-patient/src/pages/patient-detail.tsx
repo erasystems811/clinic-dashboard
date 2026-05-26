@@ -45,6 +45,8 @@ export default function PatientDetail() {
   const [feedbackLink, setFeedbackLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [completingTreatment, setCompletingTreatment] = useState(false);
+  const [confirmDequeue, setConfirmDequeue] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -83,20 +85,23 @@ export default function PatientDetail() {
     });
   };
 
-  const handleDequeue = () => {
-    if (confirm("Move this patient out of the queue and into care?")) {
-      dequeuePatient.mutate({ id: patientId }, {
-        onSuccess: () => {
-          toast({ title: "Patient moved to In Care" });
-          queryClient.invalidateQueries({ queryKey: getGetPatientQueryKey(patientId) });
-        },
-        onError: () => toast({ title: "Error", variant: "destructive" }),
-      });
-    }
+  const handleDequeue = () => setConfirmDequeue(true);
+
+  const executeDequeue = () => {
+    setConfirmDequeue(false);
+    dequeuePatient.mutate({ id: patientId }, {
+      onSuccess: () => {
+        toast({ title: "Patient moved to In Care" });
+        queryClient.invalidateQueries({ queryKey: getGetPatientQueryKey(patientId) });
+      },
+      onError: () => toast({ title: "Error", variant: "destructive" }),
+    });
   };
 
-  const handleCompleteTreatment = async () => {
-    if (!confirm("Mark treatment as complete? This will move the patient to Post Treatment.")) return;
+  const handleCompleteTreatment = () => setConfirmComplete(true);
+
+  const executeCompleteTreatment = async () => {
+    setConfirmComplete(false);
     setCompletingTreatment(true);
     try {
       const token = localStorage.getItem("auth_token");
@@ -541,6 +546,39 @@ export default function PatientDetail() {
           </div>
         )}
       </div>
+      {/* Dequeue confirm dialog */}
+      <AlertDialog open={confirmDequeue} onOpenChange={setConfirmDequeue}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move patient out of queue?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the patient from the queue and move them into care.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction onClick={executeDequeue}>Yes, call them in</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Complete treatment confirm dialog */}
+      <AlertDialog open={confirmComplete} onOpenChange={setConfirmComplete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark treatment as complete?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will move the patient to Post Treatment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction onClick={executeCompleteTreatment} disabled={completingTreatment}>
+              {completingTreatment ? "Updating..." : "Yes, complete it"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

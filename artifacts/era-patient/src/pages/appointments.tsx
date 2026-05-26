@@ -22,6 +22,10 @@ import {
   CalendarPlus, ChevronLeft, ChevronRight, Loader2, Search,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/auth-context";
 
 /* ──────────────────────────────────────────────
@@ -467,6 +471,7 @@ export default function Appointments() {
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
+  const [confirmAction, setConfirmAction] = useState<{ type: "cancel" | "noshow"; id: number } | null>(null);
 
   const { data: appointments = [], isLoading } = useListAppointments({}, {});
 
@@ -477,16 +482,20 @@ export default function Appointments() {
     },
   });
 
-  const handleCancel = (id: number) => {
-    if (!confirm("Cancel this appointment?")) return;
-    updateAppointment.mutate({ id, data: { status: "cancelled" } });
-    toast({ title: "Appointment cancelled" });
-  };
+  const handleCancel = (id: number) => setConfirmAction({ type: "cancel", id });
 
-  const handleNoShow = (id: number) => {
-    if (!confirm("Flag this patient as a no-show? This will create a follow-up call task.")) return;
-    updateAppointment.mutate({ id, data: { status: "no_show" } });
-    toast({ title: "No-show flagged", description: "A follow-up call task has been created." });
+  const handleNoShow = (id: number) => setConfirmAction({ type: "noshow", id });
+
+  const executeConfirmedAction = () => {
+    if (!confirmAction) return;
+    if (confirmAction.type === "cancel") {
+      updateAppointment.mutate({ id: confirmAction.id, data: { status: "cancelled" } });
+      toast({ title: "Appointment cancelled" });
+    } else {
+      updateAppointment.mutate({ id: confirmAction.id, data: { status: "no_show" } });
+      toast({ title: "No-show flagged", description: "A follow-up call task has been created." });
+    }
+    setConfirmAction(null);
   };
 
   const handleReschedule = (e: React.FormEvent) => {
@@ -619,6 +628,31 @@ export default function Appointments() {
           />
         )}
       </div>
+
+      {/* Cancel / No-show confirm dialog */}
+      <AlertDialog open={!!confirmAction} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmAction?.type === "cancel" ? "Cancel appointment?" : "Flag as no-show?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.type === "cancel"
+                ? "This appointment will be marked as cancelled."
+                : "The patient will be flagged as a no-show and a follow-up call task will be created."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeConfirmedAction}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {confirmAction?.type === "cancel" ? "Yes, cancel it" : "Yes, flag no-show"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Book modal */}
       {showBook && (

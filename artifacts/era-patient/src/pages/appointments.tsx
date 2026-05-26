@@ -163,7 +163,11 @@ function BookModal({
                       </div>
                       <div>
                         <p className="font-medium">{p.firstName} {p.lastName}</p>
-                        <p className="text-xs text-muted-foreground">{p.phone} · {p.stage}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {p.patientId && <span className="mr-1.5">ID: {p.patientId}</span>}
+                          {p.email && <span className="mr-1.5">{p.email}</span>}
+                          {p.stage && <span className="capitalize">{p.stage}</span>}
+                        </p>
                       </div>
                     </button>
                   ))}

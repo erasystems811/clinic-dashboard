@@ -6,7 +6,7 @@ import {
   Building2, Save, Loader2, AlertCircle, ChevronLeft,
   Settings, Puzzle, Shield, ToggleLeft, ToggleRight, RefreshCw,
   Eye, EyeOff, KeyRound, Plus, X, Zap, CheckCircle2, XCircle,
-  Clock, RotateCcw, Mail, MessageSquare, Filter, Copy, Check, Link, Users,
+  Clock, RotateCcw, Mail, MessageSquare, Filter, Copy, Check, Link, Users, Phone,
 } from "lucide-react";
 
 const ERA_PATIENT_URL = (import.meta.env.VITE_ERA_PATIENT_URL ?? "https://app.erasystem.com.ng").replace(/\/$/, "");
@@ -125,6 +125,7 @@ export default function HospitalDetail({ id }: Props) {
   const [tones, setTones] = useState<string[]>([]);
   const [clinicDescription, setClinicDescription] = useState("");
   const [senderName, setSenderName] = useState("");
+  const [hospitalPhoneNumber, setHospitalPhoneNumber] = useState("");
   const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
   const [termiiSenderId, setTermiiSenderId] = useState("");
 
@@ -160,6 +161,7 @@ export default function HospitalDetail({ id }: Props) {
       setTones(Array.isArray(s.tone) ? s.tone : []);
       setClinicDescription(s.clinicDescription ?? "");
       setSenderName(s.senderName ?? "");
+      setHospitalPhoneNumber(s.phoneNumber ?? "");
       setNotificationChannel((s.notificationChannel as "whatsapp" | "sms") ?? "whatsapp");
       setTermiiSenderId(s.termiiSenderId ?? "");
       setContactEmail(h.contactEmail ?? "");
@@ -245,6 +247,7 @@ export default function HospitalDetail({ id }: Props) {
         tone: tones.length > 0 ? tones : null,
         clinicDescription: clinicDescription || null,
         senderName: senderName || null,
+        phoneNumber: hospitalPhoneNumber || null,
         notificationChannel,
         termiiSenderId: termiiSenderId || null,
       } as Partial<HospitalSettings>);
@@ -699,6 +702,16 @@ export default function HospitalDetail({ id }: Props) {
                 <input
                   type="text" value={senderName} onChange={e => setSenderName(e.target.value)}
                   placeholder="e.g. GISDHEALTH or City Clinic"
+                  className={inputCls() + " pl-9"}
+                />
+              </div>
+            </Field>
+            <Field label="Hospital Contact Phone Number" hint="Appears in all automated patient emails — e.g. 'please contact us directly on +2348012345678'. Leave blank to omit the number from messages.">
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text" value={hospitalPhoneNumber} onChange={e => setHospitalPhoneNumber(e.target.value)}
+                  placeholder="+2348012345678"
                   className={inputCls() + " pl-9"}
                 />
               </div>

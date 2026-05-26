@@ -152,7 +152,7 @@ export async function sendQueueYourTurn(
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const message = `Hi ${patientName}, it is your turn now at ${hCtx.hospitalName}. Please proceed, We are ready for you.`;
+    const message = `Hi ${patientName}, it is your turn now at ${hCtx.hospitalName}. Please proceed to the reception. We are ready for you.`;
     await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
@@ -282,13 +282,13 @@ export async function sendPostTreatmentCheckinEmail(
 
     if (day === 1) {
       subject = `Checking in on you — ${hCtx.hospitalName}`;
-      body = `Hi ${patientName},\n\nWe hope you are resting and taking things easy today. Your treatment at ${hCtx.hospitalName} has just concluded and we wanted to reach out on this first day to let you know we are thinking of you. Recovery takes time and that is completely okay. Please take care of yourself.\n\nIf you have any questions or concerns please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+      body = `Hi ${patientName},\n\nWe hope you are resting and taking things easy today. Your treatment at ${hCtx.hospitalName} has just concluded and we wanted to reach out on this first day to let you know we are thinking of you. Recovery takes time and that is completely okay. Please follow any instructions given to you and take care of yourself.\n\nIf you have any questions or concerns please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
     } else if (day === 4) {
       subject = `How are you feeling? — ${hCtx.hospitalName}`;
       body = `Hi ${patientName},\n\nIt has been a few days since your treatment at ${hCtx.hospitalName} and we just wanted to check in on you. We hope you are feeling a little better each day. Recovery is a journey and we want you to know we are rooting for you.\n\nIf anything feels off or you have any concerns at all please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nTake good care of yourself.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
     } else {
       subject = `One week check-in — ${hCtx.hospitalName}`;
-      body = `Hi ${patientName},\n\nA week has passed since your treatment at ${hCtx.hospitalName} and we hope you are feeling much better. You have come a long way and we are proud of your progress.\n\nIf you need anything at all please do not hesitate to ${contact}. Please do not reply to this email directly. We are always here for you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+      body = `Hi ${patientName},\n\nA week has passed since your treatment at ${hCtx.hospitalName} and we hope you are feeling much better. You have come a long way and we are proud of your progress. As you continue your recovery please remember to stay consistent with any ongoing instructions.\n\nIf you need anything at all please do not hesitate to ${contact}. Please do not reply to this email directly. We are always here for you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
     }
 
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
@@ -481,7 +481,7 @@ export async function sendAppointmentNoShowEmail(
   try {
     const contact = contactLine(hCtx.phoneNumber);
     const subject = `We missed you today — ${hCtx.hospitalName}`;
-    const body = `Hi ${patientName},\n\nWe noticed you were not able to make your appointment at ${hCtx.hospitalName} today. We hope you are doing good?\n\nIf you want to rebook please do not hesitate to ${contact}. Please do not reply to this email directly. We are here for you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+    const body = `Hi ${patientName},\n\nWe noticed you were not able to make your appointment at ${hCtx.hospitalName} today. We hope you are good? We completely understand that life gets busy too sometimes.\n\nWhenever you are ready to rebook please do not hesitate to ${contact}. Please do not reply to this email directly. We are here for you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
 
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({

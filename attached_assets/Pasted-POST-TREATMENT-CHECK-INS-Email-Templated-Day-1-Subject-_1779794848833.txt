@@ -1,0 +1,58 @@
+POST TREATMENT CHECK-INS (Email — Templated):
+Day 1:
+Subject: Checking in on you — [Hospital Name]
+‘Hi [Patient Name], we hope you are resting and taking things easy today. Your treatment at [Hospital Name] has just concluded and we wanted to reach out on this first day to let you know we are thinking of you. Recovery takes time and that is completely okay. Please follow any instructions given to you and take care of yourself. If you have any questions or concerns please do not hesitate to contact us directly. Warm regards, [Hospital Name] Team.’
+Day 4:
+Subject: How are you feeling? — [Hospital Name]
+‘Hi [Patient Name], it has been a few days since your treatment at [Hospital Name] and we just wanted to check in on you. We hope you are feeling a little better each day. Recovery is a journey and we want you to know we are rooting for you. If anything feels off or you have any concerns at all please do not hesitate to reach out to us directly. Take good care of yourself. Warm regards, [Hospital Name] Team.’
+Day 7:
+Subject: One week check-in — [Hospital Name]
+‘Hi [Patient Name], a week has passed since your treatment at [Hospital Name] and we hope you are feeling much better. You have come a long way and we are proud of your progress. As you continue your recovery please remember to stay consistent with any ongoing instructions. If you need anything at all please do not hesitate to contact us directly. We are always here for you. Warm regards, [Hospital Name] Team.’
+
+QUEUE TEMPLATES (WhatsApp/SMS):
+Queue Added:
+‘Hi [Patient Name], welcome to [Hospital Name]! You are currently number [Queue Number] in the queue. We appreciate your patience and will keep you updated. Thank you for choosing us.’
+Next In Line:
+‘Hi [Patient Name], you are next in line at [Hospital Name]. Please be ready — you will be called in shortly. Thank you for your patience.’
+Your Turn:
+‘Hi [Patient Name], it is your turn now at [Hospital Name]. Please proceed to the reception. We are ready for you.’
+Long Wait Apology (sent to all waiting patients after 45 minutes of no movement in queue ):
+‘Hi [Patient Name], we sincerely apologise for the longer than usual wait today at [Hospital Name]. We are doing our best to attend to everyone as quickly as possible and we truly appreciate your patience. Thank you for being with us.’
+
+POST CARE (Email — Templated — sent after 30 days):
+Subject: Thinking of you — [Hospital Name]
+‘Hi [Patient Name], it has been a little while since we last saw you at [Hospital Name] and we just wanted to check in and see how you are doing. We hope you are feeling well and taking good care of yourself. Your health and wellbeing mean a lot to us. If you ever need anything or feel it is time for a check-up please do not hesitate to contact us directly. We are always here when you need us. Warm regards, [Hospital Name] Team.’
+
+DORMANT (Email — Templated — sent after 250 days):
+Subject: Just saying hi — [Hospital Name]
+‘Hi [Patient Name], it has been a while since we last saw you at [Hospital Name] and honestly that could be really good news — it might mean you have been staying healthy and feeling well. We just wanted to pop in and say hi and let you know we are thinking of you. We hope you are taking care of yourself and staying on top of your health. Whenever you need us we are right here. Take good care of yourself. Warm regards, [Hospital Name] Team.’
+
+APPOINTMENT CONFIRMATION (Email — Templated):
+Subject: Appointment Confirmed — [Hospital Name]
+‘Hi [Patient Name], your appointment at [Hospital Name] has been confirmed for [Date] at [Time]. Please arrive a few minutes early. If you need to reschedule please contact us directly as soon as possible. We look forward to seeing you. Warm regards, [Hospital Name] Team.’
+
+APPOINTMENT REMINDER 24 HOURS (Email — Templated):
+Subject: Reminder — Your appointment is tomorrow — [Hospital Name]
+‘Hi [Patient Name], this is a friendly reminder that your appointment at [Hospital Name] is tomorrow [Date] at [Time]. We look forward to seeing you. If you need to reschedule please contact us directly as soon as possible. Warm regards, [Hospital Name] Team.’
+
+APPOINTMENT REMINDER 2 HOURS (Email — Templated):
+Subject: Your appointment is in 2 hours — [Hospital Name]
+‘Hi [Patient Name], just a quick reminder that your appointment at [Hospital Name] is in 2 hours at [Time]. We will see you soon. If you need to reschedule please contact us directly immediately. Warm regards, [Hospital Name] Team.’
+
+FEEDBACK FORM (Email — Templated):
+Subject: How was your visit? — [Hospital Name]
+‘Hi [Patient Name], thank you for visiting [Hospital Name] today. We hope your experience was a positive one. We would love to hear your thoughts so we can continue to improve our service. Please take a moment to share your feedback using the link below. [Feedback Form Link]. Your feedback means a lot to us. Warm regards, [Hospital Name] Team.’
+
+MISSED APPOINTMENT (Email — Templated):
+Subject: We missed you today — [Hospital Name]
+‘Hi [Patient Name], we noticed you were not able to make your appointment at [Hospital Name] today. We hope you are good? We completely understand that life gets busy too sometimes. Whenever you are ready to rebook please do not hesitate to contact us directly. We are here for you. Warm regards, [Hospital Name] Team.’
+
+CALL TASK MANUAL MESSAGE (Email — Templated — marked Important):
+Subject: Important message from [Hospital Name]
+‘Hi [Patient Name], we are reaching out from [Hospital Name] regarding your care. [Receptionist writen message here/automated generated message]. Warm regards, [Hospital Name] Team.’
+
+Replace [Patient Name], [Hospital Name], [Date], [Time], [Queue Number] with the actual values from the database
+“please do not hesitate to contact us directly”
+To:
+“please do not hesitate to contact us directly on [Hospital Phone Number]”
+And add the hospital phone number field to the hospital configuration in Super Admin so each hospital sets their contact number once and it automatically appears in all their templates.

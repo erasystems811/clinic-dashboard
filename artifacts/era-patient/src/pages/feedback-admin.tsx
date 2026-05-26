@@ -219,7 +219,7 @@ export default function FeedbackAdmin() {
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-0.5">Your Hospital Feedback Link</p>
                 <p className="text-xs text-muted-foreground">
-                  This is your hospital's permanent feedback link. Share it with patients after their visit — they fill out the form without creating an account.
+                  This is your hospital's permanent feedback link.
                 </p>
               </div>
               {feedbackLink ? (

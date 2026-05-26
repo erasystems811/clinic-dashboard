@@ -414,17 +414,6 @@ export default function PatientDetail() {
                       </div>
                     )}
 
-                    {!!patient.treatmentPlan && (
-                      <Button
-                        className="w-full mt-4"
-                        variant="outline"
-                        onClick={handleCompleteTreatment}
-                        disabled={completingTreatment}
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-2" />
-                        {completingTreatment ? "Updating..." : "End Treatment Early"}
-                      </Button>
-                    )}
                   </div>
 
                   <div className="pt-5 space-y-4">
@@ -473,6 +462,17 @@ export default function PatientDetail() {
                     )}
                   </div>
                 </>
+              )}
+              {!!patient.treatmentPlan && (
+                <Button
+                  className="w-full mt-4"
+                  variant="outline"
+                  onClick={handleCompleteTreatment}
+                  disabled={completingTreatment}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  {completingTreatment ? "Updating..." : "End Treatment Early"}
+                </Button>
               )}
             </CardContent>
           </Card>

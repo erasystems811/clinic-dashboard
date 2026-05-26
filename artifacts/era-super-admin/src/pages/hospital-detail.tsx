@@ -126,6 +126,7 @@ export default function HospitalDetail({ id }: Props) {
   const [clinicDescription, setClinicDescription] = useState("");
   const [senderName, setSenderName] = useState("");
   const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
+  const [termiiSenderId, setTermiiSenderId] = useState("");
 
   // CRM — super admin's own records for this account
   const [contactEmail, setContactEmail] = useState("");
@@ -160,6 +161,7 @@ export default function HospitalDetail({ id }: Props) {
       setClinicDescription(s.clinicDescription ?? "");
       setSenderName(s.senderName ?? "");
       setNotificationChannel((s.notificationChannel as "whatsapp" | "sms") ?? "whatsapp");
+      setTermiiSenderId(s.termiiSenderId ?? "");
       setContactEmail(h.contactEmail ?? "");
       setContactPhone(h.contactPhone ?? "");
       setApptEnabled(m.appointmentsEnabled);
@@ -244,6 +246,7 @@ export default function HospitalDetail({ id }: Props) {
         clinicDescription: clinicDescription || null,
         senderName: senderName || null,
         notificationChannel,
+        termiiSenderId: termiiSenderId || null,
       } as Partial<HospitalSettings>);
       flash("Settings saved");
       load();
@@ -697,6 +700,21 @@ export default function HospitalDetail({ id }: Props) {
                 <option value="whatsapp">WhatsApp</option>
                 <option value="sms">SMS</option>
               </select>
+            </Field>
+            <Field
+              label="SMS Sender ID"
+              hint={notificationChannel === "sms"
+                ? "This is what patients see as the sender on their phone. Two options: (1) Enter a phone number like +2348012345678 — works immediately, no approval needed, patients see a number. (2) Enter a short name like CityClinic (max 11 chars) — patients see the hospital name, but requires Termii registration which can take a few days."
+                : "Only used when channel is SMS."}
+            >
+              <input
+                type="text"
+                value={termiiSenderId}
+                onChange={e => setTermiiSenderId(e.target.value)}
+                placeholder={notificationChannel === "sms" ? "+2348012345678 or HospitalName" : "Not needed for WhatsApp"}
+                className={inputCls()}
+                disabled={notificationChannel !== "sms"}
+              />
             </Field>
           </div>
 

@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Activity,
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { apiUrl } from "@/lib/api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -103,6 +104,7 @@ export function Layout({ children }: LayoutProps) {
   const role = user?.role ?? "admin";
   const navItems = getNavItems(role, hospitalConfig?.modules ?? null);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [feedbackUnread, setFeedbackUnread] = useState(0);
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) === "true"; } catch { return false; }
@@ -111,6 +113,27 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     try { localStorage.setItem(SIDEBAR_KEY, String(collapsed)); } catch { /* ignore */ }
   }, [collapsed]);
+
+  const fetchUnread = useCallback(() => {
+    if (role !== "admin" || !hospital?.token) return;
+    if (!(hospitalConfig?.modules?.feedbackEnabled ?? true)) return;
+    fetch(apiUrl("/api/feedback/unread-count"), {
+      headers: { "x-hospital-token": hospital.token },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d && typeof d.count === "number") setFeedbackUnread(d.count); })
+      .catch(() => {});
+  }, [role, hospital, hospitalConfig]);
+
+  useEffect(() => {
+    fetchUnread();
+    const id = setInterval(fetchUnread, 60_000);
+    return () => clearInterval(id);
+  }, [fetchUnread]);
+
+  useEffect(() => {
+    if (location === "/feedback-admin") setFeedbackUnread(0);
+  }, [location]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
@@ -169,21 +192,35 @@ export function Layout({ children }: LayoutProps) {
             const tourId = item.href === "/"
               ? "nav-dashboard"
               : `nav-${item.href.replace(/^\//, "").replace(/[^a-z0-9]/g, "-")}`;
+            const isFeedback = item.href === "/feedback-admin";
+            const badge = isFeedback && feedbackUnread > 0 ? feedbackUnread : 0;
             return (
               <Link key={item.href} href={item.href}>
                 <button
                   data-tour={tourId}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? `${item.label}${badge ? ` (${badge} new)` : ""}` : undefined}
                   className={cn(
                     "flex items-center rounded-md text-sm font-medium w-full text-left transition-colors",
-                    collapsed ? "justify-center p-2" : "gap-3 px-3 py-2.5",
+                    collapsed ? "justify-center p-2 relative" : "gap-3 px-3 py-2.5",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
-                  <item.icon className="w-4 h-4 shrink-0" />
+                  <span className="relative shrink-0">
+                    <item.icon className="w-4 h-4" />
+                    {badge > 0 && collapsed && (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] rounded-full bg-amber-400 text-[9px] font-bold text-black flex items-center justify-center px-0.5 leading-none">
+                        {badge > 99 ? "99+" : badge}
+                      </span>
+                    )}
+                  </span>
                   {!collapsed && item.label}
+                  {!collapsed && badge > 0 && (
+                    <span className="ml-auto min-w-[18px] h-[18px] rounded-full bg-amber-400 text-[10px] font-bold text-black flex items-center justify-center px-1 leading-none">
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
                 </button>
               </Link>
             );

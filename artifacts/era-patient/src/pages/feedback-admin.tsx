@@ -96,6 +96,14 @@ export default function FeedbackAdmin() {
   const headers = (): Record<string, string> =>
     hospital?.token ? { "x-hospital-token": hospital.token } : {};
 
+  useEffect(() => {
+    if (!hospital?.token) return;
+    fetch(apiUrl("/api/feedback/mark-read"), {
+      method: "POST",
+      headers: { "x-hospital-token": hospital.token },
+    }).catch(() => {});
+  }, [hospital?.token]);
+
   const { data, isLoading, dataUpdatedAt, refetch } = useQuery<FeedbackData>({
     queryKey: ["feedback", hospital?.id],
     queryFn: async () => {

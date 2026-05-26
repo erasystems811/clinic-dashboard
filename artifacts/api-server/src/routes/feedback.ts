@@ -253,4 +253,36 @@ router.get("/feedback", async (req, res): Promise<void> => {
   });
 });
 
+// ── Unread count (for sidebar badge) ─────────────────────────────────────────
+router.get("/feedback/unread-count", async (req, res): Promise<void> => {
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { count, error } = await supabase
+    .from("feedback")
+    .select("id", { count: "exact", head: true })
+    .eq("hospital_id", hospitalId)
+    .eq("is_read", false);
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ count: count ?? 0 });
+});
+
+// ── Mark all feedback as read ─────────────────────────────────────────────────
+router.post("/feedback/mark-read", async (req, res): Promise<void> => {
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { error } = await supabase
+    .from("feedback")
+    .update({ is_read: true })
+    .eq("hospital_id", hospitalId)
+    .eq("is_read", false);
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ ok: true });
+});
+
 export default router;

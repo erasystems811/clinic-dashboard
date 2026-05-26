@@ -265,6 +265,18 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
       hospital_id: before.hospital_id ? (await resolveHospitalIntId(before.hospital_id as string)) : null,
       metadata: parsed.data.stage,
     });
+
+    // ── When treatment completes, clear the active plan so a new plan can be started fresh ──
+    if (parsed.data.stage === "Post Treatment") {
+      await supabase.from("patients").update({
+        treatment_plan: null,
+        treatment_type: null,
+        medication_timing: null,
+        treatment_duration_days: null,
+        treatment_end_date: null,
+        treatment_started_at: null,
+      }).eq("id", id);
+    }
   }
 
   // ── Info edit: propagate name + contact changes to queue and call_tasks ──

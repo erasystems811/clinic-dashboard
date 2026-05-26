@@ -13,7 +13,7 @@ import {
 } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/auth-context";
 import type { Patient } from "@workspace/api-client-react";
-import { Search, Stethoscope, Flag, Loader2, CheckCircle, Info, Bot, MessageSquare, PhoneCall, Building2 } from "lucide-react";
+import { Search, Stethoscope, Flag, Loader2, CheckCircle, Bot, MessageSquare, PhoneCall, Building2 } from "lucide-react";
 
 const FOLLOWUP_TYPES = [
   { value: "automated_message", label: "Automated Message", sub: "AI generates a check-in message", icon: Bot, color: "text-violet-400", active: "border-violet-500 bg-violet-500/10 text-violet-400" },
@@ -320,15 +320,9 @@ export default function NurseStation() {
                   />
                 </div>
 
-                {/* Department — used by automated messages */}
+                {/* Department */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-sm font-medium">Care Department *</label>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                      <Info className="w-3 h-3" />
-                      Used by automated follow-up messages
-                    </div>
-                  </div>
+                  <label className="text-sm font-medium">Care Department *</label>
                   <select
                     className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                     value={form.department}
@@ -340,11 +334,6 @@ export default function NurseStation() {
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
-                  {form.department && (
-                    <p className="text-xs text-muted-foreground">
-                      Automated messages will use the <span className="text-foreground font-medium">{form.department}</span> check-in template.
-                    </p>
-                  )}
                 </div>
 
                 <div className="flex gap-2 justify-end pt-1">
@@ -393,11 +382,13 @@ export default function NurseStation() {
                         <div className="w-9 h-9 rounded-full bg-destructive/10 text-destructive font-bold text-xs flex items-center justify-center shrink-0">
                           {patient.firstName[0]}{patient.lastName[0]}
                         </div>
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {patient.department && <span className="mr-2">{patient.department}</span>}
-                            {patient.phone}
+                          <p className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
+                            {patient.patientId && <span className="font-mono">ID: {patient.patientId}</span>}
+                            {patient.treatmentPlan && (
+                              <span className="truncate max-w-[220px] text-amber-400">Plan: {patient.treatmentPlan}</span>
+                            )}
                           </p>
                         </div>
                       </button>

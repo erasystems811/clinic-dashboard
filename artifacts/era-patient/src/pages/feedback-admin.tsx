@@ -238,25 +238,19 @@ export default function FeedbackAdmin() {
               <div className="flex items-center justify-center py-24">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
               </div>
-            ) : !data || data.total === 0 ? (
-              <div className="py-20 text-center text-muted-foreground">
-                <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-20" />
-                <p className="text-sm font-medium">No feedback yet</p>
-                <p className="text-xs mt-1">Generate a link from a patient's profile and share it after their visit.</p>
-              </div>
             ) : (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <KpiCard label="Total Responses" value={data.total} icon={MessageSquare} />
-                  <KpiCard label="Overall Rating" value={data.avgRating ? `${data.avgRating}/5` : "—"} icon={Star} color="bg-amber-500" sub="avg score" />
-                  <KpiCard label="Wait Time" value={data.avgWaitTime ? `${data.avgWaitTime}/5` : "—"} icon={Clock} sub="avg score" />
-                  <KpiCard label="Staff Friendliness" value={data.avgStaffFriendliness ? `${data.avgStaffFriendliness}/5` : "—"} icon={Users} sub="avg score" />
-                  <KpiCard label="Quality of Care" value={data.avgQualityOfCare ? `${data.avgQualityOfCare}/5` : "—"} icon={Heart} sub="avg score" />
+                  <KpiCard label="Total Responses" value={data?.total ?? 0} icon={MessageSquare} />
+                  <KpiCard label="Overall Rating" value={data?.avgRating ? `${data.avgRating}/5` : "—"} icon={Star} color="bg-amber-500" sub="avg score" />
+                  <KpiCard label="Wait Time" value={data?.avgWaitTime ? `${data.avgWaitTime}/5` : "—"} icon={Clock} sub="avg score" />
+                  <KpiCard label="Staff Friendliness" value={data?.avgStaffFriendliness ? `${data.avgStaffFriendliness}/5` : "—"} icon={Users} sub="avg score" />
+                  <KpiCard label="Quality of Care" value={data?.avgQualityOfCare ? `${data.avgQualityOfCare}/5` : "—"} icon={Heart} sub="avg score" />
                   <KpiCard
                     label="Would Recommend"
-                    value={data.recommendRate != null ? `${data.recommendRate}%` : "—"}
+                    value={data?.recommendRate != null ? `${data.recommendRate}%` : "—"}
                     icon={ThumbsUp}
-                    color={data.recommendRate != null && data.recommendRate >= 70 ? "bg-emerald-500" : "bg-muted"}
+                    color={data?.recommendRate != null && data.recommendRate >= 70 ? "bg-emerald-500" : "bg-muted"}
                     sub="of respondents"
                   />
                 </div>
@@ -265,19 +259,24 @@ export default function FeedbackAdmin() {
                   <div className="rounded-xl border border-border bg-card p-5 space-y-3">
                     <p className="text-sm font-semibold">Overall Rating Distribution</p>
                     <div className="space-y-2.5">
-                      {[...data.distribution].reverse().map(d => (
-                        <DistributionBar key={d.star} star={d.star} count={d.count} max={maxDist} />
-                      ))}
+                      {data?.distribution?.length
+                        ? [...data.distribution].reverse().map(d => (
+                            <DistributionBar key={d.star} star={d.star} count={d.count} max={maxDist} />
+                          ))
+                        : [5, 4, 3, 2, 1].map(s => (
+                            <DistributionBar key={s} star={s} count={0} max={1} />
+                          ))
+                      }
                     </div>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-5 space-y-3">
                     <p className="text-sm font-semibold">Category Breakdown</p>
                     <div className="space-y-3">
                       {[
-                        { label: "Overall Experience", value: data.avgRating },
-                        { label: "Wait Time", value: data.avgWaitTime },
-                        { label: "Staff Friendliness", value: data.avgStaffFriendliness },
-                        { label: "Quality of Care", value: data.avgQualityOfCare },
+                        { label: "Overall Experience", value: data?.avgRating ?? 0 },
+                        { label: "Wait Time", value: data?.avgWaitTime ?? 0 },
+                        { label: "Staff Friendliness", value: data?.avgStaffFriendliness ?? 0 },
+                        { label: "Quality of Care", value: data?.avgQualityOfCare ?? 0 },
                       ].map(item => (
                         <div key={item.label} className="flex items-center justify-between gap-3">
                           <span className="text-xs text-muted-foreground w-36 shrink-0">{item.label}</span>
@@ -288,7 +287,7 @@ export default function FeedbackAdmin() {
                         </div>
                       ))}
                     </div>
-                    {data.recommendRate != null && (
+                    {data?.recommendRate != null && (
                       <div className="pt-2 border-t border-border flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">Recommendation Rate</span>
                         <div className="flex items-center gap-1.5">
@@ -307,34 +306,42 @@ export default function FeedbackAdmin() {
                       <p className="text-xs text-muted-foreground">Updated {format(new Date(dataUpdatedAt), "h:mm a")}</p>
                     )}
                   </div>
-                  <div className="space-y-3">
-                    {data.entries.map(entry => (
-                      <div key={entry.id} className="rounded-xl border border-border bg-card p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2 flex-wrap">
-                              <span className="font-medium text-sm">{entry.patientName ?? "Anonymous"}</span>
-                              <StarDisplay rating={entry.rating} />
-                              <span className="text-sm font-bold text-amber-400">{entry.rating}/5</span>
-                              {entry.wouldRecommend != null && (
-                                <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${entry.wouldRecommend ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
-                                  {entry.wouldRecommend ? <ThumbsUp className="w-3 h-3" /> : <ThumbsUp className="w-3 h-3 rotate-180" />}
-                                  {entry.wouldRecommend ? "Recommends" : "Would not recommend"}
-                                </span>
-                              )}
+                  {!data?.entries?.length ? (
+                    <div className="py-12 text-center text-muted-foreground rounded-xl border border-dashed border-border">
+                      <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm font-medium">No responses yet</p>
+                      <p className="text-xs mt-1">Generate a link from a patient's profile and share it after their visit.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {data.entries.map(entry => (
+                        <div key={entry.id} className="rounded-xl border border-border bg-card p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                <span className="font-medium text-sm">{entry.patientName ?? "Anonymous"}</span>
+                                <StarDisplay rating={entry.rating} />
+                                <span className="text-sm font-bold text-amber-400">{entry.rating}/5</span>
+                                {entry.wouldRecommend != null && (
+                                  <span className={`flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${entry.wouldRecommend ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
+                                    {entry.wouldRecommend ? <ThumbsUp className="w-3 h-3" /> : <ThumbsUp className="w-3 h-3 rotate-180" />}
+                                    {entry.wouldRecommend ? "Recommends" : "Would not recommend"}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-3 mb-2">
+                                {entry.waitTimeRating != null && <span className="text-xs text-muted-foreground">Wait: <span className="text-foreground font-medium">{entry.waitTimeRating}/5</span></span>}
+                                {entry.staffFriendlinessRating != null && <span className="text-xs text-muted-foreground">Staff: <span className="text-foreground font-medium">{entry.staffFriendlinessRating}/5</span></span>}
+                                {entry.qualityOfCareRating != null && <span className="text-xs text-muted-foreground">Care: <span className="text-foreground font-medium">{entry.qualityOfCareRating}/5</span></span>}
+                              </div>
+                              {entry.comment && <p className="text-sm text-muted-foreground italic">"{entry.comment}"</p>}
                             </div>
-                            <div className="flex flex-wrap gap-3 mb-2">
-                              {entry.waitTimeRating != null && <span className="text-xs text-muted-foreground">Wait: <span className="text-foreground font-medium">{entry.waitTimeRating}/5</span></span>}
-                              {entry.staffFriendlinessRating != null && <span className="text-xs text-muted-foreground">Staff: <span className="text-foreground font-medium">{entry.staffFriendlinessRating}/5</span></span>}
-                              {entry.qualityOfCareRating != null && <span className="text-xs text-muted-foreground">Care: <span className="text-foreground font-medium">{entry.qualityOfCareRating}/5</span></span>}
-                            </div>
-                            {entry.comment && <p className="text-sm text-muted-foreground italic">"{entry.comment}"</p>}
+                            <p className="text-xs text-muted-foreground shrink-0">{format(parseISO(entry.submittedAt), "d MMM yyyy")}</p>
                           </div>
-                          <p className="text-xs text-muted-foreground shrink-0">{format(parseISO(entry.submittedAt), "d MMM yyyy")}</p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}

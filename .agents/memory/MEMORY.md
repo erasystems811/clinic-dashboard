@@ -1,1 +1,2 @@
-- [Messaging channel split](messaging-channels.md) — WhatsApp/SMS is only for queue milestones, 45-min stall alert, and care plan onboarding; everything else is email-only.
+- [Messaging channels](messaging-channels.md) — all outbound goes to patients only; admin never receives email/SMS/WhatsApp; 3 WhatsApp types only
+- [Automation inventory](automation-inventory.md) — complete list of all automations, channels, AI models (OpenAI=care/reminders/tasks, Claude=newsletter)

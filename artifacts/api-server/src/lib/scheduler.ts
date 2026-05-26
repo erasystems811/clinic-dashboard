@@ -8,6 +8,7 @@ import {
   sendAppointmentReminderEmail,
   sendAppointmentNoShowEmail,
   sendFeedbackEmail,
+  sendInCareAIReminder,
 } from "./automation.js";
 import { signFeedbackToken } from "./feedbackToken.js";
 
@@ -456,6 +457,55 @@ async function runNoShowDismissal() {
   }
 }
 
+// ── Continuous In-Care AI Reminders — 8 AM (morning) + 6 PM (evening) ────────
+async function runInCareReminders(timeOfDay: "morning" | "evening") {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const automationType = `in_care_reminder_${timeOfDay}`;
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
+    for (const h of hospitals ?? []) {
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, email, treatment_plan")
+        .eq("stage", "In Care")
+        .eq("hospital_id", h.username)
+        .not("treatment_plan", "is", null)
+        .not("email", "is", null);
+
+      for (const p of patients ?? []) {
+        if (!p.email || !p.treatment_plan) continue;
+
+        // Only send once per timeOfDay per patient per day
+        const { data: alreadySent } = await supabase
+          .from("automation_log")
+          .select("id")
+          .eq("patient_id", p.id)
+          .eq("automation_type", automationType)
+          .eq("status", "sent")
+          .gte("created_at", `${today}T00:00:00Z`)
+          .maybeSingle();
+
+        if (alreadySent) continue;
+
+        const patientName = `${p.first_name} ${p.last_name}`;
+        await sendInCareAIReminder(
+          h.id,
+          p.id as number,
+          patientName,
+          p.email as string,
+          p.treatment_plan as string,
+          timeOfDay,
+        );
+        log(`In-care ${timeOfDay} reminder → patient ${p.id} (${patientName})`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`In-care ${timeOfDay} reminders error: ${err}`);
+  }
+}
+
 // ── Subscription Expiration Auto-Suspend ──────────────────────────────────────
 async function checkSubscriptionExpirations() {
   try {
@@ -498,6 +548,16 @@ export function startScheduler() {
     await runPostCareEmails();
     await runDormantDetection();
     await runDormantEmails();
+  });
+
+  // Daily at 8:00 AM: in-care morning AI reminders (based on treatment plan)
+  cron.schedule("0 8 * * *", async () => {
+    await runInCareReminders("morning");
+  });
+
+  // Daily at 6:00 PM: in-care evening AI reminders (based on treatment plan)
+  cron.schedule("0 18 * * *", async () => {
+    await runInCareReminders("evening");
   });
 
   // Daily at 9:00 PM: end-of-day feedback emails

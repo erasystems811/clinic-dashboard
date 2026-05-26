@@ -263,7 +263,7 @@ export default function NurseStation() {
                         disabled={endingTreatment}
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                        {endingTreatment ? "Updating..." : "Complete Treatment → Post Treatment"}
+                        {endingTreatment ? "Updating..." : "End Treatment Early → Post Treatment"}
                       </Button>
                     ) : (
                       <div className="space-y-2">

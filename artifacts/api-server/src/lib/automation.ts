@@ -231,7 +231,7 @@ export async function sendCarePlanEmail(
   try {
     const firstName = patientName.split(" ")[0];
 
-    const emailBody = await generateOpenAIMessage(
+    const emailBody = await generateClaudeMessage(
       `You are writing a care plan explanation email for a patient of ${hCtx.hospitalName}. Be warm, clear and patient-friendly. Never use clinical jargon. Never mention a diagnosis. Explain what the plan means in simple terms. Keep it under 200 words of body text. End with a closed statement — make clear the patient does not need to reply to this email and should ${contactLine(hCtx.phoneNumber)} if they have questions.`,
       `Write a warm, friendly email explaining ${firstName}'s care plan at ${hCtx.hospitalName}. Treatment type: ${treatmentType}. Duration: ${durationDays} days. Care plan details: ${treatmentPlan}. Explain what this means for the patient in plain, reassuring language — what they can expect, how the team will support them, and what they should do. End with: "If you have any questions please do not hesitate to ${contactLine(hCtx.phoneNumber)}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team."`,
       350,

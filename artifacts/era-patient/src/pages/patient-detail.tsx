@@ -570,6 +570,62 @@ export default function PatientDetail() {
             </CardContent>
           </Card>
         </div>
+        {/* ── Flag for Follow-up ── */}
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border bg-muted/10">
+            <Flag className="w-4 h-4 text-destructive" />
+            <span className="font-semibold text-sm">Flag for Follow-up</span>
+            <span className="text-xs text-muted-foreground ml-1">— creates a task for the receptionist</span>
+          </div>
+          <div className="p-5">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                flagMissed.mutate({ id: patientId, data: { reason: flagReason, actionType: flagActionType } });
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Reason for flag *</label>
+                <Input
+                  value={flagReason}
+                  onChange={e => setFlagReason(e.target.value)}
+                  placeholder="e.g. Missed 2 consecutive treatment sessions"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Follow-up Method *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {FOLLOWUP_TYPES.map(ft => {
+                    const Icon = ft.icon;
+                    const isSelected = flagActionType === ft.value;
+                    return (
+                      <button
+                        key={ft.value}
+                        type="button"
+                        onClick={() => setFlagActionType(ft.value)}
+                        className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center text-xs transition-colors ${
+                          isSelected ? ft.active : "border-border hover:border-border/60 text-muted-foreground"
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${isSelected ? "" : ft.color}`} />
+                        <span className="font-semibold">{ft.label}</span>
+                        <span className="leading-snug opacity-80">{ft.sub}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit" variant="destructive" disabled={flagMissed.isPending || !flagReason.trim()}>
+                  {flagMissed.isPending ? "Flagging..." : "Flag & Create Follow-up Task"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+
         {user?.role === "admin" && (
           <div className="pt-4 border-t border-border/40">
             <AlertDialog>

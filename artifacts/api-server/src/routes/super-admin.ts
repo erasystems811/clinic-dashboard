@@ -629,11 +629,18 @@ router.post("/auth/hospital-login", async (req, res): Promise<void> => {
   const [salt, storedHash] = hospital.password_hash.split(":");
   if (hashPassword(password, salt) !== storedHash) { res.status(401).json({ error: "Invalid credentials" }); return; }
 
+  // Auto-generate feedback_slug if the hospital doesn't have one yet
+  let feedbackSlug = hospital.feedback_slug as string | null;
+  if (!feedbackSlug) {
+    feedbackSlug = crypto.randomUUID();
+    await supabase.from("hospitals").update({ feedback_slug: feedbackSlug }).eq("id", hospital.id);
+  }
+
   res.json({
     id: hospital.id,
     name: hospital.name,
     username: hospital.username,
-    feedbackSlug: hospital.feedback_slug ?? null,
+    feedbackSlug,
     token: signHospitalToken(hospital.id),
   });
 });

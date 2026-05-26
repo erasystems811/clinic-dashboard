@@ -9,6 +9,7 @@ import {
   sendAppointmentNoShowEmail,
   sendFeedbackEmail,
   sendInCareAIReminder,
+  type InCareTimeSlot,
 } from "./automation.js";
 import { signFeedbackToken } from "./feedbackToken.js";
 
@@ -457,26 +458,38 @@ async function runNoShowDismissal() {
   }
 }
 
-// ── Continuous In-Care AI Reminders — 8 AM (morning) + 6 PM (evening) ────────
-async function runInCareReminders(timeOfDay: "morning" | "evening") {
+// ── Continuous In-Care AI Reminders — 4x daily based on nurse's timing boxes ──
+// medication_timing is stored as "med:morning,hosp:afternoon,med:evening" etc.
+// Only patients who have the given slot checked will receive a reminder.
+async function runInCareReminders(slot: InCareTimeSlot) {
   try {
     const today = new Date().toISOString().split("T")[0];
-    const automationType = `in_care_reminder_${timeOfDay}`;
+    const automationType = `in_care_reminder_${slot}`;
 
     const { data: hospitals } = await supabase.from("hospitals").select("id, username");
     for (const h of hospitals ?? []) {
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, email, treatment_plan")
+        .select("id, first_name, last_name, email, treatment_plan, medication_timing")
         .eq("stage", "In Care")
         .eq("hospital_id", h.username)
         .not("treatment_plan", "is", null)
-        .not("email", "is", null);
+        .not("email", "is", null)
+        .not("medication_timing", "is", null);
 
       for (const p of patients ?? []) {
-        if (!p.email || !p.treatment_plan) continue;
+        if (!p.email || !p.treatment_plan || !p.medication_timing) continue;
 
-        // Only send once per timeOfDay per patient per day
+        // Parse which types are active for this slot: "med:morning,hosp:afternoon" → ["med","hosp"] for morning
+        const timingEntries = (p.medication_timing as string).split(",").map(s => s.trim());
+        const slotEntries = timingEntries.filter(e => e.endsWith(`:${slot}`));
+        if (slotEntries.length === 0) continue; // nurse didn't check this time slot for this patient
+
+        const timingTypes = slotEntries
+          .map(e => e.split(":")[0] as "med" | "hosp")
+          .filter((t): t is "med" | "hosp" => t === "med" || t === "hosp");
+
+        // Only send once per slot per patient per day
         const { data: alreadySent } = await supabase
           .from("automation_log")
           .select("id")
@@ -495,14 +508,15 @@ async function runInCareReminders(timeOfDay: "morning" | "evening") {
           patientName,
           p.email as string,
           p.treatment_plan as string,
-          timeOfDay,
+          slot,
+          timingTypes,
         );
-        log(`In-care ${timeOfDay} reminder → patient ${p.id} (${patientName})`);
+        log(`In-care ${slot} reminder (${timingTypes.join("+")}) → patient ${p.id} (${patientName})`);
       }
     }
   } catch (err) {
     Sentry.captureException(err);
-    log(`In-care ${timeOfDay} reminders error: ${err}`);
+    log(`In-care ${slot} reminders error: ${err}`);
   }
 }
 
@@ -550,14 +564,24 @@ export function startScheduler() {
     await runDormantEmails();
   });
 
-  // Daily at 8:00 AM: in-care morning AI reminders (based on treatment plan)
+  // Daily at 8:00 AM: in-care morning reminders
   cron.schedule("0 8 * * *", async () => {
     await runInCareReminders("morning");
   });
 
-  // Daily at 6:00 PM: in-care evening AI reminders (based on treatment plan)
+  // Daily at 1:00 PM: in-care afternoon reminders
+  cron.schedule("0 13 * * *", async () => {
+    await runInCareReminders("afternoon");
+  });
+
+  // Daily at 6:00 PM: in-care evening reminders
   cron.schedule("0 18 * * *", async () => {
     await runInCareReminders("evening");
+  });
+
+  // Daily at 10:00 PM: in-care night reminders
+  cron.schedule("0 22 * * *", async () => {
+    await runInCareReminders("night");
   });
 
   // Daily at 9:00 PM: end-of-day feedback emails

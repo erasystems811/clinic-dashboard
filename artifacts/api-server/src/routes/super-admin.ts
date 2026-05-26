@@ -302,6 +302,8 @@ const UpdateHospitalBody = z.object({
   subscriptionStatus: z.enum(["active", "trial", "inactive"]).optional(),
   subscriptionExpiresAt: z.string().nullable().optional(),
   password: z.string().min(6).optional(),
+  contactEmail: z.string().email().nullish(),
+  contactPhone: z.string().nullish(),
 });
 
 router.patch("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -311,12 +313,14 @@ router.patch("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): 
   const parsed = UpdateHospitalBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { password, name, active, subscriptionStatus, subscriptionExpiresAt } = parsed.data;
+  const { password, name, active, subscriptionStatus, subscriptionExpiresAt, contactEmail, contactPhone } = parsed.data;
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
   if (active !== undefined) updates.active = active;
   if (subscriptionStatus !== undefined) updates.subscription_status = subscriptionStatus;
   if (subscriptionExpiresAt !== undefined) updates.subscription_expires_at = subscriptionExpiresAt;
+  if (contactEmail !== undefined) updates.contact_email = contactEmail;
+  if (contactPhone !== undefined) updates.contact_phone = contactPhone;
   if (password) {
     const salt = crypto.randomBytes(16).toString("hex");
     updates.password_hash = `${salt}:${hashPassword(password, salt)}`;
@@ -373,7 +377,7 @@ const UpdateSettingsBody = z.object({
   language: z.string().nullish(),
   tone: z.array(z.string()).optional(),
   clinicDescription: z.string().nullish(),
-  sendingEmail: z.string().nullish(),
+  senderName: z.string().nullish(),
   postTreatmentCheckinDays: z.number().int().min(1).nullish(),
   postCareCheckinDays: z.number().int().min(1).nullish(),
   whatsappFromNumber: z.string().nullish(),
@@ -404,7 +408,7 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   const parsed = UpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { departments, tone, pipelinePostTreatmentDays, pipelineDormantDays, language, clinicDescription, sendingEmail, postTreatmentCheckinDays, postCareCheckinDays, whatsappFromNumber, notificationChannel, phoneNumber, termiiSenderId } = parsed.data;
+  const { departments, tone, pipelinePostTreatmentDays, pipelineDormantDays, language, clinicDescription, senderName, postTreatmentCheckinDays, postCareCheckinDays, whatsappFromNumber, notificationChannel, phoneNumber, termiiSenderId } = parsed.data;
   const updates: Record<string, unknown> = {};
   if (departments !== undefined) updates.departments = JSON.stringify(departments);
   if (tone !== undefined) updates.tone = JSON.stringify(tone);
@@ -412,7 +416,7 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   if (pipelineDormantDays !== undefined) updates.pipeline_dormant_days = pipelineDormantDays;
   if (language !== undefined) updates.language = language;
   if (clinicDescription !== undefined) updates.clinic_description = clinicDescription;
-  if (sendingEmail !== undefined) updates.sending_email = sendingEmail;
+  if (senderName !== undefined) updates.sender_name = senderName;
   if (postTreatmentCheckinDays !== undefined) updates.post_treatment_checkin_days = postTreatmentCheckinDays;
   if (postCareCheckinDays !== undefined) updates.post_care_checkin_days = postCareCheckinDays;
   if (whatsappFromNumber !== undefined) updates.whatsapp_from_number = whatsappFromNumber;

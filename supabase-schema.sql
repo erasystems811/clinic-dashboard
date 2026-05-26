@@ -253,6 +253,9 @@ ALTER TABLE automation_log             DISABLE ROW LEVEL SECURITY;
 -- ── Column additions for existing databases (run if upgrading) ────────────────
 -- hospital_settings new columns
 ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS sending_email TEXT;
+ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS sender_name TEXT;
+ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS contact_email TEXT;
+ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS contact_phone TEXT;
 ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS post_treatment_checkin_days INTEGER DEFAULT 3;
 ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS post_care_checkin_days INTEGER DEFAULT 7;
 ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS whatsapp_from_number TEXT;

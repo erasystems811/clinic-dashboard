@@ -124,10 +124,13 @@ export default function HospitalDetail({ id }: Props) {
   const [language, setLanguage] = useState("");
   const [tones, setTones] = useState<string[]>([]);
   const [clinicDescription, setClinicDescription] = useState("");
-  const [sendingEmail, setSendingEmail] = useState("");
+  const [senderName, setSenderName] = useState("");
   const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [termiiSenderId, setTermiiSenderId] = useState("");
+
+  // CRM — super admin's own records for this account
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
 
   // Modules form
   const [apptEnabled, setApptEnabled] = useState(true);
@@ -156,10 +159,11 @@ export default function HospitalDetail({ id }: Props) {
       setLanguage(s.language ?? "");
       setTones(Array.isArray(s.tone) ? s.tone : []);
       setClinicDescription(s.clinicDescription ?? "");
-      setSendingEmail(s.sendingEmail ?? "");
+      setSenderName(s.senderName ?? "");
       setNotificationChannel((s.notificationChannel as "whatsapp" | "sms") ?? "whatsapp");
-      setPhoneNumber(s.phoneNumber ?? "");
       setTermiiSenderId(s.termiiSenderId ?? "");
+      setContactEmail(h.contactEmail ?? "");
+      setContactPhone(h.contactPhone ?? "");
       setApptEnabled(m.appointmentsEnabled);
       setFeedbackEnabled(m.feedbackEnabled);
       setWellnessEnabled(m.wellnessNewsletterEnabled ?? true);
@@ -204,6 +208,8 @@ export default function HospitalDetail({ id }: Props) {
         subscriptionStatus: subStatus,
         active,
         subscriptionExpiresAt: subscriptionExpiresAt ? new Date(subscriptionExpiresAt).toISOString() : null,
+        contactEmail: contactEmail || null,
+        contactPhone: contactPhone || null,
       });
       flash("Hospital updated");
       load();
@@ -225,9 +231,8 @@ export default function HospitalDetail({ id }: Props) {
         language: language || null,
         tone: tones.length > 0 ? tones : null,
         clinicDescription: clinicDescription || null,
-        sendingEmail: sendingEmail || null,
+        senderName: senderName || null,
         notificationChannel,
-        phoneNumber: phoneNumber || null,
         termiiSenderId: termiiSenderId || null,
       } as Partial<HospitalSettings>);
       flash("Settings saved");
@@ -554,6 +559,34 @@ export default function HospitalDetail({ id }: Props) {
             />
           </div>
 
+          {/* CRM — your own records for this client */}
+          <div className="pt-4 border-t border-border space-y-3">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Account Contact</p>
+              <p className="text-xs text-muted-foreground">Your private records for this client — not visible to the hospital. Stored for your own relationship management.</p>
+            </div>
+            <Field label="Contact Email">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)}
+                  placeholder="admin@clienthospital.com"
+                  className={inputCls() + " pl-9"}
+                />
+              </div>
+            </Field>
+            <Field label="Contact Phone">
+              <div className="relative">
+                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text" value={contactPhone} onChange={e => setContactPhone(e.target.value)}
+                  placeholder="+2348000000000"
+                  className={inputCls() + " pl-9"}
+                />
+              </div>
+            </Field>
+          </div>
+
           <div className="flex justify-end pt-2">
             <button onClick={saveGeneral} disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -627,14 +660,16 @@ export default function HospitalDetail({ id }: Props) {
           <div className="pt-2 border-t border-border space-y-3">
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Email Sending</p>
-              <p className="text-xs text-muted-foreground">The "From" address used for all outgoing emails (feedback, newsletters). Must be a verified Resend domain.</p>
+              <p className="text-xs text-muted-foreground">
+                All emails send from Era's verified noreply address. The hospital sets the display name that patients see (e.g. "GISDHEALTH" or "City Clinic").
+              </p>
             </div>
-            <Field label="Sending Email">
+            <Field label="Sender Display Name" hint='Patients see this as the "From" name — e.g. "GISDHEALTH", "City Clinic". Leave blank to use the hospital name.'>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
-                  type="email" value={sendingEmail} onChange={e => setSendingEmail(e.target.value)}
-                  placeholder="noreply@yourhospital.com"
+                  type="text" value={senderName} onChange={e => setSenderName(e.target.value)}
+                  placeholder="e.g. GISDHEALTH or City Clinic"
                   className={inputCls() + " pl-9"}
                 />
               </div>
@@ -653,17 +688,7 @@ export default function HospitalDetail({ id }: Props) {
                 <option value="sms">SMS</option>
               </select>
             </Field>
-            <Field label="Phone Number" hint="International format, e.g. +971501234567 — the number used as the sending line">
-              <div className="relative">
-                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
-                  placeholder="+971501234567"
-                  className={inputCls() + " pl-9"}
-                />
-              </div>
-            </Field>
-            <Field label="Termii Sender ID" hint="Registered sender name or number in your Termii account — patients see this as the sender (e.g. CityClinic)">
+            <Field label="Termii Sender ID" hint="Registered sender name or ID in your Termii account — patients see this as the SMS sender (e.g. CityClinic)">
               <input
                 type="text" value={termiiSenderId} onChange={e => setTermiiSenderId(e.target.value)}
                 placeholder="e.g. CityClinic"

@@ -63,17 +63,15 @@ async function getHospitalContext(hospitalId: number): Promise<HospitalContext> 
   const [{ data: hospital }, { data: settings }] = await Promise.all([
     supabase.from("hospitals").select("id, name, username").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
-      .select("sending_email, notification_channel, phone_number, tone, termii_sender_id")
+      .select("sender_name, notification_channel, phone_number, tone, termii_sender_id")
       .eq("hospital_id", hospitalId).single(),
   ]);
   const hospitalName = hospital?.name ?? "The Hospital";
-  // Use hospital's own sending email if set; fall back to platform email env var.
-  // Always wrap with hospital display name so patients see "City Clinic <...>" as sender.
-  const rawEmail =
-    (settings?.sending_email as string | null)?.trim() ||
-    process.env.PLATFORM_FROM_EMAIL ||
-    "onboarding@resend.dev";
-  const fromAddress = `${hospitalName} <${rawEmail}>`;
+  // Display name is hospital's configured sender name, falling back to hospital name.
+  // Email address is always the platform-level noreply address — hospitals don't set this.
+  const displayName = (settings?.sender_name as string | null)?.trim() || hospitalName;
+  const rawEmail = process.env.PLATFORM_FROM_EMAIL || "onboarding@resend.dev";
+  const fromAddress = `${displayName} <${rawEmail}>`;
   return {
     hospitalName,
     hospitalUsername: hospital?.username ?? "",

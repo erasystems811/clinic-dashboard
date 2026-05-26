@@ -61,6 +61,8 @@ export interface Hospital {
   createdAt: string;
   updatedAt: string | null;
   currentPassword: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
   settings: HospitalSettings | null;
   modules: HospitalModules | null;
   staffCredentials: StaffCredentials | null;
@@ -75,7 +77,7 @@ export interface HospitalSettings {
   language: string | null;
   tone: string[] | null;
   clinicDescription: string | null;
-  sendingEmail: string | null;
+  senderName: string | null;
   postTreatmentCheckinDays: number | null;
   postCareCheckinDays: number | null;
   whatsappFromNumber: string | null;
@@ -128,7 +130,7 @@ export const api = {
   createHospital: (data: { name: string; username: string; subscriptionStatus?: string }) =>
     post<Hospital>("/super-admin/hospitals", data),
 
-  updateHospital: (id: number, data: Partial<{ name: string; active: boolean; subscriptionStatus: string; subscriptionExpiresAt: string | null; password: string }>) =>
+  updateHospital: (id: number, data: Partial<{ name: string; active: boolean; subscriptionStatus: string; subscriptionExpiresAt: string | null; password: string; contactEmail: string | null; contactPhone: string | null }>) =>
     patch<Hospital>(`/super-admin/hospitals/${id}`, data),
 
   regeneratePassword: (id: number) =>

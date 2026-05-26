@@ -46,6 +46,8 @@ export default function PatientDetail() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [completingTreatment, setCompletingTreatment] = useState(false);
   const [confirmComplete, setConfirmComplete] = useState(false);
+  const [confirmEndPlan, setConfirmEndPlan] = useState(false);
+  const [endingPlan, setEndingPlan] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -92,6 +94,27 @@ export default function PatientDetail() {
       },
       onError: () => toast({ title: "Error", variant: "destructive" }),
     });
+  };
+
+  const handleEndPlan = () => setConfirmEndPlan(true);
+
+  const executeEndPlan = async () => {
+    setConfirmEndPlan(false);
+    setEndingPlan(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(apiUrl(`/api/patients/${patientId}/end-plan`), {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: "Plan ended", description: "Active treatment plan has been cleared." });
+      queryClient.invalidateQueries({ queryKey: getGetPatientQueryKey(patientId) });
+    } catch {
+      toast({ title: "Failed to end plan", variant: "destructive" });
+    } finally {
+      setEndingPlan(false);
+    }
   };
 
   const handleCompleteTreatment = () => setConfirmComplete(true);
@@ -463,10 +486,21 @@ export default function PatientDetail() {
             <CardContent className="space-y-5">
               {patient.treatmentPlan && (
                 <div>
-                  <h3 className="text-xs font-semibold text-primary uppercase tracking-wide mb-2 flex items-center gap-2">
-                    <Activity className="w-4 h-4" />
-                    Treatment Plan
-                  </h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-semibold text-primary uppercase tracking-wide flex items-center gap-2">
+                      <Activity className="w-4 h-4" />
+                      Active Treatment Plan
+                    </h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive border-destructive/40 hover:bg-destructive/10 hover:border-destructive text-xs h-7 px-2.5"
+                      onClick={handleEndPlan}
+                      disabled={endingPlan}
+                    >
+                      {endingPlan ? "Ending…" : "End Active Plan"}
+                    </Button>
+                  </div>
                   <div className="bg-primary/5 p-4 rounded-md border border-primary/20 whitespace-pre-wrap text-sm">
                     {patient.treatmentPlan}
                   </div>
@@ -542,6 +576,27 @@ export default function PatientDetail() {
           </div>
         )}
       </div>
+      {/* End active plan confirm dialog */}
+      <AlertDialog open={confirmEndPlan} onOpenChange={setConfirmEndPlan}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>End active treatment plan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will clear the current plan from the patient's file before its scheduled end date. The history is preserved in the activity log.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={executeEndPlan}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Yes, end the plan
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Complete treatment confirm dialog */}
       <AlertDialog open={confirmComplete} onOpenChange={setConfirmComplete}>
         <AlertDialogContent>

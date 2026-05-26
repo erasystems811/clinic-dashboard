@@ -591,6 +591,39 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   res.json(camelize(patient!));
 });
 
+router.post("/patients/:id/end-plan", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { data: patient, error } = await supabase.from("patients").select("*").eq("id", id).single();
+  if (error || !patient) { res.status(404).json({ error: "Patient not found" }); return; }
+
+  if (!patient.treatment_plan) { res.status(400).json({ error: "No active plan to end" }); return; }
+
+  const patientName = `${patient.first_name} ${patient.last_name}`;
+
+  await supabase.from("patients").update({
+    treatment_plan: null,
+    treatment_type: null,
+    medication_timing: null,
+    treatment_duration_days: null,
+    treatment_end_date: null,
+    treatment_started_at: null,
+    updated_at: new Date().toISOString(),
+  }).eq("id", id);
+
+  await supabase.from("activity").insert({
+    type: "plan_ended",
+    description: `Active treatment plan manually ended for ${patientName}`,
+    patient_id: id,
+    patient_name: patientName,
+    hospital_id: patient.hospital_id ? (await resolveHospitalIntId(patient.hospital_id as string)) : null,
+  });
+
+  const { data: updated } = await supabase.from("patients").select("*").eq("id", id).single();
+  res.json(camelize(updated!));
+});
+
 router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }

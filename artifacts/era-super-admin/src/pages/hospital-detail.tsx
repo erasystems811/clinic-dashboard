@@ -126,7 +126,6 @@ export default function HospitalDetail({ id }: Props) {
   const [clinicDescription, setClinicDescription] = useState("");
   const [senderName, setSenderName] = useState("");
   const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
-  const [termiiSenderId, setTermiiSenderId] = useState("");
 
   // CRM — super admin's own records for this account
   const [contactEmail, setContactEmail] = useState("");
@@ -161,7 +160,6 @@ export default function HospitalDetail({ id }: Props) {
       setClinicDescription(s.clinicDescription ?? "");
       setSenderName(s.senderName ?? "");
       setNotificationChannel((s.notificationChannel as "whatsapp" | "sms") ?? "whatsapp");
-      setTermiiSenderId(s.termiiSenderId ?? "");
       setContactEmail(h.contactEmail ?? "");
       setContactPhone(h.contactPhone ?? "");
       setApptEnabled(m.appointmentsEnabled);
@@ -246,7 +244,6 @@ export default function HospitalDetail({ id }: Props) {
         clinicDescription: clinicDescription || null,
         senderName: senderName || null,
         notificationChannel,
-        termiiSenderId: termiiSenderId || null,
       } as Partial<HospitalSettings>);
       flash("Settings saved");
       load();
@@ -700,13 +697,6 @@ export default function HospitalDetail({ id }: Props) {
                 <option value="whatsapp">WhatsApp</option>
                 <option value="sms">SMS</option>
               </select>
-            </Field>
-            <Field label="Termii Sender ID" hint="Optional — leave blank to use the platform default. If you have a registered Termii sender ID (approved by Termii), enter it here so patients see the hospital name as the SMS sender instead of a generic number. Approval can take a few days from Termii's side.">
-              <input
-                type="text" value={termiiSenderId} onChange={e => setTermiiSenderId(e.target.value)}
-                placeholder="Leave blank to use platform default"
-                className={inputCls()}
-              />
             </Field>
           </div>
 

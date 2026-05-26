@@ -570,9 +570,9 @@ export async function generateCallTaskDraft(
   const contact = contactLine(hCtx.phoneNumber);
 
   const message = await generateOpenAIMessage(
-    `You are a care team member at ${hCtx.hospitalName} reaching out to a patient via email. Tone: ${tone}. Start with "Hi ${firstName},". Read the reason carefully and choose the right tone — gentle if sensitive, encouraging if they need support, friendly if it is a simple check-in. Write like a real, caring person. Never sound automated. End with a closed statement — tell the patient not to reply to this email and to ${contact} if they have any questions.`,
-    `You need to contact ${firstName} because: "${flagReason}". Write a warm, human message appropriate to this exact situation. Match your tone to the reason — be caring and specific, not generic. 2-4 sentences, genuine and human.`,
-    180,
+    `You are a care team member at ${hCtx.hospitalName} reaching out to a patient via text message. Tone: ${tone}. Start with "Hi ${firstName},". Read the reason carefully and write a message that directly addresses that specific situation — gentle if sensitive, encouraging if they need support, friendly if it is a routine check-in. Write like a real, caring person. Never sound automated or generic. End by telling the patient to ${contact} if they have any questions. IMPORTANT: If the reason is unclear, too vague, or you cannot understand what situation it refers to, reply with exactly this and nothing else: "I could not understand the reason provided. Please write the message manually."`,
+    `You need to contact ${firstName} because: "${flagReason}". Write a warm, specific message addressing this exact reason. 2-4 sentences.`,
+    200,
   );
   return message;
 }

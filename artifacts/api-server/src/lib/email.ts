@@ -1,16 +1,9 @@
-import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+import { Resend } from "resend";
 
-function getSESClient(): SESClient {
-  const region = process.env.AWS_REGION;
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-  if (!region || !accessKeyId || !secretAccessKey) {
-    throw new Error("AWS_REGION, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY must be set");
-  }
-  return new SESClient({
-    region,
-    credentials: { accessKeyId, secretAccessKey },
-  });
+function getResend(): Resend {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error("RESEND_API_KEY is not set");
+  return new Resend(key);
 }
 
 export interface EmailPayload {
@@ -22,23 +15,16 @@ export interface EmailPayload {
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<string> {
-  const ses = getSESClient();
-  const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
-
-  const command = new SendEmailCommand({
-    Source: payload.from,
-    Destination: { ToAddresses: toAddresses },
-    Message: {
-      Subject: { Data: payload.subject, Charset: "UTF-8" },
-      Body: {
-        Html: { Data: payload.html, Charset: "UTF-8" },
-        ...(payload.text ? { Text: { Data: payload.text, Charset: "UTF-8" } } : {}),
-      },
-    },
+  const resend = getResend();
+  const { data, error } = await resend.emails.send({
+    from: payload.from,
+    to: Array.isArray(payload.to) ? payload.to : [payload.to],
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text,
   });
-
-  const result = await ses.send(command);
-  return result.MessageId ?? "sent";
+  if (error) throw new Error(error.message);
+  return data?.id ?? "sent";
 }
 
 export interface FeedbackEmailData {

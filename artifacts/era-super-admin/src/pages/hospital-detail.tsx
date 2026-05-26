@@ -199,6 +199,19 @@ export default function HospitalDetail({ id }: Props) {
     setTimeout(() => setSuccess(""), 3000);
   };
 
+  const friendlyError = (e: unknown): string => {
+    const msg = e instanceof Error ? e.message : "";
+    if (!msg) return "Something went wrong. Please try again.";
+    if (msg.includes("column") && msg.includes("schema")) return "A settings field is not yet ready on the server. Please try again in a moment.";
+    if (msg.includes("not found") || msg.includes("Not found")) return "This record could not be found. It may have been removed.";
+    if (msg.includes("duplicate") || msg.includes("unique")) return "This value is already in use. Please choose a different one.";
+    if (msg.includes("foreign key") || msg.includes("violates")) return "This change could not be saved because it conflicts with existing data.";
+    if (msg.includes("JWT") || msg.includes("token") || msg.includes("auth")) return "Your session has expired. Please log in again.";
+    if (msg.includes("network") || msg.includes("fetch")) return "Could not reach the server. Check your connection and try again.";
+    if (msg.includes("timeout")) return "The request took too long. Please try again.";
+    return "Could not save changes. Please try again.";
+  };
+
   const saveGeneral = async () => {
     setSaving(true);
     setError("");
@@ -214,7 +227,7 @@ export default function HospitalDetail({ id }: Props) {
       flash("Hospital updated");
       load();
     } catch (e: unknown) {
-      setError((e instanceof Error ? e.message : null) ?? "Save failed");
+      setError(friendlyError(e));
     } finally {
       setSaving(false);
     }
@@ -238,7 +251,7 @@ export default function HospitalDetail({ id }: Props) {
       flash("Settings saved");
       load();
     } catch (e: unknown) {
-      setError((e instanceof Error ? e.message : null) ?? "Save failed");
+      setError(friendlyError(e));
     } finally {
       setSaving(false);
     }
@@ -257,7 +270,7 @@ export default function HospitalDetail({ id }: Props) {
       flash("Modules saved");
       load();
     } catch (e: unknown) {
-      setError((e instanceof Error ? e.message : null) ?? "Save failed");
+      setError(friendlyError(e));
     } finally {
       setSaving(false);
     }
@@ -688,10 +701,10 @@ export default function HospitalDetail({ id }: Props) {
                 <option value="sms">SMS</option>
               </select>
             </Field>
-            <Field label="Termii Sender ID" hint="Registered sender name or ID in your Termii account — patients see this as the SMS sender (e.g. CityClinic)">
+            <Field label="Termii Sender ID" hint="Optional — leave blank to use the platform default. If you have a registered Termii sender ID (approved by Termii), enter it here so patients see the hospital name as the SMS sender instead of a generic number. Approval can take a few days from Termii's side.">
               <input
                 type="text" value={termiiSenderId} onChange={e => setTermiiSenderId(e.target.value)}
-                placeholder="e.g. CityClinic"
+                placeholder="Leave blank to use platform default"
                 className={inputCls()}
               />
             </Field>

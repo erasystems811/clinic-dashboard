@@ -259,6 +259,9 @@ ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS contact_phone TEXT;
 ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS post_treatment_checkin_days INTEGER DEFAULT 3;
 ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS post_care_checkin_days INTEGER DEFAULT 7;
 ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS whatsapp_from_number TEXT;
+ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS notification_channel TEXT DEFAULT 'whatsapp';
+ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS phone_number TEXT;
+ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS termii_sender_id TEXT;
 
 -- hospital_modules new columns
 ALTER TABLE hospital_modules ADD COLUMN IF NOT EXISTS wellness_newsletter_enabled BOOLEAN NOT NULL DEFAULT true;

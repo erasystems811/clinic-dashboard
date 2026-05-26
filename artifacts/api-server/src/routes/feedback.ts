@@ -4,6 +4,30 @@ import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
 import { verifyHospitalToken } from "./super-admin.js";
 import { signFeedbackToken, verifyFeedbackToken } from "../lib/feedbackToken.js";
+import { sendEmail, buildFeedbackEmail } from "../lib/email.js";
+
+async function notifyFeedbackByEmail(hospitalId: number, feedbackData: {
+  patientName?: string | null;
+  rating: number;
+  waitTimeRating?: number | null;
+  staffFriendlinessRating?: number | null;
+  qualityOfCareRating?: number | null;
+  wouldRecommend?: boolean | null;
+  comment?: string | null;
+}) {
+  try {
+    const [{ data: hospital }, { data: settings }] = await Promise.all([
+      supabase.from("hospitals").select("name").eq("id", hospitalId).single(),
+      supabase.from("hospital_settings").select("contact_email").eq("hospital_id", hospitalId).single(),
+    ]);
+    const toEmail = settings?.contact_email;
+    if (!toEmail || !hospital) return;
+    const { subject, html, text } = buildFeedbackEmail({ hospitalName: hospital.name, ...feedbackData });
+    await sendEmail({ to: toEmail, from: "noreply@erasystems.com.ng", subject, html, text });
+  } catch {
+    // Fire-and-forget — never fail the submission if email fails
+  }
+}
 
 const router: IRouter = Router();
 
@@ -116,6 +140,19 @@ router.post("/feedback", async (req, res): Promise<void> => {
 
   if (error || !data) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
   res.status(201).json(camelize(data));
+
+  // Fire-and-forget email to hospital contact
+  if (resolvedHospitalId) {
+    notifyFeedbackByEmail(resolvedHospitalId, {
+      patientName: resolvedPatientName,
+      rating: d.rating,
+      waitTimeRating: d.waitTimeRating ?? null,
+      staffFriendlinessRating: d.staffFriendlinessRating ?? null,
+      qualityOfCareRating: d.qualityOfCareRating ?? null,
+      wouldRecommend: d.wouldRecommend ?? null,
+      comment: d.comment ?? null,
+    });
+  }
 });
 
 const DEFAULT_QUESTIONS = [
@@ -185,6 +222,17 @@ router.post("/feedback/h/:slug", async (req, res): Promise<void> => {
 
   if (error || !data) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
   res.status(201).json(camelize(data));
+
+  // Fire-and-forget email to hospital contact
+  notifyFeedbackByEmail(hospital.id, {
+    patientName: null,
+    rating: d.rating,
+    waitTimeRating: d.waitTimeRating ?? null,
+    staffFriendlinessRating: d.staffFriendlinessRating ?? null,
+    qualityOfCareRating: d.qualityOfCareRating ?? null,
+    wouldRecommend: d.wouldRecommend ?? null,
+    comment: d.comment ?? null,
+  });
 });
 
 router.get("/feedback/form-config", async (req, res): Promise<void> => {

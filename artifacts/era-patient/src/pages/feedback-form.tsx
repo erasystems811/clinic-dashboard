@@ -324,6 +324,10 @@ export default function FeedbackForm({ token, hospitalSlug, previewQuestions }: 
             <p className="text-center text-xs text-muted-foreground">* Required fields must be filled</p>
           )}
         </div>
+
+        <p className="text-center text-[11px] text-muted-foreground/40 pt-2 tracking-wide">
+          Powered by <span className="font-semibold">Era Patient</span>
+        </p>
       </div>
     </div>
   );

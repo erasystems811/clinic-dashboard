@@ -202,7 +202,7 @@ export async function sendCarePlanNotification(
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const message = `Hi ${patientName}, your care plan at ${hCtx.hospitalName} has started. Please check your email for your full care plan details and your daily care reminders. We are with you every step of the way.`;
+    const message = `Hi ${patientName}, your care plan at ${hCtx.hospitalName} has been set up. Please check your email continuously for your full care plan details and follow up. We are with you every step of the way.`;
     await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {

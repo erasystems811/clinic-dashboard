@@ -704,7 +704,7 @@ export default function HospitalDetail({ id }: Props) {
             <Field
               label="Sender ID / Number"
               hint={notificationChannel === "whatsapp"
-                ? "The WhatsApp number this hospital's messages are sent from. Each hospital must have their own registered number — if two hospitals share one number, a patient who visits both will see both hospitals' messages in the same WhatsApp chat. Enter the number in international format, e.g. +2348012345678."
+                ? "WhatsApp always uses a phone number as the sender — you cannot use a name. Each hospital must have their own dedicated WhatsApp number registered with Termii. If two hospitals share one number, a patient who visits both will receive messages from both in the same WhatsApp chat. Enter in international format, e.g. +2348012345678."
                 : "What patients see as the sender on their phone. Two options: (1) A phone number like +2348012345678 — works immediately, no approval needed. (2) A short name like CityClinic (max 11 chars) — patients see the hospital name, but requires Termii registration which takes a few days. Each hospital must have their own — shared senders mix messages in one thread."}
             >
               <input

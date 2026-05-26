@@ -128,16 +128,17 @@ async function runPostCareEmails() {
       for (const p of patients ?? []) {
         if (!p.email) continue;
 
-        // Only send once — skip if already sent at any point
-        const { data: alreadySent } = await supabase
+        // Send every 30 days — skip if one was sent within the last 30 days
+        const { data: recentSend } = await supabase
           .from("automation_log")
           .select("id")
           .eq("patient_id", p.id)
           .eq("automation_type", "post_care_email")
           .eq("status", "sent")
+          .gte("created_at", cutoff30)
           .maybeSingle();
 
-        if (alreadySent) continue;
+        if (recentSend) continue;
 
         const patientName = `${p.first_name} ${p.last_name}`;
         await sendPostCareEmail(h.id, p.id as number, patientName, p.email as string);

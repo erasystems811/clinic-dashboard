@@ -330,13 +330,15 @@ function TaskCard({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedToday
 /* ── Page ── */
 export default function CallTasks() {
   const { hospital } = useAuth();
-  const [showCompleted, setShowCompleted] = useState(false);
   const [aiUsedToday, setAiUsedToday] = useState(0);
 
   const { data: tasks = [], isLoading } = useListCallTasks(
-    { completed: showCompleted },
+    {},
     { query: { refetchInterval: 10000 } },
   );
+
+  const openTasks = tasks.filter(t => !t.completedAt);
+  const completedTasks = tasks.filter(t => !!t.completedAt);
 
   const fetchAiCount = useCallback(async () => {
     if (!hospital?.token) return;
@@ -356,17 +358,11 @@ export default function CallTasks() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Call Tasks</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              Patients flagged for follow-up — call or text to resolve
-            </p>
-          </div>
-          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-            <button type="button" onClick={() => setShowCompleted(false)} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${!showCompleted ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Open</button>
-            <button type="button" onClick={() => setShowCompleted(true)} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${showCompleted ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>Completed</button>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Call Tasks</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            All follow-up tasks — open and completed
+          </p>
         </div>
 
         {isLoading ? (
@@ -376,18 +372,47 @@ export default function CallTasks() {
         ) : tasks.length === 0 ? (
           <div className="py-16 text-center text-muted-foreground">
             <Phone className="w-8 h-8 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">{showCompleted ? "No completed tasks" : "No open tasks — all clear!"}</p>
+            <p className="text-sm">No tasks yet — all clear!</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {tasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                aiUsedToday={aiUsedToday}
-                onAiUsed={setAiUsedToday}
-              />
-            ))}
+          <div className="space-y-6">
+            {/* Open tasks */}
+            {openTasks.length > 0 && (
+              <div className="space-y-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Open · {openTasks.length}
+                </p>
+                {openTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    aiUsedToday={aiUsedToday}
+                    onAiUsed={setAiUsedToday}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Completed tasks */}
+            {completedTasks.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-border" />
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
+                    Completed · {completedTasks.length}
+                  </p>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+                {completedTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    aiUsedToday={aiUsedToday}
+                    onAiUsed={setAiUsedToday}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

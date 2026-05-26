@@ -68,19 +68,16 @@ router.get("/call-tasks", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const completed = req.query.completed === "true";
-
   const patientIds = await getPatientIdsForHospital(hospital.username);
   const safePatientIds = patientIds.length ? patientIds : [-1];
 
-  let q = supabase.from("call_tasks").select("*").in("patient_id", safePatientIds).order("flagged_at", { ascending: true });
-  if (completed) {
-    q = q.not("completed_at", "is", null);
-  } else {
-    q = q.is("completed_at", null);
-  }
+  const { data, error } = await supabase
+    .from("call_tasks")
+    .select("*")
+    .in("patient_id", safePatientIds)
+    .order("completed_at", { ascending: true, nullsFirst: true })
+    .order("flagged_at", { ascending: true });
 
-  const { data, error } = await q;
   if (error) { res.status(500).json({ error: error.message }); return; }
 
   res.json((data ?? []).map((t) => camelize(t)));

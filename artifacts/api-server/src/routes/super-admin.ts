@@ -431,7 +431,8 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
     .select()
     .single();
 
-  if (error || !settings) { res.status(404).json({ error: "Not found" }); return; }
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (!settings) { res.status(404).json({ error: "Hospital settings not found" }); return; }
   const s = camelize<Record<string, unknown>>(settings);
   res.json({
     ...s,

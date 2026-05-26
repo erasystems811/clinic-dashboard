@@ -705,7 +705,7 @@ export default function HospitalDetail({ id }: Props) {
               label="Sender ID / Number"
               hint={notificationChannel === "whatsapp"
                 ? "WhatsApp always uses a phone number as the sender — you cannot use a name. Each hospital must have their own dedicated WhatsApp number registered with Termii. If two hospitals share one number, a patient who visits both will receive messages from both in the same WhatsApp chat. Enter in international format, e.g. +2348012345678."
-                : "What patients see as the sender on their phone. Two options: (1) A phone number like +2348012345678 — works immediately, no approval needed. (2) A short name like CityClinic (max 11 chars) — patients see the hospital name, but requires Termii registration which takes a few days. Each hospital must have their own — shared senders mix messages in one thread."}
+                : "What patients see as the sender on their phone. In Nigeria, all sender IDs — numbers and names — must be registered with Termii before carriers will deliver them. Options: (1) Leave blank to use Termii's shared pool number (pre-registered, works immediately, but it's a generic number not specific to this hospital). (2) A dedicated phone number — registered to this hospital only. (3) A short name like CityClinic (max 11 chars) — patients see the hospital name. Options 2 and 3 take a few days to approve."}
             >
               <input
                 type="text"

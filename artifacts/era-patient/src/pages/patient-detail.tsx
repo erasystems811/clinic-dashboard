@@ -414,7 +414,7 @@ export default function PatientDetail() {
                       </div>
                     )}
 
-                    {patient.stage === "In Care" && (
+                    {!!patient.treatmentPlan && (
                       <Button
                         className="w-full mt-4"
                         variant="outline"
@@ -422,7 +422,7 @@ export default function PatientDetail() {
                         disabled={completingTreatment}
                       >
                         <CheckCircle2 className="w-4 h-4 mr-2" />
-                        {completingTreatment ? "Updating..." : "End Treatment Early → Post Treatment"}
+                        {completingTreatment ? "Updating..." : "End Treatment Early"}
                       </Button>
                     )}
                   </div>
@@ -630,7 +630,7 @@ export default function PatientDetail() {
           <AlertDialogFooter>
             <AlertDialogCancel>Go back</AlertDialogCancel>
             <AlertDialogAction onClick={executeCompleteTreatment} disabled={completingTreatment}>
-              {completingTreatment ? "Updating..." : "Yes, end treatment"}
+              {completingTreatment ? "Updating..." : "Yes, end early"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -14,7 +14,7 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import type { Patient } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
-import { Search, Stethoscope, Flag, Loader2, CheckCircle, CheckCircle2, MessageSquare, PhoneCall, Building2, AlertTriangle } from "lucide-react";
+import { Search, Stethoscope, Flag, Loader2, CheckCircle, CheckCircle2, MessageSquare, PhoneCall, Building2 } from "lucide-react";
 
 const FOLLOWUP_TYPES = [
   { value: "manual_call", label: "Call", sub: "Call patient and log the outcome", icon: PhoneCall, color: "text-primary", active: "border-primary bg-primary/10 text-primary" },
@@ -64,8 +64,6 @@ export default function NurseStation() {
   const [flagReason, setFlagReason] = useState("");
   const [flagActionType, setFlagActionType] = useState<FollowupType>("manual_call");
   const [form, setForm] = useState<TreatmentForm>(EMPTY_FORM);
-  const [confirmEndTreatment, setConfirmEndTreatment] = useState(false);
-  const [endingTreatment, setEndingTreatment] = useState(false);
 
   const { hospitalConfig } = useAuth();
   const departments = hospitalConfig?.departments ?? [];
@@ -141,31 +139,6 @@ export default function NurseStation() {
         department: form.department || undefined,
       },
     });
-  };
-
-  const executeEndTreatment = async () => {
-    if (!selectedPatient) return;
-    setConfirmEndTreatment(false);
-    setEndingTreatment(true);
-    try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(apiUrl(`/api/patients/${selectedPatient.id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ stage: "Post Treatment" }),
-      });
-      if (!res.ok) throw new Error("Failed");
-      toast({ title: "Treatment complete", description: `${selectedPatient.firstName} ${selectedPatient.lastName} moved to Post Treatment.` });
-      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
-      setSelectedPatient(null);
-      setSearch("");
-      setForm(EMPTY_FORM);
-    } catch {
-      toast({ title: "Failed to end treatment", variant: "destructive" });
-    } finally {
-      setEndingTreatment(false);
-    }
   };
 
   const handleFlag = (e: React.FormEvent) => {
@@ -246,41 +219,6 @@ export default function NurseStation() {
                   </div>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedPatient(null)}>Change</Button>
                 </div>
-
-                {selectedPatient.stage === "In Care" && (
-                  <div className="rounded-lg border border-purple-500/30 bg-purple-500/5 p-3.5 space-y-2.5">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />
-                      <p className="text-sm font-medium text-purple-300">Patient is currently In Care</p>
-                    </div>
-                    {!confirmEndTreatment ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="w-full border-purple-500/40 text-purple-300 hover:bg-purple-500/10 hover:border-purple-500 text-xs"
-                        onClick={() => setConfirmEndTreatment(true)}
-                        disabled={endingTreatment}
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                        {endingTreatment ? "Updating..." : "End Treatment Early → Post Treatment"}
-                      </Button>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-2 p-2.5 rounded-md bg-amber-500/10 border border-amber-500/20">
-                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                          <p className="text-xs text-amber-300">This will move <span className="font-semibold">{selectedPatient.firstName}</span> to Post Treatment and start recovery check-ins.</p>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setConfirmEndTreatment(false)}>Cancel</Button>
-                          <Button type="button" size="sm" className="flex-1 text-xs bg-purple-600 hover:bg-purple-700 text-white border-0" onClick={executeEndTreatment} disabled={endingTreatment}>
-                            {endingTreatment ? "Updating..." : "Yes, Complete Treatment"}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 {selectedPatient.treatmentPlan && (
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">

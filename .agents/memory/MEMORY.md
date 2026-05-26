@@ -1,0 +1,1 @@
+- [Messaging channel split](messaging-channels.md) — WhatsApp/SMS is only for queue milestones, 45-min stall alert, and care plan onboarding; everything else is email-only.

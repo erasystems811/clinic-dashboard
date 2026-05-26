@@ -152,7 +152,7 @@ export async function sendQueueYourTurn(
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const message = `Hi ${patientName}, it is your turn now at ${hCtx.hospitalName}. Please proceed to the reception. We are ready for you.`;
+    const message = `Hi ${patientName}, it is your turn now at ${hCtx.hospitalName}. Please proceed, we are ready for you.`;
     await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {

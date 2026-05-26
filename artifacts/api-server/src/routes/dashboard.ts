@@ -83,7 +83,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       .lt("scheduled_at", endOfWeek.toISOString()),
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
     supabase.from("patients").select("stage").eq("hospital_id", hospital.username),
-    supabase.from("feedback").select("rating").in("patient_id", safePatientIds),
+    supabase.from("feedback").select("rating").eq("hospital_id", hospital.intId),
     supabase.from("wellness_newsletter").select("last_sent_at").eq("hospital_id", hospital.intId).order("last_sent_at", { ascending: false }).limit(1),
     supabase.from("patients").select("checked_in_at").eq("hospital_id", hospital.username).eq("stage", "Queued").not("checked_in_at", "is", null),
     // All-time appointments for no-show rate calculation

@@ -67,44 +67,44 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Top bar */}
-      <header className="h-14 border-b border-border flex items-center px-6 gap-4 shrink-0">
+      <header className="border-b border-border flex items-center px-4 gap-3 shrink-0 flex-wrap py-2 min-h-14">
         <button
           onClick={() => setLocation("/")}
-          className="flex items-center gap-2 hover:opacity-80 transition"
+          className="flex items-center gap-2 hover:opacity-80 transition shrink-0"
         >
-          <div className="w-7 h-7 rounded-lg bg-primary/10 ring-1 ring-primary/30 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-primary/10 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
             <Building2 className="w-4 h-4 text-primary" />
           </div>
-          <span className="font-bold text-sm text-foreground">Era Systems</span>
-          <span className="text-xs text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted ml-1">
+          <span className="font-bold text-sm text-foreground whitespace-nowrap">Era Systems</span>
+          <span className="text-xs text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted ml-1 whitespace-nowrap hidden sm:inline">
             Super Admin
           </span>
         </button>
 
         {breadcrumb && breadcrumb.length > 0 && (
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <ChevronRight className="w-3.5 h-3.5" />
+          <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-0 flex-1">
+            <ChevronRight className="w-3.5 h-3.5 shrink-0" />
             {breadcrumb.map((crumb, i) => (
-              <span key={i} className="flex items-center gap-1">
+              <span key={i} className="flex items-center gap-1 min-w-0">
                 {crumb.href ? (
                   <button
                     onClick={() => setLocation(crumb.href!)}
-                    className="hover:text-foreground transition"
+                    className="hover:text-foreground transition truncate max-w-[120px] sm:max-w-none"
                   >
                     {crumb.label}
                   </button>
                 ) : (
-                  <span className="text-foreground font-medium">{crumb.label}</span>
+                  <span className="text-foreground font-medium truncate max-w-[120px] sm:max-w-none">{crumb.label}</span>
                 )}
                 {i < breadcrumb.length - 1 && (
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <ChevronRight className="w-3.5 h-3.5 shrink-0" />
                 )}
               </span>
             ))}
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 shrink-0">
           <button
             onClick={() => setLocation("/")}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition"

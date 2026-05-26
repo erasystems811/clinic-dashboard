@@ -1,23 +1,33 @@
 ---
 name: Messaging channel split
-description: Which automations use WhatsApp/SMS vs email in Era Patient
+description: Which automations use WhatsApp/SMS vs email, and who receives them
 ---
 
-## Rule
+## Core Rule
 
-**WhatsApp / SMS** is used for exactly 3 types of patient-facing messages:
+ALL outbound messages (email, WhatsApp, SMS) go to **patients only**.
+The hospital admin NEVER receives any email or SMS/WhatsApp from the system.
+
+## Admin notifications are in-app only
+- Unread feedback count badge
+- In-app indicators of new submissions
+- No email, no SMS, no WhatsApp to admin ever
+
+## Patient messages by channel
+
+**WhatsApp / SMS** (exactly 3 types):
 1. Queue milestone notifications (3 checkpoints as patient moves up the line)
 2. Queue stall alert (line has not moved in 45 minutes)
 3. Care plan onboarding notice
 
-**Everything else uses Email:**
+**Email** (everything else patient-facing):
 - Appointment reminders
-- Post-visit feedback form link sent to patient
+- Post-visit feedback form link
 - Wellness check-ins
 - Call task follow-ups
 - New patient registration confirmation
-- Any other admin or patient notification
+- Any other patient notification
 
-**Why:** User explicitly corrected this — WhatsApp/SMS is reserved for time-critical, real-time queue updates only. All other communications are email-first by design (confirmed by scheduler log comment: "email-first").
+**Why:** User explicitly confirmed — messaging infrastructure is patient-facing only. Hospital admin interacts exclusively through the in-app dashboard. WhatsApp/SMS reserved for time-critical real-time queue updates only.
 
-**How to apply:** Before wiring any new automation, check if it falls in the 3 WhatsApp/SMS categories. If not, route it through email (Resend) regardless of the hospital's channel setting.
+**How to apply:** Before wiring any automation, ask "who receives this?" If it's the admin → in-app only, never send. If it's the patient → email unless it's one of the 3 WhatsApp/SMS types.

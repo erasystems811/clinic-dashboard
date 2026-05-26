@@ -522,9 +522,13 @@ export default function Appointments() {
     setShowBook(true);
   };
 
-  const scheduled   = appointments.filter(a => a.status === "scheduled");
-  const noShows     = appointments.filter(a => a.status === "no_show");
-  const rescheduled = appointments.filter(a => a.status === "rescheduled");
+  const upcoming = appointments
+    .filter(a => a.status === "scheduled" || (a.status === "rescheduled" && new Date(a.scheduledAt) >= new Date()))
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+
+  const past = appointments
+    .filter(a => !(a.status === "scheduled" || (a.status === "rescheduled" && new Date(a.scheduledAt) >= new Date())))
+    .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime());
 
   return (
     <Layout>
@@ -591,31 +595,39 @@ export default function Appointments() {
             </div>
           ) : (
             <div className="space-y-6">
-              {scheduled.length > 0 && (
+              {/* Upcoming */}
+              {upcoming.length > 0 ? (
                 <div className="space-y-3">
-                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Scheduled ({scheduled.length})
-                  </h2>
-                  {scheduled.map(apt => (
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Upcoming · {upcoming.length}
+                  </p>
+                  {upcoming.map(apt => (
                     <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} showActions={isReceptionist} />
                   ))}
                 </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                  <Calendar className="w-8 h-8 mb-3 opacity-20" />
+                  <p className="text-sm">No upcoming appointments</p>
+                  {isReceptionist && (
+                    <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => openBook()}>
+                      <CalendarPlus className="w-4 h-4" />Book Appointment
+                    </Button>
+                  )}
+                </div>
               )}
-              {noShows.length > 0 && (
+
+              {/* Past — permanent ledger */}
+              {past.length > 0 && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-destructive" />
-                    <h2 className="text-xs font-semibold text-destructive uppercase tracking-wide">No Shows ({noShows.length})</h2>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-border" />
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
+                      History · {past.length}
+                    </p>
+                    <div className="flex-1 h-px bg-border" />
                   </div>
-                  {noShows.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} showActions={isReceptionist} />
-                  ))}
-                </div>
-              )}
-              {rescheduled.length > 0 && (
-                <div className="space-y-3">
-                  <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rescheduled ({rescheduled.length})</h2>
-                  {rescheduled.map(apt => (
+                  {past.map(apt => (
                     <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} showActions={isReceptionist} />
                   ))}
                 </div>

@@ -52,15 +52,13 @@ router.get("/appointments", async (req, res): Promise<void> => {
 
   if (query.data.status) {
     q = q.eq("status", query.data.status);
-  } else {
-    q = q.neq("status", "completed").neq("status", "dismissed").neq("status", "cancelled");
   }
 
   if (query.data.patientId) {
     q = q.eq("patient_id", query.data.patientId);
   }
 
-  const { data, error } = await q.order("scheduled_at", { ascending: true });
+  const { data, error } = await q.order("scheduled_at", { ascending: false });
   if (error) { res.status(500).json({ error: error.message }); return; }
 
   res.json((data ?? []).map((a) => ({ ...camelize(a), duration: a.duration ?? 30 })));

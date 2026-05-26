@@ -100,7 +100,7 @@ router.get("/patients", async (req, res): Promise<void> => {
     q = q.eq("stage", query.data.stage);
   } else if (query.data.search) {
     const term = `%${query.data.search}%`;
-    q = q.or(`first_name.ilike.${term},last_name.ilike.${term},email.ilike.${term},phone.ilike.${term}`);
+    q = q.or(`first_name.ilike.${term},last_name.ilike.${term},patient_id.ilike.${term}`);
   }
 
   const { data, error } = await q

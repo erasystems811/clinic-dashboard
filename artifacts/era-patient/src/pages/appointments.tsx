@@ -140,7 +140,7 @@ function BookModal({
             <div className="space-y-2">
               <div className="relative">
                 <Input
-                  placeholder="Search by name, ID, or phone..."
+                  placeholder="Search by name or ID..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="pr-9"

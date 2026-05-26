@@ -45,7 +45,6 @@ export default function PatientDetail() {
   const [feedbackLink, setFeedbackLink] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [completingTreatment, setCompletingTreatment] = useState(false);
-  const [confirmDequeue, setConfirmDequeue] = useState(false);
   const [confirmComplete, setConfirmComplete] = useState(false);
 
   const [editing, setEditing] = useState(false);
@@ -85,10 +84,7 @@ export default function PatientDetail() {
     });
   };
 
-  const handleDequeue = () => setConfirmDequeue(true);
-
-  const executeDequeue = () => {
-    setConfirmDequeue(false);
+  const handleDequeue = () => {
     dequeuePatient.mutate({ id: patientId }, {
       onSuccess: () => {
         toast({ title: "Patient moved to In Care" });
@@ -546,22 +542,6 @@ export default function PatientDetail() {
           </div>
         )}
       </div>
-      {/* Dequeue confirm dialog */}
-      <AlertDialog open={confirmDequeue} onOpenChange={setConfirmDequeue}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Move patient out of queue?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the patient from the queue and move them into care.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Go back</AlertDialogCancel>
-            <AlertDialogAction onClick={executeDequeue}>Yes, call them in</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       {/* Complete treatment confirm dialog */}
       <AlertDialog open={confirmComplete} onOpenChange={setConfirmComplete}>
         <AlertDialogContent>

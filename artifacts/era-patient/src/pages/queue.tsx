@@ -159,7 +159,7 @@ export default function QueueManagement() {
             </p>
             <div className="relative">
               <Input
-                placeholder="Search by name, hospital ID, phone, or email..."
+                placeholder="Search by name or ID..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />

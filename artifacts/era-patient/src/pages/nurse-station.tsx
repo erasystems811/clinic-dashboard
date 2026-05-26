@@ -168,7 +168,7 @@ export default function NurseStation() {
               <div className="space-y-3">
                 <div className="relative">
                   <Input
-                    placeholder="Search patient by name, ID, or phone..."
+                    placeholder="Search by name or ID..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     className="pr-9"

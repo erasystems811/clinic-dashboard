@@ -11,6 +11,7 @@ import {
   useDeletePatient,
   useCheckinPatient,
   useDequeuePatient,
+  useFlagMissedTreatment,
 } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -28,10 +29,16 @@ import {
 import {
   ArrowLeft, Calendar as CalendarIcon, Clock, Mail, Phone, Trash2,
   CheckCircle, Activity, Stethoscope, Hash, FileText, Link2, Copy, CheckCircle2,
-  Pencil, X, Save,
+  Pencil, X, Save, Flag, PhoneCall, MessageSquare,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+
+const FOLLOWUP_TYPES = [
+  { value: "manual_call", label: "Call", sub: "Call patient and log the outcome", icon: PhoneCall, color: "text-primary", active: "border-primary bg-primary/10 text-primary" },
+  { value: "manual_text", label: "Text", sub: "Compose or AI-generate a message", icon: MessageSquare, color: "text-blue-400", active: "border-blue-500 bg-blue-500/10 text-blue-400" },
+] as const;
+type FollowupType = typeof FOLLOWUP_TYPES[number]["value"];
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +59,20 @@ export default function PatientDetail() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
+
+  const [flagReason, setFlagReason] = useState("");
+  const [flagActionType, setFlagActionType] = useState<FollowupType>("manual_call");
+
+  const flagMissed = useFlagMissedTreatment({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Patient flagged", description: "A follow-up task has been created for the receptionist." });
+        setFlagReason("");
+        setFlagActionType("manual_call");
+      },
+      onError: () => toast({ title: "Failed to flag patient", variant: "destructive" }),
+    },
+  });
 
   const { data: patient, isLoading } = useGetPatient(patientId, {
     query: { enabled: !isNaN(patientId), queryKey: getGetPatientQueryKey(patientId) }

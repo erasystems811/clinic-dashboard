@@ -114,6 +114,13 @@ router.post("/super-admin/auth/logout", (req, res): void => {
   res.json({ ok: true });
 });
 
+// ── Config (exposes server-side APP_BASE_URL so the frontend builds correct links) ──
+router.get("/super-admin/config", requireSuperAdmin, (req, res): void => {
+  res.json({
+    eraPatientUrl: (process.env.APP_BASE_URL ?? "https://app.erasystem.com.ng").replace(/\/$/, ""),
+  });
+});
+
 router.post("/super-admin/deploy", requireSuperAdmin, async (req, res): Promise<void> => {
   const pat = process.env.GITHUB_PAT;
   if (!pat) {

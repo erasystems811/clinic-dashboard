@@ -164,4 +164,7 @@ export const api = {
 
   changePassword: (currentPassword: string, newPassword: string) =>
     post<{ ok: boolean }>("/super-admin/change-password", { currentPassword, newPassword }),
+
+  getConfig: () =>
+    get<{ eraPatientUrl: string }>("/super-admin/config"),
 };

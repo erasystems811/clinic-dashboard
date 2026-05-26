@@ -9,7 +9,6 @@ import {
   Clock, RotateCcw, Mail, MessageSquare, Filter, Copy, Check, Link, Users, Phone,
 } from "lucide-react";
 
-const ERA_PATIENT_URL = (import.meta.env.VITE_ERA_PATIENT_URL ?? "https://app.erasystem.com.ng").replace(/\/$/, "");
 
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -115,6 +114,9 @@ export default function HospitalDetail({ id }: Props) {
   const [regenerating, setRegenerating] = useState(false);
   const [showAdminPass, setShowAdminPass] = useState(false);
   const [allCopied, setAllCopied] = useState(false);
+  const [eraPatientUrl, setEraPatientUrl] = useState(
+    (import.meta.env.VITE_ERA_PATIENT_URL ?? "https://app.erasystem.com.ng").replace(/\/$/, "")
+  );
 
   // Settings form
   const [departments, setDepartments] = useState<string[]>([]);
@@ -142,11 +144,13 @@ export default function HospitalDetail({ id }: Props) {
     setLoading(true);
     setError("");
     try {
-      const [h, s, m] = await Promise.all([
+      const [h, s, m, cfg] = await Promise.all([
         api.getHospital(id),
         api.getSettings(id),
         api.getModules(id),
+        api.getConfig().catch(() => null),
       ]);
+      if (cfg) setEraPatientUrl(cfg.eraPatientUrl);
       setHospital(h);
       setSettings(s);
       setModules(m);
@@ -295,7 +299,7 @@ export default function HospitalDetail({ id }: Props) {
 
   const copyAllCredentials = () => {
     if (!hospital) return;
-    const loginUrl = `${ERA_PATIENT_URL}/?h=${hospital.username}`;
+    const loginUrl = `${eraPatientUrl}/?h=${hospital.username}`;
     const staffCreds = hospital.staffCredentials;
     const msg = [
       `🏥 Era Patient — Login Details for ${hospital.name}`,
@@ -313,7 +317,7 @@ export default function HospitalDetail({ id }: Props) {
       `Username: ${staffCreds?.receptionistUsername ?? ""}`,
       `Password: ${staffCreds?.receptionistPlainPassword ?? "recep1234"}`,
       ``,
-      `ℹ️ Staff log in at: ${ERA_PATIENT_URL} (Staff Login tab)`,
+      `ℹ️ Staff log in at: ${eraPatientUrl} (Staff Login tab)`,
     ].join("\n");
     navigator.clipboard.writeText(msg).then(() => {
       setAllCopied(true);
@@ -459,8 +463,8 @@ export default function HospitalDetail({ id }: Props) {
                 <span className="text-xs font-semibold text-primary uppercase tracking-wider">Admin Login Link</span>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-mono text-foreground break-all">{ERA_PATIENT_URL}/?h={hospital.username}</p>
-                <CopyBtn text={`${ERA_PATIENT_URL}/?h=${hospital.username}`} />
+                <p className="text-xs font-mono text-foreground break-all">{eraPatientUrl}/?h={hospital.username}</p>
+                <CopyBtn text={`${eraPatientUrl}/?h=${hospital.username}`} />
               </div>
             </div>
 
@@ -472,8 +476,8 @@ export default function HospitalDetail({ id }: Props) {
               </div>
               {hospital.feedbackSlug ? (
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-mono text-foreground break-all">{ERA_PATIENT_URL}/feedback/h/{hospital.feedbackSlug}</p>
-                  <CopyBtn text={`${ERA_PATIENT_URL}/feedback/h/${hospital.feedbackSlug}`} />
+                  <p className="text-xs font-mono text-foreground break-all">{eraPatientUrl}/feedback/h/{hospital.feedbackSlug}</p>
+                  <CopyBtn text={`${eraPatientUrl}/feedback/h/${hospital.feedbackSlug}`} />
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground italic">Not generated yet — will appear after the hospital first logs in.</p>
@@ -531,7 +535,7 @@ export default function HospitalDetail({ id }: Props) {
                 <CredRow label="Nurse Password" value={hospital.staffCredentials.nursePlainPassword} />
                 <CredRow label="Receptionist Username" value={hospital.staffCredentials.receptionistUsername} />
                 <CredRow label="Receptionist Password" value={hospital.staffCredentials.receptionistPlainPassword} />
-                <p className="text-xs text-muted-foreground mt-2">Staff log in at {ERA_PATIENT_URL} using the Staff Login tab</p>
+                <p className="text-xs text-muted-foreground mt-2">Staff log in at {eraPatientUrl} using the Staff Login tab</p>
               </div>
             )}
           </div>

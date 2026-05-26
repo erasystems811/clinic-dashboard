@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { api, Hospital } from "@/lib/api";
 import { X, Building2, AlertCircle, Loader2, Copy, Check, Link, KeyRound, Users, RefreshCw } from "lucide-react";
 
@@ -8,7 +8,6 @@ interface Props {
 }
 
 const SUB_STATUSES = ["active", "trial", "inactive"];
-const ERA_PATIENT_URL = (import.meta.env.VITE_ERA_PATIENT_URL ?? "https://app.erasystem.com.ng").replace(/\/$/, "");
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -50,6 +49,13 @@ export default function CreateHospitalModal({ onClose, onCreated }: Props) {
   const [loading, setLoading] = useState(false);
   const [created, setCreated] = useState<Hospital | null>(null);
   const [allCopied, setAllCopied] = useState(false);
+  const [eraPatientUrl, setEraPatientUrl] = useState(
+    (import.meta.env.VITE_ERA_PATIENT_URL ?? "https://app.erasystem.com.ng").replace(/\/$/, "")
+  );
+
+  useEffect(() => {
+    api.getConfig().then(cfg => setEraPatientUrl(cfg.eraPatientUrl)).catch(() => {});
+  }, []);
 
   const slugify = (s: string) =>
     s.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -77,7 +83,7 @@ export default function CreateHospitalModal({ onClose, onCreated }: Props) {
 
   const copyAll = () => {
     if (!created) return;
-    const loginUrl = `${ERA_PATIENT_URL}/?h=${created.username}`;
+    const loginUrl = `${eraPatientUrl}/?h=${created.username}`;
     const staffCreds = created.staffCredentials;
     const msg = [
       `🏥 Era Patient — Login Details for ${created.name}`,
@@ -95,7 +101,7 @@ export default function CreateHospitalModal({ onClose, onCreated }: Props) {
       `Username: ${staffCreds?.receptionistUsername ?? ""}`,
       `Password: ${staffCreds?.receptionistPlainPassword ?? "recep1234"}`,
       ``,
-      `ℹ️ Staff log in at: ${ERA_PATIENT_URL} (use the Staff Login tab)`,
+      `ℹ️ Staff log in at: ${eraPatientUrl} (use the Staff Login tab)`,
       `ℹ️ Please change passwords after first login.`,
     ].join("\n");
     navigator.clipboard.writeText(msg).then(() => {
@@ -109,7 +115,7 @@ export default function CreateHospitalModal({ onClose, onCreated }: Props) {
   };
 
   if (created) {
-    const loginUrl = `${ERA_PATIENT_URL}/?h=${created.username}`;
+    const loginUrl = `${eraPatientUrl}/?h=${created.username}`;
     const staffCreds = created.staffCredentials;
     return (
       <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -160,7 +166,7 @@ export default function CreateHospitalModal({ onClose, onCreated }: Props) {
                 <CredRow label="Nurse Password" value={staffCreds.nursePlainPassword} />
                 <CredRow label="Receptionist Username" value={staffCreds.receptionistUsername} />
                 <CredRow label="Receptionist Password" value={staffCreds.receptionistPlainPassword} />
-                <p className="text-xs text-muted-foreground mt-2">Staff log in at {ERA_PATIENT_URL} using the Staff Login tab</p>
+                <p className="text-xs text-muted-foreground mt-2">Staff log in at {eraPatientUrl} using the Staff Login tab</p>
               </div>
             )}
 

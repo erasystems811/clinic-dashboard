@@ -78,14 +78,6 @@ function ActionPanel({ task }: { task: CallTask }) {
           <span className="text-sm font-semibold tracking-wide">
             {task.phone || "No number on file"}
           </span>
-          {task.phone && (
-            <a
-              href={`tel:${task.phone}`}
-              className="ml-auto text-xs font-medium text-primary underline underline-offset-2 hover:opacity-80"
-            >
-              Dial
-            </a>
-          )}
         </div>
 
         {!callOpen ? (

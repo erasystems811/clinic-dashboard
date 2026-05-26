@@ -345,43 +345,6 @@ export async function sendPostCareEmail(
   }
 }
 
-// ── Dormant — Email — Templated — after 250 days inactivity ──────────────────
-
-export async function sendDormantEmail(
-  hospitalId: number,
-  patientId: number,
-  patientName: string,
-  patientEmail: string,
-): Promise<void> {
-  const hCtx = await getHospitalContext(hospitalId);
-  const ctx: AutomationContext = {
-    hospitalId, patientId, patientName,
-    automationType: "dormant_email",
-    channel: "email",
-  };
-  const logId = await logAutomation(ctx, "queued");
-  try {
-    const contact = contactLine(hCtx.phoneNumber);
-    const subject = `Just saying hi — ${hCtx.hospitalName}`;
-    const body = `Hi ${patientName},\n\nIt has been a while since we last saw you at ${hCtx.hospitalName} and honestly that could be really good news — it might mean you have been staying healthy and feeling well. We just wanted to pop in and say hi and let you know we are thinking of you. We hope you are taking care of yourself and staying on top of your health.\n\nWhenever you need us we are right here. Please do not reply to this email directly — to reach us please ${contact}.\n\nTake good care of yourself.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
-
-    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
-    await sendEmail({
-      to: patientEmail,
-      from: hCtx.fromAddress,
-      subject,
-      html,
-      text: body,
-    });
-
-    await updateAutomationLog(logId, "sent", `Dormant email → ${patientEmail}`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await updateAutomationLog(logId, "failed", msg);
-    Sentry.captureException(err, { extra: { ...ctx } });
-  }
-}
-
 // ── Appointment Messages — Email — Templated ──────────────────────────────────
 
 export async function sendAppointmentConfirmationEmail(
@@ -767,7 +730,7 @@ export async function sendWellnessNewsletterEmails(
     .from("patients")
     .select("id, first_name, last_name, email, stage")
     .eq("hospital_id", hCtx.hospitalUsername)
-    .in("stage", ["Post Treatment", "Post Care", "Dormant", "In Care", "Booked", "Queued"]);
+    .in("stage", ["Post Treatment", "Post Care", "In Care", "Booked", "Queued"]);
 
   let sent = 0;
   let failed = 0;

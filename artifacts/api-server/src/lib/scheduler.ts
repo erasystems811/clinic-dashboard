@@ -4,7 +4,6 @@ import { supabase } from "./supabase.js";
 import {
   sendPostTreatmentCheckinEmail,
   sendPostCareEmail,
-  sendDormantEmail,
   sendAppointmentReminderEmail,
   sendAppointmentNoShowEmail,
   sendFeedbackEmail,
@@ -112,7 +111,7 @@ async function runPostTreatmentCheckins() {
   }
 }
 
-// ── Post-Care Email — runs daily — once after 30 days in Post Care ─────────────
+// ── Post-Care Email — runs daily — every 30 days while patient stays in Post Care ─
 async function runPostCareEmails() {
   try {
     const cutoff30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -129,16 +128,17 @@ async function runPostCareEmails() {
       for (const p of patients ?? []) {
         if (!p.email) continue;
 
-        // Only send once
-        const { data: alreadySent } = await supabase
+        // Skip if a post-care email was sent within the last 30 days
+        const { data: recentSend } = await supabase
           .from("automation_log")
           .select("id")
           .eq("patient_id", p.id)
           .eq("automation_type", "post_care_email")
           .eq("status", "sent")
+          .gte("created_at", cutoff30)
           .maybeSingle();
 
-        if (alreadySent) continue;
+        if (recentSend) continue;
 
         const patientName = `${p.first_name} ${p.last_name}`;
         await sendPostCareEmail(h.id, p.id as number, patientName, p.email as string);
@@ -192,44 +192,6 @@ async function runDormantDetection() {
   }
 }
 
-// ── Dormant Email — runs daily — once after 250 days total inactivity ─────────
-async function runDormantEmails() {
-  try {
-    const cutoff250 = new Date(Date.now() - 250 * 24 * 60 * 60 * 1000).toISOString();
-
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
-    for (const h of hospitals ?? []) {
-      const { data: patients } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, email, updated_at")
-        .eq("stage", "Dormant")
-        .eq("hospital_id", h.username)
-        .lt("updated_at", cutoff250);
-
-      for (const p of patients ?? []) {
-        if (!p.email) continue;
-
-        // Only send once ever
-        const { data: alreadySent } = await supabase
-          .from("automation_log")
-          .select("id")
-          .eq("patient_id", p.id)
-          .eq("automation_type", "dormant_email")
-          .eq("status", "sent")
-          .maybeSingle();
-
-        if (alreadySent) continue;
-
-        const patientName = `${p.first_name} ${p.last_name}`;
-        await sendDormantEmail(h.id, p.id as number, patientName, p.email as string);
-        log(`Dormant email → patient ${p.id} (>250 days inactive)`);
-      }
-    }
-  } catch (err) {
-    Sentry.captureException(err);
-    log(`Dormant emails error: ${err}`);
-  }
-}
 
 // ── Post Treatment → Post Care Transition — runs daily ───────────────────────
 async function runPostTreatmentTransitions() {
@@ -555,13 +517,12 @@ export function startScheduler() {
     await runNoShowFollowup();
   });
 
-  // Daily at 6:00 AM: pipeline transitions + post-treatment check-ins + post-care + dormant
+  // Daily at 6:00 AM: pipeline transitions + post-treatment check-ins + post-care + dormant detection
   cron.schedule("0 6 * * *", async () => {
     await runPostTreatmentTransitions();
     await runPostTreatmentCheckins();
     await runPostCareEmails();
     await runDormantDetection();
-    await runDormantEmails();
   });
 
   // Daily at 8:00 AM: in-care morning reminders

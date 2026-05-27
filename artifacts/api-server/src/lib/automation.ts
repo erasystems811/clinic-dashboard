@@ -104,7 +104,7 @@ export async function sendQueueJoinMessage(
   };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const message = `Hi ${patientName}, welcome to ${hCtx.hospitalName}! You are currently number ${position} in the queue. We appreciate your patience and will keep you updated. Thank you for choosing us.`;
+    const message = `Hi ${patientName}, welcome to ${hCtx.hospitalName}. You've been checked in and you're currently number ${position} in the queue. Our team is working as quickly as possible and we'll keep you updated every step of the way. Please relax and make yourself comfortable. Thank you for trusting us with your care.`;
     await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {

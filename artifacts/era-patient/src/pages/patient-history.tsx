@@ -177,7 +177,7 @@ export default function PatientHistory() {
 
   const { data, isLoading, error, refetch } = useGetPatientHistory(id, {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    query: { enabled: !isNaN(id) } as any,
+    query: { enabled: !isNaN(id), staleTime: 0, refetchOnMount: true } as any,
   });
 
   if (isLoading) {

@@ -87,6 +87,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     { data: queuedPatients },
     { data: allAppointments },
     { data: dequeuedActivity },
+    { data: carePlanPatients },
   ] = await Promise.all([
     supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username),
     supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username).gte("created_at", startOfMonth.toISOString()),
@@ -108,6 +109,8 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       .eq("hospital_id", hospital.intId)
       .eq("type", "dequeued")
       .not("metadata", "is", null),
+    // Patients who have any care plan row (regardless of patients.stage value)
+    supabase.from("care_plans").select("patient_id").eq("hospital_id", hospital.username),
   ]);
 
   const startOfDayISO = startOfDay.toISOString();
@@ -138,10 +141,12 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     return { id: s.id, name: s.name, color: s.color, order: s.sort_order, count };
   });
 
-  // Distinct count: patients who are in queue OR currently in care (no double-counting)
+  // Distinct count: patients who are in queue OR currently in care (no double-counting).
+  // "In Care" = patients.stage is "In Care" OR patient has any care_plans row.
   const queuedIds = new Set((queuedPatients ?? []).map(q => q.patient_id as number));
-  const inCareIds = new Set((allPatientStages ?? []).filter(p => p.stage === "In Care").map(p => (p as Record<string, unknown>).id as number));
-  const activePatientIds = new Set([...queuedIds, ...inCareIds]);
+  const inCareByStage = new Set((allPatientStages ?? []).filter(p => p.stage === "In Care").map(p => (p as Record<string, unknown>).id as number));
+  const inCareByPlan = new Set((carePlanPatients ?? []).map(p => p.patient_id as number));
+  const activePatientIds = new Set([...queuedIds, ...inCareByStage, ...inCareByPlan]);
   const criticalAlerts = activePatientIds.size;
 
   const feedbackList = allFeedback ?? [];

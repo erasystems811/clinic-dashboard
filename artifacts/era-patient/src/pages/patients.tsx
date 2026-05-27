@@ -161,7 +161,17 @@ export default function Patients() {
                             })}
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{patient.department || "—"}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {(() => {
+                              const depts = ((patient as Record<string, unknown>).carePlanDepartments as string[] | undefined) ?? [];
+                              const all = depts.length > 0 ? depts : (patient.department ? [patient.department] : []);
+                              return all.length === 0 ? <span className="text-muted-foreground text-sm">—</span> : all.map(d => (
+                                <span key={d} className="text-xs bg-muted border border-border rounded px-1.5 py-0.5 text-muted-foreground">{d}</span>
+                              ));
+                            })()}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <ChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                         </TableCell>

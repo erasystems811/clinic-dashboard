@@ -723,14 +723,33 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     checks.push({ name: "Database", ok: false, detail: e instanceof Error ? e.message : "Unreachable" });
   }
 
-  // 2. Messaging (Termii)
+  // 2. SMS (Termii)
   const hasTermii = !!process.env.TERMII_API_KEY;
   const hasSender = !!process.env.TERMII_SENDER_ID;
   checks.push({
-    name: "Messaging",
+    name: "SMS (Termii)",
     ok: hasTermii && hasSender,
     detail: !hasTermii ? "TERMII_API_KEY not set" : !hasSender ? "TERMII_SENDER_ID not set" : "API key + sender ID configured",
   });
+
+  // 3. Email (Resend)
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) {
+    checks.push({ name: "Email (Resend)", ok: false, detail: "RESEND_API_KEY not set" });
+  } else {
+    try {
+      const { Resend } = await import("resend");
+      const resend = new Resend(resendKey);
+      const { error } = await resend.domains.list();
+      checks.push({
+        name: "Email (Resend)",
+        ok: !error,
+        detail: error ? `API key invalid: ${error.message}` : "Connected — key is valid",
+      });
+    } catch (e) {
+      checks.push({ name: "Email (Resend)", ok: false, detail: e instanceof Error ? e.message : "Resend error" });
+    }
+  }
 
   // 3. Scheduler
   const schedulerEnabled = process.env.ENABLE_SCHEDULER === "true";

@@ -27,7 +27,6 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
         setShowSettings(false);
         setConfirmDeploy(false);
-        setConfirmReset(false);
       }
     };
     document.addEventListener("mousedown", handler);

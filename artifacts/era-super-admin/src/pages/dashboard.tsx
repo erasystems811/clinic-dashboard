@@ -5,7 +5,7 @@ import { api, Hospital } from "@/lib/api";
 import {
   Building2, Plus, Search, CheckCircle2, XCircle,
   AlertCircle, Loader2, ChevronRight, RefreshCw, CalendarClock,
-  Database, MessageSquare, Clock, Activity
+  Database, MessageSquare, Clock, Activity, Mail
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";
 
@@ -159,9 +159,10 @@ export default function Dashboard() {
             {[1,2,3].map(i => <div key={i} className="flex-1 h-12 rounded-lg bg-muted animate-pulse" />)}
           </div>
         ) : health ? (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             {health.checks.map(c => {
-              const Icon = c.name === "Database" ? Database : c.name === "Messaging" ? MessageSquare : Clock;
+              const Icon = c.name === "Database" ? Database : c.name.startsWith("SMS") ? MessageSquare : c.name.startsWith("Email") ? Mail : Clock;
+          
               return (
                 <div key={c.name} className={`flex items-start gap-2.5 p-3 rounded-lg border ${c.ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}>
                   <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${c.ok ? "text-emerald-400" : "text-red-400"}`} />

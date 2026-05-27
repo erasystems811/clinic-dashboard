@@ -471,7 +471,6 @@ export async function sendFeedbackEmail(
   patientId: number,
   patientName: string,
   patientEmail: string,
-  _feedbackToken: string,
   feedbackUrl: string,
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
@@ -484,13 +483,12 @@ export async function sendFeedbackEmail(
   try {
     const contact = contactLine(hCtx.phoneNumber);
     const subject = `How was your visit? — ${hCtx.hospitalName}`;
-    const intro = `Hi ${patientName},\n\nThank you for visiting ${hCtx.hospitalName} today. We hope your experience was a positive one. We would love to hear your thoughts so we can continue to improve our service. Please take a moment to share your feedback using the link below.`;
+    const intro = `Hi ${patientName},\n\nThank you for visiting ${hCtx.hospitalName} yesterday. We hope your experience was a positive one. We would love to hear your thoughts so we can continue to improve our service. Please take a moment to share your feedback using the link below.`;
     const closing = `Your feedback means a lot to us. Please do not reply to this email directly — if you need to reach us please ${contact}.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
 
     const html = wrapHtml(
       `<p>${intro.replace(/\n/g, "</p><p>")}</p>
        <p style="text-align:center"><a href="${feedbackUrl}" class="btn">Share Your Feedback →</a></p>
-       <p style="font-size:13px;color:#8b949e;text-align:center">This link is unique to you and expires after submission.</p>
        <p>${closing.replace(/\n/g, "</p><p>")}</p>`,
       hCtx.hospitalName,
     );

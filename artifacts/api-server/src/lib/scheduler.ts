@@ -13,7 +13,6 @@ import {
   sendCarePlanEmail,
   type InCareTimeSlot,
 } from "./automation.js";
-import { signFeedbackToken } from "./feedbackToken.js";
 
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://localhost";
 
@@ -318,7 +317,7 @@ async function runPostTreatmentTransitions() {
   }
 }
 
-// ── End-of-Day Feedback Emails — runs daily at 7pm, covers previous day's patients ──
+// ── Next-Day Feedback Emails — runs daily at 12pm, covers all previous day's patients ──
 async function runFeedbackEmails() {
   try {
     // Cover patients seen yesterday so late-evening visits are never missed
@@ -332,8 +331,15 @@ async function runFeedbackEmails() {
       .eq("feedback_enabled", true);
 
     for (const hm of hospitals ?? []) {
-      const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hm.hospital_id).single();
-      if (!hospital) continue;
+      const { data: hospital } = await supabase
+        .from("hospitals")
+        .select("username, feedback_slug")
+        .eq("id", hm.hospital_id)
+        .single();
+      if (!hospital || !hospital.feedback_slug) continue;
+
+      // Build the hospital's permanent general feedback link
+      const feedbackUrl = `${APP_BASE_URL}/feedback/h/${hospital.feedback_slug}`;
 
       const { data: seenPatients } = await supabase
         .from("queue")
@@ -366,11 +372,8 @@ async function runFeedbackEmails() {
 
         if (alreadySent) continue;
 
-        const token = signFeedbackToken(patientId, hm.hospital_id as number);
-        const feedbackUrl = `${APP_BASE_URL}/feedback/${token}`;
         const patientName = `${patient.first_name} ${patient.last_name}`;
-
-        await sendFeedbackEmail(hm.hospital_id as number, patientId, patientName, patient.email, token, feedbackUrl);
+        await sendFeedbackEmail(hm.hospital_id as number, patientId, patientName, patient.email, feedbackUrl);
         log(`Feedback email sent to patient ${patientId}`);
       }
     }

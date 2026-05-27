@@ -16,7 +16,7 @@ import { apiUrl } from "@/lib/api";
 import {
   Search, Stethoscope, Flag, Loader2, Plus, Trash2,
   Pencil, MessageSquare, PhoneCall, ChevronDown,
-  ChevronUp, X, Calendar, AlertTriangle,
+  ChevronUp, X, Calendar, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 
 const STANDARD_DEPARTMENTS = [
@@ -110,6 +110,8 @@ export default function NurseStation() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [savingPlan, setSavingPlan] = useState(false);
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
+  const [confirmEndPlanId, setConfirmEndPlanId] = useState<number | null>(null);
+  const [endingPlanId, setEndingPlanId] = useState<number | null>(null);
 
   // Care plan form
   const [planDepartment, setPlanDepartment] = useState("");
@@ -225,9 +227,9 @@ export default function NurseStation() {
       });
       queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
-      await fetchCarePlans(selectedPatient.id);
       setPlanMode("list");
       setEditingPlan(null);
+      setSelectedPatient(null);
     } catch {
       toast({ title: "Failed to save care plan", variant: "destructive" });
     } finally {
@@ -251,6 +253,25 @@ export default function NurseStation() {
       toast({ title: "Failed to delete care plan", variant: "destructive" });
     } finally {
       setDeletingPlanId(null);
+    }
+  };
+
+  const handleEndPlanEarly = async (planId: number) => {
+    if (!selectedPatient) return;
+    setEndingPlanId(planId);
+    try {
+      const res = await fetch(apiUrl(`/api/care-plans/${planId}`), {
+        method: "DELETE",
+        headers: authHeader(),
+      });
+      if (!res.ok) throw new Error("End failed");
+      toast({ title: "Care plan ended", description: "The treatment plan has been closed early." });
+      await fetchCarePlans(selectedPatient.id);
+      setConfirmEndPlanId(null);
+    } catch {
+      toast({ title: "Failed to end care plan", variant: "destructive" });
+    } finally {
+      setEndingPlanId(null);
     }
   };
 
@@ -406,11 +427,42 @@ export default function NurseStation() {
                           </div>
                         )}
 
+                        {/* Confirm end treatment early */}
+                        {confirmEndPlanId === plan.id && (
+                          <div className="px-4 py-3 bg-amber-500/5 border-t border-amber-500/20 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                              <p className="text-xs text-amber-300">End this {plan.department} care plan early? This will close the plan. This cannot be undone.</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setConfirmEndPlanId(null)}>Cancel</Button>
+                              <Button
+                                type="button" size="sm"
+                                className="flex-1 text-xs bg-amber-600 hover:bg-amber-600/90 text-white border-0"
+                                onClick={() => handleEndPlanEarly(plan.id)}
+                                disabled={endingPlanId === plan.id}
+                              >
+                                {endingPlanId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "End Treatment Early"}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Expanded details */}
-                        {expandedPlanId === plan.id && confirmDeleteId !== plan.id && (
-                          <div className="px-4 py-3 bg-muted/20 border-t border-border space-y-2">
+                        {expandedPlanId === plan.id && confirmDeleteId !== plan.id && confirmEndPlanId !== plan.id && (
+                          <div className="px-4 py-3 bg-muted/20 border-t border-border space-y-3">
                             <p className="text-sm text-foreground">{plan.summary}</p>
                             <PlanTemplateDetails dept={plan.department} data={plan.templateData} />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="w-full text-xs text-amber-400 border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
+                              onClick={e => { e.stopPropagation(); setConfirmEndPlanId(plan.id); setConfirmDeleteId(null); }}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                              End Treatment Early
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -483,7 +535,7 @@ export default function NurseStation() {
                 <div className="flex gap-2 justify-end pt-1">
                   <Button type="button" variant="outline" onClick={cancelPlanForm}>Cancel</Button>
                   <Button type="submit" disabled={savingPlan || !planDepartment}>
-                    {savingPlan ? <><Loader2 className="w-4 h-4 animate-spin mr-1.5" />Saving…</> : (planMode === "edit" ? "Update Plan" : "Save Care Plan")}
+                    {savingPlan ? <><Loader2 className="w-4 h-4 animate-spin mr-1.5" />Saving…</> : (planMode === "edit" ? "Save Changes" : "Save")}
                   </Button>
                 </div>
               </form>

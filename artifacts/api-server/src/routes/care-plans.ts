@@ -110,9 +110,15 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const treatmentEndDate = new Date(now);
   treatmentEndDate.setDate(treatmentEndDate.getDate() + durationDays);
 
-  // Creating a care plan always moves the patient to "In Care" — regardless of their previous stage.
-  await supabase.from("patients").update({
-    stage: "In Care",
+  // Creating a care plan always moves the patient to "In Care".
+  // Split into two updates: stage first (critical), then metadata.
+  // This ensures stage is set even if the metadata update fails for any reason.
+  const { error: stageErr } = await supabase.from("patients")
+    .update({ stage: "In Care", updated_at: now.toISOString() })
+    .eq("id", patientId);
+  if (stageErr) console.error("[care-plans] stage update failed:", stageErr);
+
+  const { error: metaErr } = await supabase.from("patients").update({
     treatment_plan: parsed.data.summary,
     treatment_type: isGeneralOutpatient ? ((parsed.data.templateData?.treatmentType as string) ?? null) : parsed.data.department,
     medication_timing: isGeneralOutpatient
@@ -123,8 +129,8 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
     treatment_duration_days: durationDays,
     treatment_end_date: treatmentEndDate.toISOString().split("T")[0],
     pre_queue_stage: null,
-    updated_at: now.toISOString(),
   }).eq("id", patientId);
+  if (metaErr) console.error("[care-plans] metadata update failed:", metaErr);
 
   // Remove from queue (patient is now admitted to care)
   await supabase.from("queue").delete().eq("patient_id", patientId);

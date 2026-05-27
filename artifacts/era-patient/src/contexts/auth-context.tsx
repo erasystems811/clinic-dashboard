@@ -68,6 +68,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hospital ? localStorage.setItem(HOSPITAL_KEY, JSON.stringify(hospital)) : localStorage.removeItem(HOSPITAL_KEY);
   }, [hospital]);
 
+  // Re-fetch hospital config on mount so stale localStorage is always refreshed.
+  // Runs once after hydration — catches cases where the admin changed modules
+  // after staff already logged in (their cached config would be out of date).
+  useEffect(() => {
+    const token = hospital?.token;
+    if (!token) return;
+    fetch(apiUrl("/api/hospital/config"), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(cfg => { if (cfg) setHospitalConfig(cfg); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — run once on mount only
+
   useEffect(() => {
     hospitalConfig ? localStorage.setItem(CONFIG_KEY, JSON.stringify(hospitalConfig)) : localStorage.removeItem(CONFIG_KEY);
   }, [hospitalConfig]);

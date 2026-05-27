@@ -19,6 +19,9 @@ const CarePlanBody = z.object({
 });
 
 // ── List care plans for a patient ──────────────────────────────────────────────
+// Includes a lazy migration: if the patient has no care_plans rows but has a
+// treatment_plan written to the patients table (old data), a real care_plans row
+// is created from that legacy data so the "End Early" button and history display work.
 router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const patientId = parseInt(req.params.id, 10);
   if (isNaN(patientId)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -34,6 +37,39 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
     .order("created_at", { ascending: true });
 
   if (error) { res.status(500).json({ error: error.message }); return; }
+
+  // Lazy migration: old patients have treatment_plan on the patients row but no
+  // care_plans rows yet. Create one now so the new UI works transparently.
+  if ((data ?? []).length === 0) {
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("treatment_plan, treatment_type, department, treatment_started_at, treatment_end_date, hospital_id, first_name, last_name")
+      .eq("id", patientId)
+      .single();
+
+    if (patient && patient.treatment_plan) {
+      const createdAt = patient.treatment_started_at ?? new Date().toISOString();
+      const dept = (patient.department as string | null) || (patient.treatment_type as string | null) || "General";
+      const summary = patient.treatment_plan as string;
+
+      const { data: migrated, error: mErr } = await supabase.from("care_plans").insert({
+        patient_id: patientId,
+        hospital_id: hospital.username,
+        summary,
+        department: dept,
+        template_data: patient.treatment_end_date
+          ? { legacyEndDate: patient.treatment_end_date, migratedFromPatientRow: true }
+          : { migratedFromPatientRow: true },
+        created_at: createdAt,
+        updated_at: createdAt,
+      }).select().single();
+
+      if (!mErr && migrated) {
+        return void res.json(camelizeArr([migrated]));
+      }
+    }
+  }
+
   res.json(camelizeArr(data ?? []));
 });
 

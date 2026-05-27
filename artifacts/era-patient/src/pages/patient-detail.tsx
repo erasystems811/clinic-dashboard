@@ -557,18 +557,6 @@ export default function PatientDetail() {
                 )}
               </div>
 
-              {patient.treatmentPlan && (
-                <div>
-                  <h3 className="text-xs font-semibold text-primary uppercase tracking-wide flex items-center gap-2 mb-2">
-                    <Activity className="w-4 h-4" />
-                    Active Treatment Plan
-                  </h3>
-                  <div className="bg-primary/5 p-4 rounded-md border border-primary/20 whitespace-pre-wrap text-sm">
-                    {patient.treatmentPlan}
-                  </div>
-                </div>
-              )}
-
               {/* Appointment quick-list */}
               <div>
                 <h3 className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">Upcoming Appointments</h3>

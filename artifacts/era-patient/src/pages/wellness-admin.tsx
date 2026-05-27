@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { format, parseISO, startOfWeek } from "date-fns";
 import {
   Send, Save, Newspaper, Edit3, CheckCircle, CheckCircle2, Loader2,
-  Sparkles, Youtube, Link, RefreshCw, ChevronDown, ChevronUp,
+  Sparkles, Youtube, Link, RefreshCw, ChevronDown, ChevronUp, History,
 } from "lucide-react";
 
 import { apiUrl } from "@/lib/api";
@@ -146,6 +146,7 @@ export default function WellnessAdmin() {
   const { data: newsletters = [], isLoading } = useListWellnessNewsletters({});
   const currentNewsletter = newsletters.find(n => n.weekOf === currentWeekOf);
 
+  const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState("");
   const [topic, setTopic] = useState("");
@@ -268,6 +269,17 @@ export default function WellnessAdmin() {
 
   const isSent = !!currentNewsletter?.lastSentAt;
 
+  // If the current week's newsletter is already sent when the page loads, default to history
+  useEffect(() => {
+    if (!isLoading && isSent) setActiveTab("history");
+  }, [isLoading, isSent]);
+
+  const sentNewsletters = newsletters
+    .filter(n => !!n.lastSentAt)
+    .sort((a, b) => b.weekOf.localeCompare(a.weekOf));
+
+  const historyCount = sentNewsletters.length;
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -278,7 +290,40 @@ export default function WellnessAdmin() {
           </p>
         </div>
 
-        {/* Current week editor */}
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-border">
+          <button
+            onClick={() => setActiveTab("compose")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === "compose"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Newspaper className="w-3.5 h-3.5" />
+            This Week
+            {!isSent && (
+              <span className="ml-1 text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-semibold">Draft</span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === "history"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <History className="w-3.5 h-3.5" />
+            History
+            {historyCount > 0 && (
+              <span className="ml-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">{historyCount}</span>
+            )}
+          </button>
+        </div>
+
+        {/* ── Compose tab ── */}
+        {activeTab === "compose" && (
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-border">
             <Newspaper className="w-4 h-4 text-primary" />
@@ -487,52 +532,73 @@ export default function WellnessAdmin() {
             )}
           </div>
         </div>
+        )}
 
-        {/* Past newsletters */}
-        {newsletters.filter(n => n.weekOf !== currentWeekOf).length > 0 && (
+        {/* ── History tab ── */}
+        {activeTab === "history" && (
           <div className="rounded-xl border border-border bg-card">
-            <div className="px-5 py-4 border-b border-border">
-              <h2 className="font-semibold text-sm">Past Newsletters</h2>
+            <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+              <History className="w-4 h-4 text-primary" />
+              <h2 className="font-semibold text-sm">Sent Newsletters</h2>
+              {historyCount > 0 && (
+                <span className="text-xs text-muted-foreground ml-1">{historyCount} total</span>
+              )}
             </div>
-            <div className="divide-y divide-border">
-              {newsletters
-                .filter(n => n.weekOf !== currentWeekOf)
-                .sort((a, b) => b.weekOf.localeCompare(a.weekOf))
-                .map(n => (
-                  <div key={n.id} className="px-5 py-3 flex items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">Week of {format(parseISO(n.weekOf), "MMMM d, yyyy")}</p>
-                        {!!n.topic && (
-                          <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">{n.topic}</span>
+
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : sentNewsletters.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
+                <Newspaper className="w-8 h-8 text-muted-foreground/30" />
+                <p className="text-sm text-muted-foreground">No newsletters sent yet</p>
+                <button
+                  onClick={() => setActiveTab("compose")}
+                  className="text-xs text-primary hover:underline mt-1"
+                >
+                  Create your first one →
+                </button>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {sentNewsletters.map(n => (
+                  <div key={n.id} className="px-5 py-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-semibold">
+                            Week of {format(parseISO(n.weekOf), "MMMM d, yyyy")}
+                          </p>
+                          {!!n.topic && (
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                              {n.topic}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                          {n.content}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className="flex items-center gap-1 text-xs text-green-400 font-medium">
+                          <CheckCircle className="w-3 h-3" />
+                          Sent {format(parseISO(n.lastSentAt!), "d MMM yyyy")}
+                        </span>
+                        {!!n.recipientCount && (
+                          <span className="text-xs text-muted-foreground">
+                            {n.recipientCount} recipient{n.recipientCount !== 1 ? "s" : ""}
+                          </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{n.content}</p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      {!!n.recipientCount && (
-                        <span className="text-xs text-muted-foreground">{n.recipientCount} sent</span>
-                      )}
-                      {n.lastSentAt ? (
-                        <span className="flex items-center gap-1 text-xs text-green-400">
-                          <CheckCircle className="w-3 h-3" />
-                          Sent {format(parseISO(n.lastSentAt), "d MMM")}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Not sent</span>
-                      )}
                     </div>
                   </div>
                 ))}
-            </div>
+              </div>
+            )}
           </div>
         )}
 
-        {isLoading && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          </div>
-        )}
       </div>
     </Layout>
   );

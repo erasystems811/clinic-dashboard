@@ -147,6 +147,7 @@ export default function WellnessAdmin() {
   const currentNewsletter = newsletters.find(n => n.weekOf === currentWeekOf);
 
   const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState("");
   const [topic, setTopic] = useState("");
@@ -468,7 +469,19 @@ export default function WellnessAdmin() {
             </div>
 
             {/* Content area */}
-            {(editing || !currentNewsletter || generating) ? (
+            {isSent ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Newsletter sent!</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    View it in <button onClick={() => setActiveTab("history")} className="text-primary hover:underline">History</button>. Next one available from next week.
+                  </p>
+                </div>
+              </div>
+            ) : (editing || !currentNewsletter || generating) ? (
               <div className="space-y-3">
                 {generating && (
                   <div className="rounded-md bg-primary/5 border border-primary/20 px-4 py-3 flex items-center gap-3">
@@ -517,16 +530,9 @@ export default function WellnessAdmin() {
                   <Button variant="outline" onClick={() => setEditing(true)} className="gap-2">
                     <Edit3 className="w-4 h-4" />Edit
                   </Button>
-                  {!isSent ? (
-                    <Button onClick={() => handleSaveAndSend(currentNewsletter.id)} disabled={sending} className="gap-2">
-                      {sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send to Friends</>}
-                    </Button>
-                  ) : (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-green-500/10 border border-green-500/20 text-xs text-green-600 font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Sent this week — next send available next week
-                    </div>
-                  )}
+                  <Button onClick={() => handleSaveAndSend(currentNewsletter.id)} disabled={sending} className="gap-2">
+                    {sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send to Patients</>}
+                  </Button>
                 </div>
               </div>
             )}
@@ -562,38 +568,57 @@ export default function WellnessAdmin() {
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {sentNewsletters.map(n => (
-                  <div key={n.id} className="px-5 py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0 space-y-1.5">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-semibold">
-                            Week of {format(parseISO(n.weekOf), "MMMM d, yyyy")}
-                          </p>
-                          {!!n.topic && (
-                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                              {n.topic}
+                {sentNewsletters.map(n => {
+                  const isExpanded = expandedId === n.id;
+                  return (
+                    <div key={n.id} className="px-5 py-4 space-y-3">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(isExpanded ? null : n.id)}
+                        className="w-full text-left"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold">
+                                Week of {format(parseISO(n.weekOf), "MMMM d, yyyy")}
+                              </p>
+                              {!!n.topic && (
+                                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                                  {n.topic}
+                                </span>
+                              )}
+                            </div>
+                            {!isExpanded && (
+                              <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                                {n.content}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="flex items-center gap-1 text-xs text-green-400 font-medium">
+                              <CheckCircle className="w-3 h-3" />
+                              Sent {format(parseISO(n.lastSentAt!), "d MMM yyyy")}
                             </span>
-                          )}
+                            {!!n.recipientCount && (
+                              <span className="text-xs text-muted-foreground">
+                                {n.recipientCount} recipient{n.recipientCount !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-muted-foreground/60 mt-1">
+                              {isExpanded ? "Tap to collapse ↑" : "Tap to read ↓"}
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                      </button>
+                      {isExpanded && (
+                        <div className="rounded-md bg-muted/30 border border-border p-4 text-sm whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
                           {n.content}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className="flex items-center gap-1 text-xs text-green-400 font-medium">
-                          <CheckCircle className="w-3 h-3" />
-                          Sent {format(parseISO(n.lastSentAt!), "d MMM yyyy")}
-                        </span>
-                        {!!n.recipientCount && (
-                          <span className="text-xs text-muted-foreground">
-                            {n.recipientCount} recipient{n.recipientCount !== 1 ? "s" : ""}
-                          </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

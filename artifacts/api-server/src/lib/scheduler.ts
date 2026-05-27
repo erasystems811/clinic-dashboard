@@ -574,8 +574,8 @@ export function startScheduler() {
     await checkSubscriptionExpirations();
   });
 
-  // Daily at midnight: birthday emails
-  cron.schedule("0 0 * * *", async () => {
+  // Daily at 8am: birthday emails
+  cron.schedule("0 8 * * *", async () => {
     await runBirthdayEmails();
   });
 

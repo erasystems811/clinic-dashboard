@@ -67,6 +67,8 @@ async function runAppointmentReminders() {
 }
 
 // ── Post-Treatment Check-ins — runs daily — Day 1, 4, 7 emails only ───────────
+// Reads from treatment_end_date directly — pipeline stage is a reflection, not a trigger.
+// Supports multi-cycle patients: automation_log check is scoped to the current treatment cycle.
 async function runPostTreatmentCheckins() {
   try {
     const now = new Date();
@@ -74,31 +76,36 @@ async function runPostTreatmentCheckins() {
 
     const { data: hospitals } = await supabase.from("hospitals").select("id, username");
     for (const h of hospitals ?? []) {
+      // Source of truth: treatment_end_date — no stage filter needed
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, email, treatment_end_date, updated_at")
-        .eq("stage", "Post Treatment")
-        .eq("hospital_id", h.username);
+        .select("id, first_name, last_name, email, treatment_end_date")
+        .eq("hospital_id", h.username)
+        .not("treatment_end_date", "is", null)
+        .not("email", "is", null)
+        .lte("treatment_end_date", today);
 
       for (const p of patients ?? []) {
-        if (!p.email) continue;
+        if (!p.email || !p.treatment_end_date) continue;
 
-        // Use treatment_end_date if available, fall back to updated_at (when they entered Post Treatment)
-        const endDate = new Date((p.treatment_end_date ?? p.updated_at) as string);
+        const endDate = new Date(p.treatment_end_date as string);
         const daysSinceEnd = Math.floor((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
         const patientName = `${p.first_name} ${p.last_name}`;
 
         for (const day of [1, 4, 7] as const) {
           if (daysSinceEnd < day) continue; // not yet time
-          if (daysSinceEnd > day + 2) continue; // too late (missed window — skip to avoid very delayed sends)
+          if (daysSinceEnd > day + 2) continue; // missed window — skip to avoid very delayed sends
 
           const automationType = `post_treatment_day${day}`;
+          // Scope the sent-check to the current treatment cycle (gte treatment_end_date)
+          // so a patient who re-enrolls and finishes again receives these emails again
           const { data: alreadySent } = await supabase
             .from("automation_log")
             .select("id")
             .eq("patient_id", p.id)
             .eq("automation_type", automationType)
             .eq("status", "sent")
+            .gte("created_at", p.treatment_end_date as string)
             .maybeSingle();
 
           if (alreadySent) continue;
@@ -114,24 +121,43 @@ async function runPostTreatmentCheckins() {
   }
 }
 
-// ── Post-Care Email — runs daily — every 30 days while patient stays in Post Care ─
+// ── Post-Care Email — runs daily — every 30 days once patient has entered Post Care ─
+// Post Care entry is derived from treatment_end_date + pipeline_post_treatment_days.
+// Pipeline stage is a reflection — automations read from records, not stage.
 async function runPostCareEmails() {
   try {
-    const cutoff30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const now = new Date();
+    const cutoff30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
-    for (const h of hospitals ?? []) {
+    const { data: hsSettings } = await supabase
+      .from("hospital_settings")
+      .select("hospital_id, pipeline_post_treatment_days");
+
+    for (const hs of hsSettings ?? []) {
+      const postTreatDays = (hs.pipeline_post_treatment_days as number) ?? 14;
+      const { data: hospital } = await supabase
+        .from("hospitals").select("id, username").eq("id", hs.hospital_id).single();
+      if (!hospital) continue;
+
+      // Post Care entry ≈ treatment_end_date + postTreatDays days.
+      // Send every 30 days: find patients whose Post Care start was >= 30 days ago.
+      // i.e. treatment_end_date + postTreatDays + 30 <= today
+      // → treatment_end_date <= today − (postTreatDays + 30) days
+      const cutoffDate = new Date(now.getTime() - (postTreatDays + 30) * 24 * 60 * 60 * 1000)
+        .toISOString().split("T")[0];
+
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, email, updated_at")
-        .eq("stage", "Post Care")
-        .eq("hospital_id", h.username)
-        .lt("updated_at", cutoff30);
+        .select("id, first_name, last_name, email, treatment_end_date")
+        .eq("hospital_id", hospital.username)
+        .not("treatment_end_date", "is", null)
+        .not("email", "is", null)
+        .lte("treatment_end_date", cutoffDate);
 
       for (const p of patients ?? []) {
         if (!p.email) continue;
 
-        // Send every 30 days — skip if one was sent within the last 30 days
+        // Send every 30 days — skip if one was already sent within the last 30 days
         const { data: recentSend } = await supabase
           .from("automation_log")
           .select("id")
@@ -144,7 +170,7 @@ async function runPostCareEmails() {
         if (recentSend) continue;
 
         const patientName = `${p.first_name} ${p.last_name}`;
-        await sendPostCareEmail(h.id, p.id as number, patientName, p.email as string);
+        await sendPostCareEmail(hospital.id, p.id as number, patientName, p.email as string);
         log(`Post-care email → patient ${p.id}`);
       }
     }
@@ -155,33 +181,44 @@ async function runPostCareEmails() {
 }
 
 // ── Dormant Detection — runs daily ────────────────────────────────────────────
+// Derives dormant threshold from treatment_end_date + post_treatment_days + dormant_days.
+// Pipeline stage is a reflection — only neq("stage","Dormant") used to avoid double-processing.
 async function runDormantDetection() {
   try {
+    const now = new Date();
+
     const { data: hospitals } = await supabase
       .from("hospital_settings")
-      .select("hospital_id, pipeline_dormant_days");
+      .select("hospital_id, pipeline_dormant_days, pipeline_post_treatment_days");
 
     for (const hs of hospitals ?? []) {
       const dormantDays = (hs.pipeline_dormant_days as number) ?? 30;
-      const cutoff = new Date(Date.now() - dormantDays * 24 * 60 * 60 * 1000).toISOString();
+      const postTreatDays = (hs.pipeline_post_treatment_days as number) ?? 14;
 
       const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hs.hospital_id).single();
       if (!hospital) continue;
 
+      // Dormant threshold: treatment ended long enough ago that post-care + dormant window has elapsed.
+      // treatment_end_date + postTreatDays + dormantDays < today
+      // → treatment_end_date < today − (postTreatDays + dormantDays)
+      const cutoffDate = new Date(now.getTime() - (postTreatDays + dormantDays) * 24 * 60 * 60 * 1000)
+        .toISOString().split("T")[0];
+
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, updated_at")
-        .eq("stage", "Post Care")
+        .select("id, first_name, last_name, treatment_end_date")
         .eq("hospital_id", hospital.username)
-        .lt("updated_at", cutoff);
+        .not("treatment_end_date", "is", null)
+        .lte("treatment_end_date", cutoffDate)
+        .neq("stage", "Dormant"); // skip already-dormant to avoid redundant writes
 
       for (const p of patients ?? []) {
         await supabase.from("patients")
-          .update({ stage: "Dormant", updated_at: new Date().toISOString() })
+          .update({ stage: "Dormant", updated_at: now.toISOString() })
           .eq("id", p.id);
         await supabase.from("activity").insert({
           type: "stage_changed",
-          description: `${p.first_name} ${p.last_name} moved to Dormant (${dormantDays} days inactive)`,
+          description: `${p.first_name} ${p.last_name} moved to Dormant (${dormantDays} days inactive after treatment)`,
           patient_id: p.id,
           patient_name: `${p.first_name} ${p.last_name}`,
           metadata: "Dormant",
@@ -426,67 +463,8 @@ async function runNoShowDismissal() {
   }
 }
 
-// ── Continuous In-Care AI Reminders — 4x daily based on nurse's timing boxes ──
-// medication_timing is stored as "med:morning,hosp:afternoon,med:evening" etc.
-// Only patients who have the given slot checked will receive a reminder.
-async function runInCareReminders(slot: InCareTimeSlot) {
-  try {
-    const today = new Date().toISOString().split("T")[0];
-    const automationType = `in_care_reminder_${slot}`;
-
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
-    for (const h of hospitals ?? []) {
-      const { data: patients } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, email, treatment_plan, medication_timing")
-        .eq("stage", "In Care")
-        .eq("hospital_id", h.username)
-        .not("treatment_plan", "is", null)
-        .not("email", "is", null)
-        .not("medication_timing", "is", null);
-
-      for (const p of patients ?? []) {
-        if (!p.email || !p.treatment_plan || !p.medication_timing) continue;
-
-        // Parse which types are active for this slot: "med:morning,hosp:afternoon" → ["med","hosp"] for morning
-        const timingEntries = (p.medication_timing as string).split(",").map(s => s.trim());
-        const slotEntries = timingEntries.filter(e => e.endsWith(`:${slot}`));
-        if (slotEntries.length === 0) continue; // nurse didn't check this time slot for this patient
-
-        const timingTypes = slotEntries
-          .map(e => e.split(":")[0] as "med" | "hosp")
-          .filter((t): t is "med" | "hosp" => t === "med" || t === "hosp");
-
-        // Only send once per slot per patient per day
-        const { data: alreadySent } = await supabase
-          .from("automation_log")
-          .select("id")
-          .eq("patient_id", p.id)
-          .eq("automation_type", automationType)
-          .eq("status", "sent")
-          .gte("created_at", `${today}T00:00:00Z`)
-          .maybeSingle();
-
-        if (alreadySent) continue;
-
-        const patientName = `${p.first_name} ${p.last_name}`;
-        await sendInCareAIReminder(
-          h.id,
-          p.id as number,
-          patientName,
-          p.email as string,
-          p.treatment_plan as string,
-          slot,
-          timingTypes,
-        );
-        log(`In-care ${slot} reminder (${timingTypes.join("+")}) → patient ${p.id} (${patientName})`);
-      }
-    }
-  } catch (err) {
-    Sentry.captureException(err);
-    log(`In-care ${slot} reminders error: ${err}`);
-  }
-}
+// runInCareReminders (slot-based, read from patients.medication_timing) was removed.
+// Superseded by runCarePlanRemindersHourly which reads directly from the care_plans table.
 
 // ── Subscription Expiration Auto-Suspend ──────────────────────────────────────
 async function checkSubscriptionExpirations() {
@@ -567,6 +545,18 @@ export function startScheduler() {
   });
 
   log("Scheduler started — all automations are email-first");
+}
+
+// ── Dedup helper — checks automation_log for a unique per-event key ──────────
+async function checkSentLog(hospitalId: number, key: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("automation_log")
+    .select("id")
+    .eq("hospital_id", hospitalId)
+    .eq("automation_type", key)
+    .eq("status", "sent")
+    .maybeSingle();
+  return !!data;
 }
 
 // ── Hourly Care Plan Reminders ────────────────────────────────────────────────

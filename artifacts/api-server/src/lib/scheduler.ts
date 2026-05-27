@@ -521,12 +521,16 @@ export function startScheduler() {
     await runNoShowFollowup();
   });
 
-  // Daily at 7:00 AM: pipeline transitions + post-treatment check-ins + post-care + dormant detection
+  // Daily at 7:00 AM: pipeline transitions + post-treatment check-ins + dormant detection
   cron.schedule("0 7 * * *", async () => {
     await runPostTreatmentTransitions();
     await runPostTreatmentCheckins();
-    await runPostCareEmails();
     await runDormantDetection();
+  });
+
+  // Daily at 6:00 PM: post-care wellness emails
+  cron.schedule("0 18 * * *", async () => {
+    await runPostCareEmails();
   });
 
   // Daily at 8:00 AM: in-care morning reminders

@@ -340,6 +340,20 @@ export default function WellnessAdmin() {
           </div>
 
           <div className="p-5 space-y-4">
+            {isSent && (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
+                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">This week's newsletter has been sent.</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    View it in <button onClick={() => setActiveTab("history")} className="text-primary hover:underline">History</button>. A new one can be created next week.
+                  </p>
+                </div>
+              </div>
+            )}
+            {!isSent && <div className="space-y-4">
             {/* Topic row */}
             <div className="space-y-2">
               <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Topic</label>
@@ -469,19 +483,7 @@ export default function WellnessAdmin() {
             </div>
 
             {/* Content area */}
-            {isSent ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Newsletter sent!</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    View it in <button onClick={() => setActiveTab("history")} className="text-primary hover:underline">History</button>. Next one available from next week.
-                  </p>
-                </div>
-              </div>
-            ) : (editing || !currentNewsletter || generating) ? (
+            {(editing || !currentNewsletter || generating) ? (
               <div className="space-y-3">
                 {generating && (
                   <div className="rounded-md bg-primary/5 border border-primary/20 px-4 py-3 flex items-center gap-3">
@@ -536,6 +538,7 @@ export default function WellnessAdmin() {
                 </div>
               </div>
             )}
+            </div>}
           </div>
         </div>
         )}

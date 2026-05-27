@@ -732,12 +732,11 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     detail: !hasTermii ? "TERMII_API_KEY not set" : !hasSender ? "TERMII_SENDER_ID not set" : "API key + sender ID configured",
   });
 
-  // 3. WhatsApp (Termii)
-  const hasWhatsappSender = !!process.env.TERMII_WHATSAPP_SENDER;
+  // 3. WhatsApp (Termii) — same API key as SMS; from-number is per-hospital config
   checks.push({
     name: "WhatsApp (Termii)",
-    ok: hasTermii && hasWhatsappSender,
-    detail: !hasTermii ? "TERMII_API_KEY not set" : !hasWhatsappSender ? "TERMII_WHATSAPP_SENDER not set" : "API key + WhatsApp sender configured",
+    ok: hasTermii,
+    detail: !hasTermii ? "TERMII_API_KEY not set" : "Shared API key configured — from-number set per hospital",
   });
 
   // 4. Email (Resend)

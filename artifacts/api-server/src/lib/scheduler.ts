@@ -74,14 +74,15 @@ async function runPostTreatmentCheckins() {
     for (const h of hospitals ?? []) {
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, email, treatment_end_date")
+        .select("id, first_name, last_name, email, treatment_end_date, updated_at")
         .eq("stage", "Post Treatment")
         .eq("hospital_id", h.username);
 
       for (const p of patients ?? []) {
-        if (!p.email || !p.treatment_end_date) continue;
+        if (!p.email) continue;
 
-        const endDate = new Date(p.treatment_end_date as string);
+        // Use treatment_end_date if available, fall back to updated_at (when they entered Post Treatment)
+        const endDate = new Date((p.treatment_end_date ?? p.updated_at) as string);
         const daysSinceEnd = Math.floor((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
         const patientName = `${p.first_name} ${p.last_name}`;
 

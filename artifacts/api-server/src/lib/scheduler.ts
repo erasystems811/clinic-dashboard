@@ -262,10 +262,13 @@ async function runPostTreatmentTransitions() {
   }
 }
 
-// ── End-of-Day Feedback Emails — runs daily at 9pm ───────────────────────────
+// ── End-of-Day Feedback Emails — runs daily at 7pm, covers previous day's patients ──
 async function runFeedbackEmails() {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    // Cover patients seen yesterday so late-evening visits are never missed
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const targetDate = yesterday.toISOString().split("T")[0];
 
     const { data: hospitals } = await supabase
       .from("hospital_modules")
@@ -280,8 +283,8 @@ async function runFeedbackEmails() {
         .from("queue")
         .select("patient_id, patient_name")
         .eq("hospital_id", hospital.username)
-        .gte("created_at", `${today}T00:00:00Z`)
-        .lte("created_at", `${today}T23:59:59Z`);
+        .gte("added_at", `${targetDate}T00:00:00Z`)
+        .lte("added_at", `${targetDate}T23:59:59Z`);
 
       const patientIds = [...new Set((seenPatients ?? []).map((q: Record<string, unknown>) => q.patient_id as number))];
 
@@ -300,7 +303,7 @@ async function runFeedbackEmails() {
           .eq("patient_id", patientId)
           .eq("automation_type", "feedback_email")
           .eq("status", "sent")
-          .gte("created_at", `${today}T00:00:00Z`)
+          .gte("created_at", `${targetDate}T00:00:00Z`)
           .maybeSingle();
 
         if (alreadySent) continue;
@@ -545,8 +548,8 @@ export function startScheduler() {
     await runInCareReminders("night");
   });
 
-  // Daily at 9:00 PM: end-of-day feedback emails
-  cron.schedule("0 21 * * *", async () => {
+  // Daily at 7:00 PM: end-of-day feedback emails (covers previous day's patients)
+  cron.schedule("0 19 * * *", async () => {
     await runFeedbackEmails();
   });
 

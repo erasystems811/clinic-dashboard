@@ -15,10 +15,21 @@ const DEFAULT_STAGES = [
 ];
 
 async function ensureStagesExist() {
-  const { data: existing } = await supabase.from("pipeline_stages").select("id");
+  const { data: existing } = await supabase.from("pipeline_stages").select("id, name");
   if (!existing || existing.length === 0) {
     await supabase.from("pipeline_stages").insert(DEFAULT_STAGES);
+    return;
   }
+  // Migrate: rename legacy "Post Care" → "Active"
+  const postCare = existing.find(s => (s.name as string) === "Post Care");
+  if (postCare) {
+    await supabase.from("pipeline_stages").update({ name: "Active", color: "#06b6d4", sort_order: 5 }).eq("id", postCare.id);
+  }
+  // Insert any stages that are entirely missing
+  const existingNames = new Set(existing.map(s => s.name as string));
+  if (postCare) existingNames.add("Active"); // just renamed above
+  const missing = DEFAULT_STAGES.filter(s => !existingNames.has(s.name));
+  if (missing.length > 0) await supabase.from("pipeline_stages").insert(missing);
 }
 
 router.get("/pipeline/stages", async (req, res): Promise<void> => {
@@ -27,15 +38,22 @@ router.get("/pipeline/stages", async (req, res): Promise<void> => {
 
   await ensureStagesExist();
 
-  const [{ data: stages }, { data: patients }] = await Promise.all([
+  const nowIso = new Date().toISOString();
+  const [{ data: stages }, { data: patients }, { data: queueEntries }, { data: bookedAppts }] = await Promise.all([
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
-    supabase.from("patients").select("stage").eq("hospital_id", hospital.username),
+    supabase.from("patients").select("id, stage").eq("hospital_id", hospital.username),
+    supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username),
+    supabase.from("appointments").select("patient_id").gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
   ]);
 
+  // Primary stage counts (Active, Post Treatment, Dormant, In Care from patients.stage)
   const countMap: Record<string, number> = {};
   for (const p of patients ?? []) {
     countMap[p.stage] = (countMap[p.stage] ?? 0) + 1;
   }
+  // Derived stage counts from their authoritative tables
+  countMap["Queued"] = (queueEntries ?? []).length;
+  countMap["Booked"] = (bookedAppts ?? []).length;
 
   const result = (stages ?? []).map((s: Record<string, unknown>) => ({
     id: s.id,

@@ -229,20 +229,22 @@ router.get("/patients/:id/history", async (req, res): Promise<void> => {
   if (pErr || !patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const nowIso = new Date().toISOString();
-  const [activityRes, appointmentsRes, callTasksRes, plansRes, queueRes, bookedRes] = await Promise.all([
+  const [activityRes, appointmentsRes, callTasksRes, allPlansRes, queueRes, bookedRes] = await Promise.all([
     supabase.from("activity").select("*").eq("patient_id", id).order("created_at", { ascending: true }),
     supabase.from("appointments").select("*").eq("patient_id", id).order("scheduled_at", { ascending: true }),
     supabase.from("call_tasks").select("*").eq("patient_id", id).order("flagged_at", { ascending: true }),
-    supabase.from("care_plans").select("id").eq("patient_id", id).limit(1),
+    supabase.from("care_plans").select("*").eq("patient_id", id).order("created_at", { ascending: false }),
     supabase.from("queue").select("id").eq("patient_id", id).maybeSingle(),
     supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")').limit(1).maybeSingle(),
   ]);
 
+  const carePlans = allPlansRes.data ?? [];
   res.json({
-    patient: serializePatient({ ...patient, has_care_plan: (plansRes.data ?? []).length > 0, is_in_queue: !!queueRes.data, is_booked: !!bookedRes.data }),
+    patient: serializePatient({ ...patient, has_care_plan: carePlans.length > 0, is_in_queue: !!queueRes.data, is_booked: !!bookedRes.data }),
     activity: camelizeArr(activityRes.data ?? []),
     appointments: (appointmentsRes.data ?? []).map(a => ({ ...camelize(a), duration: a.duration ?? 30 })),
     callTasks: camelizeArr(callTasksRes.data ?? []),
+    carePlans: camelizeArr(carePlans),
   });
 });
 

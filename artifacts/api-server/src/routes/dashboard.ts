@@ -14,10 +14,21 @@ const DEFAULT_STAGES = [
 ];
 
 async function ensureStagesExist() {
-  const { data: existing } = await supabase.from("pipeline_stages").select("id");
+  const { data: existing } = await supabase.from("pipeline_stages").select("id, name");
   if (!existing || existing.length === 0) {
     await supabase.from("pipeline_stages").insert(DEFAULT_STAGES);
+    return;
   }
+  // Migrate: rename legacy "Post Care" → "Active"
+  const postCare = existing.find(s => (s.name as string) === "Post Care");
+  if (postCare) {
+    await supabase.from("pipeline_stages").update({ name: "Active", color: "#06b6d4", sort_order: 5 }).eq("id", postCare.id);
+  }
+  // Insert any stages that are entirely missing
+  const existingNames = new Set(existing.map(s => s.name as string));
+  if (postCare) existingNames.add("Active");
+  const missing = DEFAULT_STAGES.filter(s => !existingNames.has(s.name));
+  if (missing.length > 0) await supabase.from("pipeline_stages").insert(missing);
 }
 
 // ── Date bounds in Africa/Lagos (WAT = UTC+1) ─────────────────────────────────
@@ -85,7 +96,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     supabase.from("patients").select("stage").eq("hospital_id", hospital.username),
     supabase.from("feedback").select("rating").eq("hospital_id", hospital.intId),
     supabase.from("wellness_newsletter").select("last_sent_at").eq("hospital_id", hospital.intId).order("last_sent_at", { ascending: false }).limit(1),
-    supabase.from("queue").select("added_at").eq("hospital_id", hospital.username),
+    supabase.from("queue").select("patient_id, added_at").eq("hospital_id", hospital.username),
     // All-time appointments for no-show rate calculation
     supabase.from("appointments").select("status, scheduled_at").in("patient_id", safePatientIds),
     // All-time dequeue events with stamped wait_minutes in metadata
@@ -124,7 +135,11 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     return { id: s.id, name: s.name, color: s.color, order: s.sort_order, count };
   });
 
-  const criticalAlerts = (queuedPatients?.length ?? 0) + (countMap["In Care"] ?? 0);
+  // Distinct count: patients who are in queue OR currently in care (no double-counting)
+  const queuedIds = new Set((queuedPatients ?? []).map(q => q.patient_id as number));
+  const inCareIds = new Set((patients ?? []).filter(p => p.stage === "In Care").map(p => p.id as number));
+  const activePatientIds = new Set([...queuedIds, ...inCareIds]);
+  const criticalAlerts = activePatientIds.size;
 
   const feedbackList = allFeedback ?? [];
   const avgFeedbackRating = feedbackList.length > 0

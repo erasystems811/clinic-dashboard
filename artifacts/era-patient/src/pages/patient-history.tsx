@@ -206,7 +206,7 @@ export default function PatientHistory() {
     );
   }
 
-  const { patient, activity, appointments, callTasks } = data;
+  const { patient, activity, appointments, callTasks, carePlans = [] } = data as typeof data & { carePlans?: Record<string, unknown>[] };
   const stageClass = STAGE_COLORS[patient.stage] ?? "bg-muted text-muted-foreground border-border";
   const patientFullName = `${patient.firstName} ${patient.lastName}`;
 
@@ -375,60 +375,42 @@ export default function PatientHistory() {
           </div>
         </div>
 
-        {/* ── TREATMENT PLAN ── */}
-        {patient.treatmentPlan && (
-          <Section icon={ClipboardList} title="Treatment Plan">
-            <div className="px-5 py-4 space-y-4">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-sm font-semibold">
-                  {TREATMENT_TYPE_LABELS[patient.treatmentType ?? ""] ?? patient.treatmentType ?? ""}
-                </span>
-                {patient.treatmentEndDate && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
-                    new Date(patient.treatmentEndDate) > new Date()
-                      ? "bg-green-500/10 text-green-400 border-green-500/20"
-                      : "bg-muted text-muted-foreground border-border"
-                  }`}>
-                    {new Date(patient.treatmentEndDate) > new Date() ? "Active" : "Completed"}
-                    {" · "}ends {fmtDate(patient.treatmentEndDate)}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                {patient.department && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Department</p>
-                    <p className="font-medium">{patient.department}</p>
+        {/* ── CARE PLANS ── */}
+        <Section icon={ClipboardList} title="Care Plans" count={carePlans.length}>
+          {carePlans.length === 0 ? (
+            <div className="py-10 text-center text-muted-foreground text-sm">No care plans on record.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {carePlans.map((plan, idx) => {
+                const createdAt = plan.createdAt as string | null;
+                const summary = plan.summary as string | null;
+                const department = plan.department as string | null;
+                const isLatest = idx === 0;
+                return (
+                  <div key={plan.id as string} className="px-5 py-4 space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-muted-foreground">{fmt(createdAt)}</span>
+                      {department && (
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted text-muted-foreground flex items-center gap-1">
+                          <Stethoscope className="w-3 h-3" />
+                          {department}
+                        </span>
+                      )}
+                      {isLatest && (
+                        <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 font-medium">
+                          Latest
+                        </span>
+                      )}
+                    </div>
+                    <div className="bg-muted/30 border border-border rounded-lg px-4 py-3">
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{summary}</p>
+                    </div>
                   </div>
-                )}
-                {patient.treatmentDurationDays && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Duration</p>
-                    <p className="font-medium">{patient.treatmentDurationDays} days</p>
-                  </div>
-                )}
-                {patient.treatmentStartedAt && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Started</p>
-                    <p className="font-medium">{fmtDate(patient.treatmentStartedAt)}</p>
-                  </div>
-                )}
-                {patient.medicationTiming && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Timing</p>
-                    <p className="font-medium capitalize">{patient.medicationTiming.split(",").join(" · ")}</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-muted/30 border border-border rounded-lg px-4 py-3">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1.5">Plan Notes</p>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{patient.treatmentPlan}</p>
-              </div>
+                );
+              })}
             </div>
-          </Section>
-        )}
+          )}
+        </Section>
 
         {/* ── APPOINTMENTS ── */}
         <Section icon={Calendar} title="Appointment History" count={appointments.length}>

@@ -27,9 +27,18 @@ const FALLBACK_TOPIC_SUGGESTIONS = [
   "Stress Management",
   "Physical Activity and Exercise",
   "Healthy Eating Habits",
+  "Balanced Diet and Nutrition",
   "Mental Health Awareness",
+  "Sexual Health and Intimacy",
   "Heart Health",
   "Immune System Support",
+  "Alcohol and Its Health Effects",
+  "Tobacco and Smoking Cessation",
+  "Vaping and E-Cigarette Risks",
+  "Cannabis Use and Health Effects",
+  "Drug Abuse and Addiction",
+  "Shisha and Hookah Health Risks",
+  "Overcoming Harmful Habits",
 ];
 
 export default function WellnessAdmin() {

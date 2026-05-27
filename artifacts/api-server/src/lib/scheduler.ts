@@ -514,6 +514,11 @@ async function checkSubscriptionExpirations() {
 }
 
 export function startScheduler() {
+  if (process.env.ENABLE_SCHEDULER !== "true") {
+    log("Scheduler disabled — set ENABLE_SCHEDULER=true to enable (production only)");
+    return;
+  }
+
   // Every 15 minutes: appointment reminders + no-show detection + 1-hour follow-up email
   cron.schedule("*/15 * * * *", async () => {
     await runAppointmentReminders();

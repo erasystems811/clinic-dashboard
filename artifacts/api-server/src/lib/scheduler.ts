@@ -125,46 +125,46 @@ async function runPostTreatmentCheckins() {
   }
 }
 
-// ── Active-Stage Email — runs daily — every 30 days once patient has entered Active stage ──
-// Active entry is derived from treatment_end_date + pipeline_post_treatment_days.
-// Pipeline stage is a reflection — automations read from records, not stage.
+// ── Active Wellness Emails — runs daily at 6pm ────────────────────────────────
+// Sends a wellness nudge to Active/Post Care patients who haven't been queued
+// (checked in) in the last 30 days. Per-patient 30-day cooldown via automation_log.
 async function runPostCareEmails() {
   try {
     const now = new Date();
     const cutoff30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: hsSettings } = await supabase
-      .from("hospital_settings")
-      .select("hospital_id, pipeline_post_treatment_days");
+    const { data: enabledModules } = await supabase
+      .from("hospital_modules")
+      .select("hospital_id")
+      .eq("wellness_newsletter_enabled", true);
 
-    for (const hs of hsSettings ?? []) {
-      const postTreatDays = (hs.pipeline_post_treatment_days as number) ?? 14;
+    for (const mod of enabledModules ?? []) {
       const { data: hospital } = await supabase
-        .from("hospitals").select("id, username").eq("id", hs.hospital_id).single();
+        .from("hospitals").select("id, username").eq("id", mod.hospital_id).single();
       if (!hospital) continue;
-
-      const { data: mods } = await supabase.from("hospital_modules").select("wellness_newsletter_enabled").eq("hospital_id", hospital.id).single();
-      if (!mods?.wellness_newsletter_enabled) continue;
-
-      // Active entry ≈ treatment_end_date + postTreatDays days.
-      // Send every 30 days: find patients whose Active start was >= 30 days ago.
-      // i.e. treatment_end_date + postTreatDays + 30 <= today
-      // → treatment_end_date <= today − (postTreatDays + 30) days
-      const cutoffDate = new Date(now.getTime() - (postTreatDays + 30) * 24 * 60 * 60 * 1000)
-        .toISOString().split("T")[0];
 
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, email, treatment_end_date")
+        .select("id, first_name, last_name, email, stage")
         .eq("hospital_id", hospital.username)
-        .not("treatment_end_date", "is", null)
-        .not("email", "is", null)
-        .lte("treatment_end_date", cutoffDate);
+        .in("stage", ["Active", "Post Care"])
+        .not("email", "is", null);
 
       for (const p of patients ?? []) {
         if (!p.email) continue;
 
-        // Send every 30 days — skip if one was already sent within the last 30 days
+        // Skip if patient checked in (was queued) in the last 30 days
+        const { data: recentCheckin } = await supabase
+          .from("activity")
+          .select("id")
+          .eq("patient_id", p.id)
+          .eq("type", "checkin")
+          .gte("created_at", cutoff30)
+          .maybeSingle();
+
+        if (recentCheckin) continue;
+
+        // Per-patient 30-day cooldown — skip if already sent within last 30 days
         const { data: recentSend } = await supabase
           .from("automation_log")
           .select("id")
@@ -178,12 +178,12 @@ async function runPostCareEmails() {
 
         const patientName = `${p.first_name} ${p.last_name}`;
         await sendPostCareEmail(hospital.id, p.id as number, patientName, p.email as string);
-        log(`Post-care email → patient ${p.id}`);
+        log(`Active wellness email → patient ${p.id}`);
       }
     }
   } catch (err) {
     Sentry.captureException(err);
-    log(`Post-care emails error: ${err}`);
+    log(`Active wellness emails error: ${err}`);
   }
 }
 

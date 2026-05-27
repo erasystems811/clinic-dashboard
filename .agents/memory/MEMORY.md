@@ -2,3 +2,5 @@
 - [Automation inventory](automation-inventory.md) — complete list of all automations, channels, AI models (OpenAI=care/reminders/tasks, Claude=newsletter)
 - [Care Plans Table](care-plans-table.md) — care_plans table must be created manually in Supabase; SQL at artifacts/api-server/migrations/001_care_plans.sql
 - [Auth Token Pattern](auth-token-pattern.md) — era-patient uses x-hospital-token header; hospital.token from auth-context (not localStorage auth_token)
+- [Stage Semantics](stage-semantics.md) — stages are independent boolean states; primary + derived overlays; no "Queued"/"Booked" written to patients.stage
+- [Hospital Code](hospital-code.md) — hospital_code UUID auto-generated on creation; shown read-only in super admin; column must exist in hospitals table

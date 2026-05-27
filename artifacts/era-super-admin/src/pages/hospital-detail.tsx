@@ -486,6 +486,18 @@ export default function HospitalDetail({ id }: Props) {
               )}
             </div>
 
+            {/* Hospital code — internal identifier, never shown to hospital staff */}
+            {hospital.hospitalCode && (
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Shield className="w-3.5 h-3.5 text-violet-400" />
+                  <span className="text-xs font-semibold text-violet-400 uppercase tracking-wider">Internal Hospital Code</span>
+                  <span className="ml-auto text-xs text-muted-foreground italic">Read-only · not visible to hospital</span>
+                </div>
+                <CredRow label="Hospital Code (UUID)" value={hospital.hospitalCode} />
+              </div>
+            )}
+
             {/* Admin creds */}
             <div className="rounded-lg border border-border bg-muted/30 p-3">
               <div className="flex items-center gap-1.5 mb-2">

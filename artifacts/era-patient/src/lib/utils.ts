@@ -18,12 +18,17 @@ export function getPatientStages(patient: { stage?: string | null } & Record<str
 
   if (primary) stages.push(primary);
 
-  // Queue is a transient overlay — shown alongside the real stage for returning patients
-  if (patient.isInQueue === true && primary !== "Queued" && primary !== "Booked") {
+  // Queued = currently in the queue (transient, derived from queue table)
+  if (patient.isInQueue === true && !stages.includes("Queued")) {
     stages.push("Queued");
   }
 
-  // Safety net: if they have a care plan but stage hasn't caught up yet, show "In Care" too
+  // Booked = has at least one upcoming appointment (derived from appointments table)
+  if (patient.isBooked === true && !stages.includes("Booked")) {
+    stages.push("Booked");
+  }
+
+  // In Care = has at least one active care plan (derived from care_plans table)
   if (patient.hasCarePlan === true && !stages.includes("In Care")) {
     stages.push("In Care");
   }

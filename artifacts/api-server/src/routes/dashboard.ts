@@ -85,7 +85,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     supabase.from("patients").select("stage").eq("hospital_id", hospital.username),
     supabase.from("feedback").select("rating").eq("hospital_id", hospital.intId),
     supabase.from("wellness_newsletter").select("last_sent_at").eq("hospital_id", hospital.intId).order("last_sent_at", { ascending: false }).limit(1),
-    supabase.from("patients").select("checked_in_at").eq("hospital_id", hospital.username).eq("stage", "Queued").not("checked_in_at", "is", null),
+    supabase.from("queue").select("added_at").eq("hospital_id", hospital.username),
     // All-time appointments for no-show rate calculation
     supabase.from("appointments").select("status, scheduled_at").in("patient_id", safePatientIds),
     // All-time dequeue events with stamped wait_minutes in metadata
@@ -111,15 +111,20 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     countMap[p.stage] = (countMap[p.stage] ?? 0) + 1;
   }
 
-  const pipelineBreakdown = (stages ?? []).map((s: Record<string, unknown>) => ({
-    id: s.id,
-    name: s.name,
-    color: s.color,
-    order: s.sort_order,
-    count: countMap[s.name as string] ?? 0,
-  }));
+  // "Queued" and "Booked" are derived states — their counts come from queue/appointments tables,
+  // not from patients.stage. All other stages (Active, In Care, Post Treatment, Dormant) use countMap.
+  const queueCount = queuedPatients?.length ?? 0;
+  const pipelineBreakdown = (stages ?? []).map((s: Record<string, unknown>) => {
+    let count: number;
+    if (s.name === "Queued") {
+      count = queueCount;
+    } else {
+      count = countMap[s.name as string] ?? 0;
+    }
+    return { id: s.id, name: s.name, color: s.color, order: s.sort_order, count };
+  });
 
-  const criticalAlerts = (countMap["Queued"] ?? 0) + (countMap["In Care"] ?? 0);
+  const criticalAlerts = (queuedPatients?.length ?? 0) + (countMap["In Care"] ?? 0);
 
   const feedbackList = allFeedback ?? [];
   const avgFeedbackRating = feedbackList.length > 0
@@ -132,7 +137,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     .filter(m => !isNaN(m) && m >= 0);
 
   const liveWaits = (queuedPatients ?? [])
-    .map(p => p.checked_in_at ? (utcNow.getTime() - new Date(p.checked_in_at).getTime()) / 60000 : null)
+    .map(q => q.added_at ? (utcNow.getTime() - new Date(q.added_at).getTime()) / 60000 : null)
     .filter((m): m is number => m !== null && m >= 0);
 
   const allWaits = [...completedWaits, ...liveWaits];

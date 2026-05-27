@@ -252,6 +252,7 @@ router.post("/super-admin/hospitals", requireSuperAdmin, async (req, res): Promi
     active: subscriptionStatus !== "inactive",
     subscription_status: subscriptionStatus ?? "active",
     feedback_slug: crypto.randomUUID(),
+    hospital_code: crypto.randomUUID(),
   }).select().single();
 
   if (error || !hospital) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }

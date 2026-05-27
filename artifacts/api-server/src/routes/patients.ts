@@ -112,16 +112,20 @@ router.get("/patients", async (req, res): Promise<void> => {
 
   if (patients.length > 0) {
     const ids = patients.map(p => p.id as number);
-    const [{ data: plans }, { data: queueEntries }] = await Promise.all([
+    const nowIso = new Date().toISOString();
+    const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
       supabase.from("care_plans").select("patient_id").eq("hospital_id", hospital.username).in("patient_id", ids),
       supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username).in("patient_id", ids),
+      supabase.from("appointments").select("patient_id").in("patient_id", ids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
     ]);
     const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
     const inQueue = new Set((queueEntries ?? []).map(q => q.patient_id as number));
+    const isBooked = new Set((upcomingAppts ?? []).map(a => a.patient_id as number));
     res.json(camelizeArr(patients.map(p => ({
       ...p,
       has_care_plan: withPlans.has(p.id as number),
       is_in_queue: inQueue.has(p.id as number),
+      is_booked: isBooked.has(p.id as number),
     }))));
     return;
   }
@@ -149,7 +153,7 @@ router.post("/patients", async (req, res): Promise<void> => {
   }
 
   const { hospitalId: _ignored, ...rest } = parsed.data;
-  const data = snakify({ ...rest, stage: "Queued", hospitalId: hospital.username });
+  const data = snakify({ ...rest, stage: "Active", hospitalId: hospital.username });
   const { data: patient, error } = await supabase.from("patients").insert(data).select().single();
   if (error) {
     console.error("[create patient] supabase error:", JSON.stringify({ code: error.code, message: error.message, details: error.details, hint: error.hint }));
@@ -204,14 +208,17 @@ router.get("/patients/:id", async (req, res): Promise<void> => {
   if (error || !data) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const hospitalId = hospital?.username ?? (data.hospital_id as string);
-  const [{ data: plans }, { data: queueEntry }] = await Promise.all([
+  const nowIso = new Date().toISOString();
+  const [{ data: plans }, { data: queueEntry }, { data: upcomingAppt }] = await Promise.all([
     supabase.from("care_plans").select("id").eq("patient_id", id).eq("hospital_id", hospitalId).limit(1),
     supabase.from("queue").select("id").eq("patient_id", id).maybeSingle(),
+    supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")').limit(1).maybeSingle(),
   ]);
   const hasCarePlan = (plans ?? []).length > 0;
   const isInQueue = !!queueEntry;
+  const isBooked = !!upcomingAppt;
 
-  res.json(serializePatient({ ...data, has_care_plan: hasCarePlan, is_in_queue: isInQueue }));
+  res.json(serializePatient({ ...data, has_care_plan: hasCarePlan, is_in_queue: isInQueue, is_booked: isBooked }));
 });
 
 router.get("/patients/:id/history", async (req, res): Promise<void> => {
@@ -221,16 +228,18 @@ router.get("/patients/:id/history", async (req, res): Promise<void> => {
   const { data: patient, error: pErr } = await supabase.from("patients").select("*").eq("id", id).single();
   if (pErr || !patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  const [activityRes, appointmentsRes, callTasksRes, plansRes, queueRes] = await Promise.all([
+  const nowIso = new Date().toISOString();
+  const [activityRes, appointmentsRes, callTasksRes, plansRes, queueRes, bookedRes] = await Promise.all([
     supabase.from("activity").select("*").eq("patient_id", id).order("created_at", { ascending: true }),
     supabase.from("appointments").select("*").eq("patient_id", id).order("scheduled_at", { ascending: true }),
     supabase.from("call_tasks").select("*").eq("patient_id", id).order("flagged_at", { ascending: true }),
     supabase.from("care_plans").select("id").eq("patient_id", id).limit(1),
     supabase.from("queue").select("id").eq("patient_id", id).maybeSingle(),
+    supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")').limit(1).maybeSingle(),
   ]);
 
   res.json({
-    patient: serializePatient({ ...patient, has_care_plan: (plansRes.data ?? []).length > 0, is_in_queue: !!queueRes.data }),
+    patient: serializePatient({ ...patient, has_care_plan: (plansRes.data ?? []).length > 0, is_in_queue: !!queueRes.data, is_booked: !!bookedRes.data }),
     activity: camelizeArr(activityRes.data ?? []),
     appointments: (appointmentsRes.data ?? []).map(a => ({ ...camelize(a), duration: a.duration ?? 30 })),
     callTasks: camelizeArr(callTasksRes.data ?? []),
@@ -502,20 +511,14 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   const { data: existing } = await supabase.from("patients").select("*").eq("id", id).single();
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  // Stage is a REFLECTION — only change it if the patient is still in their initial "Queued"
-  // state (newly registered, never treated). Returning patients keep their existing stage.
-  const currentStage = existing.stage as string;
-  const isFirstVisit = currentStage === "Queued" || currentStage === "Booked";
-  const stageUpdate = isFirstVisit ? { stage: "Active", updated_at: new Date().toISOString() } : { updated_at: new Date().toISOString() };
-
+  // Stage is never changed on dequeue — it's a primary lifecycle state (Active/Post Treatment/Dormant/In Care).
+  // Queue membership was always tracked separately in the queue table; removing from there is enough.
   const { data: patient } = await supabase
     .from("patients")
-    .update(stageUpdate)
+    .update({ updated_at: new Date().toISOString() })
     .eq("id", id)
     .select()
     .single();
-
-  const restoreStage = isFirstVisit ? "Active" : currentStage;
 
   await supabase.from("queue").delete().eq("patient_id", id);
 
@@ -536,7 +539,7 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
 
   await supabase.from("activity").insert({
     type: "dequeued",
-    description: `${patient!.first_name} ${patient!.last_name} removed from queue — returned to ${restoreStage}`,
+    description: `${patient!.first_name} ${patient!.last_name} removed from queue`,
     patient_id: id,
     patient_name: `${patient!.first_name} ${patient!.last_name}`,
     hospital_id: await resolveHospitalIntId(existing.hospital_id as string),

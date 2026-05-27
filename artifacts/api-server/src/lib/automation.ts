@@ -79,7 +79,7 @@ async function getHospitalContext(hospitalId: number): Promise<HospitalContext> 
     hospitalUsername: hospital?.username ?? "",
     hospitalCode: (hospital?.hospital_code as string) ?? "",
     fromAddress,
-    notificationChannel: (settings?.notification_channel as "whatsapp" | "sms") ?? "whatsapp",
+    notificationChannel: (settings?.notification_channel as "whatsapp" | "sms") ?? "sms",
     phoneNumber: (settings?.phone_number as string) ?? null,
     termiiSenderId: (settings?.termii_sender_id as string) ?? null,
     language: (settings?.language as string | null) ?? null,

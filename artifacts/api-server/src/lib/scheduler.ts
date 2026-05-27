@@ -206,7 +206,7 @@ async function runDormantDetection() {
       const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hs.hospital_id).single();
       if (!hospital) continue;
 
-      // Cutoff: if updated_at is older than this, the patient has been inactive long enough.
+      // Cutoff: patient must NOT have been queued (checked in) within the dormant window.
       const cutoff = new Date(now.getTime() - dormantDays * 24 * 60 * 60 * 1000).toISOString();
 
       // Only target "Active" (and its DB alias "Post Care") — never overwrite Post Treatment,
@@ -215,10 +215,20 @@ async function runDormantDetection() {
         .from("patients")
         .select("id, first_name, last_name")
         .eq("hospital_id", hospital.username)
-        .in("stage", ["Active", "Post Care"])
-        .lte("updated_at", cutoff);
+        .in("stage", ["Active", "Post Care"]);
 
       for (const p of patients ?? []) {
+        // Skip if the patient had a check-in (was queued) within the dormant window
+        const { data: recentCheckin } = await supabase
+          .from("activity")
+          .select("id")
+          .eq("patient_id", p.id)
+          .eq("type", "checkin")
+          .gte("created_at", cutoff)
+          .maybeSingle();
+
+        if (recentCheckin) continue;
+
         await supabase.from("patients")
           .update({ stage: "Dormant", updated_at: now.toISOString() })
           .eq("id", p.id);

@@ -88,7 +88,7 @@ export default function Patients() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Stages</SelectItem>
-                {stages?.map(stage => (
+                {stages?.filter(stage => apptEnabled || stage.name !== "Booked").map(stage => (
                   <SelectItem key={stage.id} value={stage.name}>{stage.name}</SelectItem>
                 ))}
               </SelectContent>

@@ -509,6 +509,7 @@ export default function PatientHistory() {
         </Section>
 
         {/* ── APPOINTMENTS ── */}
+        {apptEnabled && (
         <Section icon={Calendar} title="Appointment History" count={appointments.length}>
           {appointments.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground text-sm">No appointments on record.</div>
@@ -539,6 +540,7 @@ export default function PatientHistory() {
             </div>
           )}
         </Section>
+        )}
 
         {/* ── CALL TASKS / FOLLOW-UPS ── */}
         <Section

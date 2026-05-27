@@ -96,7 +96,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       .gte("scheduled_at", startOfWeek.toISOString())
       .lt("scheduled_at", endOfWeek.toISOString()),
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
-    supabase.from("patients").select("stage").eq("hospital_id", hospital.username),
+    supabase.from("patients").select("id, stage").eq("hospital_id", hospital.username),
     supabase.from("feedback").select("rating").eq("hospital_id", hospital.intId),
     supabase.from("wellness_newsletter").select("last_sent_at").eq("hospital_id", hospital.intId).order("last_sent_at", { ascending: false }).limit(1),
     supabase.from("queue").select("patient_id, added_at").eq("hospital_id", hospital.username),
@@ -140,7 +140,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
 
   // Distinct count: patients who are in queue OR currently in care (no double-counting)
   const queuedIds = new Set((queuedPatients ?? []).map(q => q.patient_id as number));
-  const inCareIds = new Set((patients ?? []).filter(p => p.stage === "In Care").map(p => p.id as number));
+  const inCareIds = new Set((allPatientStages ?? []).filter(p => p.stage === "In Care").map(p => (p as Record<string, unknown>).id as number));
   const activePatientIds = new Set([...queuedIds, ...inCareIds]);
   const criticalAlerts = activePatientIds.size;
 

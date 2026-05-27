@@ -93,11 +93,97 @@ router.get("/patients", async (req, res): Promise<void> => {
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const { limit, offset } = query.data;
+  const nowIso = new Date().toISOString();
+
+  // "Queued" and "Booked" are derived stages — they never live in patients.stage.
+  // Handle them by looking up IDs from the source-of-truth tables, then fetching those patients.
+  if (query.data.stage === "Queued") {
+    const { data: queueRows } = await supabase
+      .from("queue").select("patient_id").eq("hospital_id", hospital.username);
+    const ids = (queueRows ?? []).map(r => r.patient_id as number);
+    if (ids.length === 0) { res.json([]); return; }
+    const { data, error } = await supabase
+      .from("patients").select("*").in("id", ids)
+      .eq("hospital_id", hospital.username)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (error) { res.status(500).json({ error: error.message }); return; }
+    const patients = data ?? [];
+    if (patients.length > 0) {
+      const pids = patients.map(p => p.id as number);
+      const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
+        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.username).in("patient_id", pids),
+        supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username).in("patient_id", pids),
+        supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
+      ]);
+      const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
+      const inQueue = new Set((queueEntries ?? []).map(q => q.patient_id as number));
+      const booked = new Set((upcomingAppts ?? []).map(a => a.patient_id as number));
+      const deptsByPatient: Record<number, Set<string>> = {};
+      for (const cp of plans ?? []) {
+        const pid = cp.patient_id as number;
+        if (!deptsByPatient[pid]) deptsByPatient[pid] = new Set();
+        if (cp.department) deptsByPatient[pid].add(cp.department as string);
+      }
+      res.json(patients.map(p => serializePatient({ ...p, has_care_plan: withPlans.has(p.id as number), is_in_queue: inQueue.has(p.id as number), is_booked: booked.has(p.id as number), care_plan_departments: Array.from(deptsByPatient[p.id as number] ?? []) })));
+    } else {
+      res.json([]);
+    }
+    return;
+  }
+
+  if (query.data.stage === "Booked") {
+    const { data: apptRows } = await supabase
+      .from("appointments").select("patient_id").in("patient_id", (await supabase.from("patients").select("id").eq("hospital_id", hospital.username)).data?.map(p => p.id as number) ?? [])
+      .gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")');
+    const ids = [...new Set((apptRows ?? []).map(r => r.patient_id as number))];
+    if (ids.length === 0) { res.json([]); return; }
+    const { data, error } = await supabase
+      .from("patients").select("*").in("id", ids)
+      .eq("hospital_id", hospital.username)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (error) { res.status(500).json({ error: error.message }); return; }
+    const patients = data ?? [];
+    if (patients.length > 0) {
+      const pids = patients.map(p => p.id as number);
+      const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
+        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.username).in("patient_id", pids),
+        supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username).in("patient_id", pids),
+        supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
+      ]);
+      const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
+      const inQueue = new Set((queueEntries ?? []).map(q => q.patient_id as number));
+      const booked = new Set((upcomingAppts ?? []).map(a => a.patient_id as number));
+      const deptsByPatient: Record<number, Set<string>> = {};
+      for (const cp of plans ?? []) {
+        const pid = cp.patient_id as number;
+        if (!deptsByPatient[pid]) deptsByPatient[pid] = new Set();
+        if (cp.department) deptsByPatient[pid].add(cp.department as string);
+      }
+      res.json(patients.map(p => serializePatient({ ...p, has_care_plan: withPlans.has(p.id as number), is_in_queue: inQueue.has(p.id as number), is_booked: booked.has(p.id as number), care_plan_departments: Array.from(deptsByPatient[p.id as number] ?? []) })));
+    } else {
+      res.json([]);
+    }
+    return;
+  }
 
   let q = supabase.from("patients").select("*").eq("hospital_id", hospital.username);
 
   if (query.data.stage) {
-    q = q.eq("stage", query.data.stage);
+    // "In Care" can come from patients.stage OR from having an active care plan — include both
+    if (query.data.stage === "In Care") {
+      const { data: planRows } = await supabase
+        .from("care_plans").select("patient_id").eq("hospital_id", hospital.username);
+      const carePlanPatientIds = [...new Set((planRows ?? []).map(r => r.patient_id as number))];
+      if (carePlanPatientIds.length > 0) {
+        q = q.or(`stage.eq.In Care,id.in.(${carePlanPatientIds.join(",")})`);
+      } else {
+        q = q.eq("stage", "In Care");
+      }
+    } else {
+      q = q.eq("stage", query.data.stage);
+    }
   } else if (query.data.search) {
     const term = `%${query.data.search}%`;
     q = q.or(`first_name.ilike.${term},last_name.ilike.${term},patient_id.ilike.${term}`);

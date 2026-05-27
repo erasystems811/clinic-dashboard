@@ -9,11 +9,28 @@ description: Complete list of all built automations, their channels, and AI mode
 | Automation | Trigger | Model | Detail |
 |---|---|---|---|
 | Care plan explanation email | Nurse creates care plan | **Claude** | Full explanation of what nurse logged; warm, patient-friendly; patient understands their care plan |
-| In-care daily reminders | 4x daily (8am/1pm/6pm/10pm) | **OpenAI** | Fires only for patients whose `medication_timing` has that slot; aware of whether it's medication or hospital visit |
-| Flagged task draft (call task) | Nurse flags patient | **OpenAI** | Writes draft based on reason nurse entered; explicitly says "I do not understand" if reason is unclear; staff reviews/edits before it sends |
+| General Outpatient care plan reminders | Hourly cron, time-based | **OpenAI** | Timing depends on treatment type — see "Reminder timing" section below |
+| Flagged task draft (call task) | Admin OR nurse flags patient | **OpenAI** | Writes draft based on reason entered; explicitly says "I do not understand" if reason is unclear; staff reviews/edits before it sends |
 | Wellness newsletter | Admin manually triggers | **Claude** | 5 generations/week limit; admin picks topic, Claude generates; admin sends to all active patients |
 
 **Why:** User confirmed this exact list multiple times. Do not add AI to any other automation. Do not change any other template to AI.
+
+---
+
+## Reminder timing — General Outpatient only (hourly cron, nurse-set times)
+| Treatment type | When reminder fires |
+|---|---|
+| Medication only | AT the exact time the nurse set |
+| Come to hospital only | 3 hours before the nurse-set time |
+| Combination (both) | 2 hours before the nurse-set hospital time |
+
+All other departments get a plain templated email 4 hours before their scheduled visit time (no AI).
+The old fixed slots (8am/1pm/6pm/10pm) were removed. `runCarePlanRemindersHourly` fires every hour and checks against nurse-set times.
+
+---
+
+## Flagged task — both admin and nurse can flag
+Both admin AND nurse roles can flag a patient and write a reason. OpenAI drafts the call task message. Staff reviews/edits, then approves to send. Sent email is marked Important. It is NOT AI at the point of send — staff owns the final text.
 
 ---
 
@@ -43,19 +60,19 @@ Queue messages and care plan notices go via **WhatsApp or SMS** — whichever ch
 | Post-treatment Day 1 check-in | 6 AM daily | Templated |
 | Post-treatment Day 4 check-in | 6 AM daily | Templated |
 | Post-treatment Day 7 check-in | 6 AM daily | Templated |
-| Active patient follow-up | Every 30 days in Active stage | Templated, **continuous** (per-patient 30-day cooldown via automation_log); skipped if patient checked in within last 30 days |
+| Active patient follow-up | Every 30 days in Active stage | Templated, **continuous** (per-patient 30-day cooldown via automation_log); skipped if patient checked in (joined queue) within last 30 days |
 | Dormant email | pipeline_dormant_days inactive | Templated, once per dormant transition |
-| End-of-day feedback link | 9 PM daily | Per-patient JWT link |
-| Flagged task confirmed send | Staff approves draft | Email marked Important — **not** AI, staff wrote/edited it |
+| Feedback link | 12 PM next day | Hospital general link (`/feedback/h/<slug>`), covers all patients who visited the previous day |
+| Flagged task confirmed send | Admin/nurse approves draft | Email marked Important — staff wrote/edited it, NOT AI at send time |
 | Wellness newsletter send | Admin sends approved draft | Sends Claude-generated content to all active patients |
 
 ---
 
 ## Scheduler cron summary
 - Every 15 min: appointment reminders + no-show detection + no-show follow-up
+- Every hour: care plan reminders — General Outpatient (time-based, AI) + all other depts (4h before, templated)
 - 6 AM daily: pipeline transitions + post-treatment check-ins + active-patient follow-ups + dormant detection
-- 8 AM / 1 PM / 6 PM / 10 PM daily: in-care AI reminders (slot-gated by medication_timing)
-- 9 PM daily: feedback form link emails
+- 12 PM daily: feedback emails (previous day's queue patients, general hospital link)
 - 11 PM daily: no-show dismissal
 - Every 6h: subscription expiration check
 
@@ -63,5 +80,5 @@ Queue messages and care plan notices go via **WhatsApp or SMS** — whichever ch
 - Scheduler queries `stage = "Active"` for post-care follow-ups and dormant detection. "Post Care" is a dead legacy value — removed from all queries. Do not reintroduce "Post Care" anywhere.
 
 ## AI model assignments
-- **OpenAI gpt-4o-mini**: in-care reminders, flagged task drafts
+- **OpenAI gpt-4o-mini**: in-care reminders (General Outpatient), flagged task drafts
 - **Claude claude-haiku-4-5**: care plan explanation email, wellness newsletter

@@ -77,12 +77,12 @@ const DEPT_LABELS: Record<string, string> = {
 
 function emptyTemplateData(dept: string): Record<string, unknown> {
   if (dept === "General Outpatient") return { treatmentType: "", medicationTiming: [], hospitalTiming: [], durationDays: 1 };
-  if (dept === "Antenatal / Maternity") return { currentWeek: "", ancSchedule: [{ weekNumber: "", whatHappens: "", date: "" }] };
-  if (dept === "Paediatrics") return { childAge: "", vaccinationSchedule: [{ ageAtVaccination: "", vaccinationName: "", date: "" }] };
-  if (dept === "Surgery / Post-Op") return { procedureDate: "", procedureType: "", inCareSchedule: [{ date: "", whatHappens: "" }] };
-  if (dept === "Dental") return { inCareSchedule: [{ date: "", treatmentType: "" }] };
-  if (dept === "Eye") return { inCareSchedule: [{ date: "", action: "" }] };
-  if (dept === "Fertility / IVF") return { inCareSchedule: [{ date: "", whatHappens: "" }] };
+  if (dept === "Antenatal / Maternity") return { currentWeek: "", ancSchedule: [{ weekNumber: "", whatHappens: "", date: "", time: "" }] };
+  if (dept === "Paediatrics") return { childAge: "", vaccinationSchedule: [{ ageAtVaccination: "", vaccinationName: "", date: "", time: "" }] };
+  if (dept === "Surgery / Post-Op") return { procedureDate: "", procedureTime: "", procedureType: "", inCareSchedule: [{ date: "", time: "", whatHappens: "" }] };
+  if (dept === "Dental") return { inCareSchedule: [{ date: "", time: "", treatmentType: "" }] };
+  if (dept === "Eye") return { inCareSchedule: [{ date: "", time: "", action: "" }] };
+  if (dept === "Fertility / IVF") return { inCareSchedule: [{ date: "", time: "", whatHappens: "" }] };
   return {};
 }
 
@@ -707,15 +707,16 @@ function DepartmentTemplate({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">ANC Schedule</p>
-            <button type="button" onClick={() => addRow("ancSchedule", { weekNumber: "", whatHappens: "", date: "" })} className="flex items-center gap-1 text-xs text-primary hover:underline">
+            <button type="button" onClick={() => addRow("ancSchedule", { weekNumber: "", whatHappens: "", date: "", time: "" })} className="flex items-center gap-1 text-xs text-primary hover:underline">
               <Plus className="w-3 h-3" />Add visit
             </button>
           </div>
           {rows.map((row, i) => (
-            <div key={i} className="grid grid-cols-[1fr_2fr_1fr_auto] gap-2 items-start">
-              <input type="text" value={row.weekNumber} onChange={e => updateRow("ancSchedule", i, "weekNumber", e.target.value)} className={inputCls} placeholder="Week" />
+            <div key={i} className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-2 items-start">
               <input type="text" value={row.whatHappens} onChange={e => updateRow("ancSchedule", i, "whatHappens", e.target.value)} className={inputCls} placeholder="What happens" />
+              <input type="text" value={row.weekNumber} onChange={e => updateRow("ancSchedule", i, "weekNumber", e.target.value)} className={inputCls} placeholder="Week #" />
               <input type="date" value={row.date} onChange={e => updateRow("ancSchedule", i, "date", e.target.value)} className={inputCls} />
+              <input type="time" value={row.time ?? ""} onChange={e => updateRow("ancSchedule", i, "time", e.target.value)} className={inputCls + " w-28"} />
               {rows.length > 1 && <button type="button" onClick={() => removeRow("ancSchedule", i)} className="mt-1.5 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition"><X className="w-3.5 h-3.5" /></button>}
             </div>
           ))}
@@ -736,15 +737,16 @@ function DepartmentTemplate({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">Vaccination Schedule</p>
-            <button type="button" onClick={() => addRow("vaccinationSchedule", { ageAtVaccination: "", vaccinationName: "", date: "" })} className="flex items-center gap-1 text-xs text-primary hover:underline">
+            <button type="button" onClick={() => addRow("vaccinationSchedule", { ageAtVaccination: "", vaccinationName: "", date: "", time: "" })} className="flex items-center gap-1 text-xs text-primary hover:underline">
               <Plus className="w-3 h-3" />Add vaccine
             </button>
           </div>
           {rows.map((row, i) => (
-            <div key={i} className="grid grid-cols-[1fr_2fr_1fr_auto] gap-2 items-start">
+            <div key={i} className="grid grid-cols-[1fr_2fr_auto_auto_auto] gap-2 items-start">
               <input type="text" value={row.ageAtVaccination} onChange={e => updateRow("vaccinationSchedule", i, "ageAtVaccination", e.target.value)} className={inputCls} placeholder="Age" />
               <input type="text" value={row.vaccinationName} onChange={e => updateRow("vaccinationSchedule", i, "vaccinationName", e.target.value)} className={inputCls} placeholder="Vaccine name" />
               <input type="date" value={row.date} onChange={e => updateRow("vaccinationSchedule", i, "date", e.target.value)} className={inputCls} />
+              <input type="time" value={row.time ?? ""} onChange={e => updateRow("vaccinationSchedule", i, "time", e.target.value)} className={inputCls + " w-28"} />
               {rows.length > 1 && <button type="button" onClick={() => removeRow("vaccinationSchedule", i)} className="mt-1.5 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition"><X className="w-3.5 h-3.5" /></button>}
             </div>
           ))}
@@ -764,13 +766,17 @@ function DepartmentTemplate({
             <input type="date" value={(templateData.procedureDate as string) ?? ""} onChange={e => set("procedureDate", e.target.value)} className={inputCls} />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Procedure Type</label>
-            <select value={(templateData.procedureType as string) ?? ""} onChange={e => set("procedureType", e.target.value)} className={inputCls}>
-              <option value="">Select type…</option>
-              <option value="Minor">Minor</option>
-              <option value="Major">Major</option>
-            </select>
+            <label className="text-sm font-medium">Procedure Time</label>
+            <input type="time" value={(templateData.procedureTime as string) ?? ""} onChange={e => set("procedureTime", e.target.value)} className={inputCls} />
           </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Procedure Type</label>
+          <select value={(templateData.procedureType as string) ?? ""} onChange={e => set("procedureType", e.target.value)} className={inputCls}>
+            <option value="">Select type…</option>
+            <option value="Minor">Minor</option>
+            <option value="Major">Major</option>
+          </select>
         </div>
         <InCareScheduleRows dept={department} rows={rows} rowKey="inCareSchedule" col2Key="whatHappens" col2Label="What happens" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />
       </div>
@@ -825,7 +831,7 @@ function InCareScheduleRows({
   updateRow: (key: string, idx: number, field: string, val: string) => void;
   inputCls: string;
 }) {
-  const emptyRow = { date: "", [col2Key]: "" };
+  const emptyRow = { date: "", time: "", [col2Key]: "" };
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -835,11 +841,9 @@ function InCareScheduleRows({
         </button>
       </div>
       {rows.map((row, i) => (
-        <div key={i} className="grid grid-cols-[1fr_2fr_auto] gap-2 items-start">
-          <div className="relative">
-            <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-            <input type="date" value={row.date} onChange={e => updateRow(rowKey, i, "date", e.target.value)} className={inputCls + " pl-7"} />
-          </div>
+        <div key={i} className="grid grid-cols-[auto_auto_1fr_auto] gap-2 items-start">
+          <input type="date" value={row.date} onChange={e => updateRow(rowKey, i, "date", e.target.value)} className={inputCls} />
+          <input type="time" value={row.time ?? ""} onChange={e => updateRow(rowKey, i, "time", e.target.value)} className={inputCls + " w-28"} />
           <input type="text" value={row[col2Key]} onChange={e => updateRow(rowKey, i, col2Key, e.target.value)} className={inputCls} placeholder={col2Label} />
           {rows.length > 1 && <button type="button" onClick={() => removeRow(rowKey, i)} className="mt-1.5 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition"><X className="w-3.5 h-3.5" /></button>}
         </div>

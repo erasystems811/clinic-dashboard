@@ -575,41 +575,51 @@ export function startScheduler() {
     await checkSubscriptionExpirations();
   });
 
-  // Daily at 8am: birthday emails + care visit reminders
+  // Daily at 8am: birthday emails only
   cron.schedule("0 8 * * *", async () => {
     await runBirthdayEmails();
+  });
+
+  // Daily at 7pm: care visit reminders (night before the appointment)
+  cron.schedule("0 19 * * *", async () => {
     await runCareVisitReminders();
   });
 
   log("Scheduler started — all automations are email-first");
 }
 
-// ── Care Visit Reminders — runs daily at 8am ──────────────────────────────────
+// ── Care Visit Reminders — runs daily at 7pm (sends night-before reminder) ─────
 
-function extractVisitDates(dept: string, templateData: Record<string, unknown>): string[] {
-  const dates: string[] = [];
+interface VisitEntry { date: string; time?: string; }
+
+function extractVisitEntries(dept: string, templateData: Record<string, unknown>): VisitEntry[] {
+  const entries: VisitEntry[] = [];
   const today = new Date().toISOString().slice(0, 10);
 
   if (dept === "Antenatal / Maternity") {
-    const rows = (templateData.ancSchedule as Array<{ date?: string }>) ?? [];
-    for (const r of rows) if (r.date && r.date >= today) dates.push(r.date);
+    const rows = (templateData.ancSchedule as Array<{ date?: string; time?: string }>) ?? [];
+    for (const r of rows) if (r.date && r.date > today) entries.push({ date: r.date, time: r.time });
   } else if (dept === "Paediatrics") {
-    const rows = (templateData.vaccinationSchedule as Array<{ date?: string }>) ?? [];
-    for (const r of rows) if (r.date && r.date >= today) dates.push(r.date);
+    const rows = (templateData.vaccinationSchedule as Array<{ date?: string; time?: string }>) ?? [];
+    for (const r of rows) if (r.date && r.date > today) entries.push({ date: r.date, time: r.time });
   } else if (dept === "Surgery / Post-Op" || dept === "Dental" || dept === "Eye" || dept === "Fertility / IVF") {
-    const rows = (templateData.inCareSchedule as Array<{ date?: string }>) ?? [];
-    for (const r of rows) if (r.date && r.date >= today) dates.push(r.date);
+    const rows = (templateData.inCareSchedule as Array<{ date?: string; time?: string }>) ?? [];
+    for (const r of rows) if (r.date && r.date > today) entries.push({ date: r.date, time: r.time });
     if (dept === "Surgery / Post-Op") {
       const pd = templateData.procedureDate as string | undefined;
-      if (pd && pd >= today) dates.push(pd);
+      const pt = templateData.procedureTime as string | undefined;
+      if (pd && pd > today) entries.push({ date: pd, time: pt });
     }
   }
-  return [...new Set(dates)];
+  return entries;
 }
 
 async function runCareVisitReminders() {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    // Fire at 7pm: remind patients about tomorrow's appointment
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowDate = tomorrow.toISOString().slice(0, 10);
 
     const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
     if (!hospitals?.length) return;
@@ -629,8 +639,9 @@ async function runCareVisitReminders() {
         // General Outpatient fires daily (handled separately via daily automation logic)
         if (dept === "General Outpatient") continue;
 
-        const visitDates = extractVisitDates(dept, templateData);
-        if (!visitDates.includes(today)) continue;
+        const entries = extractVisitEntries(dept, templateData);
+        const match = entries.find(e => e.date === tomorrowDate);
+        if (!match) continue;
 
         const { data: patient } = await supabase
           .from("patients")
@@ -641,12 +652,15 @@ async function runCareVisitReminders() {
 
         if (!patient?.email) continue;
 
-        const alreadySent = await checkSentLog(h.id, `care_visit_${plan.id}_${today}`);
+        const alreadySent = await checkSentLog(h.id, `care_visit_${plan.id}_${tomorrowDate}`);
         if (alreadySent) continue;
 
         const patientName = `${patient.first_name} ${patient.last_name}`;
-        await sendCareVisitReminderEmail(h.id, patient.id as number, patientName, patient.email as string, dept, plan.summary as string);
-        log(`Care visit reminder → patient ${patient.id} (${patientName}) dept=${dept} date=${today}`);
+        await sendCareVisitReminderEmail(
+          h.id, patient.id as number, patientName, patient.email as string,
+          dept, plan.summary as string, tomorrowDate, plan.id as number, match.time,
+        );
+        log(`Care visit reminder → patient ${patient.id} (${patientName}) dept=${dept} date=${tomorrowDate} time=${match.time ?? "n/a"}`);
       }
     }
   } catch (err) {

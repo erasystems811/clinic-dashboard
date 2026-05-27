@@ -15,7 +15,7 @@ async function resolveHospitalIntId(username: string): Promise<number | null> {
 const CarePlanBody = z.object({
   summary: z.string().min(1),
   department: z.string().min(1),
-  templateData: z.record(z.unknown()).optional().default({}),
+  templateData: z.any().optional(),
 });
 
 // ── List care plans for a patient ──────────────────────────────────────────────

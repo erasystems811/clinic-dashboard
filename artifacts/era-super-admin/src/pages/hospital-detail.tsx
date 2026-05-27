@@ -648,7 +648,7 @@ export default function HospitalDetail({ id }: Props) {
             </div>
             <div className="rounded-lg border border-border bg-muted/30 p-4">
               <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-                {PREDEFINED_DEPARTMENTS.map(dept => (
+                {[...new Set([...PREDEFINED_DEPARTMENTS, ...departments.filter(d => !PREDEFINED_DEPARTMENTS.includes(d))])].map(dept => (
                   <label key={dept} className="flex items-center gap-2.5 cursor-pointer group">
                     <input type="checkbox" checked={departments.includes(dept)} onChange={() => toggleDepartment(dept)} className="w-4 h-4 rounded accent-primary shrink-0" />
                     <span className={`text-sm transition-colors ${departments.includes(dept) ? "text-foreground font-medium" : "text-muted-foreground group-hover:text-foreground"}`}>{dept}</span>
@@ -656,32 +656,16 @@ export default function HospitalDetail({ id }: Props) {
                 ))}
               </div>
             </div>
-            {customDepts.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-xs text-muted-foreground font-medium">Custom departments</p>
-                <div className="flex flex-wrap gap-2">
-                  {customDepts.map(dept => (
-                    <div key={dept} className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-sm text-primary">
-                      <span>{dept}</span>
-                      <button type="button" onClick={() => setDepartments(prev => prev.filter(d => d !== dept))} className="text-primary/60 hover:text-primary transition">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
             <div className="flex gap-2">
               <input
                 type="text" value={customDeptInput} onChange={e => setCustomDeptInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustomDept(); } }}
-                placeholder="Add a custom department…" className={inputCls() + " flex-1"}
+                placeholder="Add department…" className={inputCls() + " flex-1"}
               />
               <button type="button" onClick={addCustomDept} disabled={!customDeptInput.trim()} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-muted border border-border text-sm font-medium text-foreground hover:bg-muted/80 disabled:opacity-40 transition">
-                <Plus className="w-4 h-4" />Add
+                <Plus className="w-4 h-4" />Add Department
               </button>
             </div>
-            {customDepts.length > 0 && <p className="text-xs text-muted-foreground">{departments.length} department{departments.length !== 1 ? "s" : ""} total ({customDepts.length} custom)</p>}
           </div>
 
           {/* Pipeline */}

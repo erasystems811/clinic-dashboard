@@ -559,6 +559,7 @@ export async function sendCareVisitReminderEmail(
   visitDescription: string,
   visitDate: string,
   planId: number,
+  visitTime?: string,
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
   const dedupeKey = `PLAN:${planId}:${visitDate}`;
@@ -573,14 +574,15 @@ export async function sendCareVisitReminderEmail(
     const formatted = new Date(visitDate).toLocaleDateString("en-GB", {
       weekday: "long", day: "numeric", month: "long", year: "numeric",
     });
+    const timeStr = visitTime ? ` at ${visitTime}` : "";
     const subject = `Reminder: ${department} appointment tomorrow — ${hCtx.hospitalName}`;
     const body = [
       `Hi ${firstName},`,
       ``,
-      `This is a friendly reminder from ${hCtx.hospitalName} that you have a ${department} appointment scheduled for tomorrow, ${formatted}.`,
+      `This is a friendly reminder from ${hCtx.hospitalName} that you have a ${department} appointment scheduled for tomorrow, ${formatted}${timeStr}.`,
       visitDescription ? `Appointment details: ${visitDescription}` : "",
       ``,
-      `Please ensure you arrive on time. If you have any questions or need to reschedule, please ${contactLine(hCtx.phoneNumber)}.`,
+      `Please ensure you arrive on time${visitTime ? ` (${visitTime})` : ""}. If you have any questions or need to reschedule, please ${contactLine(hCtx.phoneNumber)}.`,
       ``,
       `Please do not reply to this email directly.`,
       ``,

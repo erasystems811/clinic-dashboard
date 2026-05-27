@@ -45,7 +45,7 @@ export async function getHospitalFromRequest(req: Request): Promise<HospitalCont
   if (!token) return null;
   const hospitalIntId = verifyHospitalToken(token);
   if (!hospitalIntId) return null;
-  const { data } = await supabase.from("hospitals").select("id, username, hospital_code").eq("id", hospitalIntId).single();
+  const { data } = await supabase.from("hospitals").select("*").eq("id", hospitalIntId).single();
   if (!data) return null;
   // Fall back to username if hospital_code column doesn't exist yet or is null.
   // The startup migration will backfill the UUID; until then username keeps data visible.

@@ -160,8 +160,11 @@ export const api = {
   retryAutomation: (id: number) =>
     post<{ ok: boolean; message: string }>(`/super-admin/automation-log/${id}/retry`, {}),
 
-  resetTestData: () =>
-    post<{ ok: boolean; message: string }>("/super-admin/reset-test-data", {}),
+  resetTestData: (hospitalId: number) =>
+    post<{ ok: boolean; message: string }>("/super-admin/reset-test-data", { hospitalId }),
+
+  getHealth: () =>
+    get<{ ok: boolean; checks: { name: string; ok: boolean; detail: string }[] }>("/super-admin/health"),
 
   changePassword: (currentPassword: string, newPassword: string) =>
     post<{ ok: boolean }>("/super-admin/change-password", { currentPassword, newPassword }),

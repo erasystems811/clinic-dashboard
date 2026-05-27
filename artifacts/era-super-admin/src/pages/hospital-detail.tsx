@@ -6,7 +6,7 @@ import {
   Building2, Save, Loader2, AlertCircle, ChevronLeft,
   Settings, Puzzle, Shield, ToggleLeft, ToggleRight, RefreshCw,
   Eye, EyeOff, KeyRound, Plus, X, Zap, CheckCircle2, XCircle,
-  Clock, RotateCcw, Mail, MessageSquare, Filter, Copy, Check, Link, Users, Phone,
+  Clock, RotateCcw, Mail, MessageSquare, Filter, Copy, Check, Link, Users, Phone, Trash2,
 } from "lucide-react";
 
 
@@ -32,6 +32,62 @@ function CredRow({ label, value }: { label: string; value: string }) {
         <p className="text-sm font-mono text-foreground truncate">{value}</p>
       </div>
       <CopyBtn text={value} />
+    </div>
+  );
+}
+
+function ResetHospitalData({ hospitalId, hospitalName }: { hospitalId: number; hospitalName: string }) {
+  const [confirm, setConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleReset = async () => {
+    setResetting(true);
+    try {
+      await api.resetTestData(hospitalId);
+      setDone(true);
+      setConfirm(false);
+      setTimeout(() => setDone(false), 4000);
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  if (done) return (
+    <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+      <CheckCircle2 className="w-3.5 h-3.5" /> Data cleared
+    </span>
+  );
+
+  if (!confirm) return (
+    <button
+      type="button"
+      onClick={() => setConfirm(true)}
+      className="flex items-center gap-1.5 text-xs text-red-400/70 hover:text-red-400 transition"
+    >
+      <Trash2 className="w-3.5 h-3.5" />
+      Reset patient data
+    </button>
+  );
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-muted-foreground">Wipe all patients &amp; logs for <strong>{hospitalName}</strong>?</span>
+      <button
+        type="button"
+        onClick={handleReset}
+        disabled={resetting}
+        className="px-2.5 py-1 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-50 transition"
+      >
+        {resetting ? "Resetting…" : "Yes, wipe"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirm(false)}
+        className="px-2.5 py-1 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition"
+      >
+        Cancel
+      </button>
     </div>
   );
 }
@@ -645,7 +701,10 @@ export default function HospitalDetail({ id }: Props) {
             </Field>
           </div>
 
-          <div className="flex justify-end pt-2">
+          <div className="flex justify-between items-center pt-2">
+            {/* Per-hospital reset */}
+            <ResetHospitalData hospitalId={id} hospitalName={hospital?.name ?? ""} />
+
             <button onClick={saveGeneral} disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? "Saving…" : "Save Changes"}

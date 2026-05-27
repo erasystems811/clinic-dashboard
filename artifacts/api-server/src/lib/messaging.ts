@@ -106,9 +106,14 @@ export async function deliverMobileMessage(
  * Returns a result object instead of throwing.
  */
 export async function testSmsDelivery(to: string, senderId?: string): Promise<{ ok: boolean; detail: string }> {
-  return termiiSend(
-    { to, body: "Era test message — SMS delivery is working." },
-    "generic",
-    { senderId },
-  );
+  try {
+    return await termiiSend(
+      { to, body: "Era test message — SMS delivery is working." },
+      "generic",
+      { senderId },
+    );
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return { ok: false, detail };
+  }
 }

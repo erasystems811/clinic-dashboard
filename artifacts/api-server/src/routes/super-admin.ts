@@ -692,24 +692,56 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
 
 // ── Reset Test Data ───────────────────────────────────────────────────────────
 router.post("/super-admin/reset-test-data", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { hospitalId } = req.body ?? {};
+  if (!hospitalId || isNaN(Number(hospitalId))) {
+    res.status(400).json({ error: "hospitalId is required — reset is scoped to a single hospital to protect other accounts." });
+    return;
+  }
+  const hid = Number(hospitalId);
   try {
-    const tables = [
-      "automation_log",
-      "activity",
-      "queue",
-      "call_tasks",
-      "appointments",
-      "feedback",
-      "wellness_newsletter",
-      "patients",
-    ];
-    for (const table of tables) {
-      await supabase.from(table).delete().neq("id", 0);
+    const patientTables = ["automation_log", "activity", "queue", "call_tasks", "appointments", "feedback", "wellness_newsletter"];
+    for (const table of patientTables) {
+      await supabase.from(table).delete().eq("hospital_id", hid);
     }
-    res.json({ ok: true, message: "All test data cleared. Hospital accounts and settings are preserved." });
+    // patients table uses hospital_id too
+    await supabase.from("patients").delete().eq("hospital_id", hid);
+    res.json({ ok: true, message: "All patient data cleared for this hospital. Accounts and settings are preserved." });
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Reset failed" });
   }
+});
+
+// GET /super-admin/health
+router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<void> => {
+  const checks: { name: string; ok: boolean; detail: string }[] = [];
+
+  // 1. Database
+  try {
+    const { error } = await supabase.from("hospitals").select("id").limit(1);
+    checks.push({ name: "Database", ok: !error, detail: error ? error.message : "Connected" });
+  } catch (e) {
+    checks.push({ name: "Database", ok: false, detail: e instanceof Error ? e.message : "Unreachable" });
+  }
+
+  // 2. Messaging (Termii)
+  const hasTermii = !!process.env.TERMII_API_KEY;
+  const hasSender = !!process.env.TERMII_SENDER_ID;
+  checks.push({
+    name: "Messaging",
+    ok: hasTermii && hasSender,
+    detail: !hasTermii ? "TERMII_API_KEY not set" : !hasSender ? "TERMII_SENDER_ID not set" : "API key + sender ID configured",
+  });
+
+  // 3. Scheduler
+  const schedulerEnabled = process.env.ENABLE_SCHEDULER === "true";
+  checks.push({
+    name: "Scheduler",
+    ok: schedulerEnabled,
+    detail: schedulerEnabled ? "Enabled" : "Disabled (set ENABLE_SCHEDULER=true in production)",
+  });
+
+  const allOk = checks.every(c => c.ok);
+  res.json({ ok: allOk, checks });
 });
 
 // ── Automation Log (Failed Automations) ───────────────────────────────────────

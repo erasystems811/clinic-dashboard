@@ -4,7 +4,8 @@ import Layout from "@/components/layout";
 import { api, Hospital } from "@/lib/api";
 import {
   Building2, Plus, Search, CheckCircle2, XCircle,
-  AlertCircle, Loader2, ChevronRight, RefreshCw, CalendarClock
+  AlertCircle, Loader2, ChevronRight, RefreshCw, CalendarClock,
+  Database, MessageSquare, Clock, Activity
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";
 
@@ -28,6 +29,8 @@ function StatusBadge({ status, active }: { status: string; active: boolean }) {
   );
 }
 
+type HealthCheck = { name: string; ok: boolean; detail: string };
+
 export default function Dashboard() {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +38,21 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [, setLocation] = useLocation();
+
+  const [health, setHealth] = useState<{ ok: boolean; checks: HealthCheck[] } | null>(null);
+  const [healthLoading, setHealthLoading] = useState(true);
+
+  const fetchHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const data = await api.getHealth();
+      setHealth(data);
+    } catch {
+      setHealth(null);
+    } finally {
+      setHealthLoading(false);
+    }
+  }, []);
 
   const fetchHospitals = useCallback(async () => {
     setLoading(true);
@@ -49,7 +67,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  useEffect(() => { fetchHospitals(); }, [fetchHospitals]);
+  useEffect(() => { fetchHospitals(); fetchHealth(); }, [fetchHospitals, fetchHealth]);
 
   const filtered = hospitals.filter(h =>
     h.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -116,6 +134,49 @@ export default function Dashboard() {
             <div className="text-2xl font-bold text-foreground">{stat.value}</div>
           </div>
         ))}
+      </div>
+
+      {/* System Health */}
+      <div className="rounded-xl border border-border bg-card p-4 mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-foreground">System Health</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {!healthLoading && health && (
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${health.ok ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"}`}>
+                {health.ok ? "All Systems Operational" : "Degraded"}
+              </span>
+            )}
+            <button onClick={fetchHealth} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition" title="Refresh health">
+              <RefreshCw className={`w-3.5 h-3.5 ${healthLoading ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+        </div>
+        {healthLoading ? (
+          <div className="flex gap-4">
+            {[1,2,3].map(i => <div key={i} className="flex-1 h-12 rounded-lg bg-muted animate-pulse" />)}
+          </div>
+        ) : health ? (
+          <div className="grid grid-cols-3 gap-3">
+            {health.checks.map(c => {
+              const Icon = c.name === "Database" ? Database : c.name === "Messaging" ? MessageSquare : Clock;
+              return (
+                <div key={c.name} className={`flex items-start gap-2.5 p-3 rounded-lg border ${c.ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}>
+                  <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${c.ok ? "text-emerald-400" : "text-red-400"}`} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground">{c.name}</p>
+                    <p className="text-xs text-muted-foreground truncate" title={c.detail}>{c.detail}</p>
+                  </div>
+                  {c.ok ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 ml-auto shrink-0 mt-0.5" /> : <XCircle className="w-3.5 h-3.5 text-red-400 ml-auto shrink-0 mt-0.5" />}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Unable to reach health endpoint.</p>
+        )}
       </div>
 
       {/* Search */}

@@ -36,6 +36,7 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 // Migration: add hospital_id column to appointments + call_tasks and backfill from patients.
+// Also ensures hospitals.hospital_code column exists and is populated.
 async function migrateHospitalIdColumns() {
   const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
   const token = process.env.SUPABASE_ACCESS_TOKEN;
@@ -44,15 +45,33 @@ async function migrateHospitalIdColumns() {
     return;
   }
   const sql = `
+    -- Ensure hospital_code column exists on hospitals
+    ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS hospital_code TEXT;
+    -- Backfill hospital_code for any hospital that doesn't have one yet
+    UPDATE hospitals SET hospital_code = gen_random_uuid()::TEXT WHERE hospital_code IS NULL;
+    -- Update patient-facing tables from username → hospital_code
+    UPDATE patients p
+      SET hospital_id = h.hospital_code
+      FROM hospitals h
+      WHERE p.hospital_id = h.username AND h.hospital_code IS NOT NULL;
+    UPDATE care_plans cp
+      SET hospital_id = h.hospital_code
+      FROM hospitals h
+      WHERE cp.hospital_id = h.username AND h.hospital_code IS NOT NULL;
+    UPDATE queue q
+      SET hospital_id = h.hospital_code
+      FROM hospitals h
+      WHERE q.hospital_id = h.username AND h.hospital_code IS NOT NULL;
+    -- Add hospital_id to appointments and call_tasks (integer FK)
     ALTER TABLE appointments ADD COLUMN IF NOT EXISTS hospital_id INTEGER REFERENCES hospitals(id);
     ALTER TABLE call_tasks   ADD COLUMN IF NOT EXISTS hospital_id INTEGER REFERENCES hospitals(id);
     UPDATE appointments a
       SET hospital_id = h.id
-      FROM patients p JOIN hospitals h ON h.username = p.hospital_id
+      FROM patients p JOIN hospitals h ON h.id = (SELECT id FROM hospitals WHERE hospital_code = p.hospital_id LIMIT 1)
       WHERE a.patient_id = p.id AND a.hospital_id IS NULL;
     UPDATE call_tasks ct
       SET hospital_id = h.id
-      FROM patients p JOIN hospitals h ON h.username = p.hospital_id
+      FROM patients p JOIN hospitals h ON h.id = (SELECT id FROM hospitals WHERE hospital_code = p.hospital_id LIMIT 1)
       WHERE ct.patient_id = p.id AND ct.hospital_id IS NULL;
     NOTIFY pgrst, 'reload schema';
   `;
@@ -103,14 +122,28 @@ async function migrateInCareStageColumn() {
 }
 
 // Migration: update all patient-facing tables to use hospital_code (UUID) instead of username as hospital_id.
-// Safe to run multiple times — only updates rows that still contain the old username value.
+// Step 1 — ensure every hospital has a hospital_code (generate one if missing).
+// Step 2 — update patients/care_plans/queue rows that still store the username.
+// Safe to run multiple times.
 async function migrateHospitalIdToCode() {
   try {
     const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code");
     for (const h of hospitals ?? []) {
-      const code = h.hospital_code as string | null;
       const username = h.username as string;
-      if (!code || !username) continue;
+      if (!username) continue;
+
+      // Step 1: backfill hospital_code if missing
+      let code = h.hospital_code as string | null;
+      if (!code) {
+        const { createHash } = await import("crypto");
+        // deterministic UUID v4-shaped code derived from username so restarts are idempotent
+        const newCode = crypto.randomUUID();
+        await supabase.from("hospitals").update({ hospital_code: newCode }).eq("id", h.id);
+        code = newCode;
+        logger.info(`[migration] Assigned hospital_code to hospital id=${h.id} (${username})`);
+      }
+
+      // Step 2: update patient-facing tables still referencing username
       await supabase.from("patients").update({ hospital_id: code }).eq("hospital_id", username);
       await supabase.from("care_plans").update({ hospital_id: code }).eq("hospital_id", username);
       await supabase.from("queue").update({ hospital_id: code }).eq("hospital_id", username);

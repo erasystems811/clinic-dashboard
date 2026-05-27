@@ -13,6 +13,7 @@ import {
 import { useAuth } from "@/contexts/auth-context";
 import type { Patient } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
+import { getPatientStages } from "@/lib/utils";
 import {
   Search, Stethoscope, Flag, Loader2, Plus, Trash2,
   Pencil, MessageSquare, PhoneCall, ChevronDown,
@@ -281,7 +282,7 @@ export default function NurseStation() {
     flagMissed.mutate({ id: flaggedPatient.id, data: { reason: flagReason, actionType: flagActionType } });
   };
 
-  const flagResults = flagSearchResults.filter(p => p.stage !== "Dormant");
+  const flagResults = flagSearchResults.filter(p => !getPatientStages(p as never).every(s => s === "Dormant"));
 
   return (
     <Layout>
@@ -330,7 +331,9 @@ export default function NurseStation() {
                           <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
                           <p className="text-xs text-muted-foreground">
                             {patient.patientId && <span className="mr-2 font-mono">ID: {patient.patientId}</span>}
-                            {patient.phone} · <span className={patient.stage === "Queued" ? "text-primary font-medium" : ""}>{patient.stage}</span>
+                            {patient.phone} · {getPatientStages(patient as never).map((s, i) => (
+                              <span key={s} className={s === "Queued" ? "text-primary font-medium" : ""}>{i > 0 ? " · " : ""}{s}</span>
+                            ))}
                           </p>
                         </div>
                       </button>
@@ -350,7 +353,7 @@ export default function NurseStation() {
                     <p className="font-semibold text-sm">{selectedPatient.firstName} {selectedPatient.lastName}</p>
                     <p className="text-xs text-muted-foreground">
                       {selectedPatient.patientId && <span className="font-mono mr-2">ID: {selectedPatient.patientId}</span>}
-                      Stage: {selectedPatient.stage}
+                      Stage: {getPatientStages(selectedPatient as never).join(" · ")}
                     </p>
                   </div>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedPatient(null)}>Change</Button>
@@ -485,7 +488,7 @@ export default function NurseStation() {
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-sm">{selectedPatient.firstName} {selectedPatient.lastName}</p>
-                    <p className="text-xs text-muted-foreground">Stage: {selectedPatient.stage}</p>
+                    <p className="text-xs text-muted-foreground">Stage: {getPatientStages(selectedPatient as never).join(" · ")}</p>
                   </div>
                   <button type="button" className="p-1 rounded hover:bg-muted transition" onClick={cancelPlanForm}>
                     <X className="w-4 h-4 text-muted-foreground" />
@@ -581,7 +584,9 @@ export default function NurseStation() {
                           <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
                           <p className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
                             {patient.patientId && <span className="font-mono">ID: {patient.patientId}</span>}
-                            <span className="text-blue-400">{patient.stage}</span>
+                            {getPatientStages(patient as never).map((s, i) => (
+                              <span key={s} className="text-blue-400">{i > 0 ? " · " : ""}{s}</span>
+                            ))}
                             {patient.treatmentPlan && (
                               <span className="truncate max-w-[220px] text-amber-400">Plan: {patient.treatmentPlan}</span>
                             )}

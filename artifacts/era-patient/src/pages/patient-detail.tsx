@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { apiUrl } from "@/lib/api";
+import { getPatientStages } from "@/lib/utils";
 import { useParams, Link, useLocation } from "wouter";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
@@ -419,7 +420,11 @@ export default function PatientDetail() {
                       {patient.firstName[0]}{patient.lastName[0]}
                     </div>
                     <h2 className="text-xl font-bold">{patient.firstName} {patient.lastName}</h2>
-                    <Badge className="mt-2" variant="secondary">{patient.stage}</Badge>
+                    <div className="flex flex-wrap justify-center gap-1 mt-2">
+                      {getPatientStages(patient as never).map(s => (
+                        <Badge key={s} variant="secondary">{s}</Badge>
+                      ))}
+                    </div>
 
                     {patient.stage === "Booked" && (
                       <Button className="w-full mt-4" onClick={handleCheckIn} disabled={checkinPatient.isPending}>

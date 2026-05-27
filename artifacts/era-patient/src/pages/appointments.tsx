@@ -12,6 +12,7 @@ import {
   getListAppointmentsQueryKey,
 } from "@workspace/api-client-react";
 import type { Appointment } from "@workspace/api-client-react";
+import { getPatientStages } from "@/lib/utils";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -166,7 +167,7 @@ function BookModal({
                         <p className="text-xs text-muted-foreground">
                           {p.patientId && <span className="mr-1.5">ID: {p.patientId}</span>}
                           {p.email && <span className="mr-1.5">{p.email}</span>}
-                          {p.stage && <span className="capitalize">{p.stage}</span>}
+                          {getPatientStages(p as never).map(s => <span key={s} className="capitalize">{s}</span>).reduce<React.ReactNode[]>((acc, el, i) => i === 0 ? [el] : [...acc, " · ", el], [])}
                         </p>
                       </div>
                     </button>

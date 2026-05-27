@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-client-react";
 
 import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star } from "lucide-react";
+import { getPatientStages } from "@/lib/utils";
 
 function waitTime(addedAt: string) {
   const diff = Math.floor((Date.now() - new Date(addedAt).getTime()) / 60000);
@@ -182,7 +183,7 @@ export default function QueueManagement() {
                           <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
                             {patient.patientId && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">ID: {patient.patientId}</span>}
-                            <span>{patient.stage}</span>
+                            <span>{getPatientStages(patient as never).join(" · ")}</span>
                             <span>{patient.email}</span>
                             {patient.whatsappNumber && <span>WA: {patient.whatsappNumber}</span>}
                           </div>

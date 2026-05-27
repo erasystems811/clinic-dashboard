@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns";
 import { useGetPatientHistory, useDeletePatient } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/api";
+import { getPatientStages } from "@/lib/utils";
 import { Layout } from "@/components/layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -235,9 +236,11 @@ export default function PatientHistory() {
               <div className="flex-1 min-w-0 pt-1">
                 <h1 className="text-2xl font-bold tracking-tight">{patientFullName}</h1>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${stageClass}`}>
-                    {patient.stage}
-                  </span>
+                  {getPatientStages(patient as never).map((s, i) => (
+                    <span key={s} className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${i === 0 ? stageClass : "bg-muted text-muted-foreground border-border"}`}>
+                      {s}
+                    </span>
+                  ))}
                   {patient.department && (
                     <span className="text-xs px-2.5 py-1 rounded-full border border-border bg-muted text-muted-foreground flex items-center gap-1">
                       <Stethoscope className="w-3 h-3" />

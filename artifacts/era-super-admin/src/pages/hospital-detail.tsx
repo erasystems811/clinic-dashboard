@@ -644,15 +644,17 @@ export default function HospitalDetail({ id }: Props) {
           <div className="space-y-3">
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Departments</p>
-              <p className="text-xs text-muted-foreground">These 7 standard departments are available to all hospitals. Add custom ones below for specific needs.</p>
+              <p className="text-xs text-muted-foreground">Select which departments are active for this hospital. These appear in the nurse station when logging care plans.</p>
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-1.5">
-              {PREDEFINED_DEPARTMENTS.map(dept => (
-                <div key={dept} className="flex items-center gap-2.5 py-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-                  <span className="text-sm text-foreground">{dept}</span>
-                </div>
-              ))}
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
+                {PREDEFINED_DEPARTMENTS.map(dept => (
+                  <label key={dept} className="flex items-center gap-2.5 cursor-pointer group">
+                    <input type="checkbox" checked={departments.includes(dept)} onChange={() => toggleDepartment(dept)} className="w-4 h-4 rounded accent-primary shrink-0" />
+                    <span className={`text-sm transition-colors ${departments.includes(dept) ? "text-foreground font-medium" : "text-muted-foreground group-hover:text-foreground"}`}>{dept}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             {customDepts.length > 0 && (
               <div className="space-y-1.5">

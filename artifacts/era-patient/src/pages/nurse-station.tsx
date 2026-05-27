@@ -15,9 +15,19 @@ import type { Patient } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
 import {
   Search, Stethoscope, Flag, Loader2, Plus, Trash2,
-  Pencil, CheckCircle, MessageSquare, PhoneCall, ChevronDown,
+  Pencil, MessageSquare, PhoneCall, ChevronDown,
   ChevronUp, X, Calendar, AlertTriangle,
 } from "lucide-react";
+
+const STANDARD_DEPARTMENTS = [
+  "General Outpatient",
+  "Antenatal / Maternity",
+  "Paediatrics",
+  "Surgery / Post-Op",
+  "Dental",
+  "Eye",
+  "Fertility / IVF",
+];
 
 // ── Types ───────────────────────────────────────────────────────────────────────
 
@@ -81,9 +91,12 @@ function emptyTemplateData(dept: string): Record<string, unknown> {
 export default function NurseStation() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { hospital } = useAuth();
-  const { hospitalConfig } = useAuth();
-  const departments = hospitalConfig?.departments ?? [];
+  const { hospital, hospitalConfig } = useAuth();
+  // Use hospital's configured departments filtered to known templates;
+  // fall back to all 7 standard departments for hospitals with old/empty config.
+  const configDepts = hospitalConfig?.departments ?? [];
+  const templateDepts = configDepts.filter(d => STANDARD_DEPARTMENTS.includes(d));
+  const departments = templateDepts.length > 0 ? templateDepts : STANDARD_DEPARTMENTS;
 
   // Patient search
   const [search, setSearch] = useState("");
@@ -443,13 +456,16 @@ export default function NurseStation() {
                   </select>
                 </div>
 
-                {/* Department-specific template */}
+                {/* Department-specific template — shapeshifts when department changes */}
                 {planDepartment && (
-                  <DepartmentTemplate
-                    department={planDepartment}
-                    templateData={planTemplateData}
-                    onChange={setPlanTemplateData}
-                  />
+                  <div key={planDepartment} style={{ animation: "deptShift 0.22s ease-out both" }}>
+                    <style>{`@keyframes deptShift{from{opacity:0;transform:translateY(-8px) scale(0.98)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
+                    <DepartmentTemplate
+                      department={planDepartment}
+                      templateData={planTemplateData}
+                      onChange={setPlanTemplateData}
+                    />
+                  </div>
                 )}
 
                 {/* Summary notes */}
@@ -749,7 +765,11 @@ function DepartmentTemplate({
           </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Procedure Type</label>
-            <input type="text" value={(templateData.procedureType as string) ?? ""} onChange={e => set("procedureType", e.target.value)} className={inputCls} placeholder="e.g. Appendectomy" />
+            <select value={(templateData.procedureType as string) ?? ""} onChange={e => set("procedureType", e.target.value)} className={inputCls}>
+              <option value="">Select type…</option>
+              <option value="Minor">Minor</option>
+              <option value="Major">Major</option>
+            </select>
           </div>
         </div>
         <InCareScheduleRows dept={department} rows={rows} rowKey="inCareSchedule" col2Key="whatHappens" col2Label="What happens" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />

@@ -575,15 +575,87 @@ export function startScheduler() {
     await checkSubscriptionExpirations();
   });
 
-  // Daily at 8am: birthday emails
+  // Daily at 8am: birthday emails + care visit reminders
   cron.schedule("0 8 * * *", async () => {
     await runBirthdayEmails();
+    await runCareVisitReminders();
   });
 
   log("Scheduler started — all automations are email-first");
 }
 
-// ── Birthday Emails — runs daily at midnight ───────────────────────────────────
+// ── Care Visit Reminders — runs daily at 8am ──────────────────────────────────
+
+function extractVisitDates(dept: string, templateData: Record<string, unknown>): string[] {
+  const dates: string[] = [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (dept === "Antenatal / Maternity") {
+    const rows = (templateData.ancSchedule as Array<{ date?: string }>) ?? [];
+    for (const r of rows) if (r.date && r.date >= today) dates.push(r.date);
+  } else if (dept === "Paediatrics") {
+    const rows = (templateData.vaccinationSchedule as Array<{ date?: string }>) ?? [];
+    for (const r of rows) if (r.date && r.date >= today) dates.push(r.date);
+  } else if (dept === "Surgery / Post-Op" || dept === "Dental" || dept === "Eye" || dept === "Fertility / IVF") {
+    const rows = (templateData.inCareSchedule as Array<{ date?: string }>) ?? [];
+    for (const r of rows) if (r.date && r.date >= today) dates.push(r.date);
+    if (dept === "Surgery / Post-Op") {
+      const pd = templateData.procedureDate as string | undefined;
+      if (pd && pd >= today) dates.push(pd);
+    }
+  }
+  return [...new Set(dates)];
+}
+
+async function runCareVisitReminders() {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
+    if (!hospitals?.length) return;
+
+    for (const h of hospitals) {
+      const { data: plans } = await supabase
+        .from("care_plans")
+        .select("id, patient_id, department, summary, template_data")
+        .eq("hospital_id", h.id);
+
+      if (!plans?.length) continue;
+
+      for (const plan of plans) {
+        const dept = plan.department as string;
+        const templateData = (plan.template_data ?? {}) as Record<string, unknown>;
+
+        // General Outpatient fires daily (handled separately via daily automation logic)
+        if (dept === "General Outpatient") continue;
+
+        const visitDates = extractVisitDates(dept, templateData);
+        if (!visitDates.includes(today)) continue;
+
+        const { data: patient } = await supabase
+          .from("patients")
+          .select("id, first_name, last_name, email")
+          .eq("id", plan.patient_id)
+          .eq("hospital_id", h.id)
+          .single();
+
+        if (!patient?.email) continue;
+
+        const alreadySent = await checkSentLog(h.id, `care_visit_${plan.id}_${today}`);
+        if (alreadySent) continue;
+
+        const patientName = `${patient.first_name} ${patient.last_name}`;
+        await sendCareVisitReminderEmail(h.id, patient.id as number, patientName, patient.email as string, dept, plan.summary as string);
+        log(`Care visit reminder → patient ${patient.id} (${patientName}) dept=${dept} date=${today}`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Care visit reminders error: ${err}`);
+  }
+}
+
+// ── Birthday Emails — runs daily at 8am ───────────────────────────────────────
 async function runBirthdayEmails() {
   try {
     const now = new Date();

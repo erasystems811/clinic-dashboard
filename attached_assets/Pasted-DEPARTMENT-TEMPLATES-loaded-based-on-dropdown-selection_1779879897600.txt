@@ -1,0 +1,20 @@
+DEPARTMENT TEMPLATES loaded based on dropdown selection:
+General Outpatient:
+Treatment Type — three buttons: Medication Only, Come to Hospital, Combination. If Medication Only show Medication Timing checkboxes Morning Afternoon Evening Night. If Come to Hospital show Hospital Visit Timing checkboxes Morning Afternoon Evening Night. If Combination show both Medication Timing and Hospital Visit Timing checkboxes. Duration in days number input.
+Antenatal / Maternity:
+Current Week of Pregnancy number input. ANC Schedule with dynamic rows each containing Week Number input, What Should Happen text input, Date date picker. Add Row button to keep adding entries.
+Paediatrics:
+Current Age of Child text input. Vaccination Schedule with dynamic rows each containing Age at Vaccination text input, Vaccination Name text input, Date date picker. Add Row button to keep adding entries.
+Surgery / Post-Op:
+Procedure Date date picker. Procedure Type dropdown Minor or Major. In-Care Schedule with dynamic rows each containing Date date picker and What Should Happen text input. Add Row button to keep adding entries.
+Dental:
+In-Care Schedule with dynamic rows each containing Date date picker and Treatment Type text input. Add Row button to keep adding entries.
+Eye:
+In-Care Schedule with dynamic rows each containing Date date picker and Treatment Type or Action text input. Add Row button to keep adding entries.
+Fertility / IVF:
+In-Care Schedule with dynamic rows each containing Date date picker and What Should Happen text input. Add Row button to keep adding entries.
+AUTOMATION LOGIC NOTE FOR AI:
+The department selected and the template filled determines what the automated emails say and when they are sent. General Outpatient fires daily based on timing checkboxes for the duration set. All other departments fire on the specific dates entered by the nurse. The Care Plan Summary email is always sent first 10 mins after when a care plan is saved. Do not change any existing email sending infrastructure, only update the form structure and data saved.
+Let the department in the drop down be based on what department was picked for the hospital in the super admin 
+IMPORTANT:
+Do not break any existing functionality. All templates must save correctly to the database. The edit function must reload the saved data into the correct template form. 

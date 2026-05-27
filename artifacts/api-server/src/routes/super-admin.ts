@@ -744,16 +744,17 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
   const lowBalance = termiiBalance !== null && termiiBalance < 50;
   const balanceLabel = termiiBalance !== null ? `₦${termiiBalance.toFixed(2)}` : null;
 
+  // Low balance is always red regardless of env — missing config in dev stays amber
   checks.push({
     name: "SMS (Termii)",
-    ok: (smsOk && !lowBalance) || !isProd,
-    warning: (!smsOk || lowBalance) && !isProd,
+    ok: lowBalance ? false : (smsOk || !isProd),
+    warning: !lowBalance && !smsOk && !isProd,
     detail: !hasTermii
       ? (isProd ? "TERMII_API_KEY not set" : "Not set in dev — on Railway")
       : !hasSender
         ? (isProd ? "TERMII_SENDER_ID not set" : "Sender ID not set in dev")
         : lowBalance
-          ? "Low credit — top up at termii.com"
+          ? "⚠ Low credit — top up at termii.com"
           : "Configured",
     ...(balanceLabel ? { balance: balanceLabel } : {}),
   });
@@ -761,12 +762,12 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
   // 3. WhatsApp (Termii) — same API key + balance as SMS
   checks.push({
     name: "WhatsApp (Termii)",
-    ok: (hasTermii && !lowBalance) || !isProd,
-    warning: (!hasTermii || lowBalance) && !isProd,
+    ok: lowBalance ? false : (hasTermii || !isProd),
+    warning: !lowBalance && !hasTermii && !isProd,
     detail: !hasTermii
       ? (isProd ? "TERMII_API_KEY not set" : "Not set in dev — on Railway")
       : lowBalance
-        ? "Low credit — top up at termii.com"
+        ? "⚠ Low credit — top up at termii.com"
         : "Configured",
     ...(balanceLabel ? { balance: balanceLabel } : {}),
   });

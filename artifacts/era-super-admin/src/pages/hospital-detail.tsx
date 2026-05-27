@@ -160,7 +160,9 @@ export default function HospitalDetail({ id }: Props) {
       setActive(h.active);
       setSubscriptionExpiresAt(h.subscriptionExpiresAt ? h.subscriptionExpiresAt.substring(0, 10) : "");
       const loadedDepts = s.departments ?? [];
-      const merged = [...new Set([...PREDEFINED_DEPARTMENTS, ...loadedDepts])];
+      // If no departments have ever been saved, default to all predefined (first-time setup).
+      // Otherwise use exactly what was saved — respecting unchecked predefined departments.
+      const merged = loadedDepts.length > 0 ? loadedDepts : [...PREDEFINED_DEPARTMENTS];
       setDepartments(merged);
       setPostTreatmentDays(s.pipelinePostTreatmentDays?.toString() ?? "");
       setDormantDays(s.pipelineDormantDays?.toString() ?? "");

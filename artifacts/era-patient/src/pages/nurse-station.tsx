@@ -15,9 +15,9 @@ import type { Patient } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
 import { getPatientStages } from "@/lib/utils";
 import {
-  Search, Stethoscope, Flag, Loader2, Plus, Trash2,
+  Search, Stethoscope, Flag, Loader2, Plus,
   Pencil, MessageSquare, PhoneCall, ChevronDown,
-  ChevronUp, X, Calendar, AlertTriangle, CheckCircle2,
+  ChevronUp, X, Calendar, CheckCircle2,
 } from "lucide-react";
 
 const STANDARD_DEPARTMENTS = [
@@ -111,8 +111,6 @@ export default function NurseStation() {
   const [carePlansLoading, setCarePlansLoading] = useState(false);
   const [planMode, setPlanMode] = useState<"list" | "new" | "edit">("list");
   const [editingPlan, setEditingPlan] = useState<CarePlan | null>(null);
-  const [deletingPlanId, setDeletingPlanId] = useState<number | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [savingPlan, setSavingPlan] = useState(false);
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
   const [confirmEndPlanId, setConfirmEndPlanId] = useState<number | null>(null);
@@ -242,24 +240,6 @@ export default function NurseStation() {
     }
   };
 
-  const handleDeletePlan = async (planId: number) => {
-    if (!selectedPatient) return;
-    setDeletingPlanId(planId);
-    try {
-      const res = await fetch(apiUrl(`/api/care-plans/${planId}`), {
-        method: "DELETE",
-        headers: authHeader(),
-      });
-      if (!res.ok) throw new Error("Delete failed");
-      toast({ title: "Care plan removed" });
-      await fetchCarePlans(selectedPatient.id);
-      setConfirmDeleteId(null);
-    } catch {
-      toast({ title: "Failed to delete care plan", variant: "destructive" });
-    } finally {
-      setDeletingPlanId(null);
-    }
-  };
 
   const handleEndPlanEarly = async (planId: number) => {
     if (!selectedPatient) return;
@@ -401,11 +381,11 @@ export default function NurseStation() {
                             </button>
                             <button
                               type="button"
-                              className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
-                              onClick={e => { e.stopPropagation(); setConfirmDeleteId(plan.id); }}
-                              title="Delete"
+                              className="p-1.5 rounded text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 transition"
+                              onClick={e => { e.stopPropagation(); setConfirmEndPlanId(plan.id); setConfirmDeleteId(null); }}
+                              title="End Treatment Early"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
                             {expandedPlanId === plan.id
                               ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -413,26 +393,6 @@ export default function NurseStation() {
                           </div>
                         </div>
 
-                        {/* Confirm delete */}
-                        {confirmDeleteId === plan.id && (
-                          <div className="px-4 py-3 bg-destructive/5 border-t border-destructive/20 space-y-2">
-                            <div className="flex items-start gap-2">
-                              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                              <p className="text-xs text-amber-300">Delete this {plan.department} care plan? This cannot be undone.</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
-                              <Button
-                                type="button" size="sm"
-                                className="flex-1 text-xs bg-destructive hover:bg-destructive/90 text-destructive-foreground border-0"
-                                onClick={() => handleDeletePlan(plan.id)}
-                                disabled={deletingPlanId === plan.id}
-                              >
-                                {deletingPlanId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Delete"}
-                              </Button>
-                            </div>
-                          </div>
-                        )}
 
                         {/* Confirm end treatment early */}
                         {confirmEndPlanId === plan.id && (
@@ -456,20 +416,10 @@ export default function NurseStation() {
                         )}
 
                         {/* Expanded details */}
-                        {expandedPlanId === plan.id && confirmDeleteId !== plan.id && confirmEndPlanId !== plan.id && (
+                        {expandedPlanId === plan.id && confirmEndPlanId !== plan.id && (
                           <div className="px-4 py-3 bg-muted/20 border-t border-border space-y-3">
                             <p className="text-sm text-foreground">{plan.summary}</p>
                             <PlanTemplateDetails dept={plan.department} data={plan.templateData} />
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="w-full text-xs text-amber-400 border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
-                              onClick={e => { e.stopPropagation(); setConfirmEndPlanId(plan.id); setConfirmDeleteId(null); }}
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                              End Treatment Early
-                            </Button>
                           </div>
                         )}
                       </div>

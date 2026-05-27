@@ -1,6 +1,6 @@
 import { useState, FormEvent } from "react";
 import { useAuth } from "@/contexts/auth";
-import { Building2, Lock, User, AlertCircle, KeyRound, ArrowLeft, ShieldCheck } from "lucide-react";
+import { Building2, Lock, User, AlertCircle, KeyRound, ArrowLeft, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { post } from "@/lib/api";
 
 type Screen = "login" | "recover";
@@ -14,14 +14,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // recovery form
   const [recoveryKey, setRecoveryKey] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [recoveryDone, setRecoveryDone] = useState(false);
+  const [showRecoveryKey, setShowRecoveryKey] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const inputCls = "w-full pl-10 pr-4 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition";
+  const inputCls = "w-full pl-10 pr-10 py-2.5 rounded-lg bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition";
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -51,6 +55,18 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  const EyeToggle = ({ show, onToggle }: { show: boolean; onToggle: () => void }) => (
+    <button
+      type="button"
+      onClick={onToggle}
+      tabIndex={-1}
+      aria-label={show ? "Hide" : "Show"}
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
+    >
+      {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+    </button>
+  );
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -90,7 +106,7 @@ export default function LoginPage() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     required
@@ -98,6 +114,7 @@ export default function LoginPage() {
                     className={inputCls}
                     placeholder="••••••••"
                   />
+                  <EyeToggle show={showPassword} onToggle={() => setShowPassword(v => !v)} />
                 </div>
               </div>
               {error && (
@@ -157,13 +174,14 @@ export default function LoginPage() {
                     <div className="relative">
                       <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <input
-                        type="password"
+                        type={showRecoveryKey ? "text" : "password"}
                         value={recoveryKey}
                         onChange={e => setRecoveryKey(e.target.value)}
                         required
                         className={inputCls}
                         placeholder="Your secret recovery key"
                       />
+                      <EyeToggle show={showRecoveryKey} onToggle={() => setShowRecoveryKey(v => !v)} />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -171,13 +189,14 @@ export default function LoginPage() {
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <input
-                        type="password"
+                        type={showNewPassword ? "text" : "password"}
                         value={newPassword}
                         onChange={e => setNewPassword(e.target.value)}
                         required
                         className={inputCls}
                         placeholder="Min. 8 characters"
                       />
+                      <EyeToggle show={showNewPassword} onToggle={() => setShowNewPassword(v => !v)} />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -185,13 +204,14 @@ export default function LoginPage() {
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <input
-                        type="password"
+                        type={showConfirmPassword ? "text" : "password"}
                         value={confirmPassword}
                         onChange={e => setConfirmPassword(e.target.value)}
                         required
                         className={inputCls}
                         placeholder="Repeat new password"
                       />
+                      <EyeToggle show={showConfirmPassword} onToggle={() => setShowConfirmPassword(v => !v)} />
                     </div>
                   </div>
                   {error && (

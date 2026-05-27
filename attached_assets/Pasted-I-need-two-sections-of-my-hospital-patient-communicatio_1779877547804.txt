@@ -1,0 +1,51 @@
+I need two sections of my hospital patient communication app updated. Here is exactly what to change.
+SECTION 1: SUPER ADMIN — DEPARTMENT MANAGEMENT
+Change the departments list to be these default departments:
+	1.	General Outpatient
+	2.	Antenatal / Maternity
+	3.	Paediatrics
+	4.	Surgery / Post-Op
+	5.	Dental
+	6.	Eye
+	7.	Fertility / IVF
+Each department should be displayed as a list. Below the list add an “Add Department” button so the super admin can add custom departments in future. 
+These are now the department that will be provided for hospitals to be register 
+
+SECTION 2: NURSE STATION — TREATMENT PLAN INPUT
+The treatment plan input should support multiple care plans per patient. A patient can have more than one active care plan. The nurse sees existing care plans listed for that patient. There is an “Add Care Plan” button to create a new one. Each care plan can be edited at any time via an edit button. Each care plan can be deleted.
+Every care plan regardless of department must have at the top:
+	•	Care Plan Summary (text area) — this is always the first email sent to the patient summarizing their full treatment. Do not remove this from any template.
+	•	Care Department dropdown — selecting the department loads the correct template below.
+
+DEPARTMENT TEMPLATES loaded based on dropdown selection:
+General Outpatient:
+Treatment Type — three buttons: Medication Only, Come to Hospital, Combination. If Medication Only show Medication Timing checkboxes Morning Afternoon Evening Night. If Come to Hospital show Hospital Visit Timing checkboxes Morning Afternoon Evening Night. If Combination show both Medication Timing and Hospital Visit Timing checkboxes. Duration in days number input.
+Antenatal / Maternity:
+Current Week of Pregnancy number input. ANC Schedule with dynamic rows each containing Week Number input, What Should Happen text input, Date date picker. Add Row button to keep adding entries.
+Paediatrics:
+Current Age of Child text input. Vaccination Schedule with dynamic rows each containing Age at Vaccination text input, Vaccination Name text input, Date date picker. Add Row button to keep adding entries.
+Surgery / Post-Op:
+Procedure Date date picker. Procedure Type dropdown Minor or Major. In-Care Schedule with dynamic rows each containing Date date picker and What Should Happen text input. Add Row button to keep adding entries.
+Dental:
+In-Care Schedule with dynamic rows each containing Date date picker and Treatment Type text input. Add Row button to keep adding entries.
+Eye:
+In-Care Schedule with dynamic rows each containing Date date picker and Treatment Type or Action text input. Add Row button to keep adding entries.
+Fertility / IVF:
+In-Care Schedule with dynamic rows each containing Date date picker and What Should Happen text input. Add Row button to keep adding entries.
+AUTOMATION LOGIC NOTE FOR AI:
+The department selected and the template filled determines what the automated emails say and when they are sent. General Outpatient fires daily based on timing checkboxes for the duration set. All other departments fire on the specific dates entered by the nurse. The Care Plan Summary email is always sent first 10 mins after when a care plan is saved. Do not change any existing email sending infrastructure, only update the form structure and data saved.
+Let the department in the drop down be based on what department was picked for the hospital in the super admin 
+IMPORTANT:
+Do not break any existing functionality. All templates must save correctly to the database. The edit function must reload the saved data into the correct template form. 
+
+Also Add a birthday automation Here is exactly what to build.
+BIRTHDAY AUTOMATION
+Every patient profile already has a date of birth field. Use that to trigger an automatic birthday email every year on the patient’s birthday.
+The email should send once per year automatically on the patient’s birthday date. By 12:00 am Do not break any existing functionality
+THE BIRTHDAY EMAIL TEMPLATE:
+Subject: Happy Birthday from [Hospital Name] 🎂
+Body:
+Happy Birthday [First Name]!
+Today we pause to celebrate you. At [Hospital Name], you are never just a name in our system — you are someone we genuinely care about, and your birthday gives us a reason to say that out loud.
+We hope today brings you warmth, laughter, and the company of people who love you. And in this new year of your life, we wish you the one thing that makes everything else possible — good health.
+From everyone at [Hospital Name], Happy Birthday. We are glad you are here.

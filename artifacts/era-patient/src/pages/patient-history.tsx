@@ -22,7 +22,7 @@ import {
   ArrowLeft, Phone, Mail, Calendar, Stethoscope,
   ClipboardList, PhoneCall, MessageSquare, Bot, Activity,
   Clock, CheckCircle2, AlertTriangle, Flag, Trash2, Pencil, X, Save, Loader2,
-  CheckCircle, Link2, Copy,
+  CheckCircle, Link2,
 } from "lucide-react";
 
 function fmt(iso: string | null | undefined) {
@@ -126,9 +126,7 @@ export default function PatientHistory() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmEndPlanId, setConfirmEndPlanId] = useState<number | null>(null);
   const [endingPlanId, setEndingPlanId] = useState<number | null>(null);
-  const [generatingLink, setGeneratingLink] = useState(false);
-  const [feedbackLink, setFeedbackLink] = useState<string | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
+  const [feedbackLinkCopied, setFeedbackLinkCopied] = useState(false);
 
   const startEditing = (patient: Record<string, unknown>) => {
     setEditForm({
@@ -201,40 +199,14 @@ export default function PatientHistory() {
     });
   };
 
-  const handleGenerateFeedbackLink = async () => {
-    if (!hospital?.token) return;
-    setGeneratingLink(true);
-    try {
-      const res = await fetch(apiUrl(`/api/patients/${id}/feedback-link`), {
-        method: "POST",
-        headers: { "x-hospital-token": hospital.token },
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        toast({ title: "Error", description: (d as { error?: string }).error ?? "Could not generate link", variant: "destructive" });
-        return;
-      }
-      const { token } = await res.json();
-      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-      const link = `${window.location.origin}${base}/feedback/${token}`;
-      setFeedbackLink(link);
-      await navigator.clipboard.writeText(link);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 3000);
-      toast({ title: "Feedback link copied!", description: "Share it with the patient after their visit." });
-    } catch {
-      toast({ title: "Error", description: "Could not generate link", variant: "destructive" });
-    } finally {
-      setGeneratingLink(false);
-    }
-  };
-
-  const copyLink = async () => {
-    if (!feedbackLink) return;
-    await navigator.clipboard.writeText(feedbackLink);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
-    toast({ title: "Link copied!" });
+  const copyHospitalFeedbackLink = async () => {
+    if (!hospital?.feedbackSlug) return;
+    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+    const link = `${window.location.origin}${base}/feedback/h/${hospital.feedbackSlug}`;
+    await navigator.clipboard.writeText(link);
+    setFeedbackLinkCopied(true);
+    setTimeout(() => setFeedbackLinkCopied(false), 2500);
+    toast({ title: "Feedback link copied!", description: "Share it with the patient." });
   };
 
   const handleEndPlanEarly = async (planId: number) => {
@@ -316,13 +288,54 @@ export default function PatientHistory() {
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="h-2 bg-gradient-to-r from-primary/60 to-primary/20" />
 
-          <div className="px-6 pt-5 pb-6 space-y-5">
-            <div className="flex items-start gap-5">
-              <div className="w-16 h-16 rounded-full bg-primary/10 text-primary text-xl font-bold flex items-center justify-center shrink-0 border-2 border-primary/20 shadow-sm">
+          <div className="px-6 pt-5 pb-6 space-y-4">
+            {/* Avatar + identity */}
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 rounded-full bg-primary/10 text-primary text-lg font-bold flex items-center justify-center shrink-0 border-2 border-primary/20 shadow-sm">
                 {patient.firstName[0]}{patient.lastName[0]}
               </div>
-              <div className="flex-1 min-w-0 pt-1">
-                <h1 className="text-2xl font-bold tracking-tight">{patientFullName}</h1>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-3">
+                  <h1 className="text-xl font-bold tracking-tight leading-tight">{patientFullName}</h1>
+                  {/* Action buttons — top-right, always visible */}
+                  <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                    {editing ? (
+                      <>
+                        <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => { setEditing(false); setSaveError(null); }} disabled={saving}>
+                          <X className="w-3.5 h-3.5" />
+                          Cancel
+                        </Button>
+                        <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={saving}>
+                          <Save className="w-3.5 h-3.5" />
+                          {saving ? "Saving…" : "Save"}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => startEditing(patient as unknown as Record<string, unknown>)}>
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit
+                        </Button>
+                        {isAdmin && hospital?.feedbackSlug && (
+                          <Button size="sm" variant="outline" className="gap-1.5" onClick={copyHospitalFeedbackLink}>
+                            {feedbackLinkCopied
+                              ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              : <Link2 className="w-3.5 h-3.5" />
+                            }
+                            {feedbackLinkCopied ? "Copied!" : "Feedback Link"}
+                          </Button>
+                        )}
+                        {isAdmin && (
+                          <Button size="sm" variant="outline" className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setShowFollowUp(true)}>
+                            <Flag className="w-3.5 h-3.5" />
+                            Flag Follow-Up
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+                {/* Stage + department badges */}
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   {getPatientStages(patient as never).map((s) => (
                     <span key={s} className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${STAGE_COLORS[s] ?? "bg-muted text-muted-foreground border-border"}`}>
@@ -336,7 +349,7 @@ export default function PatientHistory() {
                     </span>
                   )}
                 </div>
-                {/* Queue management — only when not editing */}
+                {/* Queue management */}
                 {!editing && (
                   <div className="mt-3">
                     {!(patient as Record<string,unknown>).isInQueue ? (
@@ -351,55 +364,6 @@ export default function PatientHistory() {
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {editing ? (
-                  <>
-                    <Button size="sm" variant="ghost" className="gap-1.5" onClick={() => { setEditing(false); setSaveError(null); }} disabled={saving}>
-                      <X className="w-3.5 h-3.5" />
-                      Cancel
-                    </Button>
-                    <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={saving}>
-                      <Save className="w-3.5 h-3.5" />
-                      {saving ? "Saving…" : "Save"}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button size="sm" variant="outline" className="gap-1.5" onClick={() => startEditing(patient as unknown as Record<string, unknown>)}>
-                      <Pencil className="w-3.5 h-3.5" />
-                      Edit
-                    </Button>
-                    {isAdmin && hospital?.token && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5"
-                        disabled={generatingLink}
-                        onClick={feedbackLink ? copyLink : handleGenerateFeedbackLink}
-                      >
-                        {linkCopied
-                          ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          : feedbackLink
-                          ? <Copy className="w-3.5 h-3.5" />
-                          : <Link2 className="w-3.5 h-3.5" />
-                        }
-                        {generatingLink ? "Generating…" : linkCopied ? "Copied!" : feedbackLink ? "Copy Link" : "Feedback Link"}
-                      </Button>
-                    )}
-                    {isAdmin && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => setShowFollowUp(true)}
-                      >
-                        <Flag className="w-3.5 h-3.5" />
-                        Flag Follow-Up
-                      </Button>
-                    )}
-                  </>
                 )}
               </div>
             </div>
@@ -495,17 +459,6 @@ export default function PatientHistory() {
             )}
           </div>
         </div>
-
-        {/* Feedback link banner */}
-        {feedbackLink && (
-          <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <p className="text-xs text-emerald-400 flex-1 truncate font-mono">{feedbackLink}</p>
-            <button onClick={copyLink} className="text-xs text-emerald-400 hover:text-emerald-300 shrink-0 font-medium">
-              {linkCopied ? "Copied!" : "Copy"}
-            </button>
-          </div>
-        )}
 
         {/* ── CARE PLANS ── */}
         <Section icon={ClipboardList} title="Care Plans" count={carePlans.length}>

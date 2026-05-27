@@ -123,22 +123,14 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
     metadata: parsed.data.summary.slice(0, 200),
   });
 
-  // Fire automations: Care Plan Summary email + mobile notification
+  // Fire automations: WhatsApp notification fires immediately;
+  // care plan summary EMAIL is delayed 20 minutes via the scheduler
+  // (so minor adjustments can be made before the patient receives it)
   const hospitalIntId = await resolveHospitalIntId(hospital.username);
   if (hospitalIntId) {
-    const email = patient.email as string | null;
     const phone = (patient.whatsapp_number as string) || (patient.phone as string);
-
     if (phone) {
       sendCarePlanNotification(hospitalIntId, patientId, patientName, phone).catch(() => {});
-    }
-    if (email) {
-      sendCarePlanEmail(
-        hospitalIntId, patientId, patientName, email,
-        parsed.data.department,
-        parsed.data.summary,
-        durationDays,
-      ).catch(() => {});
     }
   }
 

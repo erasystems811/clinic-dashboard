@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListPatients, useListPipelineStages, getListPipelineStagesQueryKey, type Patient } from "@workspace/api-client-react";
+import { getPatientStages } from "@/lib/utils";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,6 @@ export default function Patients() {
                   </TableRow>
                 ) : (
                   allPatients.map((patient) => {
-                    const stageColor = stages?.find(s => s.name === patient.stage)?.color || "gray";
                     return (
                       <TableRow
                         key={patient.id}
@@ -151,11 +151,7 @@ export default function Patients() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {/* Show all active stages — patient can be in multiple simultaneously */}
-                            {Array.from(new Set([
-                              patient.stage,
-                              ...((patient as Record<string, unknown>).activeStages as string[] ?? []),
-                            ])).filter(Boolean).map(s => {
+                            {getPatientStages(patient as never).map(s => {
                               const sc = stages?.find(st => st.name === s)?.color || "gray";
                               return (
                                 <Badge key={s} variant="outline" style={{ borderColor: sc, color: sc, backgroundColor: `${sc}15` }}>

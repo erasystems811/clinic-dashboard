@@ -10,6 +10,7 @@ import {
   sendInCareAIReminder,
   sendBirthdayEmail,
   sendCareVisitReminderEmail,
+  sendCarePlanEmail,
   type InCareTimeSlot,
 } from "./automation.js";
 import { signFeedbackToken } from "./feedbackToken.js";
@@ -544,7 +545,83 @@ export function startScheduler() {
     await runCarePlanRemindersHourly();
   });
 
+  // Every 5 minutes: delayed care plan summary emails (sent 20 min after plan is created)
+  cron.schedule("*/5 * * * *", async () => {
+    await runCarePlanEmailDelay();
+  });
+
   log("Scheduler started — all automations are email-first");
+}
+
+// ── Delayed care plan summary emails (20 min after plan creation) ─────────────
+// Runs every 5 min. Picks up care plans created 15–25 min ago that haven't had
+// a care_plan_email sent yet — giving nurses time for minor last-minute edits.
+async function runCarePlanEmailDelay() {
+  try {
+    const now = new Date();
+    const minAge = new Date(now.getTime() - 25 * 60 * 1000); // 25 min ago
+    const maxAge = new Date(now.getTime() - 15 * 60 * 1000); // 15 min ago
+
+    const { data: plans } = await supabase
+      .from("care_plans")
+      .select("id, patient_id, hospital_id, department, summary, template_data, created_at")
+      .gte("created_at", minAge.toISOString())
+      .lte("created_at", maxAge.toISOString());
+
+    if (!plans?.length) return;
+
+    for (const plan of plans) {
+      const key = `care_plan_email_${plan.id}`;
+
+      // Resolve integer hospital id
+      const { data: hosp } = await supabase
+        .from("hospitals")
+        .select("id")
+        .eq("username", plan.hospital_id as string)
+        .single();
+      if (!hosp) continue;
+
+      if (await checkSentLog(hosp.id, key)) continue;
+
+      const { data: patient } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, email")
+        .eq("id", plan.patient_id as number)
+        .single();
+      if (!patient?.email) continue;
+
+      const patientName = `${patient.first_name} ${patient.last_name}`;
+      const isGeneralOutpatient = (plan.department as string) === "General Outpatient";
+      const durationDays = isGeneralOutpatient
+        ? ((plan.template_data as Record<string, unknown>)?.durationDays as number | undefined) ?? 1
+        : 1;
+
+      await sendCarePlanEmail(
+        hosp.id,
+        patient.id as number,
+        patientName,
+        patient.email as string,
+        plan.department as string,
+        plan.summary as string,
+        durationDays,
+      );
+
+      // Mark as sent using a unique key so the 5-min cron won't re-send
+      await supabase.from("automation_log").insert({
+        hospital_id: hosp.id,
+        patient_id: patient.id,
+        automation_type: key,
+        status: "sent",
+        channel: "email",
+        message: `Care plan email (20-min delay) → ${patient.email}`,
+        created_at: new Date().toISOString(),
+      });
+
+      log(`Care plan email (delayed) → patient ${patient.id} plan ${plan.id}`);
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+  }
 }
 
 // ── Dedup helper — checks automation_log for a unique per-event key ──────────

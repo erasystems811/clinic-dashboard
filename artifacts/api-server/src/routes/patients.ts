@@ -97,8 +97,7 @@ router.get("/patients", async (req, res): Promise<void> => {
   let q = supabase.from("patients").select("*").eq("hospital_id", hospital.username);
 
   if (query.data.stage) {
-    // Match patients where the primary stage matches OR active_stages array contains the stage
-    q = q.or(`stage.eq.${query.data.stage},active_stages.cs.{"${query.data.stage}"}`);
+    q = q.eq("stage", query.data.stage);
   } else if (query.data.search) {
     const term = `%${query.data.search}%`;
     q = q.or(`first_name.ilike.${term},last_name.ilike.${term},patient_id.ilike.${term}`);
@@ -109,7 +108,25 @@ router.get("/patients", async (req, res): Promise<void> => {
     .range(offset, offset + limit - 1);
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  res.json(camelizeArr(data ?? []));
+  const patients = data ?? [];
+
+  // Attach has_care_plan — drives "In Care" display without needing an active_stages column
+  if (patients.length > 0) {
+    const ids = patients.map(p => p.id as number);
+    const { data: plans } = await supabase
+      .from("care_plans")
+      .select("patient_id")
+      .eq("hospital_id", hospital.username)
+      .in("patient_id", ids);
+    const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
+    res.json(camelizeArr(patients.map(p => ({
+      ...p,
+      has_care_plan: withPlans.has(p.id as number),
+    }))));
+    return;
+  }
+
+  res.json([]);
 });
 
 router.post("/patients", async (req, res): Promise<void> => {
@@ -181,10 +198,21 @@ router.get("/patients/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const hospital = await getHospitalFromRequest(req);
+
   const { data, error } = await supabase.from("patients").select("*").eq("id", id).single();
   if (error || !data) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  res.json(serializePatient(data));
+  const hospitalId = hospital?.username ?? (data.hospital_id as string);
+  const { data: plans } = await supabase
+    .from("care_plans")
+    .select("id")
+    .eq("patient_id", id)
+    .eq("hospital_id", hospitalId)
+    .limit(1);
+  const hasCarePlan = (plans ?? []).length > 0;
+
+  res.json(serializePatient({ ...data, has_care_plan: hasCarePlan }));
 });
 
 router.get("/patients/:id/history", async (req, res): Promise<void> => {
@@ -194,14 +222,15 @@ router.get("/patients/:id/history", async (req, res): Promise<void> => {
   const { data: patient, error: pErr } = await supabase.from("patients").select("*").eq("id", id).single();
   if (pErr || !patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  const [activityRes, appointmentsRes, callTasksRes] = await Promise.all([
+  const [activityRes, appointmentsRes, callTasksRes, plansRes] = await Promise.all([
     supabase.from("activity").select("*").eq("patient_id", id).order("created_at", { ascending: true }),
     supabase.from("appointments").select("*").eq("patient_id", id).order("scheduled_at", { ascending: true }),
     supabase.from("call_tasks").select("*").eq("patient_id", id).order("flagged_at", { ascending: true }),
+    supabase.from("care_plans").select("id").eq("patient_id", id).limit(1),
   ]);
 
   res.json({
-    patient: serializePatient(patient),
+    patient: serializePatient({ ...patient, has_care_plan: (plansRes.data ?? []).length > 0 }),
     activity: camelizeArr(activityRes.data ?? []),
     appointments: (appointmentsRes.data ?? []).map(a => ({ ...camelize(a), duration: a.duration ?? 30 })),
     callTasks: camelizeArr(callTasksRes.data ?? []),

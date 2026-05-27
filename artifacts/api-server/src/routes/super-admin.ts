@@ -751,16 +751,19 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     }
   }
 
-  // 3. Scheduler
+  // 4. Scheduler
   const schedulerEnabled = process.env.ENABLE_SCHEDULER === "true";
+  const isProd = process.env.NODE_ENV === "production";
   checks.push({
     name: "Scheduler",
-    ok: schedulerEnabled,
-    detail: schedulerEnabled ? "Enabled" : "Disabled (set ENABLE_SCHEDULER=true in production)",
+    ok: schedulerEnabled || !isProd,
+    warning: !schedulerEnabled && !isProd,
+    detail: schedulerEnabled ? "Running" : isProd ? "Not running — set ENABLE_SCHEDULER=true" : "Off in dev — runs automatically on Railway",
   });
 
   const allOk = checks.every(c => c.ok);
-  res.json({ ok: allOk, checks });
+  const anyWarning = !allOk ? false : checks.some((c: Record<string, unknown>) => c.warning);
+  res.json({ ok: allOk, anyWarning, checks });
 });
 
 // ── Automation Log (Failed Automations) ───────────────────────────────────────

@@ -29,17 +29,18 @@ function StatusBadge({ status, active }: { status: string; active: boolean }) {
   );
 }
 
-type HealthCheck = { name: string; ok: boolean; detail: string };
+type HealthCheck = { name: string; ok: boolean; warning?: boolean; detail: string };
 
 export default function Dashboard() {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [showSuspended, setShowSuspended] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [, setLocation] = useLocation();
 
-  const [health, setHealth] = useState<{ ok: boolean; checks: HealthCheck[] } | null>(null);
+  const [health, setHealth] = useState<{ ok: boolean; anyWarning?: boolean; checks: HealthCheck[] } | null>(null);
   const [healthLoading, setHealthLoading] = useState(true);
 
   const fetchHealth = useCallback(async () => {
@@ -69,10 +70,15 @@ export default function Dashboard() {
 
   useEffect(() => { fetchHospitals(); fetchHealth(); }, [fetchHospitals, fetchHealth]);
 
-  const filtered = hospitals.filter(h =>
-    h.name.toLowerCase().includes(search.toLowerCase()) ||
-    h.username.toLowerCase().includes(search.toLowerCase())
-  );
+  const isSuspended = (h: Hospital) => !h.active || h.subscriptionStatus === "suspended" || h.subscriptionStatus === "inactive";
+
+  const filtered = hospitals.filter(h => {
+    if (!showSuspended && isSuspended(h)) return false;
+    return (
+      h.name.toLowerCase().includes(search.toLowerCase()) ||
+      h.username.toLowerCase().includes(search.toLowerCase())
+    );
+  });
 
   const now = Date.now();
   const in30days = now + 30 * 24 * 60 * 60 * 1000;
@@ -145,8 +151,14 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-2">
             {!healthLoading && health && (
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${health.ok ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"}`}>
-                {health.ok ? "All Systems Operational" : "Degraded"}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+                !health.ok
+                  ? "bg-red-500/10 text-red-400 border-red-500/20"
+                  : health.anyWarning
+                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                    : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              }`}>
+                {!health.ok ? "Degraded" : health.anyWarning ? "All Systems Operational" : "All Systems Operational"}
               </span>
             )}
             <button onClick={fetchHealth} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition" title="Refresh health">
@@ -163,14 +175,23 @@ export default function Dashboard() {
             {health.checks.map(c => {
               const Icon = c.name === "Database" ? Database : c.name.startsWith("SMS") ? MessageSquare : c.name.startsWith("Email") ? Mail : Clock;
           
+              const isWarn = c.ok && c.warning;
               return (
-                <div key={c.name} className={`flex items-start gap-2.5 p-3 rounded-lg border ${c.ok ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}>
-                  <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${c.ok ? "text-emerald-400" : "text-red-400"}`} />
+                <div key={c.name} className={`flex items-start gap-2.5 p-3 rounded-lg border ${
+                  !c.ok ? "border-red-500/20 bg-red-500/5"
+                  : isWarn ? "border-amber-500/20 bg-amber-500/5"
+                  : "border-emerald-500/20 bg-emerald-500/5"
+                }`}>
+                  <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${!c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400"}`} />
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-foreground">{c.name}</p>
                     <p className="text-xs text-muted-foreground truncate" title={c.detail}>{c.detail}</p>
                   </div>
-                  {c.ok ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 ml-auto shrink-0 mt-0.5" /> : <XCircle className="w-3.5 h-3.5 text-red-400 ml-auto shrink-0 mt-0.5" />}
+                  {!c.ok
+                    ? <XCircle className="w-3.5 h-3.5 text-red-400 ml-auto shrink-0 mt-0.5" />
+                    : isWarn
+                      ? <AlertCircle className="w-3.5 h-3.5 text-amber-400 ml-auto shrink-0 mt-0.5" />
+                      : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 ml-auto shrink-0 mt-0.5" />}
                 </div>
               );
             })}
@@ -180,16 +201,29 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search hospitals…"
-          className="w-full pl-10 pr-4 py-2 rounded-lg bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
-        />
+      {/* Search + filters */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search hospitals…"
+            className="w-full pl-10 pr-4 py-2 rounded-lg bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+          />
+        </div>
+        <button
+          onClick={() => setShowSuspended(s => !s)}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition whitespace-nowrap ${
+            showSuspended
+              ? "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20"
+              : "bg-muted text-muted-foreground border-border hover:text-foreground"
+          }`}
+        >
+          <XCircle className="w-3.5 h-3.5" />
+          {showSuspended ? "Suspended shown" : "Suspended hidden"}
+        </button>
       </div>
 
       {/* Table */}

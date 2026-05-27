@@ -249,7 +249,29 @@ router.get("/patients/:id/history", async (req, res): Promise<void> => {
     supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")').limit(1).maybeSingle(),
   ]);
 
-  const carePlans = allPlansRes.data ?? [];
+  let carePlans = allPlansRes.data ?? [];
+
+  // Lazy migration: old patients stored treatment_plan directly on the patients row.
+  // If no care_plans rows exist yet but the patient has a treatment_plan, create a real
+  // care_plans row now so the history page (and End Early button) work with old data.
+  if (carePlans.length === 0 && patient.treatment_plan) {
+    const hospitalId = patient.hospital_id as string;
+    const createdAt = (patient.treatment_started_at as string | null) ?? new Date().toISOString();
+    const dept = (patient.department as string | null) || (patient.treatment_type as string | null) || "General";
+    const { data: migrated } = await supabase.from("care_plans").insert({
+      patient_id: id,
+      hospital_id: hospitalId,
+      summary: patient.treatment_plan as string,
+      department: dept,
+      template_data: patient.treatment_end_date
+        ? { legacyEndDate: patient.treatment_end_date, migratedFromPatientRow: true }
+        : { migratedFromPatientRow: true },
+      created_at: createdAt,
+      updated_at: createdAt,
+    }).select().single();
+    if (migrated) carePlans = [migrated];
+  }
+
   res.json({
     patient: serializePatient({ ...patient, has_care_plan: carePlans.length > 0, is_in_queue: !!queueRes.data, is_booked: !!bookedRes.data }),
     activity: camelizeArr(activityRes.data ?? []),

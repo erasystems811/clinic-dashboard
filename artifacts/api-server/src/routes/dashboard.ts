@@ -119,9 +119,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   const appointmentsToday = (weekAppointments ?? []).filter(
     a => a.scheduled_at >= startOfDayISO && a.scheduled_at < endOfDayISO && !EXCLUDED_STATUSES.has(a.status)
   ).length;
-  const appointmentsThisWeek = (weekAppointments ?? []).filter(
-    a => !EXCLUDED_STATUSES.has(a.status)
-  ).length;
+  const appointmentsThisWeek = (weekAppointments ?? []).length;
 
   const countMap: Record<string, number> = {};
   for (const p of allPatientStages ?? []) {

@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./lib/scheduler.js";
+import { supabase } from "./lib/supabase.js";
 
 // Reload Supabase PostgREST schema cache so custom columns (e.g. patient_id) are visible.
 // This runs once on boot — safe to fire-and-forget.
@@ -34,6 +35,20 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+// One-time migration: rename legacy "Post Care" stage to "Active" in the DB.
+// Safe to run on every boot — no-op once all rows are migrated.
+async function migratePostCareStage() {
+  const { error, count } = await supabase
+    .from("patients")
+    .update({ stage: "Active" })
+    .eq("stage", "Post Care");
+  if (error) {
+    logger.warn({ err: error }, "[migration] Failed to migrate Post Care → Active");
+  } else if (count) {
+    logger.info(`[migration] Renamed ${count} patient(s) from "Post Care" to "Active"`);
+  }
+}
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -43,4 +58,5 @@ app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
   startScheduler();
   reloadSupabaseSchema();
+  migratePostCareStage();
 });

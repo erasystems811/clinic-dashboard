@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/hooks/use-toast";
 import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -19,7 +20,7 @@ import {
 import {
   ArrowLeft, Phone, Mail, Calendar, Stethoscope,
   ClipboardList, PhoneCall, MessageSquare, Bot, Activity,
-  Clock, CheckCircle2, AlertTriangle, Flag, Trash2, Pencil, X, Save,
+  Clock, CheckCircle2, AlertTriangle, Flag, Trash2, Pencil, X, Save, Loader2,
 } from "lucide-react";
 
 function fmt(iso: string | null | undefined) {
@@ -110,16 +111,19 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 export default function PatientHistory() {
   const params = useParams<{ id: string }>();
   const id = parseInt(params.id ?? "", 10);
-  const { user } = useAuth();
+  const { user, hospital } = useAuth();
   const isAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirmEndPlanId, setConfirmEndPlanId] = useState<number | null>(null);
+  const [endingPlanId, setEndingPlanId] = useState<number | null>(null);
 
   const startEditing = (patient: Record<string, unknown>) => {
     setEditForm({
@@ -168,6 +172,25 @@ export default function PatientHistory() {
 
   const field = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setEditForm(f => ({ ...f, [key]: e.target.value }));
+
+  const handleEndPlanEarly = async (planId: number) => {
+    if (!hospital?.token) return;
+    setEndingPlanId(planId);
+    try {
+      const res = await fetch(apiUrl(`/api/care-plans/${planId}`), {
+        method: "DELETE",
+        headers: { "x-hospital-token": hospital.token },
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: "Care plan ended", description: "The treatment plan has been closed early." });
+      setConfirmEndPlanId(null);
+      refetch();
+    } catch {
+      toast({ title: "Failed to end care plan", variant: "destructive" });
+    } finally {
+      setEndingPlanId(null);
+    }
+  };
 
   const deletePatient = useDeletePatient();
   const handleDelete = () => {
@@ -383,29 +406,58 @@ export default function PatientHistory() {
           ) : (
             <div className="divide-y divide-border">
               {carePlans.map((plan, idx) => {
+                const planId = plan.id as number;
                 const createdAt = plan.createdAt as string | null;
                 const summary = plan.summary as string | null;
                 const department = plan.department as string | null;
                 const isLatest = idx === 0;
                 return (
-                  <div key={plan.id as string} className="px-5 py-4 space-y-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-muted-foreground">{fmt(createdAt)}</span>
-                      {department && (
-                        <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted text-muted-foreground flex items-center gap-1">
-                          <Stethoscope className="w-3 h-3" />
-                          {department}
-                        </span>
-                      )}
-                      {isLatest && (
-                        <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 font-medium">
-                          Latest
-                        </span>
+                  <div key={planId} className="px-5 py-4 space-y-2">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-muted-foreground">{fmt(createdAt)}</span>
+                        {department && (
+                          <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted text-muted-foreground flex items-center gap-1">
+                            <Stethoscope className="w-3 h-3" />
+                            {department}
+                          </span>
+                        )}
+                        {isLatest && (
+                          <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 font-medium">
+                            Latest
+                          </span>
+                        )}
+                      </div>
+                      {isAdmin && confirmEndPlanId !== planId && (
+                        <Button
+                          size="sm" variant="outline"
+                          className="shrink-0 text-xs text-amber-400 border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
+                          onClick={() => setConfirmEndPlanId(planId)}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                          End Early
+                        </Button>
                       )}
                     </div>
                     <div className="bg-muted/30 border border-border rounded-lg px-4 py-3">
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{summary}</p>
                     </div>
+                    {isAdmin && confirmEndPlanId === planId && (
+                      <div className="px-4 py-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2">
+                        <p className="text-xs text-amber-300">End this {department} care plan early? This cannot be undone.</p>
+                        <div className="flex gap-2">
+                          <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setConfirmEndPlanId(null)}>Cancel</Button>
+                          <Button
+                            type="button" size="sm"
+                            className="flex-1 text-xs bg-amber-600 hover:bg-amber-600/90 text-white border-0"
+                            onClick={() => handleEndPlanEarly(planId)}
+                            disabled={endingPlanId === planId}
+                          >
+                            {endingPlanId === planId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Yes, End Early"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

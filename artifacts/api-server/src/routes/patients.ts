@@ -190,6 +190,9 @@ router.get("/patients", async (req, res): Promise<void> => {
       } else {
         q = q.eq("stage", "In Care");
       }
+    } else if (query.data.stage === "Active") {
+      // "Post Care" is the legacy DB name for "Active" — include both
+      q = q.or("stage.eq.Active,stage.eq.Post Care");
     } else {
       q = q.eq("stage", query.data.stage);
     }

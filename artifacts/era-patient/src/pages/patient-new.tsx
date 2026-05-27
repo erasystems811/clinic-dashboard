@@ -28,6 +28,7 @@ export default function NewPatient() {
   const createPatient = useCreatePatient();
 
   const [form, setForm] = useState({
+    patientId: "",
     firstName: "",
     lastName: "",
     dateOfBirth: "",
@@ -51,11 +52,12 @@ export default function NewPatient() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.firstName || !form.lastName || !form.email || !form.phone || !form.dateOfBirth) return;
+    if (!form.patientId || !form.firstName || !form.lastName || !form.email || !form.phone || !form.dateOfBirth) return;
 
     createPatient.mutate(
       {
         data: {
+          patientId: form.patientId,
           firstName: form.firstName,
           lastName: form.lastName,
           dateOfBirth: form.dateOfBirth,
@@ -105,6 +107,11 @@ export default function NewPatient() {
               <CardDescription>Fields marked * are required.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Patient ID *</label>
+                <Input placeholder="e.g. PT-00123" value={form.patientId} onChange={field("patientId")} required />
+              </div>
 
               <div className="grid md:grid-cols-2 gap-5">
                 <div className="space-y-1.5">

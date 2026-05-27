@@ -19,7 +19,7 @@ const ListPatientsQuery = z.object({
 });
 
 const CreatePatientBody = z.object({
-  patientId: z.string().min(1).transform((s) => s.trim().toUpperCase()),
+  patientId: z.string().min(1).transform((s) => s.trim().toUpperCase()).optional(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   dateOfBirth: z.string().optional(),
@@ -136,20 +136,30 @@ router.post("/patients", async (req, res): Promise<void> => {
   const parsed = CreatePatientBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  // Case-insensitive uniqueness check before insert
-  const { data: existing } = await supabase
-    .from("patients")
-    .select("id")
-    .eq("hospital_id", hospital.username)
-    .ilike("patient_id", parsed.data.patientId)
-    .maybeSingle();
-  if (existing) {
-    res.status(409).json({ error: `A patient with ID "${parsed.data.patientId}" is already registered.` });
-    return;
+  // Auto-generate patient_id if not supplied — sequential per hospital (P00001, P00002 …)
+  let patientIdToUse = parsed.data.patientId;
+  if (!patientIdToUse) {
+    const { count } = await supabase
+      .from("patients")
+      .select("*", { count: "exact", head: true })
+      .eq("hospital_id", hospital.username);
+    patientIdToUse = `P${String((count ?? 0) + 1).padStart(5, "0")}`;
+  } else {
+    // Manual ID supplied — check uniqueness
+    const { data: dup } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("hospital_id", hospital.username)
+      .ilike("patient_id", patientIdToUse)
+      .maybeSingle();
+    if (dup) {
+      res.status(409).json({ error: `A patient with ID "${patientIdToUse}" is already registered.` });
+      return;
+    }
   }
 
-  const { hospitalId: _ignored, ...rest } = parsed.data;
-  const data = snakify({ ...rest, stage: "Queued", hospitalId: hospital.username });
+  const { hospitalId: _ignored, patientId: _pid, ...rest } = parsed.data;
+  const data = snakify({ ...rest, patientId: patientIdToUse, stage: "Queued", hospitalId: hospital.username });
   const { data: patient, error } = await supabase.from("patients").insert(data).select().single();
   if (error) {
     console.error("[create patient] supabase error:", JSON.stringify({ code: error.code, message: error.message, details: error.details, hint: error.hint }));
@@ -419,9 +429,13 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   const now = new Date();
   const nowIso = now.toISOString();
 
+  // Dormant patients reactivate the moment they check in — their pre-queue stage is "Active" so they
+  // never return to Dormant after being seen.
+  const preQueueStage = (existing.stage as string) === "Dormant" ? "Active" : (existing.stage as string);
+
   const { data: patient, error: updateErr } = await supabase
     .from("patients")
-    .update({ stage: "Queued", pre_queue_stage: existing.stage, checked_in_at: nowIso, updated_at: nowIso })
+    .update({ stage: "Queued", pre_queue_stage: preQueueStage, checked_in_at: nowIso, updated_at: nowIso })
     .eq("id", id)
     .select()
     .single();

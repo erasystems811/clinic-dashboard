@@ -473,10 +473,15 @@ export default function NurseStation() {
                   </div>
                 )}
 
-                <Button type="button" className="w-full gap-2" onClick={openNewPlan}>
-                  <Plus className="w-4 h-4" />
-                  Add Care Plan
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" className="flex-1" onClick={() => setSelectedPatient(null)}>
+                    Done
+                  </Button>
+                  <Button type="button" className="flex-1 gap-2" onClick={openNewPlan}>
+                    <Plus className="w-4 h-4" />
+                    Add Care Plan
+                  </Button>
+                </div>
               </div>
             ) : (
               /* ── Care plan form (new / edit) ── */

@@ -335,6 +335,9 @@ router.get("/patients/:id/history", async (req, res): Promise<void> => {
     supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")').limit(1).maybeSingle(),
   ]);
 
+  if (allPlansRes.error) {
+    console.error("[history] care_plans query error:", allPlansRes.error.message, allPlansRes.error.code);
+  }
   let carePlans = allPlansRes.data ?? [];
 
   // Lazy migration: old patients stored treatment_plan directly on the patients row.

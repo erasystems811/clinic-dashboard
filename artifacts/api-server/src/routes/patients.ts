@@ -651,7 +651,7 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
 
   const activityDesc = taskType === "check_in"
     ? `${patient.first_name} ${patient.last_name} flagged for check-in (${parsed.data.checkInType ?? "General"}) — call task created`
-    : `${patient.first_name} ${patient.last_name} flagged for missed treatment — call task created`;
+    : `${patient.first_name} ${patient.last_name} flagged for follow-up — call task created`;
 
   await supabase.from("activity").insert({
     type: taskType === "check_in" ? "check_in_flagged" : "missed_treatment_flagged",

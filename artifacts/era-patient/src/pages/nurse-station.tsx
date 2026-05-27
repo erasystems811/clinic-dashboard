@@ -174,14 +174,14 @@ export default function NurseStation() {
     flagMissed.mutate({ id: flaggedPatient.id, data: { reason: flagReason, actionType: flagActionType } });
   };
 
-  const inCareResults = flagSearchResults.filter(p => p.stage === "In Care");
+  const flagResults = flagSearchResults.filter(p => p.stage !== "Dormant");
 
   return (
     <Layout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Nurse Station</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Log treatment plans for queued patients and flag missed treatments.</p>
+          <p className="text-muted-foreground text-sm mt-0.5">Log treatment plans for queued patients and flag any patient for follow-up.</p>
         </div>
 
         {/* ── TREATMENT PLAN LOG ── */}
@@ -409,12 +409,11 @@ export default function NurseStation() {
           </div>
         </div>
 
-        {/* ── FLAG MISSED TREATMENT ── */}
+        {/* ── FLAG PATIENT FOR FOLLOW-UP ── */}
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border bg-muted/10">
             <Flag className="w-4 h-4 text-destructive" />
-            <span className="font-semibold text-sm">Flag Missed Treatment</span>
-            <span className="text-xs text-muted-foreground ml-1">— In Care patients only</span>
+            <span className="font-semibold text-sm">Flag Patient for Follow-up</span>
           </div>
           <div className="p-5">
             {!flaggedPatient ? (
@@ -432,9 +431,9 @@ export default function NurseStation() {
                 </div>
                 {flagSearch.trim().length >= 2 && (
                   <div className="space-y-1.5">
-                    {inCareResults.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">No In Care patients found matching "{flagSearch}"</p>
-                    ) : inCareResults.map(patient => (
+                    {flagResults.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">No patients found matching "{flagSearch}"</p>
+                    ) : flagResults.map(patient => (
                       <button
                         key={patient.id}
                         type="button"
@@ -448,6 +447,7 @@ export default function NurseStation() {
                           <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
                           <p className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
                             {patient.patientId && <span className="font-mono">ID: {patient.patientId}</span>}
+                            <span className="text-blue-400">{patient.stage}</span>
                             {patient.treatmentPlan && (
                               <span className="truncate max-w-[220px] text-amber-400">Plan: {patient.treatmentPlan}</span>
                             )}
@@ -478,7 +478,7 @@ export default function NurseStation() {
                   <Input
                     value={flagReason}
                     onChange={e => setFlagReason(e.target.value)}
-                    placeholder="e.g. Missed 2 consecutive treatment sessions"
+                    placeholder="e.g. Lab result is out, needs to come in for another test"
                     required
                   />
                 </div>

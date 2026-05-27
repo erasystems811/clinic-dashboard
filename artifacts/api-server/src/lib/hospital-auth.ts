@@ -36,6 +36,8 @@ export function verifyHospitalToken(token: string): number | null {
 export interface HospitalContext {
   intId: number;
   username: string;
+  /** UUID — used as hospital_id in patient-facing tables (patients, care_plans, queue) */
+  code: string;
 }
 
 export async function getHospitalFromRequest(req: Request): Promise<HospitalContext | null> {
@@ -43,12 +45,12 @@ export async function getHospitalFromRequest(req: Request): Promise<HospitalCont
   if (!token) return null;
   const hospitalIntId = verifyHospitalToken(token);
   if (!hospitalIntId) return null;
-  const { data } = await supabase.from("hospitals").select("id, username").eq("id", hospitalIntId).single();
+  const { data } = await supabase.from("hospitals").select("id, username, hospital_code").eq("id", hospitalIntId).single();
   if (!data) return null;
-  return { intId: data.id as number, username: data.username as string };
+  return { intId: data.id as number, username: data.username as string, code: data.hospital_code as string };
 }
 
-export async function getPatientIdsForHospital(hospitalUsername: string): Promise<number[]> {
-  const { data } = await supabase.from("patients").select("id").eq("hospital_id", hospitalUsername);
+export async function getPatientIdsForHospital(hospitalCode: string): Promise<number[]> {
+  const { data } = await supabase.from("patients").select("id").eq("hospital_id", hospitalCode);
   return (data ?? []).map((p) => p.id as number);
 }

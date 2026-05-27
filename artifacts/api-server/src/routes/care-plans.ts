@@ -33,7 +33,7 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
     .from("care_plans")
     .select("*")
     .eq("patient_id", patientId)
-    .eq("hospital_id", hospital.username)
+    .eq("hospital_id", hospital.code)
     .order("created_at", { ascending: true });
 
   if (error) { res.status(500).json({ error: error.message }); return; }
@@ -54,7 +54,7 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
 
       const { data: migrated, error: mErr } = await supabase.from("care_plans").insert({
         patient_id: patientId,
-        hospital_id: hospital.username,
+        hospital_id: hospital.code,
         summary,
         department: dept,
         template_data: patient.treatment_end_date
@@ -92,7 +92,7 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   // Insert the care plan
   const { data: plan, error: planErr } = await supabase.from("care_plans").insert({
     patient_id: patientId,
-    hospital_id: hospital.username,
+    hospital_id: hospital.code,
     summary: parsed.data.summary,
     department: parsed.data.department,
     template_data: parsed.data.templateData,
@@ -153,7 +153,7 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   // Fire automations: WhatsApp notification fires immediately;
   // care plan summary EMAIL is delayed 20 minutes via the scheduler
   // (so minor adjustments can be made before the patient receives it)
-  const hospitalIntId = await resolveHospitalIntId(hospital.username);
+  const hospitalIntId = await resolveHospitalIntId(hospital.code);
   if (hospitalIntId) {
     const phone = (patient.whatsapp_number as string) || (patient.phone as string);
     if (phone) {
@@ -175,7 +175,7 @@ router.patch("/care-plans/:id", async (req, res): Promise<void> => {
   const parsed = CarePlanBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { data: existing } = await supabase.from("care_plans").select("*").eq("id", id).eq("hospital_id", hospital.username).single();
+  const { data: existing } = await supabase.from("care_plans").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!existing) { res.status(404).json({ error: "Care plan not found" }); return; }
 
   const { data: updated, error } = await supabase.from("care_plans").update({
@@ -205,7 +205,7 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { data: existing } = await supabase.from("care_plans").select("*").eq("id", id).eq("hospital_id", hospital.username).single();
+  const { data: existing } = await supabase.from("care_plans").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!existing) { res.status(404).json({ error: "Care plan not found" }); return; }
 
   await supabase.from("care_plans").delete().eq("id", id);
@@ -215,7 +215,7 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
     .from("care_plans")
     .select("id")
     .eq("patient_id", existing.patient_id as number)
-    .eq("hospital_id", hospital.username);
+    .eq("hospital_id", hospital.code);
 
   const { data: patient } = await supabase.from("patients").select("first_name, last_name, stage").eq("id", existing.patient_id as number).single();
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";

@@ -52,6 +52,8 @@ export async function updateAutomationLog(
 interface HospitalContext {
   hospitalName: string;
   hospitalUsername: string;
+  /** UUID — used as hospital_id in patient-facing tables (patients, care_plans, queue) */
+  hospitalCode: string;
   /** Ready-to-use "Display Name <email>" from address for Resend */
   fromAddress: string;
   notificationChannel: "whatsapp" | "sms";
@@ -63,7 +65,7 @@ interface HospitalContext {
 
 async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
   const [{ data: hospital }, { data: settings }] = await Promise.all([
-    supabase.from("hospitals").select("id, name, username").eq("id", hospitalId).single(),
+    supabase.from("hospitals").select("id, name, username, hospital_code").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
       .select("sender_name, notification_channel, phone_number, tone, termii_sender_id, language")
       .eq("hospital_id", hospitalId).single(),
@@ -75,6 +77,7 @@ async function getHospitalContext(hospitalId: number): Promise<HospitalContext> 
   return {
     hospitalName,
     hospitalUsername: hospital?.username ?? "",
+    hospitalCode: (hospital?.hospital_code as string) ?? "",
     fromAddress,
     notificationChannel: (settings?.notification_channel as "whatsapp" | "sms") ?? "whatsapp",
     phoneNumber: (settings?.phone_number as string) ?? null,
@@ -818,7 +821,7 @@ export async function sendWellnessNewsletterEmails(
   const { data: patients } = await supabase
     .from("patients")
     .select("id, first_name, last_name, email, stage")
-    .eq("hospital_id", hCtx.hospitalUsername)
+    .eq("hospital_id", hCtx.hospitalCode)
     .in("stage", ["Post Treatment", "Active", "In Care", "Dormant"]);
 
   let sent = 0;
@@ -956,40 +959,3 @@ export async function sendInCareAIReminder(
   }
 }
 
-// ── Birthday Email — Templated ─────────────────────────────────────────────────
-
-export async function sendBirthdayEmail(
-  hospitalId: number,
-  patientId: number,
-  patientName: string,
-  patientEmail: string,
-): Promise<void> {
-  const hCtx = await getHospitalContext(hospitalId);
-  const ctx: AutomationContext = {
-    hospitalId, patientId, patientName,
-    automationType: "birthday_email",
-    channel: "email",
-  };
-  const logId = await logAutomation(ctx, "queued");
-  try {
-    const firstName = patientName.split(" ")[0];
-    const contact = contactLine(hCtx.phoneNumber);
-    const body = `Hi ${firstName},\n\nWishing you a very happy birthday from all of us at ${hCtx.hospitalName}! We hope today brings you joy, good health, and everything you deserve.\n\nThank you for trusting us with your care. Your wellbeing is always our priority, and we look forward to continuing to support you.\n\nPlease do not reply to this email directly — if you need to reach us, please ${contact}.\n\nWarm wishes,\n${hCtx.hospitalName} Team`;
-    const html = wrapHtml(
-      `<p>${body.replace(/\n/g, "</p><p>")}</p>`,
-      hCtx.hospitalName,
-    );
-    await sendEmail({
-      to: patientEmail,
-      from: hCtx.fromAddress,
-      subject: `Happy Birthday, ${firstName}! — ${hCtx.hospitalName}`,
-      html,
-      text: body,
-    });
-    await updateAutomationLog(logId, "sent", `Birthday email → ${patientEmail}`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await updateAutomationLog(logId, "failed", msg);
-    Sentry.captureException(err, { extra: { ...ctx } });
-  }
-}

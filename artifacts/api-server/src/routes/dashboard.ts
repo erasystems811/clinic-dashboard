@@ -73,7 +73,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   const { utcNow, startOfDay, endOfDay, startOfMonth, startOfLastMonth, startOfWeek, endOfWeek } = getLagosBounds();
 
   // Get patient IDs for this hospital (needed for appointments + feedback)
-  const patientIds = await getPatientIdsForHospital(hospital.username);
+  const patientIds = await getPatientIdsForHospital(hospital.code);
   const safePatientIds = patientIds.length ? patientIds : [-1];
 
   const [
@@ -89,18 +89,18 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     { data: dequeuedActivity },
     { data: carePlanPatients },
   ] = await Promise.all([
-    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username),
-    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.username).gte("created_at", startOfMonth.toISOString()),
+    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.code),
+    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.code).gte("created_at", startOfMonth.toISOString()),
     // Only fetch appointments within the current week window — not all-time
     supabase.from("appointments").select("scheduled_at, status")
       .in("patient_id", safePatientIds)
       .gte("scheduled_at", startOfWeek.toISOString())
       .lt("scheduled_at", endOfWeek.toISOString()),
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
-    supabase.from("patients").select("id, stage").eq("hospital_id", hospital.username),
+    supabase.from("patients").select("id, stage").eq("hospital_id", hospital.code),
     supabase.from("feedback").select("rating").eq("hospital_id", hospital.intId),
     supabase.from("wellness_newsletter").select("last_sent_at").eq("hospital_id", hospital.intId).order("last_sent_at", { ascending: false }).limit(1),
-    supabase.from("queue").select("patient_id, added_at").eq("hospital_id", hospital.username),
+    supabase.from("queue").select("patient_id, added_at").eq("hospital_id", hospital.code),
     // All-time appointments for no-show rate calculation
     supabase.from("appointments").select("status, scheduled_at").in("patient_id", safePatientIds),
     // All-time dequeue events with stamped wait_minutes in metadata
@@ -110,7 +110,7 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       .eq("type", "dequeued")
       .not("metadata", "is", null),
     // Patients who have any care plan row (regardless of patients.stage value)
-    supabase.from("care_plans").select("patient_id").eq("hospital_id", hospital.username),
+    supabase.from("care_plans").select("patient_id").eq("hospital_id", hospital.code),
   ]);
 
   const startOfDayISO = startOfDay.toISOString();

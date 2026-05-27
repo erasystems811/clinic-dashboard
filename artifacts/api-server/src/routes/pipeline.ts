@@ -47,8 +47,8 @@ router.get("/pipeline/stages", async (req, res): Promise<void> => {
   const nowIso = new Date().toISOString();
   const [{ data: stages }, { data: patients }, { data: queueEntries }] = await Promise.all([
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
-    supabase.from("patients").select("id, stage").eq("hospital_id", hospital.username),
-    supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username),
+    supabase.from("patients").select("id, stage").eq("hospital_id", hospital.code),
+    supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code),
   ]);
 
   // Scope booked count to this hospital's patients only

@@ -15,7 +15,7 @@ router.get("/activity", async (req, res): Promise<void> => {
 
   const limit = query.data.limit ?? 20;
 
-  const patientIds = await getPatientIdsForHospital(hospital.username);
+  const patientIds = await getPatientIdsForHospital(hospital.code);
   const safePatientIds = patientIds.length ? patientIds : [-1];
 
   // Fetch both patient-linked activity AND hospital-level activity (e.g. patient_deleted

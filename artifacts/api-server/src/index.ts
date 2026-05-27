@@ -102,6 +102,25 @@ async function migrateInCareStageColumn() {
   else logger.info(`[migration] Reset ${stuckIds.length} patient(s) from In Care → Active`);
 }
 
+// Migration: update all patient-facing tables to use hospital_code (UUID) instead of username as hospital_id.
+// Safe to run multiple times — only updates rows that still contain the old username value.
+async function migrateHospitalIdToCode() {
+  try {
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code");
+    for (const h of hospitals ?? []) {
+      const code = h.hospital_code as string | null;
+      const username = h.username as string;
+      if (!code || !username) continue;
+      await supabase.from("patients").update({ hospital_id: code }).eq("hospital_id", username);
+      await supabase.from("care_plans").update({ hospital_id: code }).eq("hospital_id", username);
+      await supabase.from("queue").update({ hospital_id: code }).eq("hospital_id", username);
+    }
+    logger.info("[migration] hospital_id migrated from username to hospital_code in patients, care_plans, queue");
+  } catch (err) {
+    logger.warn({ err }, "[migration] hospital_id code migration error (non-fatal)");
+  }
+}
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -114,4 +133,5 @@ app.listen(port, (err) => {
   migrateHospitalIdColumns();
   migratePostCareStage();
   migrateInCareStageColumn();
+  migrateHospitalIdToCode();
 });

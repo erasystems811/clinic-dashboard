@@ -77,13 +77,13 @@ async function runPostTreatmentCheckins() {
     const now = new Date();
     const today = now.toISOString().split("T")[0];
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code");
     for (const h of hospitals ?? []) {
       // Source of truth: treatment_end_date — no stage filter needed
       const { data: patients } = await supabase
         .from("patients")
         .select("id, first_name, last_name, email, treatment_end_date")
-        .eq("hospital_id", h.username)
+        .eq("hospital_id", h.hospital_code)
         .not("treatment_end_date", "is", null)
         .not("email", "is", null)
         .lte("treatment_end_date", today);
@@ -139,13 +139,13 @@ async function runPostCareEmails() {
 
     for (const mod of enabledModules ?? []) {
       const { data: hospital } = await supabase
-        .from("hospitals").select("id, username").eq("id", mod.hospital_id).single();
+        .from("hospitals").select("id, hospital_code").eq("id", mod.hospital_id).single();
       if (!hospital) continue;
 
       const { data: patients } = await supabase
         .from("patients")
         .select("id, first_name, last_name, email, stage")
-        .eq("hospital_id", hospital.username)
+        .eq("hospital_id", hospital.hospital_code)
         .eq("stage", "Active")
         .not("email", "is", null);
 
@@ -202,7 +202,7 @@ async function runDormantDetection() {
     for (const hs of hospitals ?? []) {
       const dormantDays = (hs.pipeline_dormant_days as number) ?? 30;
 
-      const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hs.hospital_id).single();
+      const { data: hospital } = await supabase.from("hospitals").select("hospital_code").eq("id", hs.hospital_id).single();
       if (!hospital) continue;
 
       // Cutoff: patient must NOT have been queued (checked in) within the dormant window.
@@ -213,7 +213,7 @@ async function runDormantDetection() {
       const { data: patients } = await supabase
         .from("patients")
         .select("id, first_name, last_name")
-        .eq("hospital_id", hospital.username)
+        .eq("hospital_id", hospital.hospital_code)
         .eq("stage", "Active");
 
       for (const p of patients ?? []) {
@@ -253,14 +253,14 @@ async function runPostTreatmentTransitions() {
   try {
     const today = new Date().toISOString().split("T")[0];
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username");
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code");
     for (const h of hospitals ?? []) {
       // In Care → Post Treatment when treatment_end_date has passed
       const { data: patients } = await supabase
         .from("patients")
         .select("id, first_name, last_name, treatment_end_date")
         .eq("stage", "In Care")
-        .eq("hospital_id", h.username)
+        .eq("hospital_id", h.hospital_code)
         .lte("treatment_end_date", today);
 
       for (const p of patients ?? []) {
@@ -287,14 +287,14 @@ async function runPostTreatmentTransitions() {
       const postTreatDays = (hs.pipeline_post_treatment_days as number) ?? 14;
       const cutoff = new Date(Date.now() - postTreatDays * 24 * 60 * 60 * 1000).toISOString();
 
-      const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hs.hospital_id).single();
+      const { data: hospital } = await supabase.from("hospitals").select("hospital_code").eq("id", hs.hospital_id).single();
       if (!hospital) continue;
 
       const { data: patients } = await supabase
         .from("patients")
         .select("id, first_name, last_name")
         .eq("stage", "Post Treatment")
-        .eq("hospital_id", hospital.username)
+        .eq("hospital_id", hospital.hospital_code)
         .lt("updated_at", cutoff);
 
       for (const p of patients ?? []) {
@@ -333,7 +333,7 @@ async function runFeedbackEmails() {
     for (const hm of hospitals ?? []) {
       const { data: hospital } = await supabase
         .from("hospitals")
-        .select("username, feedback_slug")
+        .select("hospital_code, feedback_slug")
         .eq("id", hm.hospital_id)
         .single();
       if (!hospital || !hospital.feedback_slug) continue;
@@ -344,7 +344,7 @@ async function runFeedbackEmails() {
       const { data: seenPatients } = await supabase
         .from("queue")
         .select("patient_id, patient_name")
-        .eq("hospital_id", hospital.username)
+        .eq("hospital_id", hospital.hospital_code)
         .gte("added_at", `${targetDate}T00:00:00Z`)
         .lte("added_at", `${targetDate}T23:59:59Z`);
 
@@ -355,7 +355,7 @@ async function runFeedbackEmails() {
           .from("patients")
           .select("id, first_name, last_name, email")
           .eq("id", patientId)
-          .eq("hospital_id", hospital.username)
+          .eq("hospital_id", hospital.hospital_code)
           .single();
 
         if (!patient || !patient.email) continue;
@@ -496,12 +496,12 @@ async function runBirthdayEmails() {
     const todayMMDD = now.toISOString().slice(5, 10); // "MM-DD"
     const yearStart = `${now.getFullYear()}-01-01`;
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
     for (const h of hospitals ?? []) {
       const { data: patients } = await supabase
         .from("patients")
         .select("id, first_name, last_name, email, date_of_birth")
-        .eq("hospital_id", h.username)
+        .eq("hospital_id", h.hospital_code)
         .not("email", "is", null)
         .not("date_of_birth", "is", null);
 
@@ -907,50 +907,3 @@ async function runCareVisitReminders() {
   }
 }
 
-// ── Birthday Emails — runs daily at 8am ───────────────────────────────────────
-async function runBirthdayEmails() {
-  try {
-    const now = new Date();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const day = String(now.getDate()).padStart(2, "0");
-    const todayMD = `${month}-${day}`; // e.g. "05-27"
-
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
-
-    for (const h of hospitals ?? []) {
-      // Find patients whose date_of_birth month+day matches today
-      // date_of_birth is stored as YYYY-MM-DD; we match on MM-DD suffix
-      const { data: patients } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, email, date_of_birth")
-        .eq("hospital_id", h.username)
-        .not("email", "is", null)
-        .not("date_of_birth", "is", null)
-        .like("date_of_birth", `%-${todayMD}`);
-
-      for (const p of patients ?? []) {
-        if (!p.email) continue;
-
-        // Only send once per year — check if birthday email already sent this calendar year
-        const yearStart = `${now.getFullYear()}-01-01T00:00:00Z`;
-        const { data: alreadySent } = await supabase
-          .from("automation_log")
-          .select("id")
-          .eq("patient_id", p.id)
-          .eq("automation_type", "birthday_email")
-          .eq("status", "sent")
-          .gte("created_at", yearStart)
-          .maybeSingle();
-
-        if (alreadySent) continue;
-
-        const patientName = `${p.first_name} ${p.last_name}`;
-        await sendBirthdayEmail(h.id, p.id as number, patientName, p.email as string);
-        log(`Birthday email → patient ${p.id} (${patientName})`);
-      }
-    }
-  } catch (err) {
-    Sentry.captureException(err);
-    log(`Birthday emails error: ${err}`);
-  }
-}

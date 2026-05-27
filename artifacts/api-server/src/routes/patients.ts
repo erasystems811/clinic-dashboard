@@ -88,9 +88,9 @@ function serializePatient(p: Record<string, unknown>) {
   return out;
 }
 
-async function resolveHospitalIntId(usernameOrNull: string | null): Promise<number | null> {
-  if (!usernameOrNull) return null;
-  const { data } = await supabase.from("hospitals").select("id").eq("username", usernameOrNull.toLowerCase()).single();
+async function resolveHospitalIntId(hospitalCodeOrNull: string | null): Promise<number | null> {
+  if (!hospitalCodeOrNull) return null;
+  const { data } = await supabase.from("hospitals").select("id").eq("hospital_code", hospitalCodeOrNull).single();
   return data?.id ?? null;
 }
 
@@ -108,12 +108,12 @@ router.get("/patients", async (req, res): Promise<void> => {
   // Handle them by looking up IDs from the source-of-truth tables, then fetching those patients.
   if (query.data.stage === "Queued") {
     const { data: queueRows } = await supabase
-      .from("queue").select("patient_id").eq("hospital_id", hospital.username);
+      .from("queue").select("patient_id").eq("hospital_id", hospital.code);
     const ids = (queueRows ?? []).map(r => r.patient_id as number);
     if (ids.length === 0) { res.json([]); return; }
     const { data, error } = await supabase
       .from("patients").select("*").in("id", ids)
-      .eq("hospital_id", hospital.username)
+      .eq("hospital_id", hospital.code)
       .order("created_at", { ascending: true })
       .range(offset, offset + limit - 1);
     if (error) { res.status(500).json({ error: error.message }); return; }
@@ -121,8 +121,8 @@ router.get("/patients", async (req, res): Promise<void> => {
     if (patients.length > 0) {
       const pids = patients.map(p => p.id as number);
       const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
-        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.username).in("patient_id", pids),
-        supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username).in("patient_id", pids),
+        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", pids),
+        supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code).in("patient_id", pids),
         supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
       ]);
       const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
@@ -143,13 +143,13 @@ router.get("/patients", async (req, res): Promise<void> => {
 
   if (query.data.stage === "Booked") {
     const { data: apptRows } = await supabase
-      .from("appointments").select("patient_id").in("patient_id", (await supabase.from("patients").select("id").eq("hospital_id", hospital.username)).data?.map(p => p.id as number) ?? [])
+      .from("appointments").select("patient_id").in("patient_id", (await supabase.from("patients").select("id").eq("hospital_id", hospital.code)).data?.map(p => p.id as number) ?? [])
       .gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")');
     const ids = [...new Set((apptRows ?? []).map(r => r.patient_id as number))];
     if (ids.length === 0) { res.json([]); return; }
     const { data, error } = await supabase
       .from("patients").select("*").in("id", ids)
-      .eq("hospital_id", hospital.username)
+      .eq("hospital_id", hospital.code)
       .order("created_at", { ascending: true })
       .range(offset, offset + limit - 1);
     if (error) { res.status(500).json({ error: error.message }); return; }
@@ -157,8 +157,8 @@ router.get("/patients", async (req, res): Promise<void> => {
     if (patients.length > 0) {
       const pids = patients.map(p => p.id as number);
       const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
-        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.username).in("patient_id", pids),
-        supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username).in("patient_id", pids),
+        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", pids),
+        supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code).in("patient_id", pids),
         supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
       ]);
       const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
@@ -177,13 +177,13 @@ router.get("/patients", async (req, res): Promise<void> => {
     return;
   }
 
-  let q = supabase.from("patients").select("*").eq("hospital_id", hospital.username);
+  let q = supabase.from("patients").select("*").eq("hospital_id", hospital.code);
 
   if (query.data.stage) {
     // "In Care" can come from patients.stage OR from having an active care plan — include both
     if (query.data.stage === "In Care") {
       const { data: planRows } = await supabase
-        .from("care_plans").select("patient_id").eq("hospital_id", hospital.username);
+        .from("care_plans").select("patient_id").eq("hospital_id", hospital.code);
       const carePlanPatientIds = [...new Set((planRows ?? []).map(r => r.patient_id as number))];
       if (carePlanPatientIds.length > 0) {
         q = q.or(`stage.eq.In Care,id.in.(${carePlanPatientIds.join(",")})`);
@@ -212,8 +212,8 @@ router.get("/patients", async (req, res): Promise<void> => {
     const ids = patients.map(p => p.id as number);
     const nowIso = new Date().toISOString();
     const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
-      supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.username).in("patient_id", ids),
-      supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username).in("patient_id", ids),
+      supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", ids),
+      supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code).in("patient_id", ids),
       supabase.from("appointments").select("patient_id").in("patient_id", ids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
     ]);
 
@@ -253,7 +253,7 @@ router.post("/patients", async (req, res): Promise<void> => {
   const { data: existing } = await supabase
     .from("patients")
     .select("id")
-    .eq("hospital_id", hospital.username)
+    .eq("hospital_id", hospital.code)
     .ilike("patient_id", parsed.data.patientId)
     .maybeSingle();
   if (existing) {
@@ -262,7 +262,7 @@ router.post("/patients", async (req, res): Promise<void> => {
   }
 
   const { hospitalId: _ignored, ...rest } = parsed.data;
-  const data = snakify({ ...rest, stage: "Active", hospitalId: hospital.username });
+  const data = snakify({ ...rest, stage: "Active", hospitalId: hospital.code });
   const { data: patient, error } = await supabase.from("patients").insert(data).select().single();
   if (error) {
     console.error("[create patient] supabase error:", JSON.stringify({ code: error.code, message: error.message, details: error.details, hint: error.hint }));
@@ -316,7 +316,7 @@ router.get("/patients/:id", async (req, res): Promise<void> => {
   const { data, error } = await supabase.from("patients").select("*").eq("id", id).single();
   if (error || !data) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  const hospitalId = hospital?.username ?? (data.hospital_id as string);
+  const hospitalId = hospital?.code ?? (data.hospital_id as string);
   const nowIso = new Date().toISOString();
   const [{ data: plans }, { data: queueEntry }, { data: upcomingAppt }] = await Promise.all([
     supabase.from("care_plans").select("id").eq("patient_id", id).eq("hospital_id", hospitalId).limit(1),
@@ -400,7 +400,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
       const { data: conflict } = await supabase
         .from("patients")
         .select("id")
-        .eq("hospital_id", hospital.username)
+        .eq("hospital_id", hospital.code)
         .ilike("patient_id", parsed.data.patientId)
         .neq("id", id)
         .maybeSingle();
@@ -812,7 +812,7 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   // Resolve hospital integer id for direct scoping on call_tasks
   let hospitalIntId: number | null = null;
   if (patient.hospital_id) {
-    const { data: hosp } = await supabase.from("hospitals").select("id").eq("username", (patient.hospital_id as string).toLowerCase()).single();
+    const { data: hosp } = await supabase.from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).single();
     hospitalIntId = hosp?.id ?? null;
   }
 

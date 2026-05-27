@@ -13,7 +13,7 @@ router.get("/queue", async (req, res): Promise<void> => {
   const { data: entries, error } = await supabase
     .from("queue")
     .select("*")
-    .eq("hospital_id", hospital.username)
+    .eq("hospital_id", hospital.code)
     .order("position", { ascending: true });
 
   if (error) { res.status(500).json({ error: error.message }); return; }
@@ -52,7 +52,7 @@ router.get("/queue", async (req, res): Promise<void> => {
       email: (p.email as string) ?? (e.email as string) ?? null,
       whatsappNumber: (p.whatsapp_number as string) ?? (e.whatsapp_number as string) ?? null,
       department: (p.department as string) ?? null,
-      hospitalId: hospital.username,
+      hospitalId: hospital.code,
       appointmentScheduledAt: e.appointment_id ? (appointmentScheduledMap[e.appointment_id as number] ?? null) : null,
     };
   });

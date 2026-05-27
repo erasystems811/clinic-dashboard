@@ -713,7 +713,7 @@ router.post("/super-admin/reset-test-data", requireSuperAdmin, async (req, res):
 
 // GET /super-admin/health
 router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<void> => {
-  const checks: { name: string; ok: boolean; detail: string }[] = [];
+  const checks: { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string }[] = [];
 
   // 1. Database
   try {
@@ -742,21 +742,20 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     } catch { termiiBalanceDetail = "Balance check failed"; }
   }
   const lowBalance = termiiBalance !== null && termiiBalance < 50;
-  const balanceSuffix = termiiBalance !== null
-    ? ` · ${lowBalance ? "⚠ " : ""}Balance: ₦${termiiBalance.toFixed(2)}${lowBalance ? " — top up at termii.com" : ""}`
-    : termiiBalanceDetail ? ` · ${termiiBalanceDetail}` : "";
+  const balanceLabel = termiiBalance !== null ? `₦${termiiBalance.toFixed(2)}` : null;
 
   checks.push({
     name: "SMS (Termii)",
     ok: (smsOk && !lowBalance) || !isProd,
     warning: (!smsOk || lowBalance) && !isProd,
     detail: !hasTermii
-      ? (isProd ? "TERMII_API_KEY not set" : "TERMII_API_KEY not set in dev — configured on Railway")
+      ? (isProd ? "TERMII_API_KEY not set" : "Not set in dev — on Railway")
       : !hasSender
-        ? `TERMII_SENDER_ID not set${isProd ? "" : " in dev — configured on Railway"}${balanceSuffix}`
+        ? (isProd ? "TERMII_SENDER_ID not set" : "Sender ID not set in dev")
         : lowBalance
-          ? `⚠ Low credit — ₦${termiiBalance!.toFixed(2)}. Top up at termii.com`
-          : `Configured${balanceSuffix}`,
+          ? "Low credit — top up at termii.com"
+          : "Configured",
+    ...(balanceLabel ? { balance: balanceLabel } : {}),
   });
 
   // 3. WhatsApp (Termii) — same API key + balance as SMS
@@ -765,10 +764,11 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     ok: (hasTermii && !lowBalance) || !isProd,
     warning: (!hasTermii || lowBalance) && !isProd,
     detail: !hasTermii
-      ? (isProd ? "TERMII_API_KEY not set" : "TERMII_API_KEY not set in dev — configured on Railway")
+      ? (isProd ? "TERMII_API_KEY not set" : "Not set in dev — on Railway")
       : lowBalance
-        ? `⚠ Low credit — ₦${termiiBalance!.toFixed(2)}. Top up at termii.com`
-        : `Configured${balanceSuffix}`,
+        ? "Low credit — top up at termii.com"
+        : "Configured",
+    ...(balanceLabel ? { balance: balanceLabel } : {}),
   });
 
   // 4. Email (Resend)

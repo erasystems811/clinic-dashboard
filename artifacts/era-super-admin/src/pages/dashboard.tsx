@@ -29,7 +29,7 @@ function StatusBadge({ status, active }: { status: string; active: boolean }) {
   );
 }
 
-type HealthCheck = { name: string; ok: boolean; warning?: boolean; detail: string };
+type HealthCheck = { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string };
 
 export default function Dashboard() {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
@@ -183,9 +183,12 @@ export default function Dashboard() {
                   : "border-emerald-500/20 bg-emerald-500/5"
                 }`}>
                   <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${!c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400"}`} />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-foreground">{c.name}</p>
                     <p className="text-xs text-muted-foreground truncate" title={c.detail}>{c.detail}</p>
+                    {c.balance && (
+                      <p className={`text-xs font-semibold mt-0.5 ${isWarn || !c.ok ? "text-amber-400" : "text-emerald-400"}`}>{c.balance}</p>
+                    )}
                   </div>
                   {!c.ok
                     ? <XCircle className="w-3.5 h-3.5 text-red-400 ml-auto shrink-0 mt-0.5" />

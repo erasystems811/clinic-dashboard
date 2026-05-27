@@ -15,21 +15,27 @@ const DEFAULT_STAGES = [
 ];
 
 async function ensureStagesExist() {
-  const { data: existing } = await supabase.from("pipeline_stages").select("id, name");
-  const existingNames = new Set((existing ?? []).map(s => s.name as string));
-  const expectedNames = new Set(DEFAULT_STAGES.map(s => s.name));
+  const { data: existing } = await supabase.from("pipeline_stages").select("id, name, sort_order");
+  const byOrder = new Map((existing ?? []).map(s => [s.sort_order as number, s as { id: number; name: string; sort_order: number }]));
+  const byName = new Map((existing ?? []).map(s => [s.name as string, s as { id: number; name: string; sort_order: number }]));
 
-  // Delete any stages whose name is no longer in the expected set (e.g. old "Post Care")
-  const toDelete = (existing ?? []).filter(s => !expectedNames.has(s.name as string));
-  if (toDelete.length > 0) {
-    await supabase.from("pipeline_stages").delete().in("id", toDelete.map(s => s.id));
-  }
+  await Promise.all(DEFAULT_STAGES.map(async (stage) => {
+    // Prefer matching by sort_order so we UPDATE existing rows in place (no delete needed)
+    const existingByOrder = byOrder.get(stage.sort_order);
+    const existingByName = byName.get(stage.name);
 
-  // Insert any expected stages that are missing
-  const toInsert = DEFAULT_STAGES.filter(s => !existingNames.has(s.name));
-  if (toInsert.length > 0) {
-    await supabase.from("pipeline_stages").insert(toInsert);
-  }
+    if (existingByOrder) {
+      // Row exists at this position — update name+color in case it has the wrong name (e.g. "Post Care")
+      if (existingByOrder.name !== stage.name) {
+        await supabase.from("pipeline_stages")
+          .update({ name: stage.name, color: stage.color })
+          .eq("id", existingByOrder.id);
+      }
+    } else if (!existingByName) {
+      // Not found by sort_order or name — insert fresh
+      await supabase.from("pipeline_stages").insert(stage);
+    }
+  }));
 }
 
 router.get("/pipeline/stages", async (req, res): Promise<void> => {

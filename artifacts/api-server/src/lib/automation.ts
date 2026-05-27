@@ -955,3 +955,41 @@ export async function sendInCareAIReminder(
     Sentry.captureException(err, { extra: { ...ctx } });
   }
 }
+
+// ── Birthday Email — Templated ─────────────────────────────────────────────────
+
+export async function sendBirthdayEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "birthday_email",
+    channel: "email",
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const firstName = patientName.split(" ")[0];
+    const contact = contactLine(hCtx.phoneNumber);
+    const body = `Hi ${firstName},\n\nWishing you a very happy birthday from all of us at ${hCtx.hospitalName}! We hope today brings you joy, good health, and everything you deserve.\n\nThank you for trusting us with your care. Your wellbeing is always our priority, and we look forward to continuing to support you.\n\nPlease do not reply to this email directly — if you need to reach us, please ${contact}.\n\nWarm wishes,\n${hCtx.hospitalName} Team`;
+    const html = wrapHtml(
+      `<p>${body.replace(/\n/g, "</p><p>")}</p>`,
+      hCtx.hospitalName,
+    );
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.fromAddress,
+      subject: `Happy Birthday, ${firstName}! — ${hCtx.hospitalName}`,
+      html,
+      text: body,
+    });
+    await updateAutomationLog(logId, "sent", `Birthday email → ${patientEmail}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}

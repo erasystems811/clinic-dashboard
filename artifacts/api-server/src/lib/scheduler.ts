@@ -489,6 +489,50 @@ async function runNoShowDismissal() {
 // runInCareReminders (slot-based, read from patients.medication_timing) was removed.
 // Superseded by runCarePlanRemindersHourly which reads directly from the care_plans table.
 
+// ── Birthday Emails — runs daily at 7 AM ──────────────────────────────────────
+async function runBirthdayEmails() {
+  try {
+    const now = new Date();
+    const todayMMDD = now.toISOString().slice(5, 10); // "MM-DD"
+    const yearStart = `${now.getFullYear()}-01-01`;
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
+    for (const h of hospitals ?? []) {
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, email, date_of_birth")
+        .eq("hospital_id", h.username)
+        .not("email", "is", null)
+        .not("date_of_birth", "is", null);
+
+      for (const p of patients ?? []) {
+        const dob = p.date_of_birth as string;
+        if (!dob || dob.slice(5) !== todayMMDD) continue;
+
+        // One per patient per calendar year
+        const { data: alreadySent } = await supabase
+          .from("automation_log")
+          .select("id")
+          .eq("hospital_id", h.id)
+          .eq("patient_id", p.id)
+          .eq("automation_type", "birthday_email")
+          .eq("status", "sent")
+          .gte("created_at", yearStart)
+          .maybeSingle();
+
+        if (alreadySent) continue;
+
+        const patientName = `${p.first_name} ${p.last_name}`;
+        await sendBirthdayEmail(h.id, p.id as number, patientName, p.email as string);
+        log(`Birthday email → patient ${p.id}`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Birthday emails error: ${err}`);
+  }
+}
+
 // ── Subscription Expiration Auto-Suspend ──────────────────────────────────────
 async function checkSubscriptionExpirations() {
   try {
@@ -529,11 +573,12 @@ export function startScheduler() {
     await runNoShowFollowup();
   });
 
-  // Daily at 7:00 AM: pipeline transitions + post-treatment check-ins + dormant detection
+  // Daily at 7:00 AM: pipeline transitions + post-treatment check-ins + dormant + birthdays
   cron.schedule("0 7 * * *", async () => {
     await runPostTreatmentTransitions();
     await runPostTreatmentCheckins();
     await runDormantDetection();
+    await runBirthdayEmails();
   });
 
   // Daily at 6:00 PM: post-care wellness emails

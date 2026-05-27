@@ -68,6 +68,7 @@ const SubmitFeedbackBody = z.object({
   qualityOfCareRating: z.number().int().min(1).max(5).optional(),
   wouldRecommend: z.boolean().optional(),
   comment: z.string().optional(),
+  anonymous: z.boolean().optional(),
 });
 
 router.post("/feedback", async (req, res): Promise<void> => {
@@ -103,7 +104,7 @@ router.post("/feedback", async (req, res): Promise<void> => {
 
   const { data, error } = await supabase.from("feedback").insert({
     patient_id: resolvedPatientId,
-    patient_name: resolvedPatientName,
+    patient_name: d.anonymous ? null : resolvedPatientName,
     hospital_id: resolvedHospitalId,
     rating: d.rating,
     wait_time_rating: d.waitTimeRating ?? null,
@@ -156,6 +157,7 @@ const SubmitHospitalFeedbackBody = z.object({
   qualityOfCareRating: z.number().int().min(1).max(5).optional(),
   wouldRecommend: z.boolean().optional(),
   comment: z.string().optional(),
+  anonymous: z.boolean().optional(),
 });
 
 router.post("/feedback/h/:slug", async (req, res): Promise<void> => {

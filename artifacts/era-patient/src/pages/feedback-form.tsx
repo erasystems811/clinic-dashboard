@@ -94,6 +94,7 @@ export default function FeedbackForm({ token, hospitalSlug, previewQuestions }: 
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [wouldRecommend, setWouldRecommend] = useState<boolean | null>(null);
   const [comment, setComment] = useState("");
+  const [anonymous, setAnonymous] = useState(false);
 
   useEffect(() => {
     if (isPreview) return;
@@ -138,6 +139,7 @@ export default function FeedbackForm({ token, hospitalSlug, previewQuestions }: 
       if (ratings["quality_of_care"]) body.qualityOfCareRating = ratings["quality_of_care"];
       if (wouldRecommend != null) body.wouldRecommend = wouldRecommend;
       if (comment.trim()) body.comment = comment.trim();
+      if (anonymous) body.anonymous = true;
 
       const url = isHospitalSlug
         ? apiUrl(`/api/feedback/h/${hospitalSlug}`)
@@ -304,6 +306,23 @@ export default function FeedbackForm({ token, hospitalSlug, previewQuestions }: 
               </div>
             </>
           )}
+
+          <div className="h-px bg-border" />
+          <button
+            type="button"
+            role="switch"
+            aria-checked={anonymous}
+            onClick={() => !isPreview && setAnonymous(a => !a)}
+            className="flex items-center gap-3 w-full text-left group"
+          >
+            <span className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${anonymous ? "bg-primary" : "bg-muted"}`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${anonymous ? "translate-x-4" : "translate-x-0"}`} />
+            </span>
+            <span>
+              <span className="text-sm font-medium block">Submit anonymously</span>
+              <span className="text-xs text-muted-foreground">Your name won't appear with this feedback</span>
+            </span>
+          </button>
 
           {error && !isPreview && (
             <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">

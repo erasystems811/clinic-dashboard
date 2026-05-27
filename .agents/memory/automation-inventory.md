@@ -61,9 +61,10 @@ Queue messages and care plan notices go via **WhatsApp or SMS** — whichever ch
 | Post-treatment Day 4 check-in | 6 AM daily | Templated |
 | Post-treatment Day 7 check-in | 6 AM daily | Templated |
 | Active patient follow-up | Every 30 days in Active stage | Templated, **continuous** (per-patient 30-day cooldown via automation_log); skipped if patient checked in (joined queue) within last 30 days |
+| Birthday email | Patient's birthday (7 AM daily) | Templated, once per calendar year per patient; requires date_of_birth on patient record |
 | Dormant email | pipeline_dormant_days inactive | Templated, once per dormant transition |
 | Feedback link | 12 PM next day | Hospital general link (`/feedback/h/<slug>`), covers all patients who visited the previous day |
-| Flagged task confirmed send | Admin/nurse approves draft | Email marked Important — staff wrote/edited it, NOT AI at send time |
+| Flagged task confirmed send | Admin/nurse approves draft | Email marked Important — **both admin and nurse** can flag; staff wrote/edited it, NOT AI at send time |
 | Wellness newsletter send | Admin sends approved draft | Sends Claude-generated content to all active patients |
 
 ---

@@ -6,6 +6,7 @@ import {
   useListPipelineStages,
   getListPipelineStagesQueryKey
 } from "@workspace/api-client-react";
+import { getPatientStages } from "@/lib/utils";
 import { Layout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Calendar, GitBranch } from "lucide-react";
@@ -27,8 +28,9 @@ export default function Pipeline() {
     
     const grouped: Record<string, typeof patients> = {};
     stages.forEach(stage => {
+      // A patient can be in multiple stages simultaneously — show them in every matching column
       grouped[stage.name] = patients.filter(
-        p => p.stage === stage.name || p.preQueueStage === stage.name
+        p => getPatientStages(p as never).includes(stage.name)
       );
     });
     return grouped;

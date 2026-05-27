@@ -426,14 +426,14 @@ export default function PatientDetail() {
                       ))}
                     </div>
 
-                    {patient.stage === "Booked" && (
+                    {!patient.isInQueue && (
                       <Button className="w-full mt-4" onClick={handleCheckIn} disabled={checkinPatient.isPending}>
                         <CheckCircle className="w-4 h-4 mr-2" />
                         Check In to Queue
                       </Button>
                     )}
 
-                    {patient.stage === "Queued" && (
+                    {patient.isInQueue && (
                       <div className="w-full mt-4 p-3 border border-primary/30 bg-primary/5 rounded-lg flex items-center gap-3">
                         <Checkbox onCheckedChange={(checked) => { if (checked) handleDequeue(); }} />
                         <label className="text-sm font-medium leading-none cursor-pointer text-primary">

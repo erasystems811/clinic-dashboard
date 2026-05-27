@@ -236,8 +236,8 @@ export default function PatientHistory() {
               <div className="flex-1 min-w-0 pt-1">
                 <h1 className="text-2xl font-bold tracking-tight">{patientFullName}</h1>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  {getPatientStages(patient as never).map((s, i) => (
-                    <span key={s} className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${i === 0 ? stageClass : "bg-muted text-muted-foreground border-border"}`}>
+                  {getPatientStages(patient as never).map((s) => (
+                    <span key={s} className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${STAGE_COLORS[s] ?? "bg-muted text-muted-foreground border-border"}`}>
                       {s}
                     </span>
                   ))}

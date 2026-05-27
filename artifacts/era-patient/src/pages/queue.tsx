@@ -55,7 +55,7 @@ export default function QueueManagement() {
   const dequeue = useDequeuePatient({
     mutation: {
       onSuccess: (patient) => {
-        toast({ title: "Removed from queue", description: `${patient.firstName} ${patient.lastName} returned to ${patient.stage}.` });
+        toast({ title: "Removed from queue", description: `${patient.firstName} ${patient.lastName} — now: ${getPatientStages(patient as never).join(" · ")}.` });
         queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
       },
@@ -121,7 +121,7 @@ export default function QueueManagement() {
                     </div>
                     <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-muted-foreground">
                       {entry.patientCode && <span className="font-mono">ID: {entry.patientCode}</span>}
-                      {entry.stage && <span>was: {entry.stage}</span>}
+                      {entry.department && <span>{entry.department}</span>}
                       {entry.email && <span>{entry.email}</span>}
                       {entry.whatsappNumber && <span>WA: {entry.whatsappNumber}</span>}
                     </div>

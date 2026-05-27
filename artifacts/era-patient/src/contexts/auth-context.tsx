@@ -70,27 +70,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hospital ? localStorage.setItem(HOSPITAL_KEY, JSON.stringify(hospital)) : localStorage.removeItem(HOSPITAL_KEY);
   }, [hospital]);
 
-  // Re-fetch hospital config on mount so stale localStorage is always refreshed.
-  // Also checks if a super admin changed modules after this session was created —
-  // if so, forces logout so the user re-logs in with fresh module config.
+  // Poll hospital config every 30 seconds while logged in.
+  // On each poll: refresh module config, and force logout if super admin
+  // invalidated sessions after this session was created (module change).
   useEffect(() => {
     const token = hospital?.token;
     if (!token) return;
-    const loginAt = hospital?.loginAt ?? 0;
-    fetch(apiUrl("/api/hospital/config"), { headers: { "x-hospital-token": token } })
-      .then(r => r.ok ? r.json() : null)
-      .then(cfg => {
-        if (!cfg) return;
-        // If modules were changed after this session was issued, force re-login
-        if (cfg.sessionInvalidatedAt && cfg.sessionInvalidatedAt > loginAt) {
-          logout();
-          return;
-        }
-        setHospitalConfig(cfg);
-      })
-      .catch(() => {});
+
+    const check = () => {
+      const loginAt = hospital?.loginAt ?? 0;
+      fetch(apiUrl("/api/hospital/config"), { headers: { "x-hospital-token": token } })
+        .then(r => r.ok ? r.json() : null)
+        .then(cfg => {
+          if (!cfg) return;
+          if (cfg.sessionInvalidatedAt && cfg.sessionInvalidatedAt > loginAt) {
+            logout();
+            return;
+          }
+          setHospitalConfig(cfg);
+        })
+        .catch(() => {});
+    };
+
+    check(); // run immediately on mount / login
+    const interval = setInterval(check, 30_000); // then every 30s
+    return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — run once on mount only
+  }, [hospital?.token]); // re-run if the token changes (new login)
 
   useEffect(() => {
     hospitalConfig ? localStorage.setItem(CONFIG_KEY, JSON.stringify(hospitalConfig)) : localStorage.removeItem(CONFIG_KEY);

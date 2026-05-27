@@ -379,14 +379,6 @@ export default function NurseStation() {
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              type="button"
-                              className="p-1.5 rounded text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 transition"
-                              onClick={e => { e.stopPropagation(); setConfirmEndPlanId(plan.id); }}
-                              title="End Treatment Early"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            </button>
                             {expandedPlanId === plan.id
                               ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
                               : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
@@ -420,6 +412,16 @@ export default function NurseStation() {
                           <div className="px-4 py-3 bg-muted/20 border-t border-border space-y-3">
                             <p className="text-sm text-foreground">{plan.summary}</p>
                             <PlanTemplateDetails dept={plan.department} data={plan.templateData} />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="w-full text-xs text-amber-400 border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
+                              onClick={e => { e.stopPropagation(); setConfirmEndPlanId(plan.id); }}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                              End Treatment Early
+                            </Button>
                           </div>
                         )}
                       </div>

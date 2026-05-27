@@ -110,13 +110,15 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const treatmentEndDate = new Date(now);
   treatmentEndDate.setDate(treatmentEndDate.getDate() + durationDays);
 
-  // Creating a care plan moves the patient to "In Care" — UNLESS they are already in
-  // "Post Treatment", in which case leave their stage alone. The "In Care" badge is
-  // derived from hasCarePlan on every patient fetch, so it will show automatically.
-  // A Post Treatment patient who starts a new plan should show BOTH labels.
-  if (patient.stage !== "Post Treatment") {
+  // "In Care" is a derived badge (from hasCarePlan), never a stored stage value.
+  // Only transition stage when the patient is still "New" — move them to "Active"
+  // so they graduate out of the onboarding state. All other stages are preserved:
+  //   Active/Dormant → stays (In Care overlay will appear from hasCarePlan)
+  //   Post Treatment → stays (both Post Treatment + In Care badges will show)
+  //   In Care (legacy) → stays (already handled by getPatientStages)
+  if (!patient.stage || patient.stage === "New") {
     const { error: stageErr } = await supabase.from("patients")
-      .update({ stage: "In Care", updated_at: now.toISOString() })
+      .update({ stage: "Active", updated_at: now.toISOString() })
       .eq("id", patientId);
     if (stageErr) console.error("[care-plans] stage update failed:", stageErr);
   }

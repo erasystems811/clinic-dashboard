@@ -25,7 +25,11 @@ export function cn(...inputs: ClassValue[]) {
  *    treatment or recovery is never also "Active" or "Dormant".
  *  - Queued & Booked are transient overlays that stack on top of any state.
  */
-const STAGE_ALIASES: Record<string, string> = { "Post Care": "Active" };
+// "Post Care" is a legacy DB name for "Active".
+// "In Care" was historically written to the stage column but is now a derived-only
+// badge (from hasCarePlan). Map it to "Active" so legacy rows are handled gracefully:
+// the "In Care" badge will still appear via the hasCarePlan derived check below.
+const STAGE_ALIASES: Record<string, string> = { "Post Care": "Active", "In Care": "Active" };
 
 const BASELINE_STAGES = new Set(["Active", "Post Care", "Dormant"]);
 

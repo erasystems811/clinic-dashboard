@@ -132,6 +132,11 @@ export default function HospitalDetail({ id }: Props) {
   const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
   const [termiiSenderId, setTermiiSenderId] = useState("");
 
+  // Test SMS
+  const [testSmsTo, setTestSmsTo] = useState("");
+  const [testSmsSending, setTestSmsSending] = useState(false);
+  const [testSmsResult, setTestSmsResult] = useState<{ ok: boolean; detail: string } | null>(null);
+
   // CRM — super admin's own records for this account
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
@@ -749,6 +754,45 @@ export default function HospitalDetail({ id }: Props) {
                 className={inputCls()}
               />
             </Field>
+
+          {/* Test SMS */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Test SMS Delivery</p>
+            <p className="text-xs text-muted-foreground">Send a test message to any phone number to verify Termii is configured correctly.</p>
+            <div className="flex gap-2">
+              <input
+                type="tel"
+                value={testSmsTo}
+                onChange={e => { setTestSmsTo(e.target.value); setTestSmsResult(null); }}
+                placeholder="e.g. 2348012345678"
+                className={inputCls() + " flex-1"}
+              />
+              <button
+                type="button"
+                disabled={testSmsSending || !testSmsTo.trim()}
+                onClick={async () => {
+                  setTestSmsSending(true);
+                  setTestSmsResult(null);
+                  try {
+                    const r = await api.testSms(testSmsTo.trim(), termiiSenderId.trim() || undefined);
+                    setTestSmsResult(r);
+                  } catch (e) {
+                    setTestSmsResult({ ok: false, detail: e instanceof Error ? e.message : "Unknown error" });
+                  } finally {
+                    setTestSmsSending(false);
+                  }
+                }}
+                className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 whitespace-nowrap hover:bg-primary/90 transition"
+              >
+                {testSmsSending ? "Sending…" : "Send Test"}
+              </button>
+            </div>
+            {testSmsResult && (
+              <p className={`text-xs rounded px-2 py-1.5 font-mono break-all ${testSmsResult.ok ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+                {testSmsResult.detail}
+              </p>
+            )}
+          </div>
           </div>
 
           <Field label="Language">

@@ -168,4 +168,7 @@ export const api = {
 
   getConfig: () =>
     get<{ eraPatientUrl: string }>("/super-admin/config"),
+
+  testSms: (to: string, senderId?: string) =>
+    post<{ ok: boolean; detail: string }>("/super-admin/test-sms", { to, senderId }),
 };

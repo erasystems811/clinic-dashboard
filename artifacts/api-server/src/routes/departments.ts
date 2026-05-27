@@ -13,6 +13,7 @@ const DEFAULT_DEPARTMENTS = [
   "Dental",
   "Eye",
   "Fertility / IVF",
+  "ENT (Ear, Nose and Throat)",
 ];
 
 const CreateDepartmentBody = z.object({ name: z.string().min(1) });

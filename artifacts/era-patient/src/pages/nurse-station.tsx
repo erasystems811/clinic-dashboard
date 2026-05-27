@@ -28,6 +28,7 @@ const STANDARD_DEPARTMENTS = [
   "Dental",
   "Eye",
   "Fertility / IVF",
+  "ENT (Ear, Nose and Throat)",
 ];
 
 // ── Types ───────────────────────────────────────────────────────────────────────
@@ -74,6 +75,7 @@ const DEPT_LABELS: Record<string, string> = {
   "Dental": "Dental",
   "Eye": "Eye",
   "Fertility / IVF": "Fertility / IVF",
+  "ENT (Ear, Nose and Throat)": "ENT (Ear, Nose and Throat)",
 };
 
 function emptyTemplateData(dept: string): Record<string, unknown> {
@@ -84,6 +86,7 @@ function emptyTemplateData(dept: string): Record<string, unknown> {
   if (dept === "Dental") return { inCareSchedule: [{ date: "", time: "", treatmentType: "" }] };
   if (dept === "Eye") return { inCareSchedule: [{ date: "", time: "", action: "" }] };
   if (dept === "Fertility / IVF") return { inCareSchedule: [{ date: "", time: "", whatHappens: "" }] };
+  if (dept === "ENT (Ear, Nose and Throat)") return { inCareSchedule: [{ date: "", time: "", treatmentType: "" }] };
   return {};
 }
 
@@ -908,6 +911,16 @@ function DepartmentTemplate({
       <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fertility / IVF Details</p>
         <InCareScheduleRows dept={department} rows={rows} rowKey="inCareSchedule" col2Key="whatHappens" col2Label="What happens" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />
+      </div>
+    );
+  }
+
+  if (department === "ENT (Ear, Nose and Throat)") {
+    const rows = (templateData.inCareSchedule as ScheduleRow[]) ?? [];
+    return (
+      <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">ENT — Ear, Nose and Throat Details</p>
+        <InCareScheduleRows dept={department} rows={rows} rowKey="inCareSchedule" col2Key="treatmentType" col2Label="Treatment / Action" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />
       </div>
     );
   }

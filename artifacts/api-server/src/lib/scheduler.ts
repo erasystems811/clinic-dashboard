@@ -792,7 +792,7 @@ function extractVisitEntries(dept: string, templateData: Record<string, unknown>
   } else if (dept === "Paediatrics") {
     const rows = (templateData.vaccinationSchedule as Array<{ date?: string; time?: string }>) ?? [];
     for (const r of rows) if (r.date && r.date > today) entries.push({ date: r.date, time: r.time });
-  } else if (dept === "Surgery / Post-Op" || dept === "Dental" || dept === "Eye" || dept === "Fertility / IVF") {
+  } else if (dept === "Surgery / Post-Op" || dept === "Dental" || dept === "Eye" || dept === "Fertility / IVF" || dept === "ENT (Ear, Nose and Throat)") {
     const rows = (templateData.inCareSchedule as Array<{ date?: string; time?: string }>) ?? [];
     for (const r of rows) if (r.date && r.date > today) entries.push({ date: r.date, time: r.time });
     if (dept === "Surgery / Post-Op") {

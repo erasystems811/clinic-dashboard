@@ -48,6 +48,7 @@ const PREDEFINED_DEPARTMENTS = [
   "Dental",
   "Eye",
   "Fertility / IVF",
+  "ENT (Ear, Nose and Throat)",
 ];
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {

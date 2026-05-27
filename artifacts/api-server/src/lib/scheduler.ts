@@ -617,25 +617,22 @@ async function runCarePlanRemindersHourly() {
           const hospTiming = (td.hospitalTiming as string[]) ?? [];
           const hospTimingTimes = (td.hospitalTimingTimes as Record<string, string>) ?? {};
 
-          // Medication slots — remind 2 hours before
-          if (treatmentType === "medication_only" || treatmentType === "combination") {
+          if (treatmentType === "medication_only") {
+            // Medication only — fire AT the exact time (0h lead)
             for (const slot of medTiming) {
               const timeStr = medTimingTimes[slot];
               if (!timeStr) continue;
               const [hh, mm] = timeStr.split(":").map(Number);
               const visitAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
-              const reminderAt = new Date(visitAt.getTime() - 2 * 3600 * 1000);
-              if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+              if (Math.abs(visitAt.getTime() - now.getTime()) > WINDOW_MS) continue;
               const key = `genout_med_${plan.id}_${slot}_${today}`;
-              const alreadySent = await checkSentLog(h.id, key);
-              if (alreadySent) continue;
-              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"]);
-              log(`General Outpatient med reminder (2h before ${timeStr}) → patient ${patient.id} slot=${slot}`);
+              if (await checkSentLog(h.id, key)) continue;
+              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"], dept);
+              log(`General Outpatient med reminder (at ${timeStr}) → patient ${patient.id} slot=${slot}`);
             }
-          }
 
-          // Hospital visit slots — remind 3 hours before
-          if (treatmentType === "come_to_hospital" || treatmentType === "combination") {
+          } else if (treatmentType === "come_to_hospital") {
+            // Come to hospital — fire 3h before
             for (const slot of hospTiming) {
               const timeStr = hospTimingTimes[slot];
               if (!timeStr) continue;
@@ -644,10 +641,29 @@ async function runCarePlanRemindersHourly() {
               const reminderAt = new Date(visitAt.getTime() - 3 * 3600 * 1000);
               if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
               const key = `genout_hosp_${plan.id}_${slot}_${today}`;
-              const alreadySent = await checkSentLog(h.id, key);
-              if (alreadySent) continue;
-              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["hosp"]);
+              if (await checkSentLog(h.id, key)) continue;
+              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["hosp"], dept);
               log(`General Outpatient hospital reminder (3h before ${timeStr}) → patient ${patient.id} slot=${slot}`);
+            }
+
+          } else if (treatmentType === "combination") {
+            // Combination — ONE combined message 2h before, covering both med + hospital
+            const allSlots = new Set([...medTiming, ...hospTiming]);
+            for (const slot of allSlots) {
+              // Reference time: prefer hospital time (more time-sensitive), fall back to med time
+              const refTime = hospTimingTimes[slot] || medTimingTimes[slot];
+              if (!refTime) continue;
+              const [hh, mm] = refTime.split(":").map(Number);
+              const visitAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+              const reminderAt = new Date(visitAt.getTime() - 2 * 3600 * 1000);
+              if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+              const key = `genout_combo_${plan.id}_${slot}_${today}`;
+              if (await checkSentLog(h.id, key)) continue;
+              const types: Array<"med" | "hosp"> = [];
+              if (medTiming.includes(slot)) types.push("med");
+              if (hospTiming.includes(slot)) types.push("hosp");
+              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, types, dept);
+              log(`General Outpatient combination reminder (2h before ${refTime}) → patient ${patient.id} slot=${slot} types=${types.join("+")}`);
             }
           }
         } else {

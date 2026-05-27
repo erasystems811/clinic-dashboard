@@ -16,7 +16,7 @@ import { apiUrl } from "@/lib/api";
 import {
   Search, Stethoscope, Flag, Loader2, Plus, Trash2,
   Pencil, MessageSquare, PhoneCall, ChevronDown,
-  ChevronUp, X, Calendar, AlertTriangle,
+  ChevronUp, X, Calendar, AlertTriangle, Activity,
 } from "lucide-react";
 
 const STANDARD_DEPARTMENTS = [
@@ -111,6 +111,7 @@ export default function NurseStation() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [savingPlan, setSavingPlan] = useState(false);
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
+  const [movingToInCare, setMovingToInCare] = useState(false);
 
   // Care plan form
   const [planDepartment, setPlanDepartment] = useState("");
@@ -196,6 +197,26 @@ export default function NurseStation() {
   const cancelPlanForm = () => {
     setPlanMode("list");
     setEditingPlan(null);
+  };
+
+  const handleMoveToInCare = async () => {
+    if (!selectedPatient) return;
+    setMovingToInCare(true);
+    try {
+      const res = await fetch(apiUrl(`/api/patients/${selectedPatient.id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({ stage: "In Care" }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: "Stage updated", description: `${selectedPatient.firstName} ${selectedPatient.lastName} is now In Care.` });
+      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+      setSelectedPatient(prev => prev ? { ...prev, stage: "In Care" } : prev);
+    } catch {
+      toast({ title: "Failed to update stage", variant: "destructive" });
+    } finally {
+      setMovingToInCare(false);
+    }
   };
 
   const handleDeptChange = (dept: string) => {
@@ -418,6 +439,18 @@ export default function NurseStation() {
                   </div>
                 )}
 
+                {selectedPatient.stage !== "In Care" && carePlans.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={movingToInCare}
+                    onClick={handleMoveToInCare}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg border border-primary/40 bg-primary/8 text-primary text-sm font-medium py-2.5 hover:bg-primary/15 transition disabled:opacity-50"
+                  >
+                    {movingToInCare
+                      ? <><Loader2 className="w-4 h-4 animate-spin" />Updating…</>
+                      : <><Activity className="w-4 h-4" />Mark as In Care</>}
+                  </button>
+                )}
                 <Button type="button" className="w-full gap-2" onClick={openNewPlan}>
                   <Plus className="w-4 h-4" />
                   Add Care Plan

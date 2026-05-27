@@ -57,18 +57,18 @@ interface HospitalContext {
   notificationChannel: "whatsapp" | "sms";
   phoneNumber: string | null;
   termiiSenderId: string | null;
+  /** Hospital communication language — null means default to English */
+  language: string | null;
 }
 
 async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
   const [{ data: hospital }, { data: settings }] = await Promise.all([
     supabase.from("hospitals").select("id, name, username").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
-      .select("sender_name, notification_channel, phone_number, tone, termii_sender_id")
+      .select("sender_name, notification_channel, phone_number, tone, termii_sender_id, language")
       .eq("hospital_id", hospitalId).single(),
   ]);
   const hospitalName = hospital?.name ?? "The Hospital";
-  // Display name is hospital's configured sender name, falling back to hospital name.
-  // Email address is always the platform-level noreply address — hospitals don't set this.
   const displayName = (settings?.sender_name as string | null)?.trim() || hospitalName;
   const rawEmail = process.env.PLATFORM_FROM_EMAIL || "onboarding@resend.dev";
   const fromAddress = `${displayName} <${rawEmail}>`;
@@ -79,6 +79,7 @@ async function getHospitalContext(hospitalId: number): Promise<HospitalContext> 
     notificationChannel: (settings?.notification_channel as "whatsapp" | "sms") ?? "whatsapp",
     phoneNumber: (settings?.phone_number as string) ?? null,
     termiiSenderId: (settings?.termii_sender_id as string) ?? null,
+    language: (settings?.language as string | null) ?? null,
   };
 }
 
@@ -562,7 +563,7 @@ export async function sendCareVisitReminderEmail(
   visitTime?: string,
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
-  const dedupeKey = `PLAN:${planId}:${visitDate}`;
+  const dedupeKey = `PLAN:${planId}:${visitDate}:${visitTime ?? ""}`;
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType: "care_plan_visit_reminder",
@@ -575,23 +576,24 @@ export async function sendCareVisitReminderEmail(
       weekday: "long", day: "numeric", month: "long", year: "numeric",
     });
     const timeStr = visitTime ? ` at ${visitTime}` : "";
-    const subject = `Reminder: ${department} appointment tomorrow — ${hCtx.hospitalName}`;
-    const body = [
-      `Hi ${firstName},`,
-      ``,
-      `This is a friendly reminder from ${hCtx.hospitalName} that you have a ${department} appointment scheduled for tomorrow, ${formatted}${timeStr}.`,
-      visitDescription ? `Appointment details: ${visitDescription}` : "",
-      ``,
-      `Please ensure you arrive on time${visitTime ? ` (${visitTime})` : ""}. If you have any questions or need to reschedule, please ${contactLine(hCtx.phoneNumber)}.`,
-      ``,
-      `Please do not reply to this email directly.`,
-      ``,
-      `Warm regards,`,
-      `${hCtx.hospitalName} Team`,
-    ].filter(l => l !== null).join("\n");
+    const lang = hCtx.language ?? "English";
+    const contact = contactLine(hCtx.phoneNumber);
 
-    const html = wrapHtml(`<p>${body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`, hCtx.hospitalName);
-    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: body });
+    const tones = await (async () => {
+      const { data } = await supabase.from("hospital_settings").select("tone").eq("hospital_id", hospitalId).single();
+      return data?.tone ? (Array.isArray(data.tone) ? data.tone : JSON.parse(data.tone as string)) as string[] : [];
+    })();
+    const tone = buildToneDescription(tones);
+
+    const message = await generateOpenAIMessage(
+      `You are a care team member at ${hCtx.hospitalName} sending a visit reminder email. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. Start with "Hi ${firstName},". Write 2–3 warm sentences reminding the patient about their upcoming ${department} appointment. Read and understand the care plan details before writing — then explain to the patient in very simple, clear words what they need to know for this visit. Mention the specific department (${department}). End with: "If you have any questions please ${contact}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team"`,
+      `Department: ${department}\nAppointment: ${formatted}${timeStr}\nCare plan details (read and understand before writing): ${visitDescription.slice(0, 500)}`,
+      280,
+    );
+
+    const subject = `${department} appointment reminder — ${formatted} — ${hCtx.hospitalName}`;
+    const html = wrapHtml(`<p>${message.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: message });
     await updateAutomationLog(logId, "sent");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -886,9 +888,11 @@ export async function sendInCareAIReminder(
   treatmentPlan: string,
   slot: InCareTimeSlot,
   timingTypes: Array<"med" | "hosp">,
+  department?: string,
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
-  const automationType = `in_care_reminder_${slot}`;
+  const deptLabel = department ?? "General Outpatient";
+  const automationType = `in_care_reminder_${slot}_${deptLabel.replace(/\s+/g, "_").toLowerCase()}`;
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType,
@@ -903,6 +907,7 @@ export async function sendInCareAIReminder(
     })();
     const tone = buildToneDescription(tones);
     const contact = contactLine(hCtx.phoneNumber);
+    const lang = hCtx.language ?? "English";
 
     const greetings: Record<InCareTimeSlot, string> = {
       morning: "Good morning",
@@ -914,10 +919,10 @@ export async function sendInCareAIReminder(
     const hasMed = timingTypes.includes("med");
     const hasHosp = timingTypes.includes("hosp");
     const typeContext = hasMed && hasHosp
-      ? `The patient has both medication to take AND a clinic/hospital visit scheduled at this time.`
+      ? `The patient has BOTH medication to take AND a ${deptLabel} clinic visit at this time — this reminder covers both.`
       : hasMed
-        ? `The patient has medication to take at this time (home dose — they do not need to come in).`
-        : `The patient has a clinic or hospital visit scheduled at this time.`;
+        ? `The patient has medication to take at this time (home dose — they do NOT need to come in). This is from their ${deptLabel} care plan.`
+        : `The patient has a ${deptLabel} clinic or hospital visit at this time.`;
 
     const slotContext: Record<InCareTimeSlot, string> = {
       morning: "It is morning — start of the day.",
@@ -927,9 +932,9 @@ export async function sendInCareAIReminder(
     };
 
     const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a brief ${slot} check-in email to a patient who is currently receiving care. Tone: ${tone}. Start with "Hi ${firstName},". Write 2–3 warm, specific sentences directly relevant to what the patient needs to do right now. Sound like a real, caring person — not an automated system. Never mention a diagnosis. Never use clinical jargon. End with: "If you have any concerns please do not hesitate to ${contact}. Please do not reply to this email directly. — ${hCtx.hospitalName} Team"`,
-      `${slotContext[slot]}\n${typeContext}\n\nPatient's treatment plan: ${treatmentPlan.slice(0, 600)}\n\nWrite a short, warm ${slot} care reminder email for ${firstName} based exactly on what they need to do at this time.`,
-      220,
+      `You are a care team member at ${hCtx.hospitalName} sending a care reminder email to a patient. Department: ${deptLabel}. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. Start with "Hi ${firstName},". Read and understand the care plan details first, then write 2–3 warm, specific sentences about what the patient needs to do right now — in very simple, clear language anyone can understand. Always mention the department (${deptLabel}). Never use clinical jargon. End with: "If you have any concerns please ${contact}. Please do not reply to this email directly. — ${hCtx.hospitalName} Team"`,
+      `${slotContext[slot]}\n${typeContext}\n\nCare plan details (read and understand before writing): ${treatmentPlan.slice(0, 600)}\n\nWrite a short, warm care reminder email for ${firstName}.`,
+      230,
     );
 
     const html = wrapHtml(
@@ -940,12 +945,12 @@ export async function sendInCareAIReminder(
     await sendEmail({
       to: patientEmail,
       from: hCtx.fromAddress,
-      subject: `${greetings[slot]}, ${firstName} — ${hCtx.hospitalName}`,
+      subject: `${greetings[slot]}, ${firstName} — ${deptLabel} reminder — ${hCtx.hospitalName}`,
       html,
       text: message,
     });
 
-    await updateAutomationLog(logId, "sent", `In-care ${slot} reminder → ${patientEmail}`);
+    await updateAutomationLog(logId, "sent", `In-care ${slot} reminder (${deptLabel}) → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await updateAutomationLog(logId, "failed", msg);

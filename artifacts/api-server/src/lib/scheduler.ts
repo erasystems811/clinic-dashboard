@@ -147,7 +147,7 @@ async function runPostCareEmails() {
         .from("patients")
         .select("id, first_name, last_name, email, stage")
         .eq("hospital_id", hospital.username)
-        .in("stage", ["Active", "Post Care"])
+        .eq("stage", "Active")
         .not("email", "is", null);
 
       for (const p of patients ?? []) {
@@ -215,7 +215,7 @@ async function runDormantDetection() {
         .from("patients")
         .select("id, first_name, last_name")
         .eq("hospital_id", hospital.username)
-        .in("stage", ["Active", "Post Care"]);
+        .eq("stage", "Active");
 
       for (const p of patients ?? []) {
         // Skip if the patient had a check-in (was queued) within the dormant window

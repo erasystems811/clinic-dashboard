@@ -22,7 +22,10 @@ All email/WhatsApp/SMS goes to **patients only**. Admin sees only in-app counts/
 
 ---
 
-## WhatsApp / SMS only (3 trigger types)
+## Mobile messaging channel: WhatsApp OR SMS — hospital's choice
+Queue messages and care plan notices go via **WhatsApp or SMS** — whichever channel the hospital picked in the super admin notification channel dropdown. It is NOT always WhatsApp. The scheduler reads `notification_channel` from hospital_settings and routes accordingly.
+
+### Mobile message trigger types (3)
 1. Queue milestone: joined (with position number), next in line, your turn
 2. Queue 45-min stall apology (sent to all patients waiting when no movement for 45 min)
 3. Care plan onboarding notice (paired with care plan email, tells patient to check email)
@@ -40,8 +43,8 @@ All email/WhatsApp/SMS goes to **patients only**. Admin sees only in-app counts/
 | Post-treatment Day 1 check-in | 6 AM daily | Templated |
 | Post-treatment Day 4 check-in | 6 AM daily | Templated |
 | Post-treatment Day 7 check-in | 6 AM daily | Templated |
-| Post-care follow-up | 30 days in Post Care stage | Templated, once only |
-| Dormant email | 250 days inactive | Templated, once only |
+| Active patient follow-up | Every 30 days in Active stage | Templated, **continuous** (per-patient 30-day cooldown via automation_log); skipped if patient checked in within last 30 days |
+| Dormant email | pipeline_dormant_days inactive | Templated, once per dormant transition |
 | End-of-day feedback link | 9 PM daily | Per-patient JWT link |
 | Flagged task confirmed send | Staff approves draft | Email marked Important — **not** AI, staff wrote/edited it |
 | Wellness newsletter send | Admin sends approved draft | Sends Claude-generated content to all active patients |
@@ -50,11 +53,14 @@ All email/WhatsApp/SMS goes to **patients only**. Admin sees only in-app counts/
 
 ## Scheduler cron summary
 - Every 15 min: appointment reminders + no-show detection + no-show follow-up
-- 6 AM daily: pipeline transitions + post-treatment check-ins + post-care + dormant
+- 6 AM daily: pipeline transitions + post-treatment check-ins + active-patient follow-ups + dormant detection
 - 8 AM / 1 PM / 6 PM / 10 PM daily: in-care AI reminders (slot-gated by medication_timing)
 - 9 PM daily: feedback form link emails
 - 11 PM daily: no-show dismissal
 - Every 6h: subscription expiration check
+
+## Stage names in DB (as of current codebase)
+- Scheduler queries `stage = "Active"` for post-care follow-ups and dormant detection. "Post Care" is a dead legacy value — removed from all queries. Do not reintroduce "Post Care" anywhere.
 
 ## AI model assignments
 - **OpenAI gpt-4o-mini**: in-care reminders, flagged task drafts

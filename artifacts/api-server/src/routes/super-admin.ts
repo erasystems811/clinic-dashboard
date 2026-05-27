@@ -822,8 +822,11 @@ router.post("/super-admin/automation-log/:id/retry", requireSuperAdmin, async (r
 router.post("/super-admin/test-sms", requireSuperAdmin, async (req, res): Promise<void> => {
   const { to, senderId } = req.body ?? {};
   if (!to) { res.status(400).json({ error: "Missing 'to' phone number" }); return; }
-  const result = await testSmsDelivery(String(to), senderId ? String(senderId) : undefined);
-  res.status(result.ok ? 200 : 502).json(result);
+  // Normalise Nigerian local format → international (09012345678 → 2349012345678)
+  let phone = String(to).replace(/\s+/g, "");
+  if (phone.startsWith("0")) phone = "234" + phone.slice(1);
+  const result = await testSmsDelivery(phone, senderId ? String(senderId) : undefined);
+  res.status(200).json(result);
 });
 
 export default router;

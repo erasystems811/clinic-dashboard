@@ -114,18 +114,29 @@ router.get("/patients", async (req, res): Promise<void> => {
     const ids = patients.map(p => p.id as number);
     const nowIso = new Date().toISOString();
     const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
-      supabase.from("care_plans").select("patient_id").eq("hospital_id", hospital.username).in("patient_id", ids),
+      supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.username).in("patient_id", ids),
       supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username).in("patient_id", ids),
       supabase.from("appointments").select("patient_id").in("patient_id", ids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
     ]);
+
     const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
     const inQueue = new Set((queueEntries ?? []).map(q => q.patient_id as number));
     const isBooked = new Set((upcomingAppts ?? []).map(a => a.patient_id as number));
+
+    // Aggregate all unique departments per patient from their care plans
+    const deptsByPatient: Record<number, Set<string>> = {};
+    for (const cp of plans ?? []) {
+      const pid = cp.patient_id as number;
+      if (!deptsByPatient[pid]) deptsByPatient[pid] = new Set();
+      if (cp.department) deptsByPatient[pid].add(cp.department as string);
+    }
+
     res.json(camelizeArr(patients.map(p => ({
       ...p,
       has_care_plan: withPlans.has(p.id as number),
       is_in_queue: inQueue.has(p.id as number),
       is_booked: isBooked.has(p.id as number),
+      care_plan_departments: Array.from(deptsByPatient[p.id as number] ?? []),
     }))));
     return;
   }

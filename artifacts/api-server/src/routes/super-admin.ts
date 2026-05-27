@@ -282,8 +282,15 @@ router.get("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): Pr
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { data: hospital } = await supabase.from("hospitals").select("*").eq("id", id).single();
+  let { data: hospital } = await supabase.from("hospitals").select("*").eq("id", id).single();
   if (!hospital) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Backfill hospital_code for older hospitals that were created before this field existed
+  if (!hospital.hospital_code) {
+    const newCode = crypto.randomUUID();
+    await supabase.from("hospitals").update({ hospital_code: newCode }).eq("id", id);
+    hospital = { ...hospital, hospital_code: newCode };
+  }
 
   const [{ data: settings }, { data: modules }, { data: staffCreds }] = await Promise.all([
     supabase.from("hospital_settings").select("*").eq("hospital_id", id).single(),

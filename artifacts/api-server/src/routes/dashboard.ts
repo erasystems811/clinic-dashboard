@@ -15,20 +15,18 @@ const DEFAULT_STAGES = [
 
 async function ensureStagesExist() {
   const { data: existing } = await supabase.from("pipeline_stages").select("id, name");
-  if (!existing || existing.length === 0) {
-    await supabase.from("pipeline_stages").insert(DEFAULT_STAGES);
-    return;
+  const existingNames = new Set((existing ?? []).map(s => s.name as string));
+  const expectedNames = new Set(DEFAULT_STAGES.map(s => s.name));
+
+  const toDelete = (existing ?? []).filter(s => !expectedNames.has(s.name as string));
+  if (toDelete.length > 0) {
+    await supabase.from("pipeline_stages").delete().in("id", toDelete.map(s => s.id));
   }
-  // Migrate: rename legacy "Post Care" → "Active"
-  const postCare = existing.find(s => (s.name as string) === "Post Care");
-  if (postCare) {
-    await supabase.from("pipeline_stages").update({ name: "Active", color: "#06b6d4", sort_order: 5 }).eq("id", postCare.id);
+
+  const toInsert = DEFAULT_STAGES.filter(s => !existingNames.has(s.name));
+  if (toInsert.length > 0) {
+    await supabase.from("pipeline_stages").insert(toInsert);
   }
-  // Insert any stages that are entirely missing
-  const existingNames = new Set(existing.map(s => s.name as string));
-  if (postCare) existingNames.add("Active");
-  const missing = DEFAULT_STAGES.filter(s => !existingNames.has(s.name));
-  if (missing.length > 0) await supabase.from("pipeline_stages").insert(missing);
 }
 
 // ── Date bounds in Africa/Lagos (WAT = UTC+1) ─────────────────────────────────

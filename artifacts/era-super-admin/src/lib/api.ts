@@ -58,6 +58,7 @@ export interface Hospital {
   subscriptionStatus: string;
   subscriptionExpiresAt: string | null;
   logoUrl: string | null;
+  hospitalCode: string | null;
   createdAt: string;
   updatedAt: string | null;
   currentPassword: string | null;

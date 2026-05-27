@@ -1,117 +1,112 @@
-import { useMemo } from "react";
 import { Link } from "wouter";
-import { 
-  useListPatients, 
-  getListPatientsQueryKey,
-  useListPipelineStages,
-  getListPipelineStagesQueryKey
-} from "@workspace/api-client-react";
-import { getPatientStages } from "@/lib/utils";
+import { useListPatients, getListPatientsQueryKey } from "@workspace/api-client-react";
 import { Layout } from "@/components/layout";
-import { Badge } from "@/components/ui/badge";
-import { Building2, Calendar, GitBranch } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Building2, Users } from "lucide-react";
 
 export default function Pipeline() {
-  const { data: stages, isLoading: stagesLoading } = useListPipelineStages({
-    query: { queryKey: getListPipelineStagesQueryKey() }
-  });
-
-  const { data: patients, isLoading: patientsLoading } = useListPatients(
+  const { data: patients, isLoading } = useListPatients(
     {},
     { query: { queryKey: getListPatientsQueryKey({}) } }
   );
 
-  const groupedPatients = useMemo(() => {
-    if (!patients || !stages) return {};
-    
-    const grouped: Record<string, typeof patients> = {};
-    stages.forEach(stage => {
-      // A patient can be in multiple stages simultaneously — show them in every matching column
-      grouped[stage.name] = patients.filter(
-        p => getPatientStages(p as never).includes(stage.name)
-      );
-    });
-    return grouped;
-  }, [patients, stages]);
-
-  const isLoading = stagesLoading || patientsLoading;
-
   return (
     <Layout>
-      <div className="flex flex-col h-full space-y-6">
-        <div className="flex items-center justify-between shrink-0">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Pipeline</h1>
-            <p className="text-muted-foreground mt-1">
-              Visual overview of patients across clinical stages.
-            </p>
-          </div>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Pipeline</h1>
+          <p className="text-muted-foreground mt-1">
+            All patients and the departments they are currently receiving treatment from.
+          </p>
         </div>
 
-        <div className="flex-1 overflow-x-auto pb-4">
-          <div className="flex gap-6 h-full min-w-max">
-            {isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="w-80 flex flex-col gap-4">
-                  <div className="h-12 rounded-lg bg-card border border-border flex items-center px-4">
-                    <Skeleton className="h-5 w-24" />
-                    <Skeleton className="h-5 w-8 rounded-full ml-auto" />
-                  </div>
-                  <Skeleton className="h-32 w-full rounded-lg" />
-                  <Skeleton className="h-32 w-full rounded-lg" />
-                </div>
-              ))
-            ) : stages?.map((stage) => (
-              <div key={stage.id} className="w-80 flex flex-col h-full">
-                <div className="flex items-center justify-between mb-4 bg-card p-3 rounded-lg border border-border shrink-0">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
-                    <h3 className="font-semibold">{stage.name}</h3>
-                  </div>
-                  <Badge variant="secondary" className="rounded-full">{groupedPatients[stage.name]?.length || 0}</Badge>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-hide">
-                  {groupedPatients[stage.name]?.map((patient) => (
-                    <Link key={patient.id} href={`/patients/${patient.id}`}>
-                      <div className="bg-card p-4 rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer group">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-semibold group-hover:text-primary transition-colors">
-                            {patient.firstName} {patient.lastName}
-                          </h4>
-                          <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-[10px] border border-border">
-                            {patient.firstName[0]}{patient.lastName[0]}
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-2 mt-3">
-                          <div className="flex items-center text-xs text-muted-foreground gap-1.5">
-                            <Building2 className="w-3 h-3" />
-                            <span className="truncate">{patient.department || 'No department'}</span>
-                          </div>
-                          {patient.nextAppointment && (
-                            <div className="flex items-center text-xs text-muted-foreground gap-1.5">
-                              <Calendar className="w-3 h-3" />
-                              <span>{format(new Date(patient.nextAppointment), "MMM d, yyyy")}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                  
-                  {(!groupedPatients[stage.name] || groupedPatients[stage.name].length === 0) && (
-                    <div className="h-24 border-2 border-dashed border-border rounded-lg flex items-center justify-center text-muted-foreground text-sm opacity-50">
-                      Empty stage
-                    </div>
-                  )}
-                </div>
+        {isLoading ? (
+          <div className="rounded-xl border border-border overflow-hidden">
+            <div className="px-5 py-3 border-b border-border bg-muted/30 flex gap-8">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="px-5 py-4 border-b border-border last:border-0 flex gap-8">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-56" />
               </div>
             ))}
           </div>
-        </div>
+        ) : !patients || patients.length === 0 ? (
+          <div className="rounded-xl border border-border py-20 text-center">
+            <Users className="w-8 h-8 mx-auto mb-3 text-muted-foreground opacity-40" />
+            <p className="text-muted-foreground text-sm">No patients registered yet.</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border overflow-hidden">
+            {/* Header */}
+            <div className="grid grid-cols-[2fr_1fr_3fr] gap-4 px-5 py-3 border-b border-border bg-muted/30">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Patient Name</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Patient ID</span>
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                <Building2 className="w-3 h-3" />
+                Departments
+              </span>
+            </div>
+
+            {/* Rows */}
+            <div className="divide-y divide-border">
+              {patients.map((patient) => {
+                const depts = (patient as unknown as Record<string, unknown>).carePlanDepartments as string[] | undefined;
+                const hasDepts = depts && depts.length > 0;
+
+                return (
+                  <Link key={patient.id} href={`/patients/${patient.id}/history`}>
+                    <div className="grid grid-cols-[2fr_1fr_3fr] gap-4 px-5 py-4 hover:bg-muted/20 transition-colors cursor-pointer group">
+                      {/* Name */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0 border border-primary/20">
+                          {patient.firstName[0]}{patient.lastName[0]}
+                        </div>
+                        <span className="font-medium text-sm truncate group-hover:text-primary transition-colors">
+                          {patient.firstName} {patient.lastName}
+                        </span>
+                      </div>
+
+                      {/* ID */}
+                      <div className="flex items-center">
+                        <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                          {patient.patientId}
+                        </span>
+                      </div>
+
+                      {/* Departments */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {hasDepts ? (
+                          depts.map((dept) => (
+                            <Badge
+                              key={dept}
+                              variant="secondary"
+                              className="text-xs font-normal flex items-center gap-1"
+                            >
+                              <Building2 className="w-3 h-3" />
+                              {dept}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">No departments yet</span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="px-5 py-3 border-t border-border bg-muted/20">
+              <span className="text-xs text-muted-foreground">{patients.length} patient{patients.length !== 1 ? "s" : ""} total</span>
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );

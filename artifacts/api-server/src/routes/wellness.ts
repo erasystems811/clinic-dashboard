@@ -451,7 +451,7 @@ router.get("/wellness/topics", async (req, res): Promise<void> => {
 
   // Get all topics ordered by department relevance, then filter out already-used ones for suggestions
   const orderedByDept = getTopicsForDepartments(departments);
-  const suggested = orderedByDept.filter(t => !usedSet.has(t)).slice(0, 8);
+  const suggested = orderedByDept.filter(t => !usedSet.has(t));
   const all = orderedByDept;
 
   res.json({ suggested, all, used: [...usedSet], departments });

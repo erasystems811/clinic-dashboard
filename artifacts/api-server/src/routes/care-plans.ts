@@ -221,20 +221,23 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
 
   if (!remaining || remaining.length === 0) {
-    // No more care plans — move patient to Post Treatment
+    // No more care plans — only General Outpatient completions trigger Post Treatment.
+    // All other departments return the patient to Active.
+    const isGeneralOutpatientEnd = (existing.department as string) === "General Outpatient";
+    const nextStage = isGeneralOutpatientEnd ? "Post Treatment" : "Active";
     const today = new Date().toISOString().split("T")[0];
     await supabase.from("patients").update({
-      stage: "Post Treatment",
+      stage: nextStage,
       treatment_end_date: today,
       updated_at: new Date().toISOString(),
     }).eq("id", existing.patient_id as number);
 
     await supabase.from("activity").insert({
       type: "stage_changed",
-      description: `${patientName} moved to Post Treatment (care plan removed)`,
+      description: `${patientName} moved to ${nextStage} (care plan removed)`,
       patient_id: existing.patient_id as number,
       patient_name: patientName,
-      metadata: "Post Treatment",
+      metadata: nextStage,
     });
   }
 

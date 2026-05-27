@@ -79,13 +79,10 @@ async function migratePostCareStage() {
   else if (count) logger.info(`[migration] Renamed ${count} patient(s) from "Post Care" to "Active"`);
 }
 
-// Migration: repair patients whose stage column contains the legacy "In Care" value.
-// "In Care" is now a derived badge (from hasCarePlan) and must never live in the stage column.
-// Strategy:
-//   1. Find all patients with stage = "In Care".
-//   2. For each, check the activity log for a prior "Post Treatment" stage_changed event.
-//      If found → restore stage to "Post Treatment" (returning patient; both badges will show).
-//      If not found → set stage to "Active" (first-time patient; "In Care" badge derives from hasCarePlan).
+// Migration: clear the legacy "In Care" value from the stage column.
+// "In Care" is a derived badge (from hasCarePlan) and must never live in the stage column.
+// Only General Outpatient completions now set "Post Treatment"; all other endings go to "Active".
+// So any patient stuck at "In Care" in the DB simply goes back to "Active".
 async function migrateInCareStageColumn() {
   const { data: stuck, error: fetchErr } = await supabase
     .from("patients")
@@ -95,38 +92,14 @@ async function migrateInCareStageColumn() {
   if (!stuck || stuck.length === 0) return;
 
   const stuckIds = stuck.map(p => p.id as number);
+  logger.info(`[migration] Resetting ${stuckIds.length} patient(s) from legacy "In Care" stage → "Active"`);
 
-  // Find which of these patients have a prior "Post Treatment" activity entry
-  const { data: postTreatmentActivity } = await supabase
-    .from("activity")
-    .select("patient_id")
-    .in("patient_id", stuckIds)
-    .eq("type", "stage_changed")
-    .eq("metadata", "Post Treatment");
-
-  const hadPostTreatment = new Set((postTreatmentActivity ?? []).map(a => a.patient_id as number));
-  const restoreToPostTreatment = stuckIds.filter(id => hadPostTreatment.has(id));
-  const restoreToActive = stuckIds.filter(id => !hadPostTreatment.has(id));
-
-  logger.info(`[migration] In Care patients found: ${stuckIds.length} — restoring ${restoreToPostTreatment.length} to Post Treatment, ${restoreToActive.length} to Active`);
-
-  if (restoreToPostTreatment.length > 0) {
-    const { error } = await supabase
-      .from("patients")
-      .update({ stage: "Post Treatment" })
-      .in("id", restoreToPostTreatment);
-    if (error) logger.warn({ err: error }, "[migration] Failed to restore Post Treatment stage");
-    else logger.info(`[migration] Restored ${restoreToPostTreatment.length} patient(s) to Post Treatment`);
-  }
-
-  if (restoreToActive.length > 0) {
-    const { error } = await supabase
-      .from("patients")
-      .update({ stage: "Active" })
-      .in("id", restoreToActive);
-    if (error) logger.warn({ err: error }, "[migration] Failed to reset In Care → Active");
-    else logger.info(`[migration] Reset ${restoreToActive.length} patient(s) from In Care → Active`);
-  }
+  const { error } = await supabase
+    .from("patients")
+    .update({ stage: "Active" })
+    .in("id", stuckIds);
+  if (error) logger.warn({ err: error }, "[migration] Failed to reset In Care → Active");
+  else logger.info(`[migration] Reset ${stuckIds.length} patient(s) from In Care → Active`);
 }
 
 app.listen(port, (err) => {

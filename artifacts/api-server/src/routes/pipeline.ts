@@ -45,12 +45,21 @@ router.get("/pipeline/stages", async (req, res): Promise<void> => {
   await ensureStagesExist();
 
   const nowIso = new Date().toISOString();
-  const [{ data: stages }, { data: patients }, { data: queueEntries }, { data: bookedAppts }] = await Promise.all([
+  const [{ data: stages }, { data: patients }, { data: queueEntries }] = await Promise.all([
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
     supabase.from("patients").select("id, stage").eq("hospital_id", hospital.username),
     supabase.from("queue").select("patient_id").eq("hospital_id", hospital.username),
-    supabase.from("appointments").select("patient_id").gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
   ]);
+
+  // Scope booked count to this hospital's patients only
+  const patientIds = (patients ?? []).map(p => p.id as number);
+  const safeIds = patientIds.length ? patientIds : [-1];
+  const { data: bookedAppts } = await supabase
+    .from("appointments")
+    .select("patient_id")
+    .in("patient_id", safeIds)
+    .gte("scheduled_at", nowIso)
+    .not("status", "in", '("cancelled","no_show")');
 
   // Primary stage counts (Active, Post Treatment, Dormant, In Care from patients.stage)
   const countMap: Record<string, number> = {};

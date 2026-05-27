@@ -83,6 +83,7 @@ router.post("/appointments", async (req, res): Promise<void> => {
   const { data: appt, error } = await supabase.from("appointments").insert({
     ...snakify(parsed.data as Record<string, unknown>),
     patient_name: patientName,
+    status: "scheduled",
   }).select().single();
 
   if (error || !appt) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }

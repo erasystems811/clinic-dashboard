@@ -808,6 +808,14 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const taskType = parsed.data.taskType ?? "follow_up";
+
+  // Resolve hospital integer id for direct scoping on call_tasks
+  let hospitalIntId: number | null = null;
+  if (patient.hospital_id) {
+    const { data: hosp } = await supabase.from("hospitals").select("id").eq("username", (patient.hospital_id as string).toLowerCase()).single();
+    hospitalIntId = hosp?.id ?? null;
+  }
+
   const { data: task, error: taskErr } = await supabase.from("call_tasks").insert({
     patient_id: patient.id,
     patient_name: `${patient.first_name} ${patient.last_name}`,
@@ -818,6 +826,7 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
     task_type: taskType,
     check_in_type: parsed.data.checkInType ?? null,
     action_type: parsed.data.actionType ?? "manual_call",
+    hospital_id: hospitalIntId,
   }).select().single();
 
   if (taskErr || !task) { res.status(500).json({ error: taskErr?.message ?? "Failed to create task" }); return; }

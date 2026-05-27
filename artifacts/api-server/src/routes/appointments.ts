@@ -6,7 +6,7 @@ import {
   sendAppointmentConfirmationEmail as sendAppointmentConfirmation,
   sendAppointmentNoShowEmail as sendAppointmentNoShowFollowUp,
 } from "../lib/automation.js";
-import { getHospitalFromRequest, getPatientIdsForHospital } from "../lib/hospital-auth.js";
+import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 
 const router: IRouter = Router();
 
@@ -46,9 +46,20 @@ router.get("/appointments", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const patientIds = await getPatientIdsForHospital(hospital.username);
+  const nowIso = new Date().toISOString();
 
-  let q = supabase.from("appointments").select("*").in("patient_id", patientIds.length ? patientIds : [-1]);
+  // Auto-mark past "scheduled" (or legacy null-status) appointments as no_show.
+  // This runs fire-and-forget so it doesn't block the response.
+  supabase.from("appointments")
+    .update({ status: "no_show" })
+    .eq("hospital_id", hospital.intId)
+    .lt("scheduled_at", nowIso)
+    .or("status.eq.scheduled,status.is.null")
+    .then(() => {});
+
+  let q = supabase.from("appointments")
+    .select("*")
+    .eq("hospital_id", hospital.intId);
 
   if (query.data.status) {
     q = q.eq("status", query.data.status);
@@ -61,12 +72,19 @@ router.get("/appointments", async (req, res): Promise<void> => {
   const { data, error } = await q.order("scheduled_at", { ascending: false });
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  res.json((data ?? []).map((a) => ({ ...camelize(a), duration: a.duration ?? 30 })));
+  res.json((data ?? []).map((a) => ({
+    ...camelize(a),
+    duration: a.duration ?? 30,
+    status: a.status ?? "scheduled",
+  })));
 });
 
 router.post("/appointments", async (req, res): Promise<void> => {
   const parsed = CreateAppointmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   if (new Date(parsed.data.scheduledAt) < new Date()) {
     res.status(400).json({ error: "Appointment time cannot be in the past." });
@@ -84,6 +102,7 @@ router.post("/appointments", async (req, res): Promise<void> => {
     ...snakify(parsed.data as Record<string, unknown>),
     patient_name: patientName,
     status: "scheduled",
+    hospital_id: hospital.intId,
   }).select().single();
 
   if (error || !appt) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
@@ -96,16 +115,11 @@ router.post("/appointments", async (req, res): Promise<void> => {
     metadata: appt.scheduled_at,
   });
 
-  // "Booked" is now a derived state (has upcoming appointment) — no stage write needed.
-  // ── Automation: appointment confirmation email ──
-  if (patient) {
-    const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
-    if (hospitalIntId && patient.email) {
-      sendAppointmentConfirmation(hospitalIntId, parsed.data.patientId, patientName, patient.email as string, appt.scheduled_at).catch(() => {});
-    }
+  if (patient?.email) {
+    sendAppointmentConfirmation(hospital.intId, parsed.data.patientId, patientName, patient.email as string, appt.scheduled_at).catch(() => {});
   }
 
-  res.status(201).json({ ...camelize(appt), duration: appt.duration ?? 30 });
+  res.status(201).json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled" });
 });
 
 router.patch("/appointments/:id", async (req, res): Promise<void> => {
@@ -127,6 +141,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
   if (parsed.data.status === "no_show") {
     const { data: patient } = await supabase.from("patients").select("*").eq("id", appt.patient_id).single();
     if (patient) {
+      const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
       await supabase.from("call_tasks").insert({
         patient_id: patient.id,
         patient_name: `${patient.first_name} ${patient.last_name}`,
@@ -134,10 +149,9 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
         whatsapp_number: patient.whatsapp_number,
         reason: `No-show for appointment: ${appt.title} on ${new Date(appt.scheduled_at).toLocaleDateString()}`,
         action_type: "manual_call",
+        hospital_id: hospitalIntId,
       });
 
-      // ── Automation: WhatsApp no-show follow-up ──
-      const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
       if (hospitalIntId) {
         const phone = (patient.whatsapp_number as string) || (patient.phone as string);
         if (phone) {
@@ -165,7 +179,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
     });
   }
 
-  res.json({ ...camelize(appt), duration: appt.duration ?? 30 });
+  res.json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled" });
 });
 
 export default router;

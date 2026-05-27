@@ -35,6 +35,40 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+// Migration: add hospital_id column to appointments + call_tasks and backfill from patients.
+async function migrateHospitalIdColumns() {
+  const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!projectRef || !token) {
+    logger.warn("[migration] SUPABASE_ACCESS_TOKEN not set — skipping hospital_id column migration");
+    return;
+  }
+  const sql = `
+    ALTER TABLE appointments ADD COLUMN IF NOT EXISTS hospital_id INTEGER REFERENCES hospitals(id);
+    ALTER TABLE call_tasks   ADD COLUMN IF NOT EXISTS hospital_id INTEGER REFERENCES hospitals(id);
+    UPDATE appointments a
+      SET hospital_id = h.id
+      FROM patients p JOIN hospitals h ON h.username = p.hospital_id
+      WHERE a.patient_id = p.id AND a.hospital_id IS NULL;
+    UPDATE call_tasks ct
+      SET hospital_id = h.id
+      FROM patients p JOIN hospitals h ON h.username = p.hospital_id
+      WHERE ct.patient_id = p.id AND ct.hospital_id IS NULL;
+    NOTIFY pgrst, 'reload schema';
+  `;
+  try {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (resp.ok) logger.info("[migration] hospital_id columns added/backfilled in appointments and call_tasks");
+    else logger.warn({ body: await resp.text() }, "[migration] hospital_id column migration failed (non-fatal)");
+  } catch (err) {
+    logger.warn({ err }, "[migration] hospital_id column migration error (non-fatal)");
+  }
+}
+
 // Migration: rename legacy "Post Care" stage to "Active" in the DB.
 async function migratePostCareStage() {
   const { error, count } = await supabase
@@ -77,6 +111,7 @@ app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
   startScheduler();
   reloadSupabaseSchema();
+  migrateHospitalIdColumns();
   migratePostCareStage();
   migrateStuckInCareStage();
 });

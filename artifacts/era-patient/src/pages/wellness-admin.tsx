@@ -22,16 +22,100 @@ function weekOfDate(date: Date) {
 }
 
 const FALLBACK_TOPIC_SUGGESTIONS = [
+  // Core wellness
   "Hydration and Water Intake",
   "Sleep Hygiene",
   "Stress Management",
   "Physical Activity and Exercise",
   "Healthy Eating Habits",
   "Balanced Diet and Nutrition",
+  "Building Healthy Habits",
+  "Work-Life Balance",
+  "Emotional Wellbeing",
+  "Self-Care Practices",
+  // Mental health
   "Mental Health Awareness",
-  "Sexual Health and Intimacy",
+  "Managing Anxiety",
+  "Depression Awareness",
+  "Mindfulness and Meditation",
+  "Overcoming Burnout",
+  "Social Connections and Loneliness",
+  "Healthy Relationships",
+  "PTSD and Trauma Recovery",
+  // Heart and circulation
   "Heart Health",
+  "Blood Pressure Management",
+  "Cholesterol and Heart Disease",
+  "Stroke Prevention",
+  // Metabolic
+  "Diabetes Prevention",
+  "Blood Sugar Management",
+  "Weight Management",
+  "Thyroid Health",
+  "Hormone Health",
+  "Intermittent Fasting",
+  "Insulin Resistance",
+  // Respiratory
+  "Respiratory Health",
+  "Asthma Management",
+  "Allergy Awareness",
+  "Sleep Apnoea and Snoring",
+  // Digestive
+  "Digestive Wellness",
+  "Gut Microbiome Health",
+  "Liver Health",
+  "Kidney Health",
+  // Bones and muscles
+  "Bone and Joint Health",
+  "Posture and Back Health",
+  "Muscle Health and Strength",
+  "Osteoporosis Prevention",
+  "Stretching and Flexibility",
+  // Immune and infection
   "Immune System Support",
+  "Vaccine Awareness",
+  "Cold and Flu Prevention",
+  "Infection Control and Hygiene",
+  // Cancer
+  "Cancer Awareness and Prevention",
+  "Early Detection and Screening",
+  // Sensory
+  "Eye Health",
+  "Oral Health",
+  "Skin Health",
+  "Safe Sun Exposure",
+  "Hearing Health",
+  // Brain and nerves
+  "Brain Health and Memory",
+  "Headache and Migraine Management",
+  "Managing Chronic Pain",
+  // Men's and women's health
+  "Women's Health",
+  "Men's Health",
+  "Sexual Health and Intimacy",
+  "Fertility and Reproductive Health",
+  "Menopause and Hormonal Changes",
+  "Prostate Health",
+  // Life stages
+  "Children's Health",
+  "Teen Health and Adolescent Wellness",
+  "Senior Wellness",
+  "Healthy Ageing",
+  // Nutrition
+  "Vitamins and Nutrition",
+  "Protein and Muscle Health",
+  "Healthy Fats and Omega-3",
+  "Iron Deficiency and Anaemia",
+  "Meal Prep and Cooking for Health",
+  "Sugar and Processed Foods",
+  "Food Safety and Hygiene",
+  // Movement and fitness
+  "Walking and Everyday Movement",
+  "Strength Training Benefits",
+  "Yoga and Mind-Body Practices",
+  "Injury Prevention and Rehabilitation",
+  "Recovery and Rest Days",
+  // Harmful habits
   "Alcohol and Its Health Effects",
   "Tobacco and Smoking Cessation",
   "Vaping and E-Cigarette Risks",
@@ -39,6 +123,18 @@ const FALLBACK_TOPIC_SUGGESTIONS = [
   "Drug Abuse and Addiction",
   "Shisha and Hookah Health Risks",
   "Overcoming Harmful Habits",
+  "Caffeine and Energy Drinks",
+  // Lifestyle and environment
+  "Screen Time and Digital Wellness",
+  "Environmental Health and Pollution",
+  "Travel Health and Safety",
+  "Workplace Ergonomics",
+  "Financial Stress and Health",
+  // Medical
+  "Medication Adherence",
+  "First Aid and Emergency Preparedness",
+  "Understanding Lab Results",
+  "Managing Multiple Medications",
 ];
 
 export default function WellnessAdmin() {

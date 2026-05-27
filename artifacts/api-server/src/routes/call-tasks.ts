@@ -7,7 +7,7 @@ import {
   sendCallTaskConfirmedMessage,
   sendCallTaskManualEmail,
 } from "../lib/automation.js";
-import { verifyHospitalToken, getHospitalFromRequest, getPatientIdsForHospital } from "../lib/hospital-auth.js";
+import { verifyHospitalToken, getHospitalFromRequest } from "../lib/hospital-auth.js";
 
 const router: IRouter = Router();
 
@@ -68,13 +68,10 @@ router.get("/call-tasks", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const patientIds = await getPatientIdsForHospital(hospital.username);
-  const safePatientIds = patientIds.length ? patientIds : [-1];
-
   const { data, error } = await supabase
     .from("call_tasks")
     .select("*")
-    .in("patient_id", safePatientIds)
+    .eq("hospital_id", hospital.intId)
     .order("completed_at", { ascending: true, nullsFirst: true })
     .order("flagged_at", { ascending: true });
 

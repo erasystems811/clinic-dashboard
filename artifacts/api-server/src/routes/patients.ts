@@ -97,7 +97,8 @@ router.get("/patients", async (req, res): Promise<void> => {
   let q = supabase.from("patients").select("*").eq("hospital_id", hospital.username);
 
   if (query.data.stage) {
-    q = q.eq("stage", query.data.stage);
+    // Match patients where the primary stage matches OR active_stages array contains the stage
+    q = q.or(`stage.eq.${query.data.stage},active_stages.cs.{"${query.data.stage}"}`);
   } else if (query.data.search) {
     const term = `%${query.data.search}%`;
     q = q.or(`first_name.ilike.${term},last_name.ilike.${term},patient_id.ilike.${term}`);

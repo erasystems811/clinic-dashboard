@@ -74,9 +74,17 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const treatmentEndDate = new Date(now);
   treatmentEndDate.setDate(treatmentEndDate.getDate() + durationDays);
 
-  // Update patient: set treatment_plan to the summary for backward-compat + move to In Care if not already
+  // Update patient record — pipeline stage is a REFLECTION, not a controller.
+  // active_stages tracks ALL concurrent states (e.g. patient can be both Post Treatment + In Care).
   const patientStage = patient.stage as string;
-  const shouldMoveToInCare = !["In Care", "Post Treatment", "Post Care"].includes(patientStage);
+  const currentActiveStages = (patient.active_stages as string[] | null) ?? [];
+  const newActiveStages = currentActiveStages.includes("In Care")
+    ? currentActiveStages
+    : [...currentActiveStages, "In Care"];
+
+  // Only move primary stage to "In Care" if patient is brand new (New/Queued).
+  // Already-active patients (Post Treatment, etc.) keep their primary stage — active_stages handles multi-stage.
+  const isNewPatient = ["New", "Queued", ""].includes(patientStage);
   const updateData: Record<string, unknown> = {
     treatment_plan: parsed.data.summary,
     treatment_type: isGeneralOutpatient ? ((parsed.data.templateData?.treatmentType as string) ?? null) : parsed.data.department,
@@ -84,9 +92,10 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
       ? buildTimingString(parsed.data.templateData as GeneralOutpatientData)
       : null,
     department: parsed.data.department,
+    active_stages: newActiveStages,
     updated_at: now.toISOString(),
   };
-  if (shouldMoveToInCare) {
+  if (isNewPatient) {
     updateData.stage = "In Care";
     updateData.treatment_started_at = now.toISOString();
     updateData.treatment_duration_days = durationDays;
@@ -99,8 +108,8 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
 
   await supabase.from("patients").update(updateData).eq("id", patientId);
 
-  // Remove from queue if present
-  if (shouldMoveToInCare) {
+  // Remove from queue if this was a new patient being admitted
+  if (isNewPatient) {
     await supabase.from("queue").delete().eq("patient_id", patientId);
   }
 

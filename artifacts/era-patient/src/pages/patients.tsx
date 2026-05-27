@@ -150,12 +150,20 @@ export default function Patients() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            style={{ borderColor: stageColor, color: stageColor, backgroundColor: `${stageColor}15` }}
-                          >
-                            {patient.stage}
-                          </Badge>
+                          <div className="flex flex-wrap gap-1">
+                            {/* Show all active stages — patient can be in multiple simultaneously */}
+                            {Array.from(new Set([
+                              patient.stage,
+                              ...((patient as Record<string, unknown>).activeStages as string[] ?? []),
+                            ])).filter(Boolean).map(s => {
+                              const sc = stages?.find(st => st.name === s)?.color || "gray";
+                              return (
+                                <Badge key={s} variant="outline" style={{ borderColor: sc, color: sc, backgroundColor: `${sc}15` }}>
+                                  {s}
+                                </Badge>
+                              );
+                            })}
+                          </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm">{patient.department || "—"}</TableCell>
                         <TableCell>

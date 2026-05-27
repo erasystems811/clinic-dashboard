@@ -75,8 +75,17 @@ const FlagMissedBody = z.object({
   checkInType: z.string().optional(),
 });
 
+// Normalize legacy stage names so old DB values surface with current names.
+const STAGE_ALIASES: Record<string, string> = {
+  "Post Care": "Active",
+};
+
 function serializePatient(p: Record<string, unknown>) {
-  return camelize<Record<string, unknown>>(p);
+  const out = camelize<Record<string, unknown>>(p);
+  if (typeof out.stage === "string" && STAGE_ALIASES[out.stage]) {
+    out.stage = STAGE_ALIASES[out.stage];
+  }
+  return out;
 }
 
 async function resolveHospitalIntId(usernameOrNull: string | null): Promise<number | null> {

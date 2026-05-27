@@ -12,8 +12,12 @@ export function cn(...inputs: ClassValue[]) {
  *   - "Queued" overlay when is_in_queue === true and primary stage isn't already "Queued"
  *   - "In Care" safety-net from hasCarePlan (catches cases where stage hasn't updated yet)
  */
+// Maps legacy stage names to current display names.
+const STAGE_ALIASES: Record<string, string> = { "Post Care": "Active" };
+
 export function getPatientStages(patient: { stage?: string | null } & Record<string, unknown>): string[] {
-  const primary = (patient.stage as string | null) ?? "";
+  const raw = (patient.stage as string | null) ?? "";
+  const primary = STAGE_ALIASES[raw] ?? raw;
   const stages: string[] = [];
 
   if (primary) stages.push(primary);

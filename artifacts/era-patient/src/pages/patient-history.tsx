@@ -55,6 +55,7 @@ const STAGE_COLORS: Record<string, string> = {
   "In Care":         "bg-blue-500/15 text-blue-400 border-blue-500/30",
   "Post Treatment":  "bg-violet-500/15 text-violet-400 border-violet-500/30",
   "Active":          "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
+  "Post Care":       "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
   "Dormant":         "bg-muted text-muted-foreground border-border",
 };
 

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Filter, ChevronRight, ChevronLeft, EyeOff, Eye } from "lucide-react";
+import { Search, Plus, Filter, ChevronRight, ChevronLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -20,7 +20,6 @@ export default function Patients() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
-  const [showDormant, setShowDormant] = useState(false);
   const [page, setPage] = useState(0);
   const [allPatients, setAllPatients] = useState<Patient[]>([]);
 
@@ -41,22 +40,15 @@ export default function Patients() {
     { query: { enabled: true } as any }
   );
 
-  const visiblePatients = (pageData ?? []).filter(p => {
-    if (showDormant) return true;
-    const patientStages = getPatientStages(p as never, { apptEnabled });
-    return !(patientStages.length === 1 && patientStages[0] === "Dormant");
-  });
-
   useEffect(() => {
     if (pageData !== undefined) {
-      setAllPatients(visiblePatients);
+      setAllPatients(pageData);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageData, showDormant]);
+  }, [pageData]);
 
   useEffect(() => {
     setPage(0);
-  }, [search, stageFilter, showDormant]);
+  }, [search, stageFilter]);
 
   const hasMore = (pageData?.length ?? 0) === PAGE_SIZE;
   const start = offset + 1;
@@ -101,16 +93,6 @@ export default function Patients() {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              variant={showDormant ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setShowDormant(s => !s)}
-              className="gap-1.5 text-xs"
-              title={showDormant ? "Hide dormant patients" : "Dormant patients are hidden"}
-            >
-              {showDormant ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-              {showDormant ? "Showing inactive" : "Inactive hidden"}
-            </Button>
           </div>
         </div>
 

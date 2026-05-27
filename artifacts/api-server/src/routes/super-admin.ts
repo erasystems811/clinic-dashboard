@@ -732,7 +732,15 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     detail: !hasTermii ? "TERMII_API_KEY not set" : !hasSender ? "TERMII_SENDER_ID not set" : "API key + sender ID configured",
   });
 
-  // 3. Email (Resend)
+  // 3. WhatsApp (Termii)
+  const hasWhatsappSender = !!process.env.TERMII_WHATSAPP_SENDER;
+  checks.push({
+    name: "WhatsApp (Termii)",
+    ok: hasTermii && hasWhatsappSender,
+    detail: !hasTermii ? "TERMII_API_KEY not set" : !hasWhatsappSender ? "TERMII_WHATSAPP_SENDER not set" : "API key + WhatsApp sender configured",
+  });
+
+  // 4. Email (Resend)
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) {
     checks.push({ name: "Email (Resend)", ok: false, detail: "RESEND_API_KEY not set" });

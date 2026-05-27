@@ -16,6 +16,8 @@ function TrendBadge({ trend, goodDirection = "down" }: { trend?: "up" | "down" |
 export default function Dashboard() {
   const { hospitalConfig } = useAuth();
   const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
+  const feedbackEnabled = hospitalConfig?.modules?.feedbackEnabled ?? true;
+  const wellnessEnabled = hospitalConfig?.modules?.wellnessNewsletterEnabled ?? true;
 
   const { data: summary, isLoading } = useGetDashboardSummary({
     query: { queryKey: getGetDashboardSummaryQueryKey(), refetchInterval: 30000 },
@@ -107,34 +109,38 @@ export default function Dashboard() {
                 </Card>
               )}
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Patient Feedback</CardTitle>
-                  <Star className="h-4 w-4 text-amber-400" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {summary.avgFeedbackRating ? Number(summary.avgFeedbackRating).toFixed(1) : "—"}
-                    <span className="text-sm font-normal ml-1 text-muted-foreground">/ 5</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">{summary.totalFeedback ?? 0} total responses</p>
-                </CardContent>
-              </Card>
+              {feedbackEnabled && (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Patient Feedback</CardTitle>
+                    <Star className="h-4 w-4 text-amber-400" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">
+                      {summary.avgFeedbackRating ? Number(summary.avgFeedbackRating).toFixed(1) : "—"}
+                      <span className="text-sm font-normal ml-1 text-muted-foreground">/ 5</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{summary.totalFeedback ?? 0} total responses</p>
+                  </CardContent>
+                </Card>
+              )}
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Wellness Newsletter</CardTitle>
-                  <Send className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm font-bold">
-                    {summary.wellnessLastSentAt
-                      ? format(parseISO(summary.wellnessLastSentAt), "MMM d, yyyy")
-                      : "Never sent"}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Last delivery date</p>
-                </CardContent>
-              </Card>
+              {wellnessEnabled && (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Wellness Newsletter</CardTitle>
+                    <Send className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-sm font-bold">
+                      {summary.wellnessLastSentAt
+                        ? format(parseISO(summary.wellnessLastSentAt), "MMM d, yyyy")
+                        : "Never sent"}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Last delivery date</p>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

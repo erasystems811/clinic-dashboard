@@ -681,6 +681,7 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
       appointmentsEnabled: modules?.appointments_enabled ?? true,
       feedbackEnabled: modules?.feedback_enabled ?? true,
       messagesEnabled: modules?.messages_enabled ?? false,
+      wellnessNewsletterEnabled: (modules as Record<string, unknown>)?.wellness_newsletter_enabled ?? true,
     },
     // Unix ms timestamp of last module change for this hospital.
     // The era-patient client uses this to force re-login if modules changed after login.

@@ -16,6 +16,7 @@ export interface HospitalSession {
 export interface HospitalConfig {
   departments: string[];
   modules: {
+    wellnessNewsletterEnabled?: boolean;
     appointmentsEnabled: boolean;
     feedbackEnabled: boolean;
     messagesEnabled: boolean;

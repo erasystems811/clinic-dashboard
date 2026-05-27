@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Users, Calendar, AlertCircle, Star, Clock, Send, TrendingUp, TrendingDown, Minus, UserX } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
+import { useAuth } from "@/contexts/auth-context";
 
 function TrendBadge({ trend, goodDirection = "down" }: { trend?: "up" | "down" | "stable" | null; goodDirection?: "up" | "down" }) {
   if (!trend || trend === "stable") return <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Minus className="h-3 w-3" /> Stable vs last month</span>;
@@ -13,9 +14,17 @@ function TrendBadge({ trend, goodDirection = "down" }: { trend?: "up" | "down" |
 }
 
 export default function Dashboard() {
+  const { hospitalConfig } = useAuth();
+  const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
+
   const { data: summary, isLoading } = useGetDashboardSummary({
     query: { queryKey: getGetDashboardSummaryQueryKey(), refetchInterval: 30000 },
   });
+
+  // Filter "Booked" from pipeline breakdown when appointments module is off
+  const breakdown = (summary?.pipelineBreakdown ?? []).filter(
+    s => apptEnabled || s.name !== "Booked"
+  );
 
   return (
     <Layout>
@@ -50,16 +59,18 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Appointments Today</CardTitle>
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{summary.appointmentsToday}</div>
-                  <p className="text-xs text-muted-foreground mt-1">{summary.appointmentsThisWeek} total this week</p>
-                </CardContent>
-              </Card>
+              {apptEnabled && (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Appointments Today</CardTitle>
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{summary.appointmentsToday}</div>
+                    <p className="text-xs text-muted-foreground mt-1">{summary.appointmentsThisWeek} total this week</p>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -83,16 +94,18 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">No-show Rate</CardTitle>
-                  <UserX className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{summary.noShowRate ?? 0}<span className="text-sm font-normal ml-1">%</span></div>
-                  <div className="mt-1"><TrendBadge trend={summary.noShowTrend} goodDirection="down" /></div>
-                </CardContent>
-              </Card>
+              {apptEnabled && (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">No-show Rate</CardTitle>
+                    <UserX className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{summary.noShowRate ?? 0}<span className="text-sm font-normal ml-1">%</span></div>
+                    <div className="mt-1"><TrendBadge trend={summary.noShowTrend} goodDirection="down" /></div>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -142,7 +155,7 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-col gap-4">
-                    {summary.pipelineBreakdown.map(stage => (
+                    {breakdown.map(stage => (
                       <div key={stage.id} className="flex items-center">
                         <div className="w-32 text-sm font-medium">{stage.name}</div>
                         <div className="flex-1 px-4">

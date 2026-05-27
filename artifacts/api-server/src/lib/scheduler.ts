@@ -182,36 +182,35 @@ async function runPostCareEmails() {
 }
 
 // ── Dormant Detection — runs daily ────────────────────────────────────────────
-// Derives dormant threshold from treatment_end_date + post_treatment_days + dormant_days.
-// Pipeline stage is a reflection — only neq("stage","Dormant") used to avoid double-processing.
+// A patient becomes Dormant when they have been in "Active" stage for more than
+// pipeline_dormant_days without any clinical activity (check-in, new care plan, etc.).
+// "Activity" is proxied by patients.updated_at — every check-in and patient edit updates it.
+// Post Treatment, In Care, and Dormant patients are excluded (only Active→Dormant transition).
 async function runDormantDetection() {
   try {
     const now = new Date();
 
     const { data: hospitals } = await supabase
       .from("hospital_settings")
-      .select("hospital_id, pipeline_dormant_days, pipeline_post_treatment_days");
+      .select("hospital_id, pipeline_dormant_days");
 
     for (const hs of hospitals ?? []) {
       const dormantDays = (hs.pipeline_dormant_days as number) ?? 30;
-      const postTreatDays = (hs.pipeline_post_treatment_days as number) ?? 14;
 
       const { data: hospital } = await supabase.from("hospitals").select("username").eq("id", hs.hospital_id).single();
       if (!hospital) continue;
 
-      // Dormant threshold: treatment ended long enough ago that post-care + dormant window has elapsed.
-      // treatment_end_date + postTreatDays + dormantDays < today
-      // → treatment_end_date < today − (postTreatDays + dormantDays)
-      const cutoffDate = new Date(now.getTime() - (postTreatDays + dormantDays) * 24 * 60 * 60 * 1000)
-        .toISOString().split("T")[0];
+      // Cutoff: if updated_at is older than this, the patient has been inactive long enough.
+      const cutoff = new Date(now.getTime() - dormantDays * 24 * 60 * 60 * 1000).toISOString();
 
+      // Only target "Active" (and its DB alias "Post Care") — never overwrite Post Treatment,
+      // In Care, or already-Dormant patients.
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, treatment_end_date")
+        .select("id, first_name, last_name")
         .eq("hospital_id", hospital.username)
-        .not("treatment_end_date", "is", null)
-        .lte("treatment_end_date", cutoffDate)
-        .neq("stage", "Dormant"); // skip already-dormant to avoid redundant writes
+        .in("stage", ["Active", "Post Care"])
+        .lte("updated_at", cutoff);
 
       for (const p of patients ?? []) {
         await supabase.from("patients")
@@ -219,12 +218,12 @@ async function runDormantDetection() {
           .eq("id", p.id);
         await supabase.from("activity").insert({
           type: "stage_changed",
-          description: `${p.first_name} ${p.last_name} moved to Dormant (${dormantDays} days inactive after treatment)`,
+          description: `${p.first_name} ${p.last_name} moved to Dormant (${dormantDays} days without activity)`,
           patient_id: p.id,
           patient_name: `${p.first_name} ${p.last_name}`,
           metadata: "Dormant",
         });
-        log(`Patient ${p.id} moved to Dormant`);
+        log(`Patient ${p.id} moved to Dormant (${dormantDays}d inactivity)`);
       }
     }
   } catch (err) {

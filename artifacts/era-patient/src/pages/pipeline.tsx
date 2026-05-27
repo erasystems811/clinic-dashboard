@@ -10,11 +10,21 @@ import { Layout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Building2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function Pipeline() {
-  const { data: stages, isLoading: stagesLoading } = useListPipelineStages({
+  const { hospitalConfig } = useAuth();
+  const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
+
+  const { data: allStages, isLoading: stagesLoading } = useListPipelineStages({
     query: { queryKey: getListPipelineStagesQueryKey() },
   });
+
+  // Hide "Booked" column when appointments module is disabled
+  const stages = useMemo(
+    () => (allStages ?? []).filter(s => apptEnabled || s.name !== "Booked"),
+    [allStages, apptEnabled]
+  );
 
   const { data: patients, isLoading: patientsLoading } = useListPatients(
     {},
@@ -58,7 +68,7 @@ export default function Pipeline() {
                     <Skeleton className="h-10 w-full rounded-md" />
                   </div>
                 ))
-              : stages?.map((stage) => {
+              : stages.map((stage) => {
                   const list = groupedPatients[stage.name] ?? [];
                   return (
                     <div key={stage.id} className="w-64 flex flex-col h-full">

@@ -202,7 +202,9 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
 interface GeneralOutpatientData {
   treatmentType?: string;
   medicationTiming?: string[];
+  medicationTimingTimes?: Record<string, string>;
   hospitalTiming?: string[];
+  hospitalTimingTimes?: Record<string, string>;
   durationDays?: number;
 }
 

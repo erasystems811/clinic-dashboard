@@ -540,25 +540,6 @@ export function startScheduler() {
     await runPostCareEmails();
   });
 
-  // Daily at 8:00 AM: in-care morning reminders
-  cron.schedule("0 8 * * *", async () => {
-    await runInCareReminders("morning");
-  });
-
-  // Daily at 1:00 PM: in-care afternoon reminders
-  cron.schedule("0 13 * * *", async () => {
-    await runInCareReminders("afternoon");
-  });
-
-  // Daily at 6:00 PM: in-care evening reminders
-  cron.schedule("0 18 * * *", async () => {
-    await runInCareReminders("evening");
-  });
-
-  // Daily at 10:00 PM: in-care night reminders
-  cron.schedule("0 22 * * *", async () => {
-    await runInCareReminders("night");
-  });
 
   // Daily at 12:00 PM: feedback emails (covers previous day's patients)
   cron.schedule("0 12 * * *", async () => {
@@ -575,20 +556,127 @@ export function startScheduler() {
     await checkSubscriptionExpirations();
   });
 
-  // Daily at 8am: birthday emails only
+  // Daily at 8am: birthday emails
   cron.schedule("0 8 * * *", async () => {
     await runBirthdayEmails();
   });
 
-  // Daily at 7pm: care visit reminders (night before the appointment)
-  cron.schedule("0 19 * * *", async () => {
-    await runCareVisitReminders();
+  // Every hour: care plan reminders — time-based (General Outpatient + all departments)
+  cron.schedule("0 * * * *", async () => {
+    await runCarePlanRemindersHourly();
   });
 
   log("Scheduler started — all automations are email-first");
 }
 
-// ── Care Visit Reminders — runs daily at 7pm (sends night-before reminder) ─────
+// ── Hourly Care Plan Reminders ────────────────────────────────────────────────
+// Replaces static slot crons. Fires the right lead time before nurse-set times:
+//   General Outpatient — Come to Hospital: 3h before | Medication/Combination: 2h before
+//   All other departments: 4h before the scheduled visit time
+
+async function runCarePlanRemindersHourly() {
+  try {
+    const now = new Date();
+    const WINDOW_MS = 25 * 60 * 1000; // ±25 min window around the cron firing time
+    const today = now.toISOString().slice(0, 10);
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
+    if (!hospitals?.length) return;
+
+    for (const h of hospitals) {
+      const { data: plans } = await supabase
+        .from("care_plans")
+        .select("id, patient_id, department, summary, template_data")
+        .eq("hospital_id", h.id);
+
+      if (!plans?.length) continue;
+
+      for (const plan of plans) {
+        const dept = plan.department as string;
+        const td = (plan.template_data ?? {}) as Record<string, unknown>;
+
+        const { data: patient } = await supabase
+          .from("patients")
+          .select("id, first_name, last_name, email, stage, treatment_end_date")
+          .eq("id", plan.patient_id)
+          .eq("hospital_id", h.id)
+          .single();
+
+        if (!patient?.email) continue;
+
+        const patientName = `${patient.first_name} ${patient.last_name}`;
+
+        if (dept === "General Outpatient") {
+          // Skip if treatment has ended
+          const endDate = patient.treatment_end_date as string | undefined;
+          if (endDate && today > endDate) continue;
+
+          const treatmentType = (td.treatmentType as string) ?? "";
+          const medTiming = (td.medicationTiming as string[]) ?? [];
+          const medTimingTimes = (td.medicationTimingTimes as Record<string, string>) ?? {};
+          const hospTiming = (td.hospitalTiming as string[]) ?? [];
+          const hospTimingTimes = (td.hospitalTimingTimes as Record<string, string>) ?? {};
+
+          // Medication slots — remind 2 hours before
+          if (treatmentType === "medication_only" || treatmentType === "combination") {
+            for (const slot of medTiming) {
+              const timeStr = medTimingTimes[slot];
+              if (!timeStr) continue;
+              const [hh, mm] = timeStr.split(":").map(Number);
+              const visitAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+              const reminderAt = new Date(visitAt.getTime() - 2 * 3600 * 1000);
+              if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+              const key = `genout_med_${plan.id}_${slot}_${today}`;
+              const alreadySent = await checkSentLog(h.id, key);
+              if (alreadySent) continue;
+              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"]);
+              log(`General Outpatient med reminder (2h before ${timeStr}) → patient ${patient.id} slot=${slot}`);
+            }
+          }
+
+          // Hospital visit slots — remind 3 hours before
+          if (treatmentType === "come_to_hospital" || treatmentType === "combination") {
+            for (const slot of hospTiming) {
+              const timeStr = hospTimingTimes[slot];
+              if (!timeStr) continue;
+              const [hh, mm] = timeStr.split(":").map(Number);
+              const visitAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+              const reminderAt = new Date(visitAt.getTime() - 3 * 3600 * 1000);
+              if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+              const key = `genout_hosp_${plan.id}_${slot}_${today}`;
+              const alreadySent = await checkSentLog(h.id, key);
+              if (alreadySent) continue;
+              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["hosp"]);
+              log(`General Outpatient hospital reminder (3h before ${timeStr}) → patient ${patient.id} slot=${slot}`);
+            }
+          }
+        } else {
+          // All other departments — remind 4 hours before nurse-set visit time
+          const entries = extractVisitEntries(dept, td);
+          for (const entry of entries) {
+            if (!entry.date || !entry.time) continue;
+            const visitAt = new Date(`${entry.date}T${entry.time}:00`);
+            const reminderAt = new Date(visitAt.getTime() - 4 * 3600 * 1000);
+            if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+            const key = `care_visit_${plan.id}_${entry.date}_${entry.time.replace(":", "")}`;
+            const alreadySent = await checkSentLog(h.id, key);
+            if (alreadySent) continue;
+            await sendCareVisitReminderEmail(
+              h.id, patient.id as number, patientName, patient.email as string,
+              dept, plan.summary as string, entry.date, plan.id as number, entry.time,
+            );
+            log(`${dept} visit reminder (4h before ${entry.time}) → patient ${patient.id} on ${entry.date}`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Care plan hourly reminders error: ${err}`);
+  }
+}
+
+// ── Care Visit Reminders — (kept for reference, superseded by runCarePlanRemindersHourly) ──
 
 interface VisitEntry { date: string; time?: string; }
 

@@ -76,7 +76,7 @@ const DEPT_LABELS: Record<string, string> = {
 };
 
 function emptyTemplateData(dept: string): Record<string, unknown> {
-  if (dept === "General Outpatient") return { treatmentType: "", medicationTiming: [], hospitalTiming: [], durationDays: 1 };
+  if (dept === "General Outpatient") return { treatmentType: "", medicationTiming: [], medicationTimingTimes: {}, hospitalTiming: [], hospitalTimingTimes: {}, durationDays: 1 };
   if (dept === "Antenatal / Maternity") return { currentWeek: "", ancSchedule: [{ weekNumber: "", whatHappens: "", date: "", time: "" }] };
   if (dept === "Paediatrics") return { childAge: "", vaccinationSchedule: [{ ageAtVaccination: "", vaccinationName: "", date: "", time: "" }] };
   if (dept === "Surgery / Post-Op") return { procedureDate: "", procedureTime: "", procedureType: "", inCareSchedule: [{ date: "", time: "", whatHappens: "" }] };
@@ -632,10 +632,22 @@ function DepartmentTemplate({
   const inputCls = "w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
   if (department === "General Outpatient") {
-    const td = templateData as { treatmentType?: string; medicationTiming?: string[]; hospitalTiming?: string[]; durationDays?: number };
+    const td = templateData as {
+      treatmentType?: string;
+      medicationTiming?: string[];
+      medicationTimingTimes?: Record<string, string>;
+      hospitalTiming?: string[];
+      hospitalTimingTimes?: Record<string, string>;
+      durationDays?: number;
+    };
     const toggleArr = (key: "medicationTiming" | "hospitalTiming", val: string) => {
       const arr = td[key] ?? [];
       set(key, arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
+    };
+    const setTimingTime = (timesKey: "medicationTimingTimes" | "hospitalTimingTimes", slot: string, time: string) => {
+      const times = { ...(td[timesKey] ?? {}) };
+      times[slot] = time;
+      set(timesKey, times);
     };
     return (
       <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
@@ -660,30 +672,54 @@ function DepartmentTemplate({
         {(td.treatmentType === "medication_only" || td.treatmentType === "combination") && (
           <div className="space-y-2 p-3 rounded-lg border border-border bg-background">
             <p className="text-sm font-medium">Medication Timing</p>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              {TIMING_OPTIONS.map(t => (
-                <label key={t.value} className="flex items-center gap-1.5 cursor-pointer text-sm">
-                  <input type="checkbox" className="w-4 h-4 accent-primary"
-                    checked={(td.medicationTiming ?? []).includes(t.value)}
-                    onChange={() => toggleArr("medicationTiming", t.value)} />
-                  {t.label}
-                </label>
-              ))}
+            <p className="text-xs text-muted-foreground">Select times — reminder sent 2 hours before each.</p>
+            <div className="space-y-2">
+              {TIMING_OPTIONS.map(t => {
+                const checked = (td.medicationTiming ?? []).includes(t.value);
+                return (
+                  <div key={t.value} className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-sm w-28 shrink-0">
+                      <input type="checkbox" className="w-4 h-4 accent-primary"
+                        checked={checked}
+                        onChange={() => toggleArr("medicationTiming", t.value)} />
+                      {t.label}
+                    </label>
+                    {checked && (
+                      <input type="time"
+                        value={(td.medicationTimingTimes ?? {})[t.value] ?? ""}
+                        onChange={e => setTimingTime("medicationTimingTimes", t.value, e.target.value)}
+                        className={inputCls + " w-32"} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
         {(td.treatmentType === "come_to_hospital" || td.treatmentType === "combination") && (
           <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
             <p className="text-sm font-medium">Hospital Visit Timing</p>
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
-              {TIMING_OPTIONS.map(t => (
-                <label key={t.value} className="flex items-center gap-1.5 cursor-pointer text-sm">
-                  <input type="checkbox" className="w-4 h-4 accent-primary"
-                    checked={(td.hospitalTiming ?? []).includes(t.value)}
-                    onChange={() => toggleArr("hospitalTiming", t.value)} />
-                  {t.label}
-                </label>
-              ))}
+            <p className="text-xs text-muted-foreground">Select times — reminder sent 3 hours before each visit.</p>
+            <div className="space-y-2">
+              {TIMING_OPTIONS.map(t => {
+                const checked = (td.hospitalTiming ?? []).includes(t.value);
+                return (
+                  <div key={t.value} className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 cursor-pointer text-sm w-28 shrink-0">
+                      <input type="checkbox" className="w-4 h-4 accent-primary"
+                        checked={checked}
+                        onChange={() => toggleArr("hospitalTiming", t.value)} />
+                      {t.label}
+                    </label>
+                    {checked && (
+                      <input type="time"
+                        value={(td.hospitalTimingTimes ?? {})[t.value] ?? ""}
+                        onChange={e => setTimingTime("hospitalTimingTimes", t.value, e.target.value)}
+                        className={inputCls + " w-32"} />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

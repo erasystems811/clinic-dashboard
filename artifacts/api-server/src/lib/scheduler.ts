@@ -553,8 +553,8 @@ export function startScheduler() {
     await runInCareReminders("night");
   });
 
-  // Daily at 7:00 PM: end-of-day feedback emails (covers previous day's patients)
-  cron.schedule("0 19 * * *", async () => {
+  // Daily at 12:00 PM: feedback emails (covers previous day's patients)
+  cron.schedule("0 12 * * *", async () => {
     await runFeedbackEmails();
   });
 

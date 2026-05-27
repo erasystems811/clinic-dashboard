@@ -723,6 +723,8 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     checks.push({ name: "Database", ok: false, detail: e instanceof Error ? e.message : "Unreachable" });
   }
 
+  const isProd = process.env.NODE_ENV === "production";
+
   // 2. SMS (Termii)
   const hasTermii = !!process.env.TERMII_API_KEY;
   const hasSender = !!process.env.TERMII_SENDER_ID;
@@ -763,7 +765,6 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
 
   // 4. Scheduler
   const schedulerEnabled = process.env.ENABLE_SCHEDULER === "true";
-  const isProd = process.env.NODE_ENV === "production";
   checks.push({
     name: "Scheduler",
     ok: schedulerEnabled || !isProd,

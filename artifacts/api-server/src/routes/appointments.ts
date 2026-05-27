@@ -75,7 +75,7 @@ router.post("/appointments", async (req, res): Promise<void> => {
 
   const { data: patient } = await supabase
     .from("patients")
-    .select("first_name, last_name, phone, whatsapp_number, hospital_id")
+    .select("first_name, last_name, email, phone, whatsapp_number, hospital_id")
     .eq("id", parsed.data.patientId)
     .single();
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
@@ -101,14 +101,11 @@ router.post("/appointments", async (req, res): Promise<void> => {
     .eq("id", parsed.data.patientId)
     .not("stage", "in", '("Queued","In Care")');
 
-  // ── Automation: WhatsApp confirmation ──
+  // ── Automation: appointment confirmation email ──
   if (patient) {
     const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
-    if (hospitalIntId) {
-      const phone = (patient.whatsapp_number as string) || (patient.phone as string);
-      if (phone) {
-        sendAppointmentConfirmation(hospitalIntId, parsed.data.patientId, patientName, phone, appt.title, appt.scheduled_at).catch(() => {});
-      }
+    if (hospitalIntId && patient.email) {
+      sendAppointmentConfirmation(hospitalIntId, parsed.data.patientId, patientName, patient.email as string, appt.scheduled_at).catch(() => {});
     }
   }
 

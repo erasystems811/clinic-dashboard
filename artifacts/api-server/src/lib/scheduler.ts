@@ -521,8 +521,8 @@ export function startScheduler() {
     await runNoShowFollowup();
   });
 
-  // Daily at 6:00 AM: pipeline transitions + post-treatment check-ins + post-care + dormant detection
-  cron.schedule("0 6 * * *", async () => {
+  // Daily at 7:00 AM: pipeline transitions + post-treatment check-ins + post-care + dormant detection
+  cron.schedule("0 7 * * *", async () => {
     await runPostTreatmentTransitions();
     await runPostTreatmentCheckins();
     await runPostCareEmails();

@@ -89,7 +89,7 @@ export default function Pipeline() {
                       {/* Patient list — read-only, no links */}
                       <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-hide">
                         {list.length === 0 ? (
-                          <div className="h-16 border-2 border-dashed border-border rounded-lg flex items-center justify-center text-muted-foreground text-xs opacity-40">
+                          <div className="h-10 border-2 border-dashed border-border rounded-md flex items-center justify-center text-muted-foreground text-xs opacity-40">
                             No patients
                           </div>
                         ) : (
@@ -99,32 +99,30 @@ export default function Pipeline() {
                             return (
                               <div
                                 key={patient.id}
-                                className="bg-card px-3 py-3 rounded-lg border border-border"
+                                className="bg-card px-2.5 py-1.5 rounded-md border border-border"
                               >
-                                {/* Name + initials */}
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <div className="w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center shrink-0 border border-primary/20">
+                                {/* Name + initials + ID on one row */}
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-5 h-5 rounded-full bg-primary/10 text-primary text-[9px] font-bold flex items-center justify-center shrink-0 border border-primary/20">
                                     {patient.firstName[0]}{patient.lastName[0]}
                                   </div>
-                                  <span className="text-sm font-medium leading-tight">
+                                  <span className="text-xs font-medium leading-tight truncate flex-1">
                                     {patient.firstName} {patient.lastName}
+                                  </span>
+                                  <span className="text-[9px] font-mono text-muted-foreground shrink-0">
+                                    {patient.patientId}
                                   </span>
                                 </div>
 
-                                {/* Patient ID */}
-                                <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                  {patient.patientId}
-                                </span>
-
                                 {/* Departments */}
                                 {depts && depts.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-2">
+                                  <div className="flex flex-wrap gap-0.5 mt-1">
                                     {depts.map((dept) => (
                                       <span
                                         key={dept}
-                                        className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground border border-border"
+                                        className="inline-flex items-center gap-0.5 text-[9px] px-1 py-px rounded bg-secondary text-secondary-foreground border border-border"
                                       >
-                                        <Building2 className="w-2.5 h-2.5" />
+                                        <Building2 className="w-2 h-2" />
                                         {dept}
                                       </span>
                                     ))}

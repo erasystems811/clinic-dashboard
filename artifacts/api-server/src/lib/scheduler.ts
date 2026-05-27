@@ -46,6 +46,9 @@ async function runAppointmentReminders() {
       const { data: hospital } = await supabase.from("hospitals").select("id").eq("username", hospitalUsername).single();
       if (!hospital) continue;
 
+      const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
+      if (!mods?.appointments_enabled) continue;
+
       const patientEmail = patient.email as string;
       const patientName = `${patient.first_name} ${patient.last_name}`;
 
@@ -139,6 +142,9 @@ async function runPostCareEmails() {
       const { data: hospital } = await supabase
         .from("hospitals").select("id, username").eq("id", hs.hospital_id).single();
       if (!hospital) continue;
+
+      const { data: mods } = await supabase.from("hospital_modules").select("wellness_newsletter_enabled").eq("hospital_id", hospital.id).single();
+      if (!mods?.wellness_newsletter_enabled) continue;
 
       // Active entry ≈ treatment_end_date + postTreatDays days.
       // Send every 30 days: find patients whose Active start was >= 30 days ago.
@@ -430,6 +436,8 @@ async function runNoShowFollowup() {
           .from("hospitals").select("id").eq("username", (patient.hospital_id as string).toLowerCase()).single();
 
         if (hospital) {
+          const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
+          if (!mods?.appointments_enabled) continue;
           await sendAppointmentNoShowEmail(hospital.id, patient.id, patientName, patient.email).catch(() => {});
           log(`No-show follow-up email: appt ${appt.id} (${patientName})`);
         }

@@ -311,6 +311,14 @@ router.post("/wellness/:id/send", async (req, res): Promise<void> => {
   let failed = 0;
 
   if (resolvedHospitalId) {
+    const { data: mods } = await supabase.from("hospital_modules").select("wellness_newsletter_enabled").eq("hospital_id", resolvedHospitalId).single();
+    if (!mods?.wellness_newsletter_enabled) {
+      res.status(403).json({ error: "Wellness newsletter module is disabled for this hospital." });
+      return;
+    }
+  }
+
+  if (resolvedHospitalId) {
     try {
       const result = await sendWellnessNewsletterEmails(
         resolvedHospitalId,

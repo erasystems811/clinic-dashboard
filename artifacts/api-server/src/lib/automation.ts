@@ -548,6 +548,56 @@ export async function sendBirthdayEmail(
   }
 }
 
+// ── Care Visit Reminder Email — fires daily at 8am, 1 day before each scheduled date ──
+
+export async function sendCareVisitReminderEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+  department: string,
+  visitDescription: string,
+  visitDate: string,
+  planId: number,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const dedupeKey = `PLAN:${planId}:${visitDate}`;
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "care_plan_visit_reminder",
+    channel: "email",
+  };
+  const logId = await logAutomation(ctx, "queued", dedupeKey);
+  try {
+    const firstName = patientName.split(" ")[0];
+    const formatted = new Date(visitDate).toLocaleDateString("en-GB", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    });
+    const subject = `Reminder: ${department} appointment tomorrow — ${hCtx.hospitalName}`;
+    const body = [
+      `Hi ${firstName},`,
+      ``,
+      `This is a friendly reminder from ${hCtx.hospitalName} that you have a ${department} appointment scheduled for tomorrow, ${formatted}.`,
+      visitDescription ? `Appointment details: ${visitDescription}` : "",
+      ``,
+      `Please ensure you arrive on time. If you have any questions or need to reschedule, please ${contactLine(hCtx.phoneNumber)}.`,
+      ``,
+      `Please do not reply to this email directly.`,
+      ``,
+      `Warm regards,`,
+      `${hCtx.hospitalName} Team`,
+    ].filter(l => l !== null).join("\n");
+
+    const html = wrapHtml(`<p>${body.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br/>")}</p>`, hCtx.hospitalName);
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: body });
+    await updateAutomationLog(logId, "sent");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
 // ── Call Task — Nurse-Flagged Automated Message — OpenAI — WhatsApp/SMS ───────
 // Returns the generated draft message WITHOUT sending.
 // The receptionist edits and confirms, then calls sendCallTaskConfirmedMessage.

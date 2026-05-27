@@ -9,6 +9,7 @@ import {
   sendFeedbackEmail,
   sendInCareAIReminder,
   sendBirthdayEmail,
+  sendCareVisitReminderEmail,
   type InCareTimeSlot,
 } from "./automation.js";
 import { signFeedbackToken } from "./feedbackToken.js";

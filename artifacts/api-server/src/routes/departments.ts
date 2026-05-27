@@ -6,27 +6,13 @@ import { z } from "zod/v4";
 const router: IRouter = Router();
 
 const DEFAULT_DEPARTMENTS = [
-  "General Practice",
-  "Fertility and Reproductive Health",
-  "Surgery",
-  "Maternity and Antenatal",
-  "Pediatrics",
-  "Oncology",
-  "Physiotherapy and Rehabilitation",
-  "Mental Health and Psychiatry",
-  "Cardiology",
+  "General Outpatient",
+  "Antenatal / Maternity",
+  "Paediatrics",
+  "Surgery / Post-Op",
   "Dental",
-  "Orthopaedics",
-  "Urology",
-  "Gastroenterology",
-  "Ophthalmology and Eye",
-  "Dermatology",
-  "Endocrinology",
-  "Radiology",
-  "Chronic Disease Management",
-  "Emergency and Trauma",
-  "ENT",
-  "Neurology",
+  "Eye",
+  "Fertility / IVF",
 ];
 
 const CreateDepartmentBody = z.object({ name: z.string().min(1) });

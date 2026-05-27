@@ -8,6 +8,7 @@ import {
   sendAppointmentNoShowEmail,
   sendFeedbackEmail,
   sendInCareAIReminder,
+  sendBirthdayEmail,
   type InCareTimeSlot,
 } from "./automation.js";
 import { signFeedbackToken } from "./feedbackToken.js";
@@ -573,5 +574,58 @@ export function startScheduler() {
     await checkSubscriptionExpirations();
   });
 
+  // Daily at midnight: birthday emails
+  cron.schedule("0 0 * * *", async () => {
+    await runBirthdayEmails();
+  });
+
   log("Scheduler started — all automations are email-first");
+}
+
+// ── Birthday Emails — runs daily at midnight ───────────────────────────────────
+async function runBirthdayEmails() {
+  try {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const todayMD = `${month}-${day}`; // e.g. "05-27"
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
+
+    for (const h of hospitals ?? []) {
+      // Find patients whose date_of_birth month+day matches today
+      // date_of_birth is stored as YYYY-MM-DD; we match on MM-DD suffix
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, email, date_of_birth")
+        .eq("hospital_id", h.username)
+        .not("email", "is", null)
+        .not("date_of_birth", "is", null)
+        .like("date_of_birth", `%-${todayMD}`);
+
+      for (const p of patients ?? []) {
+        if (!p.email) continue;
+
+        // Only send once per year — check if birthday email already sent this calendar year
+        const yearStart = `${now.getFullYear()}-01-01T00:00:00Z`;
+        const { data: alreadySent } = await supabase
+          .from("automation_log")
+          .select("id")
+          .eq("patient_id", p.id)
+          .eq("automation_type", "birthday_email")
+          .eq("status", "sent")
+          .gte("created_at", yearStart)
+          .maybeSingle();
+
+        if (alreadySent) continue;
+
+        const patientName = `${p.first_name} ${p.last_name}`;
+        await sendBirthdayEmail(h.id, p.id as number, patientName, p.email as string);
+        log(`Birthday email → patient ${p.id} (${patientName})`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Birthday emails error: ${err}`);
+  }
 }

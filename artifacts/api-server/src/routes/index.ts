@@ -12,6 +12,7 @@ import feedbackRouter from "./feedback";
 import wellnessRouter from "./wellness";
 import messagesRouter from "./messages";
 import superAdminRouter from "./super-admin";
+import carePlansRouter from "./care-plans";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(feedbackRouter);
 router.use(wellnessRouter);
 router.use(messagesRouter);
 router.use(superAdminRouter);
+router.use(carePlansRouter);
 
 export default router;

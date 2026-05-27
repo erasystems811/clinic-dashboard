@@ -41,13 +41,13 @@ interface Props { id: number; }
 type Tab = "general" | "settings" | "modules" | "automations";
 
 const PREDEFINED_DEPARTMENTS = [
-  "General Practice", "Fertility and Reproductive Health", "Surgery",
-  "Maternity and Antenatal", "Pediatrics", "Oncology",
-  "Physiotherapy and Rehabilitation", "Mental Health and Psychiatry",
-  "Cardiology", "Dental", "Orthopaedics", "Urology",
-  "Gastroenterology", "Ophthalmology and Eye", "Dermatology",
-  "Endocrinology", "Radiology", "Chronic Disease Management",
-  "Emergency and Trauma", "ENT", "Neurology",
+  "General Outpatient",
+  "Antenatal / Maternity",
+  "Paediatrics",
+  "Surgery / Post-Op",
+  "Dental",
+  "Eye",
+  "Fertility / IVF",
 ];
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -158,7 +158,9 @@ export default function HospitalDetail({ id }: Props) {
       setSubStatus(h.subscriptionStatus);
       setActive(h.active);
       setSubscriptionExpiresAt(h.subscriptionExpiresAt ? h.subscriptionExpiresAt.substring(0, 10) : "");
-      setDepartments(s.departments ?? []);
+      const loadedDepts = s.departments ?? [];
+      const merged = [...new Set([...PREDEFINED_DEPARTMENTS, ...loadedDepts])];
+      setDepartments(merged);
       setPostTreatmentDays(s.pipelinePostTreatmentDays?.toString() ?? "");
       setDormantDays(s.pipelineDormantDays?.toString() ?? "");
       setLanguage(s.language ?? "");
@@ -642,17 +644,15 @@ export default function HospitalDetail({ id }: Props) {
           <div className="space-y-3">
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Departments</p>
-              <p className="text-xs text-muted-foreground">Select which departments are active. These appear when logging treatment plans.</p>
+              <p className="text-xs text-muted-foreground">These 7 standard departments are available to all hospitals. Add custom ones below for specific needs.</p>
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 p-4">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2.5">
-                {PREDEFINED_DEPARTMENTS.map(dept => (
-                  <label key={dept} className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" checked={departments.includes(dept)} onChange={() => toggleDepartment(dept)} className="w-4 h-4 rounded accent-primary shrink-0" />
-                    <span className={`text-sm transition-colors ${departments.includes(dept) ? "text-foreground font-medium" : "text-muted-foreground group-hover:text-foreground"}`}>{dept}</span>
-                  </label>
-                ))}
-              </div>
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-1.5">
+              {PREDEFINED_DEPARTMENTS.map(dept => (
+                <div key={dept} className="flex items-center gap-2.5 py-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                  <span className="text-sm text-foreground">{dept}</span>
+                </div>
+              ))}
             </div>
             {customDepts.length > 0 && (
               <div className="space-y-1.5">
@@ -679,7 +679,7 @@ export default function HospitalDetail({ id }: Props) {
                 <Plus className="w-4 h-4" />Add
               </button>
             </div>
-            {departments.length > 0 && <p className="text-xs text-muted-foreground">{departments.length} department{departments.length !== 1 ? "s" : ""} active</p>}
+            {customDepts.length > 0 && <p className="text-xs text-muted-foreground">{departments.length} department{departments.length !== 1 ? "s" : ""} total ({customDepts.length} custom)</p>}
           </div>
 
           {/* Pipeline */}

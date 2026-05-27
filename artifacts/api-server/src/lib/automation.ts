@@ -511,6 +511,43 @@ export async function sendFeedbackEmail(
   }
 }
 
+// ── Birthday Email — Templated — Fires once per year on patient's birthday ─────
+
+export async function sendBirthdayEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "birthday_email",
+    channel: "email",
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const firstName = patientName.split(" ")[0];
+    const subject = `Happy Birthday from ${hCtx.hospitalName} 🎂`;
+    const body = `Happy Birthday ${firstName}!\n\nToday we pause to celebrate you. At ${hCtx.hospitalName}, you are never just a name in our system — you are someone we genuinely care about, and your birthday gives us a reason to say that out loud.\n\nWe hope today brings you warmth, laughter, and the company of people who love you. And in this new year of your life, we wish you the one thing that makes everything else possible — good health.\n\nFrom everyone at ${hCtx.hospitalName}, Happy Birthday. We are glad you are here.`;
+
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.fromAddress,
+      subject,
+      html,
+      text: body,
+    });
+
+    await updateAutomationLog(logId, "sent", `Birthday email → ${patientEmail}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
 // ── Call Task — Nurse-Flagged Automated Message — OpenAI — WhatsApp/SMS ───────
 // Returns the generated draft message WITHOUT sending.
 // The receptionist edits and confirms, then calls sendCallTaskConfirmedMessage.

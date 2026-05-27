@@ -59,17 +59,17 @@ export default function ActivityLog() {
                       {getIconForType(activity.type)}
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                      <div>
-                        <p className={`text-sm font-medium leading-snug ${destructive ? "text-red-700 dark:text-red-400" : ""}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium leading-snug break-words ${destructive ? "text-red-700 dark:text-red-400" : ""}`}>
                           {activity.description}
                         </p>
                         {activity.patientName && (
-                          <p className={`text-xs mt-1 font-medium ${destructive ? "text-red-500 dark:text-red-500" : "text-primary"}`}>
+                          <p className={`text-xs mt-1 font-medium break-words ${destructive ? "text-red-500 dark:text-red-500" : "text-primary"}`}>
                             Patient: {activity.patientName}
                           </p>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                      <div className="text-xs text-muted-foreground shrink-0">
                         {format(new Date(activity.createdAt), "MMM d, h:mm a")}
                       </div>
                     </div>

@@ -29,31 +29,54 @@ async function termiiSend(
   msg: MobileMessage,
   channel: "whatsapp" | "generic",
   opts: MessagingOptions = {},
-): Promise<void> {
+): Promise<{ ok: boolean; detail: string }> {
   const apiKey = process.env.TERMII_API_KEY;
   const senderId = opts.senderId?.trim() || process.env.TERMII_SENDER_ID;
 
-  if (!apiKey || !senderId) {
-    console.warn(`[messaging] Termii not configured — skipping ${channel} message to ${msg.to}`);
-    return;
+  if (!apiKey) {
+    const detail = `[messaging] TERMII_API_KEY not set — skipping ${channel} to ${msg.to}`;
+    console.warn(detail);
+    return { ok: false, detail };
+  }
+  if (!senderId) {
+    const detail = `[messaging] No sender ID (TERMII_SENDER_ID env var or per-hospital termii_sender_id) — skipping ${channel} to ${msg.to}`;
+    console.warn(detail);
+    return { ok: false, detail };
   }
 
-  const response = await fetch(TERMII_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key: apiKey,
-      to: msg.to,
-      from: senderId,
-      sms: msg.body,
-      type: "plain",
-      channel,
-    }),
-  });
+  const payload = {
+    api_key: apiKey,
+    to: msg.to,
+    from: senderId,
+    sms: msg.body,
+    type: "plain",
+    channel,
+  };
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Termii error (${channel}): ${text}`);
+  console.log(`[messaging] Sending ${channel} to ${msg.to} from "${senderId}"`);
+
+  let responseText = "";
+  try {
+    const response = await fetch(TERMII_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    responseText = await response.text();
+
+    if (!response.ok) {
+      const detail = `[messaging] Termii HTTP ${response.status} (${channel}): ${responseText}`;
+      console.error(detail);
+      throw new Error(detail);
+    }
+
+    // Termii may return 200 with an error object — log the full body either way
+    console.log(`[messaging] Termii response (${channel}): ${responseText}`);
+    return { ok: true, detail: responseText };
+  } catch (err) {
+    const detail = `[messaging] Termii fetch error (${channel}): ${err instanceof Error ? err.message : String(err)}. Response: ${responseText}`;
+    console.error(detail);
+    throw new Error(detail);
   }
 }
 
@@ -76,4 +99,16 @@ export async function deliverMobileMessage(
   } else {
     await deliverWhatsApp({ to, body }, opts);
   }
+}
+
+/**
+ * Test SMS delivery — used by the /api/super-admin/test-sms endpoint.
+ * Returns a result object instead of throwing.
+ */
+export async function testSmsDelivery(to: string, senderId?: string): Promise<{ ok: boolean; detail: string }> {
+  return termiiSend(
+    { to, body: "Era test message — SMS delivery is working." },
+    "generic",
+    { senderId },
+  );
 }

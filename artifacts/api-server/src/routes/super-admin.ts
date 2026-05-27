@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
 import { signHospitalToken, verifyHospitalToken as _verifyHospitalToken } from "../lib/hospital-auth.js";
+import { testSmsDelivery } from "../lib/messaging.js";
 import { invalidateHospitalSessions, getHospitalSessionInvalidatedAt } from "../lib/session-invalidation.js";
 
 const execAsync = promisify(exec);
@@ -749,6 +750,15 @@ router.post("/super-admin/automation-log/:id/retry", requireSuperAdmin, async (r
   }).eq("id", id);
 
   res.json({ ok: true, message: "Marked for retry. The automation will be re-attempted on the next scheduler run." });
+});
+
+// ── Test SMS delivery ─────────────────────────────────────────────────────────
+// POST /super-admin/test-sms  { to: "2348012345678", senderId?: "Era" }
+router.post("/super-admin/test-sms", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { to, senderId } = req.body ?? {};
+  if (!to) { res.status(400).json({ error: "Missing 'to' phone number" }); return; }
+  const result = await testSmsDelivery(String(to), senderId ? String(senderId) : undefined);
+  res.status(result.ok ? 200 : 502).json(result);
 });
 
 export default router;

@@ -141,10 +141,12 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     return { id: s.id, name: s.name, color: s.color, order: s.sort_order, count };
   });
 
-  // Active patients = currently in queue OR in care on the pipeline (no double-counting).
+  // Distinct count: patients who are in queue OR currently in care (no double-counting).
+  // "In Care" = patients.stage is "In Care" OR patient has any care_plans row.
   const queuedIds = new Set((queuedPatients ?? []).map(q => q.patient_id as number));
-  const inCareIds = new Set((allPatientStages ?? []).filter(p => p.stage === "In Care").map(p => (p as Record<string, unknown>).id as number));
-  const activePatientIds = new Set([...queuedIds, ...inCareIds]);
+  const inCareByStage = new Set((allPatientStages ?? []).filter(p => p.stage === "In Care").map(p => (p as Record<string, unknown>).id as number));
+  const inCareByPlan = new Set((carePlanPatients ?? []).map(p => p.patient_id as number));
+  const activePatientIds = new Set([...queuedIds, ...inCareByStage, ...inCareByPlan]);
   const criticalAlerts = activePatientIds.size;
 
   const feedbackList = allFeedback ?? [];

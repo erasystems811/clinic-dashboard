@@ -8,7 +8,6 @@ import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import Patients from "@/pages/patients";
-import PatientDetail from "@/pages/patient-detail";
 import PatientHistory from "@/pages/patient-history";
 import NewPatient from "@/pages/patient-new";
 import Appointments from "@/pages/appointments";
@@ -30,6 +29,11 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function PatientRedirect() {
+  const [, params] = useRoute("/patients/:id");
+  return <Redirect to={`/patients/${params?.id ?? ""}/history`} />;
+}
 
 function defaultPathForRole(role: Role): string {
   if (role === "receptionist") return "/queue";
@@ -83,7 +87,7 @@ function ProtectedRouter() {
       {role === "admin" && <Route path="/patients" component={Patients} />}
       {role === "admin" && <Route path="/patients/new" component={NewPatient} />}
       {role === "admin" && <Route path="/patients/:id/history" component={PatientHistory} />}
-      {role === "admin" && <Route path="/patients/:id" component={PatientDetail} />}
+      {role === "admin" && <Route path="/patients/:id" component={PatientRedirect} />}
       {role === "admin" && apptEnabled && <Route path="/appointments" component={Appointments} />}
       {role === "admin" && <Route path="/pipeline" component={Pipeline} />}
       {role === "admin" && <Route path="/activity" component={ActivityLog} />}

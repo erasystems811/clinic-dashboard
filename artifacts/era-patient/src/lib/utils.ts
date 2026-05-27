@@ -8,37 +8,38 @@ export function cn(...inputs: ClassValue[]) {
 /**
  * Returns all stages a patient is currently in.
  *
- * Stage priority rules:
- *  - If the patient has active care plans (hasCarePlan), they are "In Care" — the stored
- *    patients.stage is ignored completely. In Care is mutually exclusive with Active,
- *    Post Treatment, etc.
- *  - "Queued" and "Booked" are transient overlays that can stack on top of any state.
+ * Rules:
+ *  - "In Care" (from hasCarePlan) stacks with "Post Treatment" and "Dormant" —
+ *    a patient can be recovering from one treatment while actively in care for another.
+ *  - "Active" + "In Care" is redundant: Active means "engaged but between treatments",
+ *    which is obviously true if they have a care plan. Suppress "Active" in that case.
+ *  - "Queued" and "Booked" are transient overlays that can stack with any state.
  */
 const STAGE_ALIASES: Record<string, string> = { "Post Care": "Active" };
 
 export function getPatientStages(patient: { stage?: string | null } & Record<string, unknown>): string[] {
   const raw = (patient.stage as string | null) ?? "";
   const primary = STAGE_ALIASES[raw] ?? raw;
+  const inCare = patient.hasCarePlan === true;
   const stages: string[] = [];
 
-  // hasCarePlan = true means the patient is actively in care.
-  // In that case the stored patients.stage (Active, Dormant, etc.) is stale/overridden —
-  // do NOT include it. "In Care" will be added below.
-  const inCare = patient.hasCarePlan === true;
+  // Suppress "Active" when In Care — it's redundant (they're clearly active if they have a plan).
+  // "Post Treatment" and "Dormant" are meaningful even alongside In Care, so keep them.
+  if (primary && !(inCare && (primary === "Active" || primary === "Post Care"))) {
+    stages.push(primary);
+  }
 
-  if (primary && !inCare) stages.push(primary);
-
-  // Queued = currently in the queue (transient overlay — can stack with any state)
+  // Queued = in the queue right now (transient overlay)
   if (patient.isInQueue === true && !stages.includes("Queued")) {
     stages.push("Queued");
   }
 
-  // Booked = has at least one upcoming appointment (transient overlay)
+  // Booked = upcoming appointment (transient overlay)
   if (patient.isBooked === true && !stages.includes("Booked")) {
     stages.push("Booked");
   }
 
-  // In Care = has active care plans — overrides the stored stage entirely
+  // In Care = active care plan exists
   if (inCare && !stages.includes("In Care")) {
     stages.push("In Care");
   }

@@ -45,10 +45,10 @@ async function migratePostCareStage() {
   else if (count) logger.info(`[migration] Renamed ${count} patient(s) from "Post Care" to "Active"`);
 }
 
-// Migration: any patient who has care_plans rows but whose patients.stage is not "In Care"
-// is stuck — the stage update from care plan creation failed silently. Fix them now.
+// Migration: patients with active care plans but stuck at "Active" or "Post Care"
+// (those are the genuinely stuck records — stage update during care plan creation failed).
+// "Post Treatment" + care plan is valid and must NOT be overwritten.
 async function migrateStuckInCareStage() {
-  // Get all patient IDs that have at least one care plan row.
   const { data: planRows, error: planErr } = await supabase
     .from("care_plans")
     .select("patient_id");
@@ -57,14 +57,15 @@ async function migrateStuckInCareStage() {
   const patientIds = [...new Set((planRows ?? []).map(r => r.patient_id as number))];
   if (patientIds.length === 0) return;
 
-  // Update any of those patients whose stage is NOT already "In Care".
+  // Only fix patients who are genuinely stuck at "Active" or "Post Care" — those were
+  // never properly transitioned to "In Care". Leave "Post Treatment", "Dormant" etc. alone.
   const { error, count } = await supabase
     .from("patients")
     .update({ stage: "In Care" })
     .in("id", patientIds)
-    .neq("stage", "In Care");
+    .in("stage", ["Active", "Post Care"]);
   if (error) logger.warn({ err: error }, "[migration] Failed to fix stuck In Care stage");
-  else if (count) logger.info(`[migration] Fixed ${count} patient(s) stuck with care plans but wrong stage`);
+  else if (count) logger.info(`[migration] Fixed ${count} patient(s) stuck at Active with active care plans`);
 }
 
 app.listen(port, (err) => {

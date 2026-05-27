@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { format, parseISO } from "date-fns";
-import { useGetPatientHistory, useDeletePatient } from "@workspace/api-client-react";
+import { useGetPatientHistory, useDeletePatient, useCheckinPatient, useDequeuePatient } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/api";
 import { getPatientStages } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { FollowUpFlagModal } from "@/components/flag-modals";
@@ -21,6 +22,7 @@ import {
   ArrowLeft, Phone, Mail, Calendar, Stethoscope,
   ClipboardList, PhoneCall, MessageSquare, Bot, Activity,
   Clock, CheckCircle2, AlertTriangle, Flag, Trash2, Pencil, X, Save, Loader2,
+  CheckCircle, Link2, Copy,
 } from "lucide-react";
 
 function fmt(iso: string | null | undefined) {
@@ -124,6 +126,9 @@ export default function PatientHistory() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmEndPlanId, setConfirmEndPlanId] = useState<number | null>(null);
   const [endingPlanId, setEndingPlanId] = useState<number | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [feedbackLink, setFeedbackLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const startEditing = (patient: Record<string, unknown>) => {
     setEditForm({
@@ -172,6 +177,65 @@ export default function PatientHistory() {
 
   const field = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setEditForm(f => ({ ...f, [key]: e.target.value }));
+
+  const checkinPatient = useCheckinPatient();
+  const dequeuePatient = useDequeuePatient();
+
+  const handleCheckIn = () => {
+    checkinPatient.mutate({ id }, {
+      onSuccess: () => {
+        toast({ title: "Patient checked in", description: "Patient moved to Queued." });
+        refetch();
+      },
+      onError: () => toast({ title: "Error", variant: "destructive" }),
+    });
+  };
+
+  const handleDequeue = () => {
+    dequeuePatient.mutate({ id }, {
+      onSuccess: () => {
+        toast({ title: "Patient moved to In Care" });
+        refetch();
+      },
+      onError: () => toast({ title: "Error", variant: "destructive" }),
+    });
+  };
+
+  const handleGenerateFeedbackLink = async () => {
+    if (!hospital?.token) return;
+    setGeneratingLink(true);
+    try {
+      const res = await fetch(apiUrl(`/api/patients/${id}/feedback-link`), {
+        method: "POST",
+        headers: { "x-hospital-token": hospital.token },
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast({ title: "Error", description: (d as { error?: string }).error ?? "Could not generate link", variant: "destructive" });
+        return;
+      }
+      const { token } = await res.json();
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const link = `${window.location.origin}${base}/feedback/${token}`;
+      setFeedbackLink(link);
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+      toast({ title: "Feedback link copied!", description: "Share it with the patient after their visit." });
+    } catch {
+      toast({ title: "Error", description: "Could not generate link", variant: "destructive" });
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const copyLink = async () => {
+    if (!feedbackLink) return;
+    await navigator.clipboard.writeText(feedbackLink);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+    toast({ title: "Link copied!" });
+  };
 
   const handleEndPlanEarly = async (planId: number) => {
     if (!hospital?.token) return;
@@ -272,6 +336,22 @@ export default function PatientHistory() {
                     </span>
                   )}
                 </div>
+                {/* Queue management — only when not editing */}
+                {!editing && (
+                  <div className="mt-3">
+                    {!(patient as Record<string,unknown>).isInQueue ? (
+                      <Button size="sm" className="gap-1.5" onClick={handleCheckIn} disabled={checkinPatient.isPending}>
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        {checkinPatient.isPending ? "Checking in…" : "Check In to Queue"}
+                      </Button>
+                    ) : (
+                      <div className="inline-flex items-center gap-2.5 px-3 py-2 rounded-lg border border-primary/30 bg-primary/5">
+                        <Checkbox onCheckedChange={(checked) => { if (checked) handleDequeue(); }} />
+                        <label className="text-sm font-medium text-primary cursor-pointer leading-none">Patient called in</label>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {editing ? (
@@ -291,6 +371,23 @@ export default function PatientHistory() {
                       <Pencil className="w-3.5 h-3.5" />
                       Edit
                     </Button>
+                    {isAdmin && hospital?.token && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        disabled={generatingLink}
+                        onClick={feedbackLink ? copyLink : handleGenerateFeedbackLink}
+                      >
+                        {linkCopied
+                          ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          : feedbackLink
+                          ? <Copy className="w-3.5 h-3.5" />
+                          : <Link2 className="w-3.5 h-3.5" />
+                        }
+                        {generatingLink ? "Generating…" : linkCopied ? "Copied!" : feedbackLink ? "Copy Link" : "Feedback Link"}
+                      </Button>
+                    )}
                     {isAdmin && (
                       <Button
                         size="sm"
@@ -398,6 +495,17 @@ export default function PatientHistory() {
             )}
           </div>
         </div>
+
+        {/* Feedback link banner */}
+        {feedbackLink && (
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <p className="text-xs text-emerald-400 flex-1 truncate font-mono">{feedbackLink}</p>
+            <button onClick={copyLink} className="text-xs text-emerald-400 hover:text-emerald-300 shrink-0 font-medium">
+              {linkCopied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+        )}
 
         {/* ── CARE PLANS ── */}
         <Section icon={ClipboardList} title="Care Plans" count={carePlans.length}>

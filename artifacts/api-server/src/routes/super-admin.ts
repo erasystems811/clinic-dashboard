@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
 import { signHospitalToken, verifyHospitalToken as _verifyHospitalToken } from "../lib/hospital-auth.js";
+import { invalidateHospitalSessions, getHospitalSessionInvalidatedAt } from "../lib/session-invalidation.js";
 
 const execAsync = promisify(exec);
 
@@ -503,6 +504,9 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
     const { error: updateErr } = await supabase
       .from("hospital_modules").update(updates).eq("hospital_id", id);
     if (updateErr) { res.status(500).json({ error: updateErr.message }); return; }
+    // Invalidate all active sessions for this hospital so users are forced to re-login
+    // and pick up the new module configuration.
+    invalidateHospitalSessions(id);
   }
 
   const { data: refreshed } = await supabase
@@ -678,6 +682,9 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
       feedbackEnabled: modules?.feedback_enabled ?? true,
       messagesEnabled: modules?.messages_enabled ?? false,
     },
+    // Unix ms timestamp of last module change for this hospital.
+    // The era-patient client uses this to force re-login if modules changed after login.
+    sessionInvalidatedAt: getHospitalSessionInvalidatedAt(hospitalId),
   });
 });
 

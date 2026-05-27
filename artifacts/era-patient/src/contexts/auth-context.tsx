@@ -10,6 +10,7 @@ export interface HospitalSession {
   username: string;
   token: string; // empty for staff (nurse/receptionist)
   feedbackSlug?: string | null;
+  loginAt?: number; // Unix ms when this session was created — used to detect module changes
 }
 
 export interface HospitalConfig {
@@ -69,14 +70,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [hospital]);
 
   // Re-fetch hospital config on mount so stale localStorage is always refreshed.
-  // Runs once after hydration — catches cases where the admin changed modules
-  // after staff already logged in (their cached config would be out of date).
+  // Also checks if a super admin changed modules after this session was created —
+  // if so, forces logout so the user re-logs in with fresh module config.
   useEffect(() => {
     const token = hospital?.token;
     if (!token) return;
+    const loginAt = hospital?.loginAt ?? 0;
     fetch(apiUrl("/api/hospital/config"), { headers: { "x-hospital-token": token } })
       .then(r => r.ok ? r.json() : null)
-      .then(cfg => { if (cfg) setHospitalConfig(cfg); })
+      .then(cfg => {
+        if (!cfg) return;
+        // If modules were changed after this session was issued, force re-login
+        if (cfg.sessionInvalidatedAt && cfg.sessionInvalidatedAt > loginAt) {
+          logout();
+          return;
+        }
+        setHospitalConfig(cfg);
+      })
       .catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — run once on mount only
@@ -100,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.error ?? "Invalid credentials");
     }
     const data = await res.json();
-    setHospital({ id: data.id, name: data.name, username: data.username, token: data.token, feedbackSlug: data.feedbackSlug ?? null });
+    setHospital({ id: data.id, name: data.name, username: data.username, token: data.token, feedbackSlug: data.feedbackSlug ?? null, loginAt: Date.now() });
 
     const cfgRes = await fetch(apiUrl("/api/hospital/config"), {
       headers: { "x-hospital-token": data.token },
@@ -124,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.error ?? "Invalid credentials");
     }
     const data = await res.json();
-    setHospital({ id: data.hospital.id, name: data.hospital.name, username: data.hospital.username, token: data.token ?? "" });
+    setHospital({ id: data.hospital.id, name: data.hospital.name, username: data.hospital.username, token: data.token ?? "", loginAt: Date.now() });
     setHospitalConfig({ departments: data.departments, modules: data.modules });
     const displayName = data.role === "nurse" ? "Nurse" : "Receptionist";
     setUser({ username: data.role, role: data.role, displayName });

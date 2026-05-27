@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import * as Sentry from "@sentry/node";
 import { supabase } from "./supabase.js";
+import { sendEmail } from "./email.js";
 import {
   sendPostTreatmentCheckinEmail,
   sendPostCareEmail,
@@ -617,6 +618,11 @@ export function startScheduler() {
     await runCarePlanEmailDelay();
   });
 
+  // Daily at 9:00 AM: Termii credit balance alert
+  cron.schedule("0 9 * * *", async () => {
+    await runTermiiBalanceCheck();
+  });
+
   log("Scheduler started — all automations are email-first");
 }
 
@@ -904,6 +910,56 @@ async function runCareVisitReminders() {
   } catch (err) {
     Sentry.captureException(err);
     log(`Care visit reminders error: ${err}`);
+  }
+}
+
+// ── Termii credit balance alert — runs daily at 9 AM ─────────────────────────
+// Sends an email to SUPER_ADMIN_ALERT_EMAIL when Termii balance drops below ₦50.
+async function runTermiiBalanceCheck() {
+  const apiKey = process.env.TERMII_API_KEY;
+  const alertEmail = process.env.SUPER_ADMIN_ALERT_EMAIL;
+
+  if (!apiKey) { log("Termii balance check skipped — TERMII_API_KEY not set"); return; }
+  if (!alertEmail) { log("Termii balance check skipped — SUPER_ADMIN_ALERT_EMAIL not set"); return; }
+
+  try {
+    const res = await fetch(`https://api.ng.termii.com/api/get-balance?api_key=${apiKey}`);
+    if (!res.ok) { log(`Termii balance check failed — HTTP ${res.status}`); return; }
+
+    const json = await res.json() as { balance?: number };
+    const balance = json.balance ?? null;
+    if (balance === null) { log("Termii balance check — no balance in response"); return; }
+
+    log(`Termii balance: ₦${balance.toFixed(2)}`);
+
+    if (balance < 50) {
+      const fromEmail = process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev";
+      const subject = `⚠ Low Termii Credit — ₦${balance.toFixed(2)} remaining`;
+      const html = `<!DOCTYPE html><html><body style="font-family:sans-serif;background:#0d1117;color:#e6edf3;margin:0;padding:20px">
+  <div style="max-width:520px;margin:0 auto;background:#161b22;border-radius:12px;padding:32px;border:1px solid #30363d">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="display:inline-block;width:48px;height:48px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:12px;margin-bottom:12px"></div>
+      <h1 style="font-size:20px;font-weight:700;color:#e6edf3;margin:0">Low Termii Credit</h1>
+    </div>
+    <p style="font-size:15px;color:#c9d1d9;margin:0 0 16px">Your Termii SMS/WhatsApp balance is running low.</p>
+    <div style="background:#0d1117;border-radius:8px;padding:20px;text-align:center;margin-bottom:20px">
+      <div style="font-size:36px;font-weight:700;color:#f59e0b">₦${balance.toFixed(2)}</div>
+      <div style="font-size:13px;color:#8b949e;margin-top:4px">Current balance</div>
+    </div>
+    <p style="font-size:14px;color:#8b949e;margin:0 0 20px">SMS messages and WhatsApp automations will stop delivering once credits run out. Top up now to keep patient communications working.</p>
+    <div style="text-align:center">
+      <a href="https://termii.com" style="display:inline-block;padding:12px 28px;background:#f59e0b;color:#000;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">Top Up at termii.com</a>
+    </div>
+    <div style="margin-top:24px;padding-top:20px;border-top:1px solid #30363d;font-size:12px;color:#8b949e;text-align:center">Era System · Automated credit alert</div>
+  </div>
+</body></html>`;
+
+      await sendEmail({ to: alertEmail, from: fromEmail, subject, html });
+      log(`Low Termii balance alert sent to ${alertEmail} (₦${balance.toFixed(2)})`);
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Termii balance check error: ${err}`);
   }
 }
 

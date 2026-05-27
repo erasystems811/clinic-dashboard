@@ -742,6 +742,10 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     } catch { termiiBalanceDetail = "Balance check failed"; }
   }
   const lowBalance = termiiBalance !== null && termiiBalance < 50;
+  const balanceSuffix = termiiBalance !== null
+    ? ` · ${lowBalance ? "⚠ " : ""}Balance: ₦${termiiBalance.toFixed(2)}${lowBalance ? " — top up at termii.com" : ""}`
+    : termiiBalanceDetail ? ` · ${termiiBalanceDetail}` : "";
+
   checks.push({
     name: "SMS (Termii)",
     ok: (smsOk && !lowBalance) || !isProd,
@@ -749,10 +753,10 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     detail: !hasTermii
       ? (isProd ? "TERMII_API_KEY not set" : "TERMII_API_KEY not set in dev — configured on Railway")
       : !hasSender
-        ? (isProd ? "TERMII_SENDER_ID not set" : "TERMII_SENDER_ID not set in dev — configured on Railway")
+        ? `TERMII_SENDER_ID not set${isProd ? "" : " in dev — configured on Railway"}${balanceSuffix}`
         : lowBalance
-          ? `⚠ Low credit — ${termiiBalanceDetail}. Top up at termii.com`
-          : `Configured — ${termiiBalanceDetail}`,
+          ? `⚠ Low credit — ₦${termiiBalance!.toFixed(2)}. Top up at termii.com`
+          : `Configured${balanceSuffix}`,
   });
 
   // 3. WhatsApp (Termii) — same API key + balance as SMS
@@ -763,8 +767,8 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     detail: !hasTermii
       ? (isProd ? "TERMII_API_KEY not set" : "TERMII_API_KEY not set in dev — configured on Railway")
       : lowBalance
-        ? `⚠ Low credit — ${termiiBalanceDetail}. Top up at termii.com`
-        : `Configured — ${termiiBalanceDetail}`,
+        ? `⚠ Low credit — ₦${termiiBalance!.toFixed(2)}. Top up at termii.com`
+        : `Configured${balanceSuffix}`,
   });
 
   // 4. Email (Resend)

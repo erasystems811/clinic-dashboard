@@ -382,7 +382,7 @@ export default function NurseStation() {
                             <button
                               type="button"
                               className="p-1.5 rounded text-muted-foreground hover:text-amber-400 hover:bg-amber-500/10 transition"
-                              onClick={e => { e.stopPropagation(); setConfirmEndPlanId(plan.id); setConfirmDeleteId(null); }}
+                              onClick={e => { e.stopPropagation(); setConfirmEndPlanId(plan.id); }}
                               title="End Treatment Early"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />

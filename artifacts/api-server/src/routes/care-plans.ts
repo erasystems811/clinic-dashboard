@@ -110,13 +110,16 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const treatmentEndDate = new Date(now);
   treatmentEndDate.setDate(treatmentEndDate.getDate() + durationDays);
 
-  // Creating a care plan always moves the patient to "In Care".
-  // Split into two updates: stage first (critical), then metadata.
-  // This ensures stage is set even if the metadata update fails for any reason.
-  const { error: stageErr } = await supabase.from("patients")
-    .update({ stage: "In Care", updated_at: now.toISOString() })
-    .eq("id", patientId);
-  if (stageErr) console.error("[care-plans] stage update failed:", stageErr);
+  // Creating a care plan moves the patient to "In Care" — UNLESS they are already in
+  // "Post Treatment", in which case leave their stage alone. The "In Care" badge is
+  // derived from hasCarePlan on every patient fetch, so it will show automatically.
+  // A Post Treatment patient who starts a new plan should show BOTH labels.
+  if (patient.stage !== "Post Treatment") {
+    const { error: stageErr } = await supabase.from("patients")
+      .update({ stage: "In Care", updated_at: now.toISOString() })
+      .eq("id", patientId);
+    if (stageErr) console.error("[care-plans] stage update failed:", stageErr);
+  }
 
   const { error: metaErr } = await supabase.from("patients").update({
     treatment_plan: parsed.data.summary,

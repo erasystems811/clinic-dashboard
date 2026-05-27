@@ -113,7 +113,8 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
 export default function PatientHistory() {
   const params = useParams<{ id: string }>();
   const id = parseInt(params.id ?? "", 10);
-  const { user, hospital } = useAuth();
+  const { user, hospital, hospitalConfig } = useAuth();
+  const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
   const isAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -318,7 +319,7 @@ export default function PatientHistory() {
                 </div>
                 {/* Stage + department badges */}
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  {getPatientStages(patient as never).map((s) => (
+                  {getPatientStages(patient as never, { apptEnabled }).map((s) => (
                     <span key={s} className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${STAGE_COLORS[s] ?? "bg-muted text-muted-foreground border-border"}`}>
                       {s}
                     </span>

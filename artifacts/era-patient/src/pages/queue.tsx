@@ -17,6 +17,7 @@ import {
 
 import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star } from "lucide-react";
 import { getPatientStages } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 function waitTime(addedAt: string) {
   const diff = Math.floor((Date.now() - new Date(addedAt).getTime()) / 60000);
@@ -26,6 +27,8 @@ function waitTime(addedAt: string) {
 }
 
 export default function QueueManagement() {
+  const { hospitalConfig } = useAuth();
+  const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -55,7 +58,7 @@ export default function QueueManagement() {
   const dequeue = useDequeuePatient({
     mutation: {
       onSuccess: (patient) => {
-        toast({ title: "Removed from queue", description: `${patient.firstName} ${patient.lastName} — now: ${getPatientStages(patient as never).join(" · ")}.` });
+        toast({ title: "Removed from queue", description: `${patient.firstName} ${patient.lastName} — now: ${getPatientStages(patient as never, { apptEnabled }).join(" · ")}.` });
         queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
         queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
       },
@@ -183,7 +186,7 @@ export default function QueueManagement() {
                           <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
                             {patient.patientId && <span className="font-mono bg-muted px-1.5 py-0.5 rounded">ID: {patient.patientId}</span>}
-                            <span>{getPatientStages(patient as never).join(" · ")}</span>
+                            <span>{getPatientStages(patient as never, { apptEnabled }).join(" · ")}</span>
                             <span>{patient.email}</span>
                             {patient.whatsappNumber && <span>WA: {patient.whatsappNumber}</span>}
                           </div>

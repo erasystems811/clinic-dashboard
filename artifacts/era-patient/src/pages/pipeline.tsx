@@ -36,7 +36,7 @@ export default function Pipeline() {
     const grouped: Record<string, typeof patients> = {};
     stages.forEach((stage) => {
       grouped[stage.name] = patients.filter((p) =>
-        getPatientStages(p as never).includes(stage.name)
+        getPatientStages(p as never, { apptEnabled }).includes(stage.name)
       );
     });
     return grouped;

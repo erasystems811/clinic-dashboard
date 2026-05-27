@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useListPatients, useListPipelineStages, getListPipelineStagesQueryKey, type Patient } from "@workspace/api-client-react";
 import { getPatientStages } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 import { Layout } from "@/components/layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const PAGE_SIZE = 50;
 
 export default function Patients() {
+  const { hospitalConfig } = useAuth();
+  const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
@@ -151,7 +154,7 @@ export default function Patients() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {getPatientStages(patient as never).map(s => {
+                            {getPatientStages(patient as never, { apptEnabled }).map(s => {
                               const sc = stages?.find(st => st.name === s)?.color || "gray";
                               return (
                                 <Badge key={s} variant="outline" style={{ borderColor: sc, color: sc, backgroundColor: `${sc}15` }}>

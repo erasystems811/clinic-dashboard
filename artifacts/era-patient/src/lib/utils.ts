@@ -29,7 +29,7 @@ const STAGE_ALIASES: Record<string, string> = { "Post Care": "Active" };
 
 const BASELINE_STAGES = new Set(["Active", "Post Care", "Dormant"]);
 
-export function getPatientStages(patient: { stage?: string | null } & Record<string, unknown>): string[] {
+export function getPatientStages(patient: { stage?: string | null } & Record<string, unknown>, opts?: { apptEnabled?: boolean }): string[] {
   const raw = (patient.stage as string | null) ?? "";
   const primary = STAGE_ALIASES[raw] ?? raw;
   const inCare = patient.hasCarePlan === true;
@@ -49,8 +49,8 @@ export function getPatientStages(patient: { stage?: string | null } & Record<str
     stages.push("Queued");
   }
 
-  // Booked = upcoming appointment (transient overlay)
-  if (patient.isBooked === true && !stages.includes("Booked")) {
+  // Booked = upcoming appointment (transient overlay — only when appointments module is on)
+  if (patient.isBooked === true && opts?.apptEnabled !== false && !stages.includes("Booked")) {
     stages.push("Booked");
   }
 

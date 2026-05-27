@@ -35,18 +35,36 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// One-time migration: rename legacy "Post Care" stage to "Active" in the DB.
-// Safe to run on every boot — no-op once all rows are migrated.
+// Migration: rename legacy "Post Care" stage to "Active" in the DB.
 async function migratePostCareStage() {
   const { error, count } = await supabase
     .from("patients")
     .update({ stage: "Active" })
     .eq("stage", "Post Care");
-  if (error) {
-    logger.warn({ err: error }, "[migration] Failed to migrate Post Care → Active");
-  } else if (count) {
-    logger.info(`[migration] Renamed ${count} patient(s) from "Post Care" to "Active"`);
-  }
+  if (error) logger.warn({ err: error }, "[migration] Failed to migrate Post Care → Active");
+  else if (count) logger.info(`[migration] Renamed ${count} patient(s) from "Post Care" to "Active"`);
+}
+
+// Migration: any patient who has care_plans rows but whose patients.stage is not "In Care"
+// is stuck — the stage update from care plan creation failed silently. Fix them now.
+async function migrateStuckInCareStage() {
+  // Get all patient IDs that have at least one care plan row.
+  const { data: planRows, error: planErr } = await supabase
+    .from("care_plans")
+    .select("patient_id");
+  if (planErr) { logger.warn({ err: planErr }, "[migration] Failed to query care_plans"); return; }
+
+  const patientIds = [...new Set((planRows ?? []).map(r => r.patient_id as number))];
+  if (patientIds.length === 0) return;
+
+  // Update any of those patients whose stage is NOT already "In Care".
+  const { error, count } = await supabase
+    .from("patients")
+    .update({ stage: "In Care" })
+    .in("id", patientIds)
+    .neq("stage", "In Care");
+  if (error) logger.warn({ err: error }, "[migration] Failed to fix stuck In Care stage");
+  else if (count) logger.info(`[migration] Fixed ${count} patient(s) stuck with care plans but wrong stage`);
 }
 
 app.listen(port, (err) => {
@@ -59,4 +77,5 @@ app.listen(port, (err) => {
   startScheduler();
   reloadSupabaseSchema();
   migratePostCareStage();
+  migrateStuckInCareStage();
 });

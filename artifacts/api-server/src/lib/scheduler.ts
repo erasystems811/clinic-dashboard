@@ -122,8 +122,8 @@ async function runPostTreatmentCheckins() {
   }
 }
 
-// ── Post-Care Email — runs daily — every 30 days once patient has entered Post Care ─
-// Post Care entry is derived from treatment_end_date + pipeline_post_treatment_days.
+// ── Active-Stage Email — runs daily — every 30 days once patient has entered Active stage ──
+// Active entry is derived from treatment_end_date + pipeline_post_treatment_days.
 // Pipeline stage is a reflection — automations read from records, not stage.
 async function runPostCareEmails() {
   try {
@@ -140,8 +140,8 @@ async function runPostCareEmails() {
         .from("hospitals").select("id, username").eq("id", hs.hospital_id).single();
       if (!hospital) continue;
 
-      // Post Care entry ≈ treatment_end_date + postTreatDays days.
-      // Send every 30 days: find patients whose Post Care start was >= 30 days ago.
+      // Active entry ≈ treatment_end_date + postTreatDays days.
+      // Send every 30 days: find patients whose Active start was >= 30 days ago.
       // i.e. treatment_end_date + postTreatDays + 30 <= today
       // → treatment_end_date <= today − (postTreatDays + 30) days
       const cutoffDate = new Date(now.getTime() - (postTreatDays + 30) * 24 * 60 * 60 * 1000)
@@ -234,7 +234,7 @@ async function runDormantDetection() {
 }
 
 
-// ── Post Treatment → Post Care Transition — runs daily ───────────────────────
+// ── Post Treatment → Active Transition — runs daily ──────────────────────────
 async function runPostTreatmentTransitions() {
   try {
     const today = new Date().toISOString().split("T")[0];
@@ -264,7 +264,7 @@ async function runPostTreatmentTransitions() {
       }
     }
 
-    // Post Treatment → Post Care (configurable days)
+    // Post Treatment → Active (configurable days)
     const { data: hsSettings } = await supabase
       .from("hospital_settings")
       .select("hospital_id, pipeline_post_treatment_days");
@@ -285,16 +285,16 @@ async function runPostTreatmentTransitions() {
 
       for (const p of patients ?? []) {
         await supabase.from("patients")
-          .update({ stage: "Post Care", updated_at: new Date().toISOString() })
+          .update({ stage: "Active", updated_at: new Date().toISOString() })
           .eq("id", p.id);
         await supabase.from("activity").insert({
           type: "stage_changed",
-          description: `${p.first_name} ${p.last_name} moved to Post Care`,
+          description: `${p.first_name} ${p.last_name} moved to Active`,
           patient_id: p.id,
           patient_name: `${p.first_name} ${p.last_name}`,
-          metadata: "Post Care",
+          metadata: "Active",
         });
-        log(`Patient ${p.id} moved to Post Care`);
+        log(`Patient ${p.id} moved to Active`);
       }
     }
   } catch (err) {
@@ -334,6 +334,7 @@ async function runFeedbackEmails() {
           .from("patients")
           .select("id, first_name, last_name, email")
           .eq("id", patientId)
+          .eq("hospital_id", hospital.username)
           .single();
 
         if (!patient || !patient.email) continue;
@@ -341,6 +342,7 @@ async function runFeedbackEmails() {
         const { data: alreadySent } = await supabase
           .from("automation_log")
           .select("id")
+          .eq("hospital_id", hm.hospital_id)
           .eq("patient_id", patientId)
           .eq("automation_type", "feedback_email")
           .eq("status", "sent")

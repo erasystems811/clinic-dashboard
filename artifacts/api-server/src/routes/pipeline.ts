@@ -10,7 +10,7 @@ const DEFAULT_STAGES = [
   { name: "Queued",         color: "#f59e0b", sort_order: 2 },
   { name: "In Care",        color: "#3b82f6", sort_order: 3 },
   { name: "Post Treatment", color: "#8b5cf6", sort_order: 4 },
-  { name: "Post Care",      color: "#06b6d4", sort_order: 5 },
+  { name: "Active",         color: "#06b6d4", sort_order: 5 },
   { name: "Dormant",        color: "#6b7280", sort_order: 6 },
 ];
 

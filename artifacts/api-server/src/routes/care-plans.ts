@@ -74,44 +74,24 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const treatmentEndDate = new Date(now);
   treatmentEndDate.setDate(treatmentEndDate.getDate() + durationDays);
 
-  // Update patient record — pipeline stage is a REFLECTION, not a controller.
-  // active_stages tracks ALL concurrent states (e.g. patient can be both Post Treatment + In Care).
-  const patientStage = patient.stage as string;
-  const currentActiveStages = (patient.active_stages as string[] | null) ?? [];
-  const newActiveStages = currentActiveStages.includes("In Care")
-    ? currentActiveStages
-    : [...currentActiveStages, "In Care"];
-
-  // Only move primary stage to "In Care" if patient is brand new (New/Queued).
-  // Already-active patients (Post Treatment, etc.) keep their primary stage — active_stages handles multi-stage.
-  const isNewPatient = ["New", "Queued", ""].includes(patientStage);
-  const updateData: Record<string, unknown> = {
+  // Creating a care plan always moves the patient to "In Care" — regardless of their previous stage.
+  await supabase.from("patients").update({
+    stage: "In Care",
     treatment_plan: parsed.data.summary,
     treatment_type: isGeneralOutpatient ? ((parsed.data.templateData?.treatmentType as string) ?? null) : parsed.data.department,
     medication_timing: isGeneralOutpatient
       ? buildTimingString(parsed.data.templateData as GeneralOutpatientData)
       : null,
     department: parsed.data.department,
-    active_stages: newActiveStages,
+    treatment_started_at: now.toISOString(),
+    treatment_duration_days: durationDays,
+    treatment_end_date: treatmentEndDate.toISOString().split("T")[0],
+    pre_queue_stage: null,
     updated_at: now.toISOString(),
-  };
-  if (isNewPatient) {
-    updateData.stage = "In Care";
-    updateData.treatment_started_at = now.toISOString();
-    updateData.treatment_duration_days = durationDays;
-    updateData.treatment_end_date = treatmentEndDate.toISOString().split("T")[0];
-    updateData.pre_queue_stage = null;
-  } else if (isGeneralOutpatient) {
-    updateData.treatment_duration_days = durationDays;
-    updateData.treatment_end_date = treatmentEndDate.toISOString().split("T")[0];
-  }
+  }).eq("id", patientId);
 
-  await supabase.from("patients").update(updateData).eq("id", patientId);
-
-  // Remove from queue if this was a new patient being admitted
-  if (isNewPatient) {
-    await supabase.from("queue").delete().eq("patient_id", patientId);
-  }
+  // Remove from queue (patient is now admitted to care)
+  await supabase.from("queue").delete().eq("patient_id", patientId);
 
   // Log activity
   const patientName = `${patient.first_name} ${patient.last_name}`;
@@ -183,10 +163,35 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
 
   await supabase.from("care_plans").delete().eq("id", id);
 
-  // Log activity
-  const { data: patient } = await supabase.from("patients").select("first_name, last_name").eq("id", existing.patient_id as number).single();
+  // Check if this was the patient's last care plan
+  const { data: remaining } = await supabase
+    .from("care_plans")
+    .select("id")
+    .eq("patient_id", existing.patient_id as number)
+    .eq("hospital_id", hospital.username);
+
+  const { data: patient } = await supabase.from("patients").select("first_name, last_name, stage").eq("id", existing.patient_id as number).single();
+  const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
+
+  if (!remaining || remaining.length === 0) {
+    // No more care plans — move patient to Post Treatment
+    const today = new Date().toISOString().split("T")[0];
+    await supabase.from("patients").update({
+      stage: "Post Treatment",
+      treatment_end_date: today,
+      updated_at: new Date().toISOString(),
+    }).eq("id", existing.patient_id as number);
+
+    await supabase.from("activity").insert({
+      type: "stage_changed",
+      description: `${patientName} moved to Post Treatment (care plan removed)`,
+      patient_id: existing.patient_id as number,
+      patient_name: patientName,
+      metadata: "Post Treatment",
+    });
+  }
+
   if (patient) {
-    const patientName = `${patient.first_name} ${patient.last_name}`;
     await supabase.from("activity").insert({
       type: "care_plan_deleted",
       description: `Care plan deleted for ${patientName} (${existing.department})`,

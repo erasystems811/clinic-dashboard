@@ -31,7 +31,7 @@ const ADMIN_STEPS: Step[] = [
   },
   {
     title: "Automation Pipeline",
-    body: "This is Era's automation engine. After treatment, each patient moves through stages (In Care → Post Care → Dormant) and the system sends WhatsApp messages or emails on your behalf at each stage — completely hands-free.",
+    body: "This is Era's automation engine. After treatment, each patient moves through stages (In Care → Post Treatment → Active → Dormant) and the system sends WhatsApp messages or emails on your behalf at each stage — completely hands-free.",
     target: '[data-tour="nav-pipeline"]',
   },
   {

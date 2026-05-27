@@ -500,10 +500,10 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   const { data: existing } = await supabase.from("patients").select("*").eq("id", id).single();
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  // Dequeue: restore previous stage, but transient/invalid stages all go to Post Care
+  // Dequeue: restore previous stage; transient/invalid/dormant stages all go to Active
   let restoreStage: string = existing.pre_queue_stage ?? "";
   if (!restoreStage || restoreStage === "Queued" || restoreStage === "Booked" || restoreStage === "Dormant") {
-    restoreStage = "Post Care";
+    restoreStage = "Active";
   }
 
   const { data: patient } = await supabase

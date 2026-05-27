@@ -821,7 +821,7 @@ export async function sendWellnessNewsletterEmails(
     .from("patients")
     .select("id, first_name, last_name, email, stage")
     .eq("hospital_id", hCtx.hospitalUsername)
-    .in("stage", ["Post Treatment", "Post Care", "In Care", "Booked", "Queued"]);
+    .in("stage", ["Post Treatment", "Active", "In Care", "Booked", "Queued"]);
 
   let sent = 0;
   let failed = 0;

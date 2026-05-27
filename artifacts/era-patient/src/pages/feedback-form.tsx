@@ -95,6 +95,7 @@ export default function FeedbackForm({ token, hospitalSlug, previewQuestions }: 
   const [wouldRecommend, setWouldRecommend] = useState<boolean | null>(null);
   const [comment, setComment] = useState("");
   const [anonymous, setAnonymous] = useState(false);
+  const [nameInput, setNameInput] = useState("");
 
   useEffect(() => {
     if (isPreview) return;
@@ -139,7 +140,11 @@ export default function FeedbackForm({ token, hospitalSlug, previewQuestions }: 
       if (ratings["quality_of_care"]) body.qualityOfCareRating = ratings["quality_of_care"];
       if (wouldRecommend != null) body.wouldRecommend = wouldRecommend;
       if (comment.trim()) body.comment = comment.trim();
-      if (anonymous) body.anonymous = true;
+      if (anonymous) {
+        body.anonymous = true;
+      } else if (isHospitalSlug && nameInput.trim()) {
+        body.patientName = nameInput.trim();
+      }
 
       const url = isHospitalSlug
         ? apiUrl(`/api/feedback/h/${hospitalSlug}`)
@@ -308,6 +313,22 @@ export default function FeedbackForm({ token, hospitalSlug, previewQuestions }: 
           )}
 
           <div className="h-px bg-border" />
+
+          {isHospitalSlug && !isPreview && !anonymous && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">
+                Your name <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <input
+                type="text"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground/50"
+                placeholder="e.g. John Doe"
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+              />
+            </div>
+          )}
+
           <button
             type="button"
             role="switch"

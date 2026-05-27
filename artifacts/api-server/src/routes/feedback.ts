@@ -158,6 +158,7 @@ const SubmitHospitalFeedbackBody = z.object({
   wouldRecommend: z.boolean().optional(),
   comment: z.string().optional(),
   anonymous: z.boolean().optional(),
+  patientName: z.string().max(120).optional(),
 });
 
 router.post("/feedback/h/:slug", async (req, res): Promise<void> => {
@@ -175,7 +176,7 @@ router.post("/feedback/h/:slug", async (req, res): Promise<void> => {
   const { data, error } = await supabase.from("feedback").insert({
     hospital_id: hospital.id,
     patient_id: null,
-    patient_name: null,
+    patient_name: d.anonymous ? null : (d.patientName?.trim() || null),
     rating: d.rating,
     wait_time_rating: d.waitTimeRating ?? null,
     staff_friendliness_rating: d.staffFriendlinessRating ?? null,

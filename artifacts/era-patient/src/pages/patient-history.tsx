@@ -126,7 +126,6 @@ export default function PatientHistory() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmEndPlanId, setConfirmEndPlanId] = useState<number | null>(null);
   const [endingPlanId, setEndingPlanId] = useState<number | null>(null);
-  const [feedbackLinkCopied, setFeedbackLinkCopied] = useState(false);
 
   const startEditing = (patient: Record<string, unknown>) => {
     setEditForm({
@@ -199,15 +198,6 @@ export default function PatientHistory() {
     });
   };
 
-  const copyHospitalFeedbackLink = async () => {
-    if (!hospital?.feedbackSlug) return;
-    const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-    const link = `${window.location.origin}${base}/feedback/h/${hospital.feedbackSlug}`;
-    await navigator.clipboard.writeText(link);
-    setFeedbackLinkCopied(true);
-    setTimeout(() => setFeedbackLinkCopied(false), 2500);
-    toast({ title: "Feedback link copied!", description: "Share it with the patient." });
-  };
 
   const handleEndPlanEarly = async (planId: number) => {
     if (!hospital?.token) return;
@@ -316,15 +306,6 @@ export default function PatientHistory() {
                           <Pencil className="w-3.5 h-3.5" />
                           Edit
                         </Button>
-                        {isAdmin && hospital?.feedbackSlug && (
-                          <Button size="sm" variant="outline" className="gap-1.5" onClick={copyHospitalFeedbackLink}>
-                            {feedbackLinkCopied
-                              ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                              : <Link2 className="w-3.5 h-3.5" />
-                            }
-                            {feedbackLinkCopied ? "Copied!" : "Feedback Link"}
-                          </Button>
-                        )}
                         {isAdmin && (
                           <Button size="sm" variant="outline" className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setShowFollowUp(true)}>
                             <Flag className="w-3.5 h-3.5" />

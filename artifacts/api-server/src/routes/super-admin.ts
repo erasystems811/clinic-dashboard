@@ -725,23 +725,46 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
 
   const isProd = process.env.NODE_ENV === "production";
 
-  // 2. SMS (Termii)
+  // 2. SMS + WhatsApp (Termii) — fetch balance live
   const hasTermii = !!process.env.TERMII_API_KEY;
   const hasSender = !!process.env.TERMII_SENDER_ID;
   const smsOk = hasTermii && hasSender;
+  let termiiBalance: number | null = null;
+  let termiiBalanceDetail = "";
+  if (hasTermii) {
+    try {
+      const balRes = await fetch(`https://api.ng.termii.com/api/get-balance?api_key=${process.env.TERMII_API_KEY}`);
+      if (balRes.ok) {
+        const balJson = await balRes.json() as { balance?: number };
+        termiiBalance = balJson.balance ?? null;
+        termiiBalanceDetail = termiiBalance !== null ? `Balance: ₦${termiiBalance.toFixed(2)}` : "Balance unavailable";
+      }
+    } catch { termiiBalanceDetail = "Balance check failed"; }
+  }
+  const lowBalance = termiiBalance !== null && termiiBalance < 50;
   checks.push({
     name: "SMS (Termii)",
-    ok: smsOk || !isProd,
-    warning: !smsOk && !isProd,
-    detail: smsOk ? "API key + sender ID configured" : isProd ? (!hasTermii ? "TERMII_API_KEY not set" : "TERMII_SENDER_ID not set") : (!hasTermii ? "TERMII_API_KEY not set" : "TERMII_SENDER_ID not set in dev — configured on Railway"),
+    ok: (smsOk && !lowBalance) || !isProd,
+    warning: (!smsOk || lowBalance) && !isProd,
+    detail: !hasTermii
+      ? (isProd ? "TERMII_API_KEY not set" : "TERMII_API_KEY not set in dev — configured on Railway")
+      : !hasSender
+        ? (isProd ? "TERMII_SENDER_ID not set" : "TERMII_SENDER_ID not set in dev — configured on Railway")
+        : lowBalance
+          ? `⚠ Low credit — ${termiiBalanceDetail}. Top up at termii.com`
+          : `Configured — ${termiiBalanceDetail}`,
   });
 
-  // 3. WhatsApp (Termii) — same API key as SMS; from-number is per-hospital config
+  // 3. WhatsApp (Termii) — same API key + balance as SMS
   checks.push({
     name: "WhatsApp (Termii)",
-    ok: hasTermii || !isProd,
-    warning: !hasTermii && !isProd,
-    detail: hasTermii ? "Shared API key configured — from-number set per hospital" : isProd ? "TERMII_API_KEY not set" : "TERMII_API_KEY not set in dev — configured on Railway",
+    ok: (hasTermii && !lowBalance) || !isProd,
+    warning: (!hasTermii || lowBalance) && !isProd,
+    detail: !hasTermii
+      ? (isProd ? "TERMII_API_KEY not set" : "TERMII_API_KEY not set in dev — configured on Railway")
+      : lowBalance
+        ? `⚠ Low credit — ${termiiBalanceDetail}. Top up at termii.com`
+        : `Configured — ${termiiBalanceDetail}`,
   });
 
   // 4. Email (Resend)

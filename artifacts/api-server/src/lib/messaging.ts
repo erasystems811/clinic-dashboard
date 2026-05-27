@@ -25,6 +25,13 @@ export interface MessagingOptions {
   senderId?: string | null;
 }
 
+/** Normalise phone to international format (09012345678 → 2349012345678) */
+function normalisePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("0") && digits.length <= 11) return "234" + digits.slice(1);
+  return digits;
+}
+
 async function termiiSend(
   msg: MobileMessage,
   channel: "whatsapp" | "generic",
@@ -32,6 +39,7 @@ async function termiiSend(
 ): Promise<{ ok: boolean; detail: string }> {
   const apiKey = process.env.TERMII_API_KEY;
   const senderId = opts.senderId?.trim() || process.env.TERMII_SENDER_ID;
+  const to = normalisePhone(msg.to);
 
   if (!apiKey) {
     const detail = `[messaging] TERMII_API_KEY not set — skipping ${channel} to ${msg.to}`;
@@ -46,14 +54,14 @@ async function termiiSend(
 
   const payload = {
     api_key: apiKey,
-    to: msg.to,
+    to,
     from: senderId,
     sms: msg.body,
     type: "plain",
     channel,
   };
 
-  console.log(`[messaging] Sending ${channel} to ${msg.to} from "${senderId}"`);
+  console.log(`[messaging] Sending ${channel} to ${to} (raw: ${msg.to}) from "${senderId}"`);
 
   let responseText = "";
   try {

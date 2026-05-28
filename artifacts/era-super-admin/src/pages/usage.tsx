@@ -2,7 +2,7 @@ import { useState } from "react";
 import Layout from "@/components/layout";
 import { get } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Users, Zap, ArrowUpDown, ArrowUp, ArrowDown, CalendarDays } from "lucide-react";
+import { RefreshCw, Users, Zap, ArrowUpDown, ArrowUp, ArrowDown, CalendarDays, Radio } from "lucide-react";
 
 interface HospitalUsageStat {
   id: number;
@@ -67,11 +67,17 @@ export default function Usage() {
   const [sortKey, setSortKey] = useState<SortKey>("avgPatientsDay");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  const { data, isLoading, isFetching, refetch } = useQuery<{ stats: HospitalUsageStat[] }>({
+  // Auto-recalculates every 2 minutes — picks up new patients, automations, and hospitals automatically
+  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<{ stats: HospitalUsageStat[] }>({
     queryKey: ["usage-stats"],
     queryFn: () => get("/super-admin/usage-stats"),
-    staleTime: 5 * 60_000,
+    staleTime: 0,
+    refetchInterval: 2 * 60_000,
   });
+
+  const lastUpdated = dataUpdatedAt
+    ? new Date(dataUpdatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : null;
 
   const stats = data?.stats ?? [];
 
@@ -112,10 +118,21 @@ export default function Usage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Hospital Usage</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-foreground">Hospital Usage</h1>
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">
+                <Radio className="w-2.5 h-2.5" />
+                Live
+              </span>
+            </div>
             <p className="text-sm text-muted-foreground mt-0.5">
-              All-time rolling averages per hospital — calculated from each hospital's first day on the platform. Updated on each refresh.
+              All-time rolling averages from each hospital's first day — recalculates automatically every 2 min. New hospitals appear instantly.
             </p>
+            {lastUpdated && (
+              <p className="text-[11px] text-muted-foreground/40 mt-1">
+                Last updated: {lastUpdated}
+              </p>
+            )}
           </div>
           <button
             onClick={() => refetch()}
@@ -123,7 +140,7 @@ export default function Usage() {
             className="shrink-0 flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
-            Refresh
+            Refresh now
           </button>
         </div>
 

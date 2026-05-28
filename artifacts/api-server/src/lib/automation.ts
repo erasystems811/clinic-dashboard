@@ -113,6 +113,7 @@ export async function sendQueueJoinMessage(
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendQueueJoinMessage] failed:", msg, { hospitalId, patientId, patientName });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -137,6 +138,7 @@ export async function sendQueueNextInLine(
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendQueueNextInLine] failed:", msg, { hospitalId, patientId, patientName });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -161,6 +163,7 @@ export async function sendQueueYourTurn(
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendQueueYourTurn] failed:", msg, { hospitalId, patientId, patientName });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -185,6 +188,7 @@ export async function sendQueueLongWaitApology(
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendQueueLongWaitApology] failed:", msg, { hospitalId, patientId, patientName });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -211,6 +215,7 @@ export async function sendCarePlanNotification(
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendCarePlanNotification] failed:", msg, { hospitalId, patientId, patientName });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -257,6 +262,7 @@ export async function sendCarePlanEmail(
     await updateAutomationLog(logId, "sent", `Care plan email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendCarePlanEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -307,6 +313,7 @@ export async function sendPostTreatmentCheckinEmail(
     await updateAutomationLog(logId, "sent", `Post-treatment Day ${day} email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendPostTreatmentCheckinEmail] failed:", msg, { hospitalId, patientId, patientEmail, day });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -344,6 +351,7 @@ export async function sendPostCareEmail(
     await updateAutomationLog(logId, "sent", `Post-care email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendPostCareEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -428,6 +436,7 @@ export async function sendAppointmentReminderEmail(
     await updateAutomationLog(logId, "sent", `Appointment reminder (${hoursAway}h) → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendAppointmentReminderEmail] failed:", msg, { hospitalId, patientId, patientEmail, hoursAway });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -463,6 +472,7 @@ export async function sendAppointmentNoShowEmail(
     await updateAutomationLog(logId, "sent", `No-show email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendAppointmentNoShowEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -508,6 +518,7 @@ export async function sendFeedbackEmail(
     await updateAutomationLog(logId, "sent", `Feedback email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendFeedbackEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
     throw err;
@@ -546,6 +557,7 @@ export async function sendBirthdayEmail(
     await updateAutomationLog(logId, "sent", `Birthday email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendBirthdayEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -599,6 +611,7 @@ export async function sendCareVisitReminderEmail(
     await updateAutomationLog(logId, "sent");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendCareVisitReminderEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }
@@ -661,6 +674,7 @@ export async function sendCallTaskConfirmedMessage(
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendCallTaskConfirmedMessage] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
     throw err;
@@ -700,6 +714,7 @@ export async function sendCallTaskManualEmail(
     await updateAutomationLog(logId, "sent", `Manual email → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendCallTaskManualEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
     throw err;
@@ -866,8 +881,10 @@ export async function sendWellnessNewsletterEmails(
       });
       await updateAutomationLog(logId, "sent");
       sent++;
-    } catch {
-      await updateAutomationLog(logId, "failed");
+    } catch (err) {
+      const msg = err instanceof Error ? (err as Error).message : String(err);
+      console.error("[sendWellnessNewsletterEmails] failed for patient", patient.id, ":", msg);
+      await updateAutomationLog(logId, "failed", msg);
       failed++;
     }
   }
@@ -955,6 +972,7 @@ export async function sendInCareAIReminder(
     await updateAutomationLog(logId, "sent", `In-care ${slot} reminder (${deptLabel}) → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendInCareAIReminder] failed:", msg, { hospitalId, patientId, patientEmail, slot, deptLabel });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }

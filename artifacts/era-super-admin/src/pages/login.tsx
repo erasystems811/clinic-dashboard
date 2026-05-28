@@ -55,9 +55,45 @@ export default function LoginPage() {
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      style={{ background: "hsl(0 0% 2%)" }}>
 
-      <div className="w-full max-w-xs">
+      {/* Primary spotlight — visible blue burst from top */}
+      <div className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(ellipse 90% 55% at 50% -5%, hsl(214 85% 62% / 0.18) 0%, hsl(220 70% 40% / 0.08) 45%, transparent 70%)" }} />
+
+      {/* Secondary warm accent — bottom center */}
+      <div className="pointer-events-none absolute inset-0"
+        style={{ background: "radial-gradient(ellipse 60% 35% at 50% 110%, hsl(43 70% 62% / 0.07) 0%, transparent 65%)" }} />
+
+      {/* Top horizontal border beam */}
+      <div className="pointer-events-none absolute top-0 left-0 right-0 h-px"
+        style={{ background: "linear-gradient(90deg, transparent 0%, hsl(214 85% 62% / 0.5) 30%, hsl(43 70% 62% / 0.4) 50%, hsl(214 85% 62% / 0.5) 70%, transparent 100%)" }} />
+
+      {/* Bottom horizontal border beam */}
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px"
+        style={{ background: "linear-gradient(90deg, transparent 10%, hsl(214 85% 62% / 0.2) 50%, transparent 90%)" }} />
+
+      {/* Left edge glow */}
+      <div className="pointer-events-none absolute top-0 left-0 bottom-0 w-px"
+        style={{ background: "linear-gradient(180deg, transparent, hsl(214 85% 62% / 0.25) 40%, hsl(43 70% 62% / 0.15) 60%, transparent)" }} />
+      {/* Right edge glow */}
+      <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-px"
+        style={{ background: "linear-gradient(180deg, transparent, hsl(214 85% 62% / 0.25) 40%, hsl(43 70% 62% / 0.15) 60%, transparent)" }} />
+
+      {/* Large background crosshair */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.025]">
+        <div className="absolute w-[600px] h-px" style={{ background: "hsl(214 85% 80%)" }} />
+        <div className="absolute w-px h-[600px]" style={{ background: "hsl(214 85% 80%)" }} />
+        <div className="absolute w-[400px] h-[400px] rounded-full border" style={{ borderColor: "hsl(214 85% 80%)" }} />
+        <div className="absolute w-[200px] h-[200px] rounded-full border" style={{ borderColor: "hsl(43 70% 62%)" }} />
+      </div>
+
+      {/* Scan line texture */}
+      <div className="pointer-events-none absolute inset-0 opacity-[0.015]"
+        style={{ backgroundImage: "repeating-linear-gradient(0deg, hsl(214 85% 80%), hsl(214 85% 80%) 1px, transparent 1px, transparent 4px)" }} />
+
+      <div className="w-full max-w-xs relative z-10">
 
         {/* Brand mark */}
         <div className="flex flex-col items-center mb-8">
@@ -187,8 +223,11 @@ export default function LoginPage() {
         )}
 
         {/* Footer tagline */}
-        <div className="mt-10 text-center">
-          <p className="text-[9px] text-muted-foreground/25 uppercase tracking-[0.2em]">Era Systems · Admin Access Only</p>
+        <div className="mt-10 text-center space-y-1">
+          <p className="text-[9px] text-muted-foreground/30 uppercase tracking-[0.3em]">
+            Evaluate · Rebuild · Automate
+          </p>
+          <p className="text-[9px] text-muted-foreground/20 uppercase tracking-[0.2em]">Era Systems · Admin Access Only</p>
         </div>
       </div>
     </div>

@@ -212,6 +212,13 @@ export default function Usage() {
                 <span className="flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> SMS</span>
               </div>
             </div>
+            {/* Key */}
+            <div style={{ padding: "6px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.015)", fontSize: 10, color: "rgba(255,255,255,0.35)", display: "flex", gap: 16 }}>
+              <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Pts</strong> = Patients</span>
+              <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Em</strong> = Emails</span>
+              <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>SMS</strong> = Text messages</span>
+              <span style={{ marginLeft: "auto", color: "rgba(255,255,255,0.22)" }}>All figures = avg per day this month</span>
+            </div>
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (

@@ -207,14 +207,19 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
 
   const { data: task, error } = await supabase
     .from("call_tasks")
-    .select("*, patients(email)")
+    .select("*")
     .eq("id", id)
     .single();
 
   if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
 
-  const patientRecord = (task as Record<string, unknown>).patients as Record<string, unknown> | null;
-  const email = patientRecord?.email as string | undefined;
+  // Fetch email directly from patients — avoids relying on a FK join
+  const { data: patientRow } = await supabase
+    .from("patients")
+    .select("email")
+    .eq("id", task.patient_id as number)
+    .maybeSingle();
+  const email = patientRow?.email as string | undefined;
   if (!email) { res.status(400).json({ error: "No email on record for this patient" }); return; }
 
   try {
@@ -256,14 +261,19 @@ router.post("/call-tasks/:id/send-manual-email", async (req, res): Promise<void>
 
   const { data: task, error } = await supabase
     .from("call_tasks")
-    .select("*, patients(email)")
+    .select("*")
     .eq("id", id)
     .single();
 
   if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
 
-  const patientRecord = (task as Record<string, unknown>).patients as Record<string, unknown> | null;
-  const email = patientRecord?.email as string | undefined;
+  // Fetch email directly from patients — avoids relying on a FK join
+  const { data: patientRow } = await supabase
+    .from("patients")
+    .select("email")
+    .eq("id", task.patient_id as number)
+    .maybeSingle();
+  const email = patientRow?.email as string | undefined;
   if (!email) { res.status(400).json({ error: "No email on record for this patient" }); return; }
 
   try {

@@ -150,7 +150,11 @@ function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedTo
   };
 
   const handleSendText = async () => {
-    if (!textMsg.trim() || !hospital?.token) return;
+    if (!textMsg.trim()) return;
+    if (!hospital?.token) {
+      toast({ title: "Not authenticated", description: "Please log in again and retry.", variant: "destructive" });
+      return;
+    }
     setSending(true);
     try {
       const endpoint = draftIsAi

@@ -78,8 +78,29 @@ async function termiiSend(
       throw new Error(detail);
     }
 
-    // Termii may return 200 with an error object — log the full body either way
+    // Termii returns HTTP 200 even for failures — must check the body
     console.log(`[messaging] Termii response (${channel}): ${responseText}`);
+
+    let parsed: Record<string, unknown> = {};
+    try { parsed = JSON.parse(responseText); } catch { /* keep empty */ }
+
+    // Termii success: { "code": "ok", "message_id": "...", "message": "Successfully Sent" }
+    // Termii errors: { "Code": "22", "Message": "Insufficient Balance" }
+    //                { "code": "rejected", "message": "..." }
+    const code = String(parsed.code ?? parsed.Code ?? "").toLowerCase();
+    const termiiMessage = String(parsed.message ?? parsed.Message ?? "").toLowerCase();
+    const isFailure = (code && code !== "ok") ||
+      termiiMessage.includes("insufficient") ||
+      termiiMessage.includes("invalid") ||
+      termiiMessage.includes("rejected") ||
+      termiiMessage.includes("failed");
+
+    if (isFailure) {
+      const detail = `[messaging] Termii rejected message (${channel}): ${responseText}`;
+      console.error(detail);
+      return { ok: false, detail: `Termii error: ${parsed.message ?? parsed.Message ?? responseText}` };
+    }
+
     return { ok: true, detail: responseText };
   } catch (err) {
     const detail = `[messaging] Termii fetch error (${channel}): ${err instanceof Error ? err.message : String(err)}. Response: ${responseText}`;

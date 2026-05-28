@@ -46,20 +46,16 @@ async function termiiSend(
     console.warn(detail);
     return { ok: false, detail };
   }
-  if (!senderId) {
-    const detail = `[messaging] No sender ID (TERMII_SENDER_ID env var or per-hospital termii_sender_id) — skipping ${channel} to ${msg.to}`;
-    console.warn(detail);
-    return { ok: false, detail };
-  }
-
-  const payload = {
+  // senderId is optional — if absent Termii uses its pre-approved default numeric sender,
+  // which bypasses NCC alphanumeric sender ID registration requirements.
+  const payload: Record<string, string> = {
     api_key: apiKey,
     to,
-    from: senderId,
     sms: msg.body,
     type: "plain",
     channel,
   };
+  if (senderId) payload.from = senderId;
 
   console.log(`[messaging] Sending ${channel} to ${to} (raw: ${msg.to}) from "${senderId}"`);
 

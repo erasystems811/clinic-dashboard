@@ -167,25 +167,26 @@ async function runPostCareEmails() {
         .select("id, first_name, last_name, email, stage")
         .eq("hospital_id", hospital.hospital_code)
         .eq("stage", "Active")
-        .not("email", "is", null)
-        // Exclude patients registered in the last 30 days — they haven't lapsed,
-        // they're just new. Without this, new patients receive a "thinking of you"
-        // email on the very first scheduler run after registration.
-        .lt("created_at", cutoff30);
+        .not("email", "is", null);
 
       for (const p of patients ?? []) {
         if (!p.email) continue;
 
-        // Skip if patient checked in (was queued) in the last 30 days
-        const { data: recentCheckin } = await supabase
+        // Find this patient's most recent check-in (ever).
+        // - No check-in at all → brand-new or never-visited patient → skip.
+        // - Last check-in within 30 days → still attending regularly → skip.
+        // - Last check-in older than 30 days → patient has lapsed → eligible.
+        const { data: lastCheckin } = await supabase
           .from("activity")
-          .select("id")
+          .select("created_at")
           .eq("patient_id", p.id)
           .eq("type", "checkin")
-          .gte("created_at", cutoff30)
+          .order("created_at", { ascending: false })
+          .limit(1)
           .maybeSingle();
 
-        if (recentCheckin) continue;
+        if (!lastCheckin) continue; // never visited — not a lapsed patient
+        if (lastCheckin.created_at >= cutoff30) continue; // visited within 30 days
 
         // Per-patient 30-day cooldown — skip if already sent within last 30 days
         const { data: recentSend } = await supabase

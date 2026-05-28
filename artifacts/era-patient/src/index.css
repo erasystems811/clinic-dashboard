@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -61,89 +61,92 @@
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
 
-  --radius-sm: calc(var(--radius) - 3px);
+  --radius-sm: calc(var(--radius) - 2px);
   --radius-md: calc(var(--radius) - 1px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* Era Patient — Premium Clinical */
+/* Era Patient — Premium Clinical Light */
 :root {
-  --button-outline: rgba(0,0,0, .12);
-  --badge-outline: rgba(0,0,0, .06);
-  --opaque-button-border-intensity: -8;
-  --elevate-1: rgba(0,0,0, .04);
-  --elevate-2: rgba(0,0,0, .10);
+  --button-outline: rgba(0,0,0, .08);
+  --badge-outline: rgba(0,0,0, .04);
+  --opaque-button-border-intensity: -5;
+  --elevate-1: rgba(0,0,0, .02);
+  --elevate-2: rgba(0,0,0, .05);
 
-  --background: 216 28% 5%;
-  --foreground: 210 18% 93%;
+  /* Soft cool white base */
+  --background: 210 20% 97%;
+  --foreground: 220 24% 10%;
 
-  --card: 216 26% 7%;
-  --card-foreground: 210 18% 93%;
-  --card-border: 216 22% 13%;
+  /* Pure white cards with clean lift */
+  --card: 0 0% 100%;
+  --card-foreground: 220 24% 10%;
+  --card-border: 218 16% 90%;
 
-  --popover: 216 26% 7%;
-  --popover-foreground: 210 18% 93%;
-  --popover-border: 216 22% 13%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 24% 10%;
+  --popover-border: 218 16% 90%;
 
-  /* Authoritative clinical teal — precise, not loud */
-  --primary: 183 52% 40%;
+  /* Clean medical blue */
+  --primary: 211 86% 44%;
   --primary-foreground: 0 0% 100%;
-  --primary-border: hsl(183 52% 40% / 0.35);
+  --primary-border: hsl(211 86% 44% / 0.25);
 
-  --secondary: 216 22% 12%;
-  --secondary-foreground: 210 18% 80%;
-  --secondary-border: hsl(216 22% 18% / 1);
+  --secondary: 218 16% 94%;
+  --secondary-foreground: 220 20% 30%;
+  --secondary-border: hsl(218 16% 88% / 1);
 
-  --muted: 216 22% 9%;
-  --muted-foreground: 215 12% 46%;
-  --muted-border: hsl(216 22% 13% / 1);
+  --muted: 215 16% 94%;
+  --muted-foreground: 218 12% 52%;
+  --muted-border: hsl(218 16% 90% / 1);
 
-  --accent: 216 22% 12%;
-  --accent-foreground: 210 18% 93%;
-  --accent-border: hsl(216 22% 18% / 1);
+  --accent: 211 86% 44%;
+  --accent-foreground: 0 0% 100%;
+  --accent-border: hsl(211 86% 44% / 0.2);
 
-  --destructive: 0 72% 56%;
+  --destructive: 0 72% 52%;
   --destructive-foreground: 0 0% 100%;
-  --destructive-border: hsl(0 72% 56% / 0.3);
+  --destructive-border: hsl(0 72% 52% / 0.2);
 
-  --border: 216 22% 12%;
-  --input: 216 22% 11%;
-  --ring: 183 52% 40%;
+  --border: 218 16% 90%;
+  --input: 0 0% 100%;
+  --ring: 211 86% 44%;
 
-  --chart-1: 183 52% 40%;
-  --chart-2: 183 45% 50%;
-  --chart-3: 183 38% 60%;
-  --chart-4: 183 30% 70%;
-  --chart-5: 183 22% 78%;
+  --chart-1: 211 86% 44%;
+  --chart-2: 211 70% 54%;
+  --chart-3: 180 52% 40%;
+  --chart-4: 158 64% 40%;
+  --chart-5: 245 58% 58%;
 
-  /* Sidebar: deepest surface for max depth layering */
-  --sidebar: 216 32% 3%;
-  --sidebar-foreground: 210 18% 88%;
-  --sidebar-border: 216 22% 10%;
-  --sidebar-primary: 183 52% 40%;
+  /* Sidebar: slightly deeper than background, very light */
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 220 24% 10%;
+  --sidebar-border: 218 16% 90%;
+  --sidebar-primary: 211 86% 44%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-primary-border: hsl(183 52% 40% / 0.3);
-  --sidebar-accent: 216 26% 7%;
-  --sidebar-accent-foreground: 210 18% 93%;
-  --sidebar-accent-border: hsl(216 22% 13% / 1);
-  --sidebar-ring: 183 52% 40%;
+  --sidebar-primary-border: hsl(211 86% 44% / 0.2);
+  --sidebar-accent: 211 86% 96%;
+  --sidebar-accent-foreground: 211 86% 30%;
+  --sidebar-accent-border: hsl(211 86% 85% / 1);
+  --sidebar-ring: 211 86% 44%;
 
-  --app-font-sans: 'Plus Jakarta Sans', sans-serif;
+  --app-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: 'SF Mono', Menlo, monospace;
-  --radius: 0.375rem;
+  --radius: 0.5rem;
 
-  --shadow-2xs: 0 1px 2px rgba(0,0,0,0.4);
-  --shadow-xs: 0 1px 3px rgba(0,0,0,0.4);
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
-  --shadow: 0 2px 4px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.3);
-  --shadow-md: 0 4px 8px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3);
-  --shadow-lg: 0 8px 16px rgba(0,0,0,0.4), 0 4px 6px rgba(0,0,0,0.3);
-  --shadow-xl: 0 16px 32px rgba(0,0,0,0.4), 0 8px 10px rgba(0,0,0,0.3);
-  --shadow-2xl: 0 24px 48px rgba(0,0,0,0.5);
+  /* Clean elevation shadows */
+  --shadow-2xs: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-xs:  0 1px 3px rgba(0,0,0,0.06);
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow:     0 2px 4px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  --shadow-md:  0 4px 8px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:  0 8px 16px rgba(0,0,0,0.08), 0 3px 6px rgba(0,0,0,0.04);
+  --shadow-xl:  0 16px 32px rgba(0,0,0,0.10), 0 6px 12px rgba(0,0,0,0.04);
+  --shadow-2xl: 0 24px 48px rgba(0,0,0,0.12);
 
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 @layer base {
@@ -169,10 +172,5 @@
   table {
     min-width: 0;
     width: 100%;
-  }
-
-  /* Clinical input refinement */
-  input, textarea, select {
-    font-family: inherit;
   }
 }

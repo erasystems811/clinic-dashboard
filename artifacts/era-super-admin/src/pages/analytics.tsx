@@ -35,7 +35,7 @@ function StatCard({ label, value, icon: Icon, color, gold, loading, sub }: {
 }) {
   return (
     <div className={`relative flex flex-col justify-between p-4 border transition-all duration-150 ${
-      gold ? "border-[hsl(43_70%_62%/0.2)] bg-[hsl(43_70%_62%/0.04)]" : "border-[hsl(220_6%_30%)] bg-[hsl(220_6%_18%)]"
+      gold ? "border-[hsl(43_70%_62%/0.2)] bg-[hsl(43_70%_62%/0.04)]" : "border-[hsl(220_14%_30%)] bg-[hsl(220_14%_18%)]"
     }`}>
       {gold && <>
         <span className="absolute top-0 left-0 w-4 h-px bg-[hsl(43_70%_62%/0.5)]" />
@@ -67,7 +67,7 @@ function HealthCard({ check }: { check: HealthCheck }) {
   return (
     <div title={[check.detail, check.balance].filter(Boolean).join(" · ")}
       className={`p-3.5 border flex flex-col gap-3 cursor-default select-none ${
-        fail ? "border-red-500/20 bg-red-500/5" : warn ? "border-amber-500/15 bg-amber-500/4" : "border-[hsl(220_6%_30%)] bg-[hsl(220_6%_18%)]"
+        fail ? "border-red-500/20 bg-red-500/5" : warn ? "border-amber-500/15 bg-amber-500/4" : "border-[hsl(220_14%_30%)] bg-[hsl(220_14%_18%)]"
       }`}>
       <div className="flex items-center justify-between">
         <Icon className={`w-3.5 h-3.5 ${fail ? "text-red-400" : warn ? "text-amber-400" : "text-emerald-400"}`} />
@@ -88,7 +88,7 @@ function LogRow({ log }: { log: AutomationLog }) {
   const ok = log.status === "sent";
   const pending = log.status === "pending" || log.status === "queued";
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-[hsl(220_6%_18%)] last:border-0 group">
+    <div className="flex items-center gap-3 py-2.5 border-b border-[hsl(220_14%_18%)] last:border-0 group">
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ok ? "bg-emerald-400" : pending ? "bg-amber-400" : "bg-red-400"}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -198,7 +198,7 @@ export default function Analytics() {
             {lastRefresh.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
           </p>
           <button onClick={fetchAll}
-            className="p-1.5 border border-[hsl(220_6%_24%)] text-muted-foreground/40 hover:text-muted-foreground hover:border-[hsl(220_6%_30%)] transition">
+            className="p-1.5 border border-[hsl(220_14%_24%)] text-muted-foreground/40 hover:text-muted-foreground hover:border-[hsl(220_14%_30%)] transition">
             <RefreshCw className={`w-3.5 h-3.5 ${(healthLoading || hospitalsLoading || logsLoading) ? "animate-spin" : ""}`} />
           </button>
         </div>
@@ -247,14 +247,14 @@ export default function Analytics() {
         </div>
         {healthLoading ? (
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {[1,2,3,4,5,6].map(i => <div key={i} className="h-20 border border-[hsl(220_6%_28%)] bg-[hsl(220_6%_18%)] animate-pulse" />)}
+            {[1,2,3,4,5,6].map(i => <div key={i} className="h-20 border border-[hsl(220_14%_28%)] bg-[hsl(220_14%_18%)] animate-pulse" />)}
           </div>
         ) : health ? (
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             {health.checks.map(c => <HealthCard key={c.name} check={c} />)}
           </div>
         ) : (
-          <div className="flex items-center gap-2 py-6 border border-[hsl(220_6%_28%)] px-4">
+          <div className="flex items-center gap-2 py-6 border border-[hsl(220_14%_28%)] px-4">
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/30" />
             <span className="text-[11px] text-muted-foreground/30 uppercase tracking-wider">Health endpoint unavailable</span>
           </div>
@@ -265,8 +265,8 @@ export default function Analytics() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
 
         {/* Accounts needing attention */}
-        <div className="border border-[hsl(220_6%_30%)] bg-[hsl(220_6%_18%)]">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(220_6%_28%)]">
+        <div className="border border-[hsl(220_14%_30%)] bg-[hsl(220_14%_18%)]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(220_14%_28%)]">
             <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-[0.25em]">Accounts Needing Attention</p>
             <TrendingUp className="w-3 h-3 text-muted-foreground/25" />
           </div>
@@ -280,15 +280,15 @@ export default function Analytics() {
               <p className="text-[10px] text-muted-foreground/25 uppercase tracking-[0.2em]">All accounts in good standing</p>
             </div>
           ) : (
-            <div className="divide-y divide-[hsl(220_6%_18%)]">
+            <div className="divide-y divide-[hsl(220_14%_18%)]">
               {needsAttention.slice(0, 6).map(h => {
                 const expDate = h.subscriptionExpiresAt ? new Date(h.subscriptionExpiresAt) : null;
                 const daysLeft = expDate ? Math.ceil((expDate.getTime() - now) / 86400000) : null;
                 const isTrial = h.subscriptionStatus === "trial";
                 return (
                   <button key={h.id} onClick={() => setLocation(`/hospitals/${h.id}`)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[hsl(220_6%_22%)] transition group text-left">
-                    <div className="w-6 h-6 border border-[hsl(220_6%_26%)] bg-[hsl(220_6%_14%)] flex items-center justify-center shrink-0">
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[hsl(220_14%_22%)] transition group text-left">
+                    <div className="w-6 h-6 border border-[hsl(220_14%_26%)] bg-[hsl(220_14%_14%)] flex items-center justify-center shrink-0">
                       <Building2 className="w-3 h-3 text-muted-foreground/30" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -308,7 +308,7 @@ export default function Analytics() {
             </div>
           )}
           {needsAttention.length > 6 && (
-            <div className="border-t border-[hsl(220_6%_18%)] px-4 py-2">
+            <div className="border-t border-[hsl(220_14%_18%)] px-4 py-2">
               <button onClick={() => setLocation("/hospitals")}
                 className="flex items-center gap-1.5 text-[10px] text-primary/50 hover:text-primary/80 transition uppercase tracking-wider">
                 View all {needsAttention.length} <ArrowUpRight className="w-3 h-3" />
@@ -318,8 +318,8 @@ export default function Analytics() {
         </div>
 
         {/* Automation activity feed */}
-        <div className="border border-[hsl(220_6%_30%)] bg-[hsl(220_6%_18%)]">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(220_6%_28%)]">
+        <div className="border border-[hsl(220_14%_30%)] bg-[hsl(220_14%_18%)]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[hsl(220_14%_28%)]">
             <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-[0.25em]">Automation Activity</p>
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_hsl(134_61%_51%/0.6)]" />
@@ -341,7 +341,7 @@ export default function Analytics() {
             </div>
           )}
           {logs.length > 0 && (
-            <div className="border-t border-[hsl(220_6%_18%)] px-4 py-2 flex items-center justify-between">
+            <div className="border-t border-[hsl(220_14%_18%)] px-4 py-2 flex items-center justify-between">
               <p className="text-[9px] text-muted-foreground/25 uppercase tracking-wider">{logs.length} most recent events</p>
               <div className="flex items-center gap-3 text-[9px] text-muted-foreground/25">
                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400/50" />{logs.filter(l => l.status === "sent").length} sent</span>
@@ -353,7 +353,7 @@ export default function Analytics() {
       </div>
 
       {/* Footer */}
-      <div className="mt-8 pt-5 border-t border-[hsl(220_6%_20%)]">
+      <div className="mt-8 pt-5 border-t border-[hsl(220_14%_20%)]">
         <p className="text-[9px] text-muted-foreground/15 uppercase tracking-[0.4em] text-center">
           Evaluate · Rebuild · Automate
         </p>

@@ -23,7 +23,7 @@ export default function LoginPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const inputCls = "w-full pl-10 pr-10 py-2.5 bg-[hsl(220_6%_20%)] border border-[hsl(220_6%_26%)] text-foreground text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30 transition-all duration-150 font-medium tracking-wide";
+  const inputCls = "w-full pl-10 pr-10 py-2.5 bg-[hsl(220_14%_20%)] border border-[hsl(220_14%_26%)] text-foreground text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30 transition-all duration-150 font-medium tracking-wide";
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -110,10 +110,10 @@ export default function LoginPage() {
         {/* ── LOGIN ── */}
         {screen === "login" && (
           <form onSubmit={submit} className="space-y-4">
-            <div className="border border-[hsl(220_6%_24%)] bg-card space-y-3 p-4"
+            <div className="border border-[hsl(220_14%_24%)] bg-card space-y-3 p-4"
               style={{ boxShadow: "0 16px 40px rgba(0,0,0,0.6), 0 0 0 1px hsl(220 18% 28% / 0.6)" }}>
 
-              <div className="border-b border-[hsl(220_6%_24%)] pb-3 mb-1">
+              <div className="border-b border-[hsl(220_14%_24%)] pb-3 mb-1">
                 <p className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-[0.25em]">System Authentication</p>
               </div>
 
@@ -162,7 +162,7 @@ export default function LoginPage() {
         {screen === "recover" && (
           <div className="space-y-4">
             {recoveryDone ? (
-              <div className="border border-[hsl(220_6%_24%)] bg-card p-6 flex flex-col items-center gap-4 text-center">
+              <div className="border border-[hsl(220_14%_24%)] bg-card p-6 flex flex-col items-center gap-4 text-center">
                 <div className="w-10 h-10 border border-emerald-500/20 bg-emerald-500/5 flex items-center justify-center">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 </div>
@@ -177,10 +177,10 @@ export default function LoginPage() {
               </div>
             ) : (
               <form onSubmit={recover} className="space-y-4">
-                <div className="border border-[hsl(220_6%_24%)] bg-card space-y-3 p-4"
+                <div className="border border-[hsl(220_14%_24%)] bg-card space-y-3 p-4"
                   style={{ boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}>
 
-                  <div className="border-b border-[hsl(220_6%_24%)] pb-3">
+                  <div className="border-b border-[hsl(220_14%_24%)] pb-3">
                     <p className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-[0.25em]">Account Recovery</p>
                   </div>
 

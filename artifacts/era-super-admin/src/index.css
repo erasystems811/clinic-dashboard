@@ -33,18 +33,18 @@
 :root {
   --background: 224 22% 4%;
   --foreground: 210 28% 97%;
-  --border: 220 6% 30%;
-  --input: 220 6% 20%;
+  --border: 220 14% 30%;
+  --input: 220 14% 20%;
   --ring: 214 85% 62%;
-  --card: 220 6% 18%;
+  --card: 220 14% 18%;
   --card-foreground: 210 28% 97%;
   --primary: 214 85% 62%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 6% 24%;
-  --secondary-foreground: 215 10% 82%;
-  --muted: 220 6% 20%;
-  --muted-foreground: 215 8% 68%;
-  --accent: 220 6% 26%;
+  --secondary: 220 14% 24%;
+  --secondary-foreground: 215 14% 82%;
+  --muted: 220 14% 20%;
+  --muted-foreground: 215 12% 68%;
+  --accent: 220 14% 26%;
   --accent-foreground: 210 28% 97%;
   --destructive: 0 72% 58%;
   --destructive-foreground: 0 0% 100%;

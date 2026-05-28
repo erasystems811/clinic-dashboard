@@ -33,9 +33,9 @@ const UpdateAppointmentBody = z.object({
   notes: z.string().optional(),
 });
 
-async function resolveHospitalIntId(usernameOrNull: string | null): Promise<number | null> {
-  if (!usernameOrNull) return null;
-  const { data } = await supabase.from("hospitals").select("id").eq("username", usernameOrNull.toLowerCase()).single();
+async function resolveHospitalIntId(hospitalCodeOrNull: string | null): Promise<number | null> {
+  if (!hospitalCodeOrNull) return null;
+  const { data } = await supabase.from("hospitals").select("id").eq("hospital_code", hospitalCodeOrNull).single();
   return data?.id ?? null;
 }
 

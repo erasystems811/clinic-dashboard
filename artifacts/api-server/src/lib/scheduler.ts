@@ -457,7 +457,7 @@ async function runNoShowFollowup() {
       if (patient && patient.email) {
         const patientName = `${patient.first_name} ${patient.last_name}`;
         const { data: hospital } = await supabase
-          .from("hospitals").select("id").eq("username", (patient.hospital_id as string).toLowerCase()).single();
+          .from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).single();
 
         if (hospital) {
           const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();

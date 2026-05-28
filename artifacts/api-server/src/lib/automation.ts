@@ -61,6 +61,8 @@ export interface HospitalContext {
   termiiSenderId: string | null;
   /** Hospital communication language — null means default to English */
   language: string | null;
+  /** Communication tone tags — e.g. ["Warm", "Empathetic"]. Empty array = default warm/professional. */
+  tone: string[];
 }
 
 export async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
@@ -77,6 +79,10 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
   const displayName = (settings?.sender_name as string | null)?.trim() || hospitalName;
   const rawEmail = process.env.PLATFORM_FROM_EMAIL || "onboarding@resend.dev";
   const fromAddress = `${displayName} <${rawEmail}>`;
+  const rawTone = settings?.tone;
+  const tone: string[] = rawTone
+    ? (Array.isArray(rawTone) ? rawTone : JSON.parse(rawTone as string)) as string[]
+    : [];
   return {
     hospitalName,
     hospitalUsername: hospital?.username ?? "",
@@ -86,6 +92,7 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
     phoneNumber: (settings?.phone_number as string) ?? null,
     termiiSenderId: (settings?.termii_sender_id as string) ?? null,
     language: (settings?.language as string | null) ?? null,
+    tone,
   };
 }
 
@@ -242,10 +249,12 @@ export async function sendCarePlanEmail(
   const logId = await logAutomation(ctx, "queued");
   try {
     const firstName = patientName.split(" ")[0];
+    const tone = buildToneDescription(hCtx.tone);
+    const lang = hCtx.language ?? "English";
 
     const emailBody = await generateClaudeMessage(
-      `You are writing a care plan explanation email for a patient of ${hCtx.hospitalName}. Be warm, clear and patient-friendly. Never use clinical jargon. Never mention a diagnosis. Explain what the plan means in simple terms. Keep it under 200 words of body text. End with a closed statement — make clear the patient does not need to reply to this email and should ${contactLine(hCtx.phoneNumber)} if they have questions.`,
-      `Write a warm, friendly email explaining ${firstName}'s care plan at ${hCtx.hospitalName}. Treatment type: ${treatmentType}. Duration: ${durationDays} days. Care plan details: ${treatmentPlan}. Explain what this means for the patient in plain, reassuring language — what they can expect, how the team will support them, and what they should do. End with: "If you have any questions please do not hesitate to ${contactLine(hCtx.phoneNumber)}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team."`,
+      `You are writing a care plan explanation email for a patient of ${hCtx.hospitalName}. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. NEVER express that you are glad, happy, pleased, or fortunate that the patient is unwell or receiving treatment — it is not appropriate to be glad someone is sick. Instead, thank the patient for choosing ${hCtx.hospitalName} and assure them they will receive the very best possible care. Never use clinical jargon. Never mention a diagnosis. Explain what the plan means in simple terms. Keep it under 200 words of body text. End with a closed statement — make clear the patient does not need to reply to this email and should ${contactLine(hCtx.phoneNumber)} if they have questions.`,
+      `Write a ${tone} email explaining ${firstName}'s care plan at ${hCtx.hospitalName}. Thank them for choosing ${hCtx.hospitalName} and assure them of the best possible care. Treatment type: ${treatmentType}. Duration: ${durationDays} days. Care plan details: ${treatmentPlan}. Explain what this means for the patient in plain, reassuring language — what they can expect, how the team will support them, and what they should do. End with: "If you have any questions please do not hesitate to ${contactLine(hCtx.phoneNumber)}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team."`,
       350,
     );
 
@@ -596,14 +605,10 @@ export async function sendCareVisitReminderEmail(
     const lang = hCtx.language ?? "English";
     const contact = contactLine(hCtx.phoneNumber);
 
-    const tones = await (async () => {
-      const { data } = await supabase.from("hospital_settings").select("tone").eq("hospital_id", hospitalId).single();
-      return data?.tone ? (Array.isArray(data.tone) ? data.tone : JSON.parse(data.tone as string)) as string[] : [];
-    })();
-    const tone = buildToneDescription(tones);
+    const tone = buildToneDescription(hCtx.tone);
 
     const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a visit reminder email. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. Start with "Hi ${firstName},". Write 2–3 warm sentences reminding the patient about their upcoming ${department} appointment. Read and understand the care plan details before writing — then explain to the patient in very simple, clear words what they need to know for this visit. Mention the specific department (${department}). End with: "If you have any questions please ${contact}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team"`,
+      `You are a care team member at ${hCtx.hospitalName} sending a visit reminder email. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. NEVER express gladness or happiness that the patient is unwell — thank them for choosing ${hCtx.hospitalName} and assure them of the best possible care. Start with "Hi ${firstName},". Write 2–3 warm sentences reminding the patient about their upcoming ${department} appointment. Read and understand the care plan details before writing — then explain to the patient in very simple, clear words what they need to know for this visit. Mention the specific department (${department}). End with: "If you have any questions please ${contact}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team"`,
       `Department: ${department}\nAppointment: ${formatted}${timeStr}\nCare plan details (read and understand before writing): ${visitDescription.slice(0, 500)}`,
       280,
     );
@@ -632,11 +637,7 @@ export async function generateCallTaskDraft(
 ): Promise<string> {
   const hCtx = await getHospitalContext(hospitalId);
   const firstName = patientName.split(" ")[0];
-  const tones = await (async () => {
-    const { data } = await supabase.from("hospital_settings").select("tone").eq("hospital_id", hospitalId).single();
-    return data?.tone ? (Array.isArray(data.tone) ? data.tone : JSON.parse(data.tone as string)) as string[] : [];
-  })();
-  const tone = buildToneDescription(tones);
+  const tone = buildToneDescription(hCtx.tone);
   const contact = contactLine(hCtx.phoneNumber);
 
   const message = await generateOpenAIMessage(
@@ -733,11 +734,7 @@ export async function generateWellnessNewsletter(
   fixedSubtopic?: string,
 ): Promise<{ subtopic: string; angle: string; content: string }> {
   const hCtx = await getHospitalContext(hospitalId);
-  const tones = await (async () => {
-    const { data } = await supabase.from("hospital_settings").select("tone").eq("hospital_id", hospitalId).single();
-    return data?.tone ? (Array.isArray(data.tone) ? data.tone : JSON.parse(data.tone as string)) as string[] : [];
-  })();
-  const tone = buildToneDescription(tones);
+  const tone = buildToneDescription(hCtx.tone);
   const deptList = departments.length > 0 ? departments.join(", ") : "General Practice";
 
   const userPrompt = fixedSubtopic
@@ -923,11 +920,7 @@ export async function sendInCareAIReminder(
   const logId = await logAutomation(ctx, "queued");
   try {
     const firstName = patientName.split(" ")[0];
-    const tones = await (async () => {
-      const { data } = await supabase.from("hospital_settings").select("tone").eq("hospital_id", hospitalId).single();
-      return data?.tone ? (Array.isArray(data.tone) ? data.tone : JSON.parse(data.tone as string)) as string[] : [];
-    })();
-    const tone = buildToneDescription(tones);
+    const tone = buildToneDescription(hCtx.tone);
     const contact = contactLine(hCtx.phoneNumber);
     const lang = hCtx.language ?? "English";
 
@@ -954,7 +947,7 @@ export async function sendInCareAIReminder(
     };
 
     const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a care reminder email to a patient. Department: ${deptLabel}. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. Start with "Hi ${firstName},". Read and understand the care plan details first, then write 2–3 warm, specific sentences about what the patient needs to do right now — in very simple, clear language anyone can understand. Always mention the department (${deptLabel}). Never use clinical jargon. End with: "If you have any concerns please ${contact}. Please do not reply to this email directly. — ${hCtx.hospitalName} Team"`,
+      `You are a care team member at ${hCtx.hospitalName} sending a care reminder email to a patient. Department: ${deptLabel}. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. NEVER express gladness, happiness, or pleasure that the patient is unwell or in treatment — it is inappropriate to be glad someone is sick. Thank them for choosing ${hCtx.hospitalName} and assure them they are receiving the best possible care. Start with "Hi ${firstName},". Read and understand the care plan details first, then write 2–3 warm, specific sentences about what the patient needs to do right now — in very simple, clear language anyone can understand. Always mention the department (${deptLabel}). Never use clinical jargon. End with: "If you have any concerns please ${contact}. Please do not reply to this email directly. — ${hCtx.hospitalName} Team"`,
       `${slotContext[slot]}\n${typeContext}\n\nCare plan details (read and understand before writing): ${treatmentPlan.slice(0, 600)}\n\nWrite a short, warm care reminder email for ${firstName}.`,
       230,
     );

@@ -40,12 +40,21 @@ interface HospitalUsageStat {
 
 type Tab = "history" | "live";
 
-function getTier(totalPatients: number) {
-  if (totalPatients >= 2000) return { label: "Large", color: "text-purple-400" };
-  if (totalPatients >= 500)  return { label: "Big",   color: "text-orange-400" };
-  if (totalPatients >= 100)  return { label: "Mid",   color: "text-blue-400"   };
-  if (totalPatients >= 1)    return { label: "Small", color: "text-emerald-400" };
-  return                            { label: "—",     color: "text-muted-foreground/25" };
+// avg = avg patients/day from most recent completed month
+function getTier(avg: number) {
+  if (avg >= 100) return { label: "Large", color: "text-purple-400" };
+  if (avg >= 41)  return { label: "Big",   color: "text-orange-400" };
+  if (avg >= 21)  return { label: "Mid",   color: "text-blue-400"   };
+  if (avg >= 1)   return { label: "Small", color: "text-emerald-400" };
+  return                 { label: "—",     color: "text-muted-foreground/25" };
+}
+
+// Returns the avgPatientsDay from the most recent completed month that had any patients
+function recentAvg(history: MonthSnapshot[]): number {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if ((history[i]?.patients ?? 0) > 0) return history[i].avgPatientsDay;
+  }
+  return 0;
 }
 
 function fmt(n: number) {
@@ -73,18 +82,18 @@ function shortLabel(label: string) {
 }
 
 const TIER_DEFS = [
-  { label: "Large", range: "2000+ pts", color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
-  { label: "Big",   range: "500–1999",  color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
-  { label: "Mid",   range: "100–499",   color: "text-blue-400",   bg: "bg-blue-500/10 border-blue-500/20"   },
-  { label: "Small", range: "1–99",      color: "text-emerald-400",bg: "bg-emerald-500/10 border-emerald-500/20" },
-  { label: "—",     range: "0 pts",     color: "text-muted-foreground/40", bg: "bg-white/5 border-border"    },
+  { label: "Large", range: "100+/d",   color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
+  { label: "Big",   range: "41–99/d",  color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
+  { label: "Mid",   range: "21–40/d",  color: "text-blue-400",   bg: "bg-blue-500/10 border-blue-500/20"   },
+  { label: "Small", range: "1–20/d",   color: "text-emerald-400",bg: "bg-emerald-500/10 border-emerald-500/20" },
+  { label: "—",     range: "no data",  color: "text-muted-foreground/40", bg: "bg-white/5 border-border"    },
 ];
 
 export default function Usage() {
   const [tab, setTab] = useState<Tab>("live");
 
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<{ stats: HospitalUsageStat[] }>({
-    queryKey: ["usage-stats-v4"],
+    queryKey: ["usage-stats-v5"],
     queryFn: () => get("/super-admin/usage-stats"),
     staleTime: 0,
     refetchInterval: 2 * 60_000,
@@ -95,10 +104,10 @@ export default function Usage() {
     : null;
 
   const stats = (data?.stats ?? []).filter(s => s?.currentMonth);
-  const sorted = [...stats].sort((a, b) => (b.totalPatients ?? 0) - (a.totalPatients ?? 0));
+  const sorted = [...stats].sort((a, b) => recentAvg(b.history) - recentAvg(a.history));
 
   const tierCounts = stats.reduce<Record<string, number>>((acc, h) => {
-    const { label } = getTier(h.totalPatients ?? 0);
+    const { label } = getTier(recentAvg(h.history));
     acc[label] = (acc[label] ?? 0) + 1;
     return acc;
   }, {});
@@ -215,9 +224,10 @@ export default function Usage() {
             </div>
             {/* Key */}
             <div style={{ padding: "6px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.015)", fontSize: 10, color: "rgba(255,255,255,0.35)", display: "flex", gap: 16 }}>
-              <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Pts</strong> = Total registered patients</span>
+              <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Pts</strong> = Patients avg/day this month</span>
               <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Em</strong> = Emails avg/day this month</span>
               <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>SMS</strong> = Text messages avg/day this month</span>
+              <span style={{ marginLeft: "auto", color: "rgba(255,255,255,0.22)" }}>Tier = most recent completed month</span>
             </div>
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
@@ -235,7 +245,7 @@ export default function Usage() {
                     <th style={{ padding: "9px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>Tier</th>
                     <th style={{ padding: "9px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>Since</th>
                     <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
-                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>Pts · registered</div>
+                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>Pts · avg/day</div>
                     </th>
                     <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
                       <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>Em · avg/day</div>
@@ -247,7 +257,7 @@ export default function Usage() {
                 </thead>
                 <tbody>
                   {sorted.map((h, hi) => {
-                    const tier = getTier(h.totalPatients ?? 0);
+                    const tier = getTier(recentAvg(h.history));
                     const cm   = h.currentMonth;
                     const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
                     return (
@@ -272,11 +282,12 @@ export default function Usage() {
                         <td style={{ padding: "10px 10px", overflow: "hidden" }}>
                           <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", whiteSpace: "nowrap" }}>{fmtDays(h.daysSince)}</span>
                         </td>
-                        {/* Total registered patients */}
+                        {/* Patients avg/day this month */}
                         <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
-                          <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: (h.totalPatients ?? 0) > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)" }}>
-                            {(h.totalPatients ?? 0) > 0 ? h.totalPatients.toLocaleString() : "—"}
+                          <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgPatientsDay > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)" }}>
+                            {fmt(cm.avgPatientsDay)}
                           </span>
+                          {cm.patients > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.patients} this month</div>}
                         </td>
                         {/* Emails avg/day */}
                         <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>

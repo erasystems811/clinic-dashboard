@@ -102,20 +102,21 @@ export default function Usage() {
     return acc;
   }, {});
 
-  // 48 completed months (4 years) — always derived from today, never from data
   const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const now = new Date();
-  const TOTAL_MONTHS = 48;
   const COLS_PER_PAGE = 6;
-  const allMonths: string[] = Array.from({ length: TOTAL_MONTHS }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - TOTAL_MONTHS + i, 1);
+
+  // windowOffset = how many months ahead of "6 months ago" the window starts.
+  // Default 0 = show the most recent 6 completed months ending last month.
+  // Negative = further in the past. Positive = into the future.
+  const [windowOffset, setWindowOffset] = useState(0);
+
+  // Generate the 6 visible month labels from today's position + offset
+  // Index 0 = (now - 6 + windowOffset) months, up to index 5
+  const visibleMonths: string[] = Array.from({ length: COLS_PER_PAGE }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - COLS_PER_PAGE + windowOffset + i, 1);
     return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
   });
-
-  const [windowStart, setWindowStart] = useState(TOTAL_MONTHS - COLS_PER_PAGE);
-  const visibleMonths = allMonths.slice(windowStart, windowStart + COLS_PER_PAGE);
-  const canPrev = windowStart > 0;
-  const canNext = windowStart + COLS_PER_PAGE < TOTAL_MONTHS;
 
   const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
   const daysElapsed = stats[0]?.currentMonth.daysElapsed ?? now.getDate();
@@ -281,17 +282,15 @@ export default function Usage() {
         ══════════════════════════════════════════ */}
         {tab === "history" && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            {/* Table header bar */}
             {/* Section header: title + prev/next navigation + legend */}
             <div className="px-5 py-2.5 border-b border-border flex items-center gap-3 bg-white/[0.04] flex-wrap">
               <History className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
               <span className="text-xs font-semibold text-foreground">History</span>
-              <span className="text-[11px] text-muted-foreground/40">Avg/day that month · up to 4 years</span>
+              <span className="text-[11px] text-muted-foreground/40">Avg/day that month</span>
               <div className="ml-auto flex items-center gap-1">
                 <button
-                  onClick={() => setWindowStart(s => Math.max(0, s - COLS_PER_PAGE))}
-                  disabled={!canPrev}
-                  className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-25 disabled:cursor-not-allowed"
+                  onClick={() => setWindowOffset(o => o - COLS_PER_PAGE)}
+                  className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Older
                 </button>
@@ -299,9 +298,8 @@ export default function Usage() {
                   {visibleMonths[0]} – {visibleMonths[visibleMonths.length - 1]}
                 </span>
                 <button
-                  onClick={() => setWindowStart(s => Math.min(TOTAL_MONTHS - COLS_PER_PAGE, s + COLS_PER_PAGE))}
-                  disabled={!canNext}
-                  className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-25 disabled:cursor-not-allowed"
+                  onClick={() => setWindowOffset(o => o + COLS_PER_PAGE)}
+                  className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition"
                 >
                   Newer <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -354,7 +352,8 @@ export default function Usage() {
                   {sorted.map((h, hi) => {
                     const tier = getTier(h.currentMonth.avgPatientsDay);
                     const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
-                    const windowSnaps = (h.history ?? []).slice(windowStart, windowStart + COLS_PER_PAGE);
+                    const snapByLabel = new Map((h.history ?? []).map(s => [s.label, s]));
+                    const windowSnaps = visibleMonths.map(label => snapByLabel.get(label) ?? null);
 
                     return (
                       <tr
@@ -377,7 +376,7 @@ export default function Usage() {
                           </div>
                         </td>
                         {windowSnaps.map((snap, mi) => {
-                          const noData = snap.patients === 0 && snap.emails === 0 && snap.sms === 0;
+                          const noData = !snap || (snap.patients === 0 && snap.emails === 0 && snap.sms === 0);
                           return (
                             <td
                               key={mi}
@@ -388,14 +387,14 @@ export default function Usage() {
                                 <span style={{ color: "rgba(255,255,255,0.08)", fontSize: 16 }}>·</span>
                               ) : (
                                 <div className="flex justify-around px-1 gap-1">
-                                  <span className="font-semibold" style={{ fontSize: 12, color: snap.avgPatientsDay > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.12)", minWidth: 24, textAlign: "center" }}>
-                                    {fmt(snap.avgPatientsDay)}
+                                  <span className="font-semibold" style={{ fontSize: 12, color: snap!.avgPatientsDay > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.12)", minWidth: 24, textAlign: "center" }}>
+                                    {fmt(snap!.avgPatientsDay)}
                                   </span>
-                                  <span style={{ fontSize: 11, color: snap.avgEmailsDay > 0 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.10)", minWidth: 22, textAlign: "center" }}>
-                                    {fmt(snap.avgEmailsDay)}
+                                  <span style={{ fontSize: 11, color: snap!.avgEmailsDay > 0 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.10)", minWidth: 22, textAlign: "center" }}>
+                                    {fmt(snap!.avgEmailsDay)}
                                   </span>
-                                  <span style={{ fontSize: 11, color: snap.avgSmsDay > 0 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)", minWidth: 20, textAlign: "center" }}>
-                                    {fmt(snap.avgSmsDay)}
+                                  <span style={{ fontSize: 11, color: snap!.avgSmsDay > 0 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)", minWidth: 20, textAlign: "center" }}>
+                                    {fmt(snap!.avgSmsDay)}
                                   </span>
                                 </div>
                               )}

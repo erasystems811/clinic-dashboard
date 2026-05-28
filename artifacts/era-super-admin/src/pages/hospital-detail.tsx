@@ -100,6 +100,7 @@ export default function HospitalDetail({ id }: Props) {
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoFilter, setAutoFilter] = useState<"all" | "failed" | "sent">("all");
   const [retryingId, setRetryingId] = useState<number | null>(null);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -340,11 +341,15 @@ export default function HospitalDetail({ id }: Props) {
 
   const retryAutomation = async (logId: number) => {
     setRetryingId(logId);
+    setRetryError(null);
     try {
       await api.retryAutomation(logId);
       await loadAutomations();
-    } catch {
-      /* silently ignore */
+    } catch (err: unknown) {
+      const msg = (err as { data?: { message?: string } })?.data?.message
+        ?? (err as { message?: string })?.message
+        ?? "Retry failed — please try again.";
+      setRetryError(msg);
     } finally {
       setRetryingId(null);
     }
@@ -952,6 +957,12 @@ export default function HospitalDetail({ id }: Props) {
       {/* ── AUTOMATIONS TAB ── */}
       {tab === "automations" && (
         <div className="space-y-4">
+          {retryError && (
+            <div className="flex items-start gap-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{retryError}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-semibold text-foreground">Automation Log</h2>
@@ -1023,7 +1034,7 @@ export default function HospitalDetail({ id }: Props) {
                     </div>
                     <div className="shrink-0 text-right space-y-1.5">
                       <p className="text-xs text-muted-foreground">{formatDate(log.createdAt)}</p>
-                      {log.status === "failed" && (
+                      {log.status === "failed" && log.channel !== "email" && (
                         <button
                           type="button"
                           onClick={() => retryAutomation(log.id)}
@@ -1033,6 +1044,9 @@ export default function HospitalDetail({ id }: Props) {
                           {retryingId === log.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
                           Retry
                         </button>
+                      )}
+                      {log.status === "failed" && log.channel === "email" && (
+                        <span className="text-xs text-muted-foreground italic">Re-trigger from patient</span>
                       )}
                     </div>
                   </div>

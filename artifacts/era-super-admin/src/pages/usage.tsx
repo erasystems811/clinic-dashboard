@@ -214,14 +214,14 @@ export default function Usage() {
                 {MONTH_SHORT[now.getMonth()]} '{String(now.getFullYear()).slice(2)}
               </span>
               <span className="text-[11px] text-muted-foreground/40">Day {calendarDayToday} of {daysInCurrentMonth} · resets 1st</span>
-              <div className="ml-auto hidden sm:flex items-center gap-4 text-[10px] text-muted-foreground/35">
+              <div className="ml-auto hidden md:flex items-center gap-4 text-[10px] text-muted-foreground/35">
                 <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Patients</span>
                 <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Emails</span>
                 <span className="flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> SMS</span>
               </div>
             </div>
             {/* Key — desktop only */}
-            <div className="hidden sm:flex" style={{ padding: "6px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.015)", fontSize: 10, color: "rgba(255,255,255,0.35)", gap: 16 }}>
+            <div className="hidden md:flex" style={{ padding: "6px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.015)", fontSize: 10, color: "rgba(255,255,255,0.35)", gap: 16 }}>
               <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Pts</strong> = Patients avg/day this month</span>
               <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Em</strong> = Emails avg/day this month</span>
               <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>SMS</strong> = Text messages avg/day this month</span>
@@ -232,8 +232,8 @@ export default function Usage() {
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (
               <>
-                {/* ── Mobile cards (< sm) ── */}
-                <div className="block sm:hidden divide-y" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                {/* ── Mobile cards (< md) ── */}
+                <div className="block md:hidden divide-y" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
                   {sorted.map((h) => {
                     const tier = getTier(recentAvg(h.history));
                     const cm   = h.currentMonth;
@@ -269,9 +269,9 @@ export default function Usage() {
                   })}
                 </div>
 
-                {/* ── Desktop table (sm+) ── */}
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-xs" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+                {/* ── Desktop table (md+) ── */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-xs" style={{ borderCollapse: "collapse", tableLayout: "fixed", minWidth: 580 }}>
                     <colgroup>
                       <col style={{ width: 190 }} />
                       <col style={{ width: 72 }} />
@@ -389,7 +389,7 @@ export default function Usage() {
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (
               <div className="overflow-x-auto">
-              <table className="text-xs w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+              <table className="text-xs w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed", minWidth: 680 }}>
                 <colgroup>
                   <col style={{ width: 200 }} />
                   {visibleMonths.map(m => <col key={m} />)}

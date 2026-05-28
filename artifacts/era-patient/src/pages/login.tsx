@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
-import { Activity, Loader2, Building2, ArrowLeft, Eye, EyeOff, Lock } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Loader2, Building2, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import esLogo from "@assets/582A6E04-0A71-43CD-8F6D-573C4F2C242F_(1)_1779973822134.png";
 
 type Mode = "nurse" | "receptionist" | "admin";
 
@@ -13,47 +12,127 @@ interface PreloadedHospital {
 }
 
 const MODES: { id: Mode; label: string; description: string }[] = [
-  { id: "nurse",        label: "Nurse",        description: "Clinical care" },
-  { id: "receptionist", label: "Receptionist",  description: "Front desk" },
-  { id: "admin",        label: "Admin",         description: "Hospital admin" },
+  { id: "nurse",        label: "Nurse",        description: "Clinical" },
+  { id: "receptionist", label: "Reception",    description: "Front desk" },
+  { id: "admin",        label: "Admin",         description: "Management" },
 ];
 
-const MODE_STYLES: Record<Mode, {
-  active: string;
-  btn: string;
-  ring: string;
-  dot: string;
-}> = {
-  nurse: {
-    active: "bg-blue-900/55 text-blue-200 ring-1 ring-blue-600/40",
-    btn: "bg-blue-700 hover:bg-blue-600 text-white",
-    ring: "focus:ring-blue-500/40 focus:border-blue-500/50",
-    dot: "bg-blue-400",
-  },
-  receptionist: {
-    active: "bg-emerald-900/40 text-emerald-200 ring-1 ring-emerald-600/40",
-    btn: "bg-emerald-700 hover:bg-emerald-600 text-white",
-    ring: "focus:ring-emerald-500/40 focus:border-emerald-500/50",
-    dot: "bg-emerald-400",
-  },
-  admin: {
-    active: "bg-primary/15 text-primary ring-1 ring-primary/30",
-    btn: "bg-primary hover:bg-primary/90 text-primary-foreground",
-    ring: "focus:ring-primary/40 focus:border-primary/50",
-    dot: "bg-primary",
-  },
-};
+const GOLD = "#c9a84c";
+const NAVY = "#0a0e1b";
+
+function LineInput({
+  id, type = "text", value, onChange, placeholder,
+  autoComplete, autoFocus, required, rightSlot,
+}: {
+  id: string;
+  type?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  autoComplete?: string;
+  autoFocus?: boolean;
+  required?: boolean;
+  rightSlot?: React.ReactNode;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+        required={required}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          borderBottom: `1.5px solid ${focused ? GOLD : "rgba(255,255,255,0.13)"}`,
+          outline: "none",
+          color: "rgba(255,255,255,0.92)",
+          padding: "10px 0",
+          paddingRight: rightSlot ? 36 : 0,
+          fontSize: 14,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          transition: "border-color 0.2s",
+          letterSpacing: "0.01em",
+          boxSizing: "border-box",
+        }}
+        className="placeholder:text-white/20"
+      />
+      {rightSlot && (
+        <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)" }}>
+          {rightSlot}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label style={{
+      display: "block",
+      color: "rgba(255,255,255,0.35)",
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: "0.14em",
+      textTransform: "uppercase",
+      marginBottom: 6,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+    }}>
+      {children}
+    </label>
+  );
+}
+
+function GoldButton({ loading, children, disabled }: {
+  loading?: boolean;
+  children: React.ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="submit"
+      disabled={disabled}
+      style={{
+        width: "100%",
+        padding: "13px 0",
+        background: disabled ? "rgba(201,168,76,0.45)" : GOLD,
+        color: NAVY,
+        borderRadius: 8,
+        border: "none",
+        fontSize: 12,
+        fontWeight: 800,
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        letterSpacing: "0.12em",
+        cursor: disabled ? "not-allowed" : "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        transition: "opacity 0.2s, background 0.2s",
+        marginTop: 8,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function Login() {
   const { loginAdmin, loginStaff } = useAuth();
   const [mode, setMode] = useState<Mode>("nurse");
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
   const [preloaded, setPreloaded] = useState<PreloadedHospital | null>(null);
   const [preloadError, setPreloadError] = useState("");
   const [preloadLoading, setPreloadLoading] = useState(false);
@@ -112,147 +191,304 @@ export default function Login() {
     }
   };
 
-  const styles = MODE_STYLES[mode];
+  const eyeToggle = (
+    <button
+      type="button"
+      onClick={() => setShowPassword(v => !v)}
+      tabIndex={-1}
+      style={{
+        color: "rgba(255,255,255,0.25)",
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        padding: 0,
+        display: "flex",
+        alignItems: "center",
+      }}
+    >
+      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+    </button>
+  );
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
+    <div
+      style={{
+        minHeight: "100vh",
+        background: NAVY,
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px 16px",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: 360 }}>
 
-        {/* Logo */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mb-4 shadow-lg">
-            <Activity className="w-7 h-7 text-primary-foreground" />
+        {/* Logo + Wordmark */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 36 }}>
+          <img
+            src={esLogo}
+            alt="Era Systems"
+            style={{ width: 72, height: 72, borderRadius: 18, display: "block" }}
+          />
+          <div style={{ marginTop: 18, textAlign: "center" }}>
+            <p style={{
+              color: "rgba(255,255,255,0.92)",
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: "0.26em",
+              textTransform: "uppercase",
+              margin: 0,
+            }}>
+              ERA SYSTEMS
+            </p>
+            <p style={{
+              color: "rgba(255,255,255,0.25)",
+              fontSize: 9,
+              fontWeight: 600,
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              marginTop: 6,
+            }}>
+              HOSPITAL MANAGEMENT PLATFORM
+            </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Era Patient</h1>
         </div>
 
-        {preloadLoading && (
-          <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="text-sm">Loading…</span>
-          </div>
-        )}
+        {/* Card */}
+        <div style={{
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderRadius: 16,
+          padding: "32px 28px",
+          background: "rgba(255,255,255,0.02)",
+        }}>
 
-        {preloadError && (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              {preloadError}
+          {/* Loading hospital */}
+          {preloadLoading && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: "32px 0", color: "rgba(255,255,255,0.35)" }}>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span style={{ fontSize: 13 }}>Loading…</span>
             </div>
-            <button type="button" onClick={clearPreload}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition">
-              <ArrowLeft className="w-4 h-4" /> Back to login
-            </button>
-          </div>
-        )}
+          )}
 
-        {/* Preloaded hospital */}
-        {!preloadLoading && !preloadError && preloaded && (
-          <>
-            <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3 mb-6">
-              <div className="w-9 h-9 rounded-lg bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center shrink-0">
-                <Building2 className="w-4 h-4 text-primary" />
+          {/* Preload error */}
+          {preloadError && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{
+                border: "1px solid rgba(239,68,68,0.25)",
+                background: "rgba(239,68,68,0.07)",
+                borderRadius: 8,
+                padding: "12px 16px",
+                color: "#f87171",
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}>
+                {preloadError}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Signing into</p>
-                <p className="text-sm font-semibold text-foreground truncate">{preloaded.name}</p>
-              </div>
-              <button type="button" onClick={clearPreload}
-                className="text-xs text-muted-foreground hover:text-foreground transition shrink-0">
-                Change
+              <button
+                type="button"
+                onClick={clearPreload}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  color: "rgba(255,255,255,0.35)", fontSize: 13,
+                  background: "none", border: "none", cursor: "pointer",
+                  fontFamily: "inherit", padding: 0,
+                }}
+              >
+                <ArrowLeft className="w-4 h-4" /> Back to login
               </button>
             </div>
+          )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Admin Password</Label>
-                <div className="relative">
-                  <Input id="password" type={showPassword ? "text" : "password"}
-                    autoComplete="current-password" autoFocus value={password}
-                    onChange={e => setPassword(e.target.value)} placeholder="Enter your password"
-                    required className="pr-10" />
-                  <button type="button" onClick={() => setShowPassword(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
-                    tabIndex={-1}>
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+          {/* Preloaded hospital admin login */}
+          {!preloadLoading && !preloadError && preloaded && (
+            <>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 12,
+                border: "1px solid rgba(201,168,76,0.18)",
+                borderRadius: 10,
+                padding: "12px 14px",
+                marginBottom: 28,
+                background: "rgba(201,168,76,0.05)",
+              }}>
+                <div style={{
+                  width: 34, height: 34, borderRadius: 8,
+                  background: "rgba(201,168,76,0.1)",
+                  border: "1px solid rgba(201,168,76,0.2)",
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                }}>
+                  <Building2 className="w-4 h-4" style={{ color: GOLD }} />
                 </div>
-              </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <button type="submit" disabled={loading}
-                className={`w-full py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 disabled:opacity-60 ${styles.btn}`}>
-                {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Signing in…</> : "Sign In as Admin"}
-              </button>
-            </form>
-          </>
-        )}
-
-        {/* Normal 3-tab login */}
-        {!preloadLoading && !preloadError && !preloaded && (
-          <>
-            {/* 3 role tabs */}
-            <div className="flex rounded-xl border border-border bg-muted/15 p-1 mb-6 gap-1">
-              {MODES.map(m => {
-                const active = mode === m.id;
-                const s = MODE_STYLES[m.id];
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => reset(m.id)}
-                    className={`flex-1 flex flex-col items-center py-2.5 px-1 rounded-lg transition-all duration-200 ${
-                      active ? s.active : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      {active && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.dot}`} />}
-                      <span className="text-sm font-semibold leading-tight">{m.label}</span>
-                    </div>
-                    <span className={`text-[10px] leading-tight ${active ? "opacity-70" : "opacity-40"}`}>
-                      {m.description}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="username">Username</Label>
-                <Input id="username" autoComplete="username" value={username}
-                  onChange={e => setUsername(e.target.value)} placeholder="Enter your username" required />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input id="password" type={showPassword ? "text" : "password"}
-                    autoComplete="current-password" value={password}
-                    onChange={e => setPassword(e.target.value)} placeholder="Enter your password"
-                    required className="pr-10" />
-                  <button type="button" onClick={() => setShowPassword(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition"
-                    tabIndex={-1}>
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{
+                    color: "rgba(255,255,255,0.3)", fontSize: 9.5, fontWeight: 700,
+                    letterSpacing: "0.12em", textTransform: "uppercase", margin: 0,
+                  }}>
+                    Signing into
+                  </p>
+                  <p style={{
+                    color: "white", fontSize: 13, fontWeight: 600, margin: 0, marginTop: 2,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>
+                    {preloaded.name}
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={clearPreload}
+                  style={{
+                    color: "rgba(255,255,255,0.25)", fontSize: 12, flexShrink: 0,
+                    background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  Change
+                </button>
               </div>
 
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              <form onSubmit={handleSubmit}>
+                <div style={{ marginBottom: 24 }}>
+                  <FieldLabel>Admin Password</FieldLabel>
+                  <LineInput
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    autoFocus
+                    value={password}
+                    onChange={setPassword}
+                    placeholder="Enter your password"
+                    required
+                    rightSlot={eyeToggle}
+                  />
+                </div>
+                {error && (
+                  <p style={{ color: "#f87171", fontSize: 13, marginBottom: 16 }}>{error}</p>
+                )}
+                <GoldButton loading={loading} disabled={loading}>
+                  {loading
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</>
+                    : "SIGN IN AS ADMIN"}
+                </GoldButton>
+              </form>
+            </>
+          )}
 
-              <button type="submit" disabled={loading}
-                className={`w-full py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 disabled:opacity-60 ${styles.btn}`}>
-                {loading
-                  ? <><Loader2 className="w-4 h-4 animate-spin" />Signing in…</>
-                  : `Sign in as ${MODES.find(m => m.id === mode)?.label}`}
-              </button>
-            </form>
-          </>
-        )}
+          {/* Standard role login */}
+          {!preloadLoading && !preloadError && !preloaded && (
+            <>
+              {/* Role tabs */}
+              <div style={{
+                display: "flex",
+                gap: 3,
+                marginBottom: 28,
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 10,
+                padding: 4,
+                background: "rgba(0,0,0,0.2)",
+              }}>
+                {MODES.map(m => {
+                  const active = mode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => reset(m.id)}
+                      style={{
+                        flex: 1,
+                        padding: "9px 4px",
+                        borderRadius: 7,
+                        border: active ? "1px solid rgba(201,168,76,0.22)" : "1px solid transparent",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        transition: "all 0.18s",
+                        background: active ? "rgba(201,168,76,0.09)" : "transparent",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 3,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                        {active && (
+                          <span style={{
+                            width: 4, height: 4, borderRadius: "50%",
+                            background: GOLD, display: "inline-block", flexShrink: 0,
+                          }} />
+                        )}
+                        <span style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: active ? GOLD : "rgba(255,255,255,0.3)",
+                          letterSpacing: "0.02em",
+                        }}>
+                          {m.label}
+                        </span>
+                      </div>
+                      <span style={{
+                        fontSize: 9.5,
+                        color: active ? "rgba(201,168,76,0.55)" : "rgba(255,255,255,0.18)",
+                        letterSpacing: "0.04em",
+                      }}>
+                        {m.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <form onSubmit={handleSubmit}>
+                <div style={{ marginBottom: 22 }}>
+                  <FieldLabel>Username</FieldLabel>
+                  <LineInput
+                    id="username"
+                    autoComplete="username"
+                    value={username}
+                    onChange={setUsername}
+                    placeholder="Enter your username"
+                    required
+                  />
+                </div>
+                <div style={{ marginBottom: 8 }}>
+                  <FieldLabel>Password</FieldLabel>
+                  <LineInput
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={setPassword}
+                    placeholder="Enter your password"
+                    required
+                    rightSlot={eyeToggle}
+                  />
+                </div>
+
+                {error && (
+                  <p style={{ color: "#f87171", fontSize: 13, marginTop: 12, marginBottom: 4 }}>{error}</p>
+                )}
+
+                <GoldButton loading={loading} disabled={loading}>
+                  {loading
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</>
+                    : `SIGN IN  ·  ${MODES.find(m => m.id === mode)?.label?.toUpperCase()}`}
+                </GoldButton>
+              </form>
+            </>
+          )}
+        </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-center gap-1.5 mt-8 text-muted-foreground/40">
-          <Lock className="w-3 h-3" />
-          <span className="text-[11px] font-medium tracking-wide">Secure clinical access · Era Systems</span>
-        </div>
+        <p style={{
+          textAlign: "center",
+          marginTop: 28,
+          color: "rgba(255,255,255,0.13)",
+          fontSize: 9,
+          fontWeight: 700,
+          letterSpacing: "0.22em",
+          textTransform: "uppercase",
+        }}>
+          EVALUATE&nbsp;&nbsp;·&nbsp;&nbsp;REBUILD&nbsp;&nbsp;·&nbsp;&nbsp;AUTOMATE
+        </p>
+
       </div>
     </div>
   );

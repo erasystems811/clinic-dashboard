@@ -20,6 +20,7 @@ import {
   PanelLeftOpen,
   Menu,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
@@ -85,18 +86,6 @@ const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
 };
 
-function RestartTourButton() {
-  return (
-    <button
-      onClick={() => window.dispatchEvent(new Event("era:start-tour"))}
-      className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-      title="Restart guided tour"
-    >
-      <HelpCircle className="w-3.5 h-3.5" />
-    </button>
-  );
-}
-
 const SIDEBAR_KEY = "era_sidebar_collapsed";
 
 function NavContent({
@@ -122,44 +111,55 @@ function NavContent({
   onLogout: () => void;
   onNavClick?: () => void;
 }) {
+  const initials = user?.displayName
+    ?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() ?? "??";
+
   return (
     <>
-      {/* Header — Hospital brand */}
+      {/* ── Hospital header ──────────────────────────────── */}
       <div className={cn(
-        "h-16 flex items-center shrink-0 border-b border-sidebar-border",
-        collapsed ? "px-3 justify-center" : "px-4 gap-3"
+        "shrink-0 border-b border-sidebar-border",
+        collapsed ? "flex items-center justify-center py-4 px-2" : "px-4 py-4"
       )}>
-        <div className="w-7 h-7 rounded-md bg-primary/15 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
-          <Activity className="w-3.5 h-3.5 text-primary" />
-        </div>
-        {!collapsed && (
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-sm leading-tight truncate text-sidebar-foreground">
-              {hospital?.name ?? "Era Patient"}
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5 truncate font-medium uppercase tracking-widest">
-              {hospital?.username ?? "Clinical Platform"}
-            </p>
+        {collapsed ? (
+          <div className="w-8 h-8 rounded-md bg-primary/15 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
+            <Building2 className="w-4 h-4 text-primary" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-md bg-primary/15 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
+              <Building2 className="w-4 h-4 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-[13px] text-white leading-tight truncate tracking-wide">
+                {hospital?.name?.toUpperCase() ?? "ERA PATIENT"}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5 truncate font-mono uppercase tracking-widest">
+                {hospital?.username ?? "clinical"}
+              </p>
+            </div>
           </div>
         )}
       </div>
 
-      {/* New Patient CTA */}
+      {/* ── New Patient CTA ──────────────────────────────── */}
       {(role === "admin" || role === "receptionist") && (
-        <div className={cn("shrink-0", collapsed ? "p-2 flex justify-center" : "px-3 py-3")}>
+        <div className={cn("shrink-0", collapsed ? "px-2 py-3 flex justify-center" : "px-3 py-3")}>
           <Link href="/patients/new" onClick={onNavClick}>
             {collapsed ? (
               <button
                 data-tour="new-patient"
                 title="New Patient"
-                className="w-8 h-8 rounded-md bg-primary/15 ring-1 ring-primary/25 flex items-center justify-center text-primary hover:bg-primary/25 transition"
+                className="w-9 h-9 rounded-md bg-primary flex items-center justify-center text-primary-foreground hover:bg-primary/90 transition shadow-sm"
+                style={{ boxShadow: "0 2px 10px hsl(var(--primary) / 0.35)" }}
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-4 h-4" />
               </button>
             ) : (
               <button
                 data-tour="new-patient"
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-md bg-primary/12 ring-1 ring-primary/25 text-primary text-xs font-bold hover:bg-primary/20 transition tracking-wide uppercase"
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-md bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition tracking-wide uppercase"
+                style={{ boxShadow: "0 2px 12px hsl(var(--primary) / 0.35)" }}
               >
                 <Plus className="w-3.5 h-3.5" />
                 New Patient
@@ -169,13 +169,13 @@ function NavContent({
         </div>
       )}
 
-      {/* Navigation */}
+      {/* ── Navigation ───────────────────────────────────── */}
       <nav className={cn(
-        "flex-1 px-2 py-1 space-y-0.5 overflow-y-auto",
+        "flex-1 px-2 space-y-0.5 overflow-y-auto py-2",
         role !== "admin" && role !== "receptionist" && "mt-2"
       )}>
         {!collapsed && (
-          <p className="px-3 pb-1 pt-1 text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+          <p className="px-3 pb-1.5 pt-0.5 text-[9px] font-bold text-muted-foreground/40 uppercase tracking-[0.18em]">
             Navigation
           </p>
         )}
@@ -188,18 +188,25 @@ function NavContent({
             : `nav-${item.href.replace(/^\//, "").replace(/[^a-z0-9]/g, "-")}`;
           const isFeedback = item.href === "/feedback-admin";
           const badge = isFeedback && feedbackUnread > 0 ? feedbackUnread : 0;
+
           return (
             <Link key={item.href} href={item.href} onClick={onNavClick}>
               <button
                 data-tour={tourId}
                 title={collapsed ? `${item.label}${badge ? ` (${badge} new)` : ""}` : undefined}
                 className={cn(
-                  "flex items-center rounded-md text-xs font-semibold w-full text-left transition-all relative",
-                  collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
+                  "flex items-center rounded-md text-xs font-semibold w-full text-left transition-all duration-100 relative",
+                  collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5 pl-[10px] border-l-2",
                   isActive
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-primary pl-[10px]"
-                    : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground border-l-2 border-transparent pl-[10px]"
+                    ? "text-white border-primary"
+                    : "text-muted-foreground hover:text-sidebar-foreground border-transparent"
                 )}
+                style={isActive && !collapsed ? {
+                  background: "linear-gradient(90deg, hsl(var(--primary) / 0.12) 0%, hsl(var(--primary) / 0.04) 100%)",
+                } : isActive && collapsed ? {
+                  background: "hsl(var(--primary) / 0.15)",
+                  borderRadius: "0.375rem",
+                } : undefined}
               >
                 <span className="relative shrink-0">
                   <item.icon className={cn("w-3.5 h-3.5", isActive ? "text-primary" : "")} />
@@ -209,11 +216,15 @@ function NavContent({
                     </span>
                   )}
                 </span>
-                {!collapsed && <span className="tracking-wide">{item.label}</span>}
-                {!collapsed && badge > 0 && (
-                  <span className="ml-auto min-w-[18px] h-[18px] rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center px-1 leading-none">
-                    {badge > 99 ? "99+" : badge}
-                  </span>
+                {!collapsed && (
+                  <>
+                    <span className={cn("tracking-wide", isActive && "font-bold")}>{item.label}</span>
+                    {badge > 0 && (
+                      <span className="ml-auto min-w-[18px] h-[18px] rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center px-1 leading-none">
+                        {badge > 99 ? "99+" : badge}
+                      </span>
+                    )}
+                  </>
                 )}
               </button>
             </Link>
@@ -221,80 +232,90 @@ function NavContent({
         })}
       </nav>
 
-      {/* Footer — user + settings */}
-      <div className={cn("border-t border-sidebar-border shrink-0", collapsed ? "p-2" : "p-3")}>
-        {role === "admin" && !collapsed && (
+      {/* ── Bottom: Settings + User + Collapse ───────────── */}
+      <div className="border-t border-sidebar-border shrink-0 px-2 py-3 space-y-0.5">
+
+        {/* Settings */}
+        {role === "admin" && (
           <Link href="/settings" onClick={onNavClick}>
             <button
               data-tour="nav-settings"
-              className="flex items-center gap-3 px-3 py-2 rounded-md text-xs font-semibold w-full text-left text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground transition-all mb-2 border-l-2 border-transparent hover:border-border pl-[10px]"
+              title={collapsed ? "Settings" : undefined}
+              className={cn(
+                "flex items-center rounded-md text-xs font-semibold w-full text-left transition-all",
+                "text-muted-foreground hover:text-sidebar-foreground",
+                location === "/settings"
+                  ? "text-white border-l-2 border-primary pl-[10px]"
+                  : collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5 border-l-2 border-transparent pl-[10px]",
+                collapsed && location === "/settings" && "justify-center p-2.5"
+              )}
+              style={location === "/settings" && !collapsed ? {
+                background: "linear-gradient(90deg, hsl(var(--primary) / 0.12) 0%, hsl(var(--primary) / 0.04) 100%)",
+              } : undefined}
             >
-              <Settings className="w-3.5 h-3.5" />
-              Settings
-            </button>
-          </Link>
-        )}
-        {role === "admin" && collapsed && (
-          <Link href="/settings" onClick={onNavClick}>
-            <button
-              title="Settings"
-              className="flex items-center justify-center w-full p-2.5 rounded-md text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground transition-all mb-1"
-            >
-              <Settings className="w-3.5 h-3.5" />
+              <Settings className={cn("w-3.5 h-3.5 shrink-0", location === "/settings" && "text-primary")} />
+              {!collapsed && <span className={cn("tracking-wide", location === "/settings" && "font-bold")}>Settings</span>}
             </button>
           </Link>
         )}
 
-        {/* User info */}
-        {collapsed ? (
-          <div className="flex flex-col items-center gap-2 py-1">
-            <div
-              className="w-7 h-7 rounded-full bg-primary/10 ring-1 ring-primary/25 flex items-center justify-center"
-              title={user?.displayName ?? "User"}
-            >
-              <span className="text-[10px] font-bold text-primary">
-                {user?.displayName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() ?? "??"}
-              </span>
-            </div>
-            <button
-              onClick={onLogout}
-              className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-              title="Sign out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
+        {/* User card */}
+        <div className={cn(
+          "rounded-md mt-1",
+          collapsed
+            ? "flex flex-col items-center gap-2 py-2"
+            : "flex items-center gap-2.5 px-3 py-2.5 bg-sidebar-accent/60 border border-sidebar-border"
+        )}>
+          {/* Avatar */}
+          <div className="w-7 h-7 rounded-full bg-primary/15 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
+            <span className="text-[10px] font-bold text-primary">{initials}</span>
           </div>
-        ) : (
-          <div className="flex items-center gap-2.5 px-2 py-2 rounded-md">
-            <div className="w-7 h-7 rounded-full bg-primary/10 ring-1 ring-primary/25 flex items-center justify-center shrink-0">
-              <span className="text-[10px] font-bold text-primary">
-                {user?.displayName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() ?? "??"}
-              </span>
-            </div>
-            <div className="flex-1 flex flex-col min-w-0">
-              <span className="text-xs font-semibold leading-tight truncate text-sidebar-foreground">
+
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold leading-tight truncate text-sidebar-foreground">
                 {user?.displayName ?? "User"}
-              </span>
-              <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">
+              </p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mt-0.5">
                 {ROLE_LABELS[role]}
-              </span>
+              </p>
             </div>
-            <RestartTourButton />
+          )}
+
+          {/* Help + Logout */}
+          {!collapsed ? (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => window.dispatchEvent(new Event("era:start-tour"))}
+                className="p-1 rounded text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/5 transition"
+                title="Restart guided tour"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={onLogout}
+                className="p-1 rounded text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition"
+                title="Sign out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
             <button
               onClick={onLogout}
-              className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              className="p-1.5 rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition"
               title="Sign out"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(c => !c)}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="mt-1 flex items-center justify-center w-full rounded-md py-1.5 text-muted-foreground/40 hover:bg-sidebar-accent/40 hover:text-muted-foreground transition-colors text-[10px] gap-1.5 font-medium"
+          className="mt-1.5 flex items-center justify-center w-full rounded-md py-1.5 text-muted-foreground/35 hover:bg-sidebar-accent/50 hover:text-muted-foreground transition-colors text-[9px] gap-1.5 font-medium"
         >
           {collapsed
             ? <PanelLeftOpen className="w-3.5 h-3.5" />
@@ -315,6 +336,7 @@ export function Layout({ children }: LayoutProps) {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [feedbackUnread, setFeedbackUnread] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem(SIDEBAR_KEY) === "true"; } catch { return false; }
@@ -347,6 +369,12 @@ export function Layout({ children }: LayoutProps) {
     if (location === "/feedback-admin") setFeedbackUnread(0);
   }, [location]);
 
+  const handleRefresh = () => {
+    setRefreshing(true);
+    window.dispatchEvent(new Event("era:refresh"));
+    setTimeout(() => setRefreshing(false), 800);
+  };
+
   const navProps = {
     navItems,
     location,
@@ -361,19 +389,20 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
 
-      {/* Desktop sidebar */}
+      {/* ── Desktop sidebar ──────────────────────────────── */}
       {!isMobile && (
         <aside
           className={cn(
             "border-r border-sidebar-border bg-sidebar flex flex-col shrink-0 transition-all duration-200",
-            collapsed ? "w-[52px]" : "w-56"
+            collapsed ? "w-14" : "w-60"
           )}
+          style={{ boxShadow: "2px 0 24px rgba(0,0,0,0.4)" }}
         >
           <NavContent {...navProps} collapsed={collapsed} />
         </aside>
       )}
 
-      {/* Mobile drawer */}
+      {/* ── Mobile drawer ────────────────────────────────── */}
       {isMobile && mobileNavOpen && (
         <>
           <div
@@ -390,33 +419,46 @@ export function Layout({ children }: LayoutProps) {
         </>
       )}
 
-      {/* Main content */}
+      {/* ── Main content ─────────────────────────────────── */}
       <main className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Mobile top bar */}
-        {isMobile && (
-          <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-background shrink-0">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setMobileNavOpen(o => !o)}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
-                aria-label="Open menu"
-              >
-                {mobileNavOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-              </button>
-              <div className="w-6 h-6 rounded-md bg-primary/15 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
-                <Activity className="w-3 h-3 text-primary" />
-              </div>
-              <span className="font-bold text-sm truncate max-w-[160px]">{hospital?.name ?? "Era Patient"}</span>
-            </div>
+        {/* Top bar */}
+        <header className={cn(
+          "h-12 flex items-center justify-between px-6 shrink-0 border-b border-border bg-background/80 backdrop-blur-sm",
+        )}>
+          {/* Mobile hamburger */}
+          {isMobile && (
+            <button
+              onClick={() => setMobileNavOpen(o => !o)}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition mr-3"
+              aria-label="Open menu"
+            >
+              {mobileNavOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
+          )}
+
+          {/* Breadcrumb / spacer */}
+          <div className="flex-1" />
+
+          {/* Right: feedback badge + refresh */}
+          <div className="flex items-center gap-2">
             {feedbackUnread > 0 && (
-              <span className="min-w-[20px] h-5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center px-1">
+              <span className="min-w-[20px] h-5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center px-1.5">
                 {feedbackUnread > 99 ? "99+" : feedbackUnread}
               </span>
             )}
-          </header>
-        )}
+            <button
+              onClick={handleRefresh}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition"
+              title="Refresh"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
+              {!isMobile && <span>Refresh</span>}
+            </button>
+          </div>
+        </header>
 
+        {/* Page content */}
         <div className="flex-1 overflow-auto p-5 md:p-7 lg:p-8">
           {children}
         </div>

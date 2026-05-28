@@ -135,14 +135,15 @@ function RoleThemeProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (user.role === "admin") {
-      root.style.setProperty("--primary", "43 60% 52%");
-      root.style.setProperty("--primary-foreground", "0 0% 8%");
-      root.style.setProperty("--ring", "43 60% 52%");
-      root.style.setProperty("--sidebar-primary", "43 60% 52%");
-      root.style.setProperty("--sidebar-primary-foreground", "0 0% 8%");
-      root.style.setProperty("--sidebar-ring", "43 60% 52%");
+      // Admin: teal #3d9e8c
+      root.style.setProperty("--primary", "169 44% 43%");
+      root.style.setProperty("--primary-foreground", "0 0% 100%");
+      root.style.setProperty("--ring", "169 44% 43%");
+      root.style.setProperty("--sidebar-primary", "169 44% 43%");
+      root.style.setProperty("--sidebar-primary-foreground", "0 0% 100%");
+      root.style.setProperty("--sidebar-ring", "169 44% 43%");
     } else {
-      // nurse + receptionist
+      // nurse + receptionist: navy blue
       root.style.setProperty("--primary", "221 78% 57%");
       root.style.setProperty("--primary-foreground", "0 0% 100%");
       root.style.setProperty("--ring", "221 78% 57%");

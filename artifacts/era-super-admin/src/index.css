@@ -29,28 +29,28 @@
   --radius-xl: calc(var(--radius) + 6px);
 }
 
-/* Era Systems Super Admin — Graphite · Titanium · Operational Blue */
+/* Era Systems Super Admin — Deep Navy CRM */
 :root {
-  --background: 0 0% 3%;
-  --foreground: 0 0% 98%;
-  --border: 0 0% 22%;
-  --input: 0 0% 10%;
+  --background: 222 47% 7%;
+  --foreground: 220 20% 97%;
+  --border: 220 28% 18%;
+  --input: 222 40% 13%;
   --ring: 214 85% 62%;
-  --card: 0 0% 7%;
-  --card-foreground: 0 0% 98%;
+  --card: 222 42% 10%;
+  --card-foreground: 220 20% 97%;
   --primary: 214 85% 62%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 12%;
-  --secondary-foreground: 0 0% 85%;
-  --muted: 0 0% 10%;
-  --muted-foreground: 0 0% 68%;
-  --accent: 0 0% 14%;
-  --accent-foreground: 0 0% 98%;
+  --secondary: 222 35% 15%;
+  --secondary-foreground: 220 15% 88%;
+  --muted: 222 35% 13%;
+  --muted-foreground: 220 12% 58%;
+  --accent: 222 35% 17%;
+  --accent-foreground: 220 20% 97%;
   --destructive: 0 72% 58%;
   --destructive-foreground: 0 0% 100%;
   --gold: 43 70% 62%;
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
-  --radius: 0.25rem;
+  --radius: 0.5rem;
 }
 
 /* Operational grid background */

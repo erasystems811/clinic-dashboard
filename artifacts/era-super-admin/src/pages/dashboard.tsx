@@ -8,16 +8,16 @@ import {
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";
 
-function StatusDot({ status, active }: { status: string; active: boolean }) {
-  const label = (!active || status === "inactive") ? "suspended" : status;
-  const dot = label === "active" ? "bg-emerald-400 shadow-[0_0_5px_hsl(134_61%_51%/0.6)]"
-    : label === "trial"   ? "bg-amber-400"
-    : "bg-red-400";
-  const text = label === "active" ? "text-emerald-400" : label === "trial" ? "text-amber-400" : "text-red-400";
+function StatusBadge({ status, active }: { status: string; active: boolean }) {
+  const label = (!active || status === "inactive") ? "Suspended" : status === "active" ? "Active" : status === "trial" ? "Trial" : status;
+  const cls = label === "Active"
+    ? "bg-emerald-500/12 text-emerald-400"
+    : label === "Trial"
+    ? "bg-amber-500/12 text-amber-400"
+    : "bg-red-500/12 text-red-400";
   return (
-    <span className="flex items-center gap-2">
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
-      <span className={`text-[10px] font-bold uppercase tracking-[0.15em] ${text}`}>{label}</span>
+    <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full ${cls}`}>
+      {label}
     </span>
   );
 }
@@ -55,22 +55,23 @@ export default function Hospitals() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-[9px] font-bold text-primary/60 uppercase tracking-[0.3em] mb-2">Era Platform</p>
-          <h1 className="text-xl font-bold text-foreground tracking-tight">Hospital Registry</h1>
-          <p className="text-[11px] text-muted-foreground/50 mt-1 tracking-wide">
+          <p className="text-xs font-semibold text-primary/70 mb-1">Era Platform</p>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Hospital Registry</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             {loading ? "Loading…" : `${hospitals.filter(h => !isSuspended(h)).length} active · ${hospitals.length} total accounts`}
           </p>
         </div>
         <div className="flex items-center gap-2 mt-1">
           <button onClick={fetchHospitals}
-            className="p-1.5 border border-[hsl(0_0%_13%)] text-muted-foreground/50 hover:text-muted-foreground hover:border-[hsl(0_0%_22%)] transition"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/30 transition"
             title="Refresh">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
           </button>
           <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-primary text-primary-foreground text-[11px] font-bold uppercase tracking-[0.15em] hover:bg-primary/90 transition"
-            style={{ boxShadow: "0 2px 16px hsl(214 72% 56% / 0.2)" }}>
-            <Plus className="w-3.5 h-3.5" />
+            className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition"
+            style={{ boxShadow: "0 2px 16px hsl(214 72% 56% / 0.25)" }}>
+            <Plus className="w-4 h-4" />
             New Hospital
           </button>
         </div>
@@ -78,51 +79,53 @@ export default function Hospitals() {
 
       {/* Controls */}
       <div className="flex items-center gap-2 mb-4">
-        <div className="relative flex-1 max-w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
+        <div className="relative flex-1 max-w-80">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search hospitals or usernames…"
-            className="w-full pl-9 pr-3 py-2 bg-[hsl(0_0%_10%)] border border-[hsl(0_0%_13%)] text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition tracking-wide" />
+            className="w-full pl-10 pr-3 py-2 rounded-lg bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/15 transition" />
         </div>
         <button onClick={() => setShowSuspended(s => !s)}
-          className={`flex items-center gap-1.5 px-3 py-2 border text-[10px] font-bold uppercase tracking-[0.15em] transition ${
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition ${
             showSuspended
-              ? "border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/10"
-              : "border-[hsl(0_0%_13%)] bg-transparent text-muted-foreground/50 hover:text-muted-foreground hover:border-[hsl(0_0%_22%)]"
+              ? "border-red-500/25 bg-red-500/8 text-red-400 hover:bg-red-500/12"
+              : "border-border bg-transparent text-muted-foreground hover:text-foreground hover:border-border/80"
           }`}>
-          <Filter className="w-3 h-3" />
-          {showSuspended ? "Showing Suspended" : "Suspended Hidden"}
+          <Filter className="w-3.5 h-3.5" />
+          {showSuspended ? "Showing Suspended" : "Hide Suspended"}
         </button>
       </div>
 
-      {/* Table container */}
-      <div className="border border-[hsl(0_0%_22%)] overflow-hidden">
+      {/* List container */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2.5 py-16 bg-[hsl(0_0%_7%)]">
-            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/40" />
-            <span className="text-[11px] text-muted-foreground/40 uppercase tracking-[0.2em]">Loading registry…</span>
+          <div className="flex items-center justify-center gap-3 py-16">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground/50" />
+            <span className="text-sm text-muted-foreground">Loading registry…</span>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center gap-2 py-16 bg-[hsl(0_0%_7%)]">
-            <AlertCircle className="w-4 h-4 text-destructive/70" />
-            <span className="text-[11px] text-destructive/70">{error}</span>
+          <div className="flex items-center justify-center gap-2 py-16">
+            <AlertCircle className="w-5 h-5 text-destructive/70" />
+            <span className="text-sm text-destructive/70">{error}</span>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 bg-[hsl(0_0%_7%)]">
-            <Building2 className="w-6 h-6 text-muted-foreground/15" />
-            <span className="text-[11px] text-muted-foreground/30 uppercase tracking-[0.2em]">
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
+            <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center">
+              <Building2 className="w-6 h-6 text-muted-foreground/40" />
+            </div>
+            <p className="text-sm text-muted-foreground">
               {search ? "No matching accounts" : "No hospitals registered"}
-            </span>
+            </p>
             {!search && (
               <button onClick={() => setShowCreate(true)}
-                className="text-[10px] text-primary/60 hover:text-primary uppercase tracking-[0.2em] transition font-bold">
-                Register first hospital
+                className="text-sm text-primary hover:text-primary/80 transition font-medium">
+                Register first hospital →
               </button>
             )}
           </div>
         ) : (
-          <div className="divide-y divide-[hsl(0_0%_7%)]">
+          <div className="divide-y divide-border/50">
             {filtered.map(h => {
               const expDate = h.subscriptionExpiresAt ? new Date(h.subscriptionExpiresAt) : null;
               const daysLeft = expDate ? Math.ceil((expDate.getTime() - now) / 86400000) : null;
@@ -131,56 +134,46 @@ export default function Hospitals() {
 
               return (
                 <div key={h.id}
-                  className="grid grid-cols-[1fr_140px_120px_130px_110px_32px] items-center cursor-pointer group hover:bg-[hsl(0_0%_12%)] transition-all duration-100"
+                  className="flex items-center gap-4 px-5 py-4 cursor-pointer group hover:bg-white/3 transition-all duration-100"
                   onClick={() => setLocation(`/hospitals/${h.id}`)}>
 
-                  {/* Hospital name */}
-                  <div className="px-4 py-3.5 flex items-center gap-3 min-w-0">
-                    <div className="w-7 h-7 shrink-0 border border-[hsl(0_0%_14%)] bg-[hsl(0_0%_7%)] flex items-center justify-center">
-                      <Building2 className="w-3.5 h-3.5 text-muted-foreground/30" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[12px] font-semibold text-foreground truncate tracking-tight">{h.name}</p>
-                      <p className="text-[10px] text-muted-foreground/40 truncate tracking-wider">{h.slug}</p>
-                    </div>
+                  {/* Initial avatar */}
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-bold text-primary">{h.name[0]?.toUpperCase()}</span>
                   </div>
 
-                  {/* Username */}
-                  <div className="px-4 py-3.5">
-                    <p className="text-[11px] text-muted-foreground/50 font-mono tracking-wide">{h.username}</p>
+                  {/* Name + username */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{h.name}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{h.username}</p>
                   </div>
 
-                  {/* Status */}
-                  <div className="px-4 py-3.5">
-                    <StatusDot status={h.subscriptionStatus} active={h.active} />
-                  </div>
+                  {/* Status badge */}
+                  <StatusBadge status={h.subscriptionStatus} active={h.active} />
 
-                  {/* Expires */}
-                  <div className="px-4 py-3.5">
+                  {/* Expiry */}
+                  <div className="hidden sm:block text-right min-w-[110px]">
                     {expDate ? (
                       <div>
-                        <p className={`text-[11px] font-semibold tabular-nums ${isExpired ? "text-red-400" : isExpiringSoon ? "text-[hsl(43_70%_62%)]" : "text-muted-foreground/60"}`}>
+                        <p className={`text-sm font-medium tabular-nums ${isExpired ? "text-red-400" : isExpiringSoon ? "text-amber-400" : "text-muted-foreground"}`}>
                           {expDate.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })}
                         </p>
-                        {isExpired && <p className="text-[9px] text-red-400/70 uppercase tracking-wider mt-0.5">{Math.abs(daysLeft!)}d overdue</p>}
-                        {isExpiringSoon && <p className="text-[9px] text-[hsl(43_70%_62%/0.7)] uppercase tracking-wider mt-0.5">{daysLeft}d left</p>}
+                        {isExpired && <p className="text-xs text-red-400/70 mt-0.5">{Math.abs(daysLeft!)}d overdue</p>}
+                        {isExpiringSoon && <p className="text-xs text-amber-400/70 mt-0.5">{daysLeft}d left</p>}
                       </div>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground/20">—</span>
+                      <span className="text-sm text-muted-foreground/30">—</span>
                     )}
                   </div>
 
-                  {/* Created */}
-                  <div className="px-4 py-3.5">
-                    <p className="text-[11px] text-muted-foreground/40 tabular-nums">
+                  {/* Registered */}
+                  <div className="hidden md:block text-right min-w-[90px]">
+                    <p className="text-xs text-muted-foreground tabular-nums">
                       {new Date(h.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })}
                     </p>
                   </div>
 
-                  {/* Chevron */}
-                  <div className="flex items-center justify-center pr-3">
-                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/20 group-hover:text-muted-foreground/50 transition" />
-                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground/30 group-hover:text-muted-foreground transition shrink-0" />
                 </div>
               );
             })}
@@ -189,14 +182,14 @@ export default function Hospitals() {
 
         {/* Footer count */}
         {!loading && filtered.length > 0 && (
-          <div className="border-t border-[hsl(0_0%_7%)] bg-[hsl(0_0%_8%)] px-4 py-2 flex items-center justify-between">
-            <p className="text-[9px] text-muted-foreground/25 uppercase tracking-[0.2em]">
+          <div className="border-t border-border/50 px-5 py-3 flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
               Showing {filtered.length} of {hospitals.length} accounts
             </p>
-            <div className="flex items-center gap-3 text-[9px] text-muted-foreground/25 uppercase tracking-[0.15em]">
-              <span className="flex items-center gap-1.5"><CheckCircle2 className="w-2.5 h-2.5 text-emerald-400/40" />{filtered.filter(h => h.active && h.subscriptionStatus === "active").length} active</span>
-              <span className="flex items-center gap-1.5"><AlertCircle className="w-2.5 h-2.5 text-amber-400/40" />{filtered.filter(h => h.subscriptionStatus === "trial").length} trial</span>
-              <span className="flex items-center gap-1.5"><XCircle className="w-2.5 h-2.5 text-red-400/40" />{filtered.filter(h => isSuspended(h)).length} suspended</span>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span>{filtered.filter(h => h.active && h.subscriptionStatus === "active").length} active</span>
+              <span>{filtered.filter(h => h.subscriptionStatus === "trial").length} trial</span>
+              <span>{filtered.filter(h => isSuspended(h)).length} suspended</span>
             </div>
           </div>
         )}

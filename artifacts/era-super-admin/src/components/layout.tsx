@@ -165,13 +165,13 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
               )}
             </button>
           ) : (
-            <div className="p-2.5 space-y-2 border border-[hsl(220_18%_34%)] bg-[hsl(220_20%_14%)]">
+            <div className="p-2.5 space-y-2 border border-[hsl(220_6%_26%)] bg-[hsl(220_6%_14%)]">
               <p className="text-[10px] text-muted-foreground leading-relaxed">Trigger Railway deploy?</p>
               <div className="flex gap-1.5">
                 <button onClick={handleDeploy} className="flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[hsl(43_70%_62%)] border border-[hsl(43_70%_62%/0.3)] hover:bg-[hsl(43_70%_62%/0.08)] transition">
                   Deploy
                 </button>
-                <button onClick={() => setConfirmDeploy(false)} className="flex-1 py-1.5 border border-[hsl(220_18%_34%)] text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition">
+                <button onClick={() => setConfirmDeploy(false)} className="flex-1 py-1.5 border border-[hsl(220_6%_26%)] text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition">
                   Cancel
                 </button>
               </div>

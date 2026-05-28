@@ -63,7 +63,7 @@ export default function Hospitals() {
         </div>
         <div className="flex items-center gap-2 mt-1">
           <button onClick={fetchHospitals}
-            className="p-1.5 border border-[hsl(220_18%_32%)] text-muted-foreground/50 hover:text-muted-foreground hover:border-[hsl(220_18%_38%)] transition"
+            className="p-1.5 border border-[hsl(220_6%_24%)] text-muted-foreground/50 hover:text-muted-foreground hover:border-[hsl(220_6%_30%)] transition"
             title="Refresh">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -82,13 +82,13 @@ export default function Hospitals() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search hospitals or usernames…"
-            className="w-full pl-9 pr-3 py-2 bg-[hsl(220_16%_20%)] border border-[hsl(220_18%_32%)] text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition tracking-wide" />
+            className="w-full pl-9 pr-3 py-2 bg-[hsl(220_6%_20%)] border border-[hsl(220_6%_24%)] text-[11px] text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition tracking-wide" />
         </div>
         <button onClick={() => setShowSuspended(s => !s)}
           className={`flex items-center gap-1.5 px-3 py-2 border text-[10px] font-bold uppercase tracking-[0.15em] transition ${
             showSuspended
               ? "border-red-500/20 bg-red-500/5 text-red-400 hover:bg-red-500/10"
-              : "border-[hsl(220_18%_32%)] bg-transparent text-muted-foreground/50 hover:text-muted-foreground hover:border-[hsl(220_18%_38%)]"
+              : "border-[hsl(220_6%_24%)] bg-transparent text-muted-foreground/50 hover:text-muted-foreground hover:border-[hsl(220_6%_30%)]"
           }`}>
           <Filter className="w-3 h-3" />
           {showSuspended ? "Showing Suspended" : "Suspended Hidden"}
@@ -96,10 +96,10 @@ export default function Hospitals() {
       </div>
 
       {/* Table container */}
-      <div className="border border-[hsl(220_18%_38%)] overflow-hidden">
+      <div className="border border-[hsl(220_6%_30%)] overflow-hidden">
 
         {/* Table header */}
-        <div className="border-b border-[hsl(220_18%_38%)] bg-[hsl(220_20%_14%)] grid grid-cols-[1fr_140px_120px_130px_110px_32px] gap-0">
+        <div className="border-b border-[hsl(220_6%_30%)] bg-[hsl(220_6%_14%)] grid grid-cols-[1fr_140px_120px_130px_110px_32px] gap-0">
           {["Hospital Account", "Identifier", "Status", "Subscription Ends", "Registered", ""].map((h, i) => (
             <div key={i} className="px-4 py-2.5">
               <p className="text-[9px] font-bold text-muted-foreground/35 uppercase tracking-[0.25em]">{h}</p>
@@ -108,17 +108,17 @@ export default function Hospitals() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2.5 py-16 bg-[hsl(220_20%_18%)]">
+          <div className="flex items-center justify-center gap-2.5 py-16 bg-[hsl(220_6%_18%)]">
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/40" />
             <span className="text-[11px] text-muted-foreground/40 uppercase tracking-[0.2em]">Loading registry…</span>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center gap-2 py-16 bg-[hsl(220_20%_18%)]">
+          <div className="flex items-center justify-center gap-2 py-16 bg-[hsl(220_6%_18%)]">
             <AlertCircle className="w-4 h-4 text-destructive/70" />
             <span className="text-[11px] text-destructive/70">{error}</span>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3 bg-[hsl(220_20%_18%)]">
+          <div className="flex flex-col items-center justify-center py-16 gap-3 bg-[hsl(220_6%_18%)]">
             <Building2 className="w-6 h-6 text-muted-foreground/15" />
             <span className="text-[11px] text-muted-foreground/30 uppercase tracking-[0.2em]">
               {search ? "No matching accounts" : "No hospitals registered"}
@@ -131,7 +131,7 @@ export default function Hospitals() {
             )}
           </div>
         ) : (
-          <div className="divide-y divide-[hsl(220_18%_26%)]">
+          <div className="divide-y divide-[hsl(220_6%_18%)]">
             {filtered.map(h => {
               const expDate = h.subscriptionExpiresAt ? new Date(h.subscriptionExpiresAt) : null;
               const daysLeft = expDate ? Math.ceil((expDate.getTime() - now) / 86400000) : null;
@@ -140,12 +140,12 @@ export default function Hospitals() {
 
               return (
                 <div key={h.id}
-                  className="grid grid-cols-[1fr_140px_120px_130px_110px_32px] items-center cursor-pointer group hover:bg-[hsl(220_20%_22%)] transition-all duration-100"
+                  className="grid grid-cols-[1fr_140px_120px_130px_110px_32px] items-center cursor-pointer group hover:bg-[hsl(220_6%_22%)] transition-all duration-100"
                   onClick={() => setLocation(`/hospitals/${h.id}`)}>
 
                   {/* Hospital name */}
                   <div className="px-4 py-3.5 flex items-center gap-3 min-w-0">
-                    <div className="w-7 h-7 shrink-0 border border-[hsl(220_18%_34%)] bg-[hsl(220_20%_18%)] flex items-center justify-center">
+                    <div className="w-7 h-7 shrink-0 border border-[hsl(220_6%_26%)] bg-[hsl(220_6%_18%)] flex items-center justify-center">
                       <Building2 className="w-3.5 h-3.5 text-muted-foreground/30" />
                     </div>
                     <div className="min-w-0">
@@ -198,7 +198,7 @@ export default function Hospitals() {
 
         {/* Footer count */}
         {!loading && filtered.length > 0 && (
-          <div className="border-t border-[hsl(220_18%_26%)] bg-[hsl(220_20%_14%)] px-4 py-2 flex items-center justify-between">
+          <div className="border-t border-[hsl(220_6%_18%)] bg-[hsl(220_6%_14%)] px-4 py-2 flex items-center justify-between">
             <p className="text-[9px] text-muted-foreground/25 uppercase tracking-[0.2em]">
               Showing {filtered.length} of {hospitals.length} accounts
             </p>

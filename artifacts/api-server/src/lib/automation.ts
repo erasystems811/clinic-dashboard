@@ -387,7 +387,7 @@ export async function sendAppointmentConfirmationEmail(
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
-    const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short" });
+    const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short", timeZone: "Africa/Lagos" });
     const subject = `Appointment Confirmed — ${hCtx.hospitalName}`;
     const body = `Hi ${patientName},\n\nYour appointment at ${hCtx.hospitalName} has been confirmed for ${dateStr}. Please arrive a few minutes early.\n\nIf you need to reschedule please do not hesitate to ${contact} as soon as possible. Please do not reply to this email directly. We look forward to seeing you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
 
@@ -427,8 +427,8 @@ export async function sendAppointmentReminderEmail(
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
-    const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short" });
-    const timeStr = new Date(scheduledAt).toLocaleString("en-GB", { timeStyle: "short" });
+    const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short", timeZone: "Africa/Lagos" });
+    const timeStr = new Date(scheduledAt).toLocaleString("en-GB", { timeStyle: "short", timeZone: "Africa/Lagos" });
     const subject = hoursAway === 24
       ? `Reminder — Your appointment is tomorrow — ${hCtx.hospitalName}`
       : `Your appointment is in 2 hours — ${hCtx.hospitalName}`;

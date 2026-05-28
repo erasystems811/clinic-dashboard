@@ -171,7 +171,7 @@ export default function Dashboard() {
             {[1,2,3].map(i => <div key={i} className="flex-1 h-12 rounded-lg bg-muted animate-pulse" />)}
           </div>
         ) : health ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-4 xl:grid-cols-7 gap-2">
             {health.checks.map(c => {
               const Icon = c.name === "Database" ? Database
                 : c.name.startsWith("SMS") ? MessageSquare
@@ -186,15 +186,17 @@ export default function Dashboard() {
                 <div
                   key={c.name}
                   title={tooltip}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium cursor-default select-none ${
-                    !c.ok ? "border-red-500/30 bg-red-500/10 text-red-400"
-                    : isWarn ? "border-amber-500/30 bg-amber-500/10 text-amber-400"
-                    : "border-emerald-500/20 bg-emerald-500/8 text-emerald-400"
+                  className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-default select-none ${
+                    !c.ok ? "border-red-500/30 bg-red-500/8"
+                    : isWarn ? "border-amber-500/30 bg-amber-500/8"
+                    : "border-border bg-muted/40"
                   }`}
                 >
-                  <Icon className="w-3 h-3 shrink-0" />
-                  <span>{c.name}</span>
-                  {c.balance && <span className="opacity-70">· {c.balance}</span>}
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${!c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400"}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
+                    {c.balance && <p className={`text-[10px] ${!c.ok || isWarn ? "text-amber-400" : "text-emerald-400"}`}>{c.balance}</p>}
+                  </div>
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${!c.ok ? "bg-red-400" : isWarn ? "bg-amber-400" : "bg-emerald-400"}`} />
                 </div>
               );

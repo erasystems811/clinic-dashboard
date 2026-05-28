@@ -807,7 +807,14 @@ async function runCarePlanRemindersHourly() {
   try {
     const now = new Date();
     const WINDOW_MS = 25 * 60 * 1000; // ±25 min window around the cron firing time
-    const today = now.toISOString().slice(0, 10);
+    // All nurse-inputted times are in WAT (Africa/Lagos = UTC+1).
+    // Shift now by +1h so date components reflect the current WAT calendar date.
+    const WAT_MS = 60 * 60 * 1000;
+    const nowWAT = new Date(now.getTime() + WAT_MS);
+    const today = nowWAT.toISOString().slice(0, 10); // WAT date (YYYY-MM-DD)
+    // Convert a nurse-entered HH:MM (WAT) on today's WAT date to an actual UTC timestamp.
+    const watToUTC = (hh: number, mm: number): Date =>
+      new Date(new Date(nowWAT.getFullYear(), nowWAT.getMonth(), nowWAT.getDate(), hh, mm).getTime() - WAT_MS);
 
     // care_plans.hospital_id stores hospital_code UUID (post-migration), not the integer id
     const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code").eq("active", true);
@@ -853,7 +860,7 @@ async function runCarePlanRemindersHourly() {
               const timeStr = medTimingTimes[slot];
               if (!timeStr) continue;
               const [hh, mm] = timeStr.split(":").map(Number);
-              const visitAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+              const visitAt = watToUTC(hh, mm);
               if (Math.abs(visitAt.getTime() - now.getTime()) > WINDOW_MS) continue;
               const key = `genout_med_${plan.id}_${slot}_${today}`;
               if (await checkSentLog(h.id, key)) continue;
@@ -867,7 +874,7 @@ async function runCarePlanRemindersHourly() {
               const timeStr = hospTimingTimes[slot];
               if (!timeStr) continue;
               const [hh, mm] = timeStr.split(":").map(Number);
-              const visitAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+              const visitAt = watToUTC(hh, mm);
               const reminderAt = new Date(visitAt.getTime() - 3 * 3600 * 1000);
               if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
               const key = `genout_hosp_${plan.id}_${slot}_${today}`;
@@ -884,7 +891,7 @@ async function runCarePlanRemindersHourly() {
               const refTime = medTimingTimes[slot] || hospTimingTimes[slot];
               if (!refTime) continue;
               const [hh, mm] = refTime.split(":").map(Number);
-              const visitAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+              const visitAt = watToUTC(hh, mm);
               const reminderAt = new Date(visitAt.getTime() - 2 * 3600 * 1000);
               if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
               const key = `genout_combo_${plan.id}_${slot}_${today}`;
@@ -898,7 +905,7 @@ async function runCarePlanRemindersHourly() {
           const entries = extractVisitEntries(dept, td);
           for (const entry of entries) {
             if (!entry.date || !entry.time) continue;
-            const visitAt = new Date(`${entry.date}T${entry.time}:00`);
+            const visitAt = new Date(`${entry.date}T${entry.time}:00+01:00`); // WAT (UTC+1)
             const reminderAt = new Date(visitAt.getTime() - 4 * 3600 * 1000);
             if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
             const key = `care_visit_${plan.id}_${entry.date}_${entry.time.replace(":", "")}`;

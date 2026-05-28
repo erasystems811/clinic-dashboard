@@ -1270,13 +1270,16 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   });
 
   // Fetch all data in parallel (all-time, no date cutoff)
-  const [hospitalsRes, allAutoRes, allPatientsRes] = await Promise.all([
+  const [hospitalsRes, allAutoRes, allPatientsRes, allActivityRes] = await Promise.all([
     supabase.from("hospitals").select("id, name, active, hospital_code, created_at").order("name"),
     // All automation_log ever — need created_at and channel
     supabase.from("automation_log").select("hospital_id, channel, created_at")
       .neq("patient_id", -1).limit(500000),
-    // All patients — checked_in_at is the reliable check-in timestamp (queue rows are deleted on discharge)
-    supabase.from("patients").select("hospital_id, checked_in_at").limit(500000),
+    // All patients — for totalPatients count and patient_id→hospital fallback
+    supabase.from("patients").select("id, hospital_id").limit(500000),
+    // Activity log: every queue check-in event (checkin = re-visit, patient_created = new registration)
+    supabase.from("activity").select("type, hospital_id, patient_id, created_at")
+      .in("type", ["checkin", "patient_created"]).limit(500000),
   ]);
 
   const hospitals = hospitalsRes.data ?? [];
@@ -1289,21 +1292,27 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
 
   // Total registered patients per hospital (keyed by hospital_code UUID)
   const patientCountByCode = new Map<string, number>();
-  for (const p of (allPatientsRes.data ?? []) as { hospital_id: string; checked_in_at: string | null }[]) {
-    if (p.hospital_id) patientCountByCode.set(p.hospital_id, (patientCountByCode.get(p.hospital_id) ?? 0) + 1);
+  // patient integer id → integer hospital id (fallback for old activity rows missing hospital_id)
+  const pidToHid = new Map<number, number>();
+  for (const p of (allPatientsRes.data ?? []) as { id: number; hospital_id: string }[]) {
+    if (p.hospital_id) {
+      patientCountByCode.set(p.hospital_id, (patientCountByCode.get(p.hospital_id) ?? 0) + 1);
+      const intId = codeToId.get(p.hospital_id);
+      if (intId !== undefined) pidToHid.set(p.id, intId);
+    }
   }
 
   // Build per-hospital event lists (sorted timestamps for efficient cumulative scan)
-  // patientTs: keyed by integer hospital id, timestamps = checked_in_at of each patient
+  // patientTs: keyed by integer hospital id, one timestamp per queue check-in event
   const patientTs = new Map<number, number[]>();
   const emailTs   = new Map<number, number[]>();
   const smsTs     = new Map<number, number[]>();
 
-  for (const p of (allPatientsRes.data ?? []) as { hospital_id: string; checked_in_at: string | null }[]) {
-    if (!p.hospital_id || !p.checked_in_at) continue;
-    const id = codeToId.get(p.hospital_id);
+  for (const a of (allActivityRes.data ?? []) as { type: string; hospital_id: number | null; patient_id: number | null; created_at: string }[]) {
+    // hospital_id is an integer on activity rows; fall back to pid lookup for old rows
+    const id = a.hospital_id ?? (a.patient_id != null ? pidToHid.get(a.patient_id) : undefined);
     if (id === undefined) continue;
-    const ts = new Date(p.checked_in_at).getTime();
+    const ts = new Date(a.created_at).getTime();
     if (isNaN(ts)) continue;
     if (!patientTs.has(id)) patientTs.set(id, []);
     patientTs.get(id)!.push(ts);

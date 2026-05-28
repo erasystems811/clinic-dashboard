@@ -635,17 +635,18 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
     appointment_id: matchedAppointmentId,
   });
 
+  // ── Automation: send queue join WhatsApp ──
+  const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
+
   const priorityNote = hasTimedAppointment ? " (priority — appointment time)" : "";
   await supabase.from("activity").insert({
     type: "checkin",
     description: `${patientName} checked in — added to queue at position ${position}${priorityNote}`,
     patient_id: patient.id,
     patient_name: patientName,
+    hospital_id: hospitalIntId ?? null,
     metadata: nowIso,
   });
-
-  // ── Automation: send queue join WhatsApp ──
-  const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
   if (hospitalIntId) {
     const phone = (patient.whatsapp_number as string) || (patient.phone as string);
     sendQueueJoinMessage(hospitalIntId, patient.id, patientName, phone, position).catch(() => {});

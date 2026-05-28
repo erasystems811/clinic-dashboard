@@ -235,26 +235,102 @@ interface AutomationDef {
   trigger: string;
   channel: "email" | "sms/whatsapp" | "both";
   icon: React.ComponentType<{ className?: string }>;
-  timing: string;
-  notes?: string;
+  note?: string;
 }
 
-const AUTOMATIONS: AutomationDef[] = [
-  { id: "queue_join", name: "Queue Check-In", purpose: "Reassures a patient they are registered and tells them their position in line so they feel informed from the moment they arrive.", trigger: "Receptionist checks a patient into the queue", channel: "sms/whatsapp", icon: ClipboardList, timing: "Instant — fires the moment the patient is checked in" },
-  { id: "queue_next_in_line", name: "Next In Line Alert", purpose: "Gives the patient time to get ready before their turn, reducing calling delays and keeping the queue moving.", trigger: "Patient reaches 2nd position in the queue", channel: "sms/whatsapp", icon: BellRing, timing: "Instant — fires when previous patient is called" },
-  { id: "queue_your_turn", name: "It's Your Turn", purpose: "Calls the patient in when the doctor is ready, eliminating the need for staff to physically search the waiting area.", trigger: "Receptionist calls the patient from the queue screen", channel: "sms/whatsapp", icon: BellRing, timing: "Instant — fires when staff taps 'Call Patient'" },
-  { id: "queue_long_wait_apology", name: "Long Wait Apology", purpose: "Preserves patient goodwill during unusually long waits by proactively acknowledging the delay.", trigger: "Staff manually sends from the queue screen", channel: "sms/whatsapp", icon: Clock, timing: "Manual trigger only" },
-  { id: "care_plan_notification", name: "Care Plan Ready (SMS/WhatsApp)", purpose: "Immediately notifies the patient the moment their care plan is saved, directing them to check their email for full details.", trigger: "Nurse saves a care plan in the nurse station", channel: "sms/whatsapp", icon: UserPlus, timing: "Instant — fires on save" },
-  { id: "care_plan_email", name: "Care Plan Summary Email", purpose: "Delivers the full care plan in plain, patient-friendly language so they understand their treatment without needing to ask questions.", trigger: "Care plan created — 20-minute delay gives nurse time for last-minute edits", channel: "email", icon: Mail, timing: "20 minutes after save — checked every 5 min by scheduler" },
-  { id: "in_care_reminder", name: "Continuous In-Care Reminders", purpose: "Keeps the patient on track with medication and clinic visits throughout their treatment, reducing missed doses and no-shows.", trigger: "Patient is active in a care plan with time-slot preferences set (morning/afternoon/evening/night)", channel: "email", icon: HeartPulse, timing: "Every hour — fires based on department time slots, not a fixed daily time" },
-  { id: "care_plan_visit_reminder", name: "Scheduled Care Visit Reminder", purpose: "Ensures the patient remembers a specific clinic or procedure date from their care plan.", trigger: "Patient has a scheduled care or procedure date set by the nurse in their care plan", channel: "email", icon: Calendar, timing: "Every hour — fires 4 hours before the nurse-set visit time (General Outpatient: 2 hours before). Department-driven." },
-  { id: "post_treatment_checkin", name: "Post-Treatment Check-Ins", purpose: "Shows the patient the clinic still cares about their recovery after they leave, reducing anxiety and increasing loyalty.", trigger: "Patient moves to Post-Treatment stage", channel: "email", icon: HeartPulse, timing: "Day 1, Day 4, and Day 7 after treatment ends — checked daily at 7 AM" },
-  { id: "post_care_email", name: "Dormant Re-Engagement", purpose: "Gently reminds long-inactive patients the clinic exists and invites them back before they are lost.", trigger: "Patient has been dormant for 30+ days", channel: "email", icon: Users, timing: "Daily at 6 PM" },
-  { id: "appointment_reminder", name: "Appointment Reminder", purpose: "Reduces no-shows by keeping the patient aware of their upcoming visit at two critical moments.", trigger: "Patient has an upcoming appointment", channel: "both", icon: Calendar, timing: "24 hours before + 2 hours before — checked every 15 minutes" },
-  { id: "no_show_followup", name: "No-Show Follow-Up", purpose: "Recovers potentially lost patients by reaching out compassionately after a missed appointment.", trigger: "Patient misses an appointment (no check-in recorded within 1 hour of scheduled time)", channel: "email", icon: Calendar, timing: "1 hour after the missed appointment time — checked every 15 minutes" },
-  { id: "feedback_email", name: "Post-Visit Feedback Request", purpose: "Captures patient satisfaction data while the visit is fresh.", trigger: "Patient has a completed appointment from the previous day", channel: "email", icon: Star, timing: "Daily at 12 PM" },
-  { id: "birthday_email", name: "Birthday Greeting", purpose: "Deepens the patient relationship with a personal touch that most clinics never bother with.", trigger: "Patient's date of birth matches today's date", channel: "email", icon: Gift, timing: "Daily at 7 AM" },
-  { id: "wellness_newsletter", name: "Wellness Newsletter", purpose: "Keeps the clinic top-of-mind for all active patients between visits with relevant health tips.", trigger: "Admin manually sends from the Wellness Newsletter screen", channel: "email", icon: Newspaper, timing: "Manual trigger — admin chooses when to send" },
+interface AutomationGroup {
+  label: string;
+  timingBadge: string;
+  description: string;
+  accentBorder: string;
+  accentText: string;
+  accentBg: string;
+  badgeBg: string;
+  items: AutomationDef[];
+}
+
+const AUTOMATION_GROUPS: AutomationGroup[] = [
+  {
+    label: "Immediate",
+    timingBadge: "Fires instantly",
+    description: "No scheduler involved — sends the moment an action is taken by staff or the system.",
+    accentBorder: "border-l-emerald-500",
+    accentText: "text-emerald-400",
+    accentBg: "bg-emerald-500/5",
+    badgeBg: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25",
+    items: [
+      { id: "queue_join", name: "Queue Check-In", purpose: "Reassures a patient they are registered and tells them their position in line so they feel informed from the moment they arrive.", trigger: "Receptionist checks a patient into the queue", channel: "sms/whatsapp", icon: ClipboardList },
+      { id: "queue_next_in_line", name: "Next In Line Alert", purpose: "Gives the patient time to get ready before their turn, reducing calling delays and keeping the queue moving.", trigger: "Patient reaches 2nd position in the queue", channel: "sms/whatsapp", icon: BellRing },
+      { id: "queue_your_turn", name: "It's Your Turn", purpose: "Calls the patient in when the doctor is ready, eliminating the need for staff to physically search the waiting area.", trigger: "Receptionist taps 'Call Patient' on the queue screen", channel: "sms/whatsapp", icon: BellRing },
+      { id: "care_plan_notification", name: "Care Plan Ready", purpose: "Immediately notifies the patient the moment their care plan is saved, directing them to check their email for full details.", trigger: "Nurse saves a care plan in the nurse station", channel: "sms/whatsapp", icon: UserPlus },
+    ],
+  },
+  {
+    label: "Delayed Send",
+    timingBadge: "20 min after trigger",
+    description: "Waits before sending to give staff time to make last-minute edits.",
+    accentBorder: "border-l-sky-500",
+    accentText: "text-sky-400",
+    accentBg: "bg-sky-500/5",
+    badgeBg: "bg-sky-500/10 text-sky-400 border-sky-500/25",
+    items: [
+      { id: "care_plan_email", name: "Care Plan Summary Email", purpose: "Delivers the full care plan in plain, patient-friendly language so they understand their treatment without needing to ask questions.", trigger: "Care plan saved — 20-minute hold gives the nurse time for last-minute edits before the email goes out", channel: "email", icon: Mail },
+    ],
+  },
+  {
+    label: "Hourly",
+    timingBadge: "Every hour",
+    description: "The scheduler runs every hour and sends only to patients whose timing conditions are met at that moment.",
+    accentBorder: "border-l-violet-500",
+    accentText: "text-violet-400",
+    accentBg: "bg-violet-500/5",
+    badgeBg: "bg-violet-500/10 text-violet-400 border-violet-500/25",
+    items: [
+      { id: "in_care_reminder", name: "Continuous In-Care Reminders", purpose: "Keeps the patient on track with medication and clinic visits throughout their treatment, reducing missed doses and no-shows.", trigger: "Patient is active in a care plan with time-slot preferences set (morning / afternoon / evening / night)", channel: "email", icon: HeartPulse, note: "Department-specific — each department can have different slot configurations." },
+      { id: "care_plan_visit_reminder", name: "Scheduled Care Visit Reminder", purpose: "Ensures the patient remembers a specific clinic or procedure date from their care plan.", trigger: "Patient has a nurse-set visit date/time in their care plan — fires 4h before (General Outpatient: 2h before)", channel: "email", icon: Calendar },
+    ],
+  },
+  {
+    label: "Appointment-Driven",
+    timingBadge: "Checked every 15 min",
+    description: "Polls appointments frequently so reminders and no-show detection are never more than 15 minutes late.",
+    accentBorder: "border-l-amber-500",
+    accentText: "text-amber-400",
+    accentBg: "bg-amber-500/5",
+    badgeBg: "bg-amber-500/10 text-amber-400 border-amber-500/25",
+    items: [
+      { id: "appointment_reminder", name: "Appointment Reminder", purpose: "Reduces no-shows by keeping the patient aware of their upcoming visit at two critical moments — far out and close in.", trigger: "Patient has an upcoming appointment — sends at 24 hours before, then again at 2 hours before", channel: "both", icon: Calendar },
+      { id: "no_show_followup", name: "No-Show Follow-Up", purpose: "Recovers potentially lost patients by reaching out compassionately after a missed appointment.", trigger: "No check-in recorded within 1 hour of the scheduled appointment time — sends 1 hour after the missed slot", channel: "email", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Scheduled Daily",
+    timingBadge: "Fixed daily times",
+    description: "Run by the scheduler at exact times each day. Each job checks only the patients whose conditions are met that day.",
+    accentBorder: "border-l-primary",
+    accentText: "text-primary",
+    accentBg: "bg-primary/5",
+    badgeBg: "bg-primary/10 text-primary border-primary/25",
+    items: [
+      { id: "post_treatment_checkin", name: "Post-Treatment Check-Ins", purpose: "Shows the patient the clinic still cares about their recovery after they leave, reducing anxiety and increasing loyalty.", trigger: "Patient is in Post-Treatment stage — sends on Day 1, Day 4, and Day 7 after treatment ends. Checked daily at 7 AM.", channel: "email", icon: HeartPulse },
+      { id: "birthday_email", name: "Birthday Greeting", purpose: "Deepens the patient relationship with a personal touch that most clinics never bother with.", trigger: "Patient's date of birth matches today's date — checked daily at 7 AM", channel: "email", icon: Gift },
+      { id: "feedback_email", name: "Post-Visit Feedback Request", purpose: "Captures patient satisfaction data while the visit is fresh, covering the previous day's completed appointments.", trigger: "Patient had a completed appointment yesterday — checked daily at 12 PM", channel: "email", icon: Star },
+      { id: "post_care_email", name: "Dormant Re-Engagement", purpose: "Gently reminds long-inactive patients the clinic exists and invites them back before they are lost.", trigger: "Patient has been dormant for 30+ days — checked daily at 6 PM", channel: "email", icon: Users },
+    ],
+  },
+  {
+    label: "Manual",
+    timingBadge: "Staff-triggered",
+    description: "Sent only when a staff member or admin deliberately triggers them — never automatic.",
+    accentBorder: "border-l-zinc-500",
+    accentText: "text-zinc-400",
+    accentBg: "bg-zinc-500/5",
+    badgeBg: "bg-zinc-500/10 text-zinc-400 border-zinc-500/25",
+    items: [
+      { id: "queue_long_wait_apology", name: "Long Wait Apology", purpose: "Preserves patient goodwill during unusually long waits by proactively acknowledging the delay.", trigger: "Staff manually taps 'Send Apology' on the queue screen during a long wait", channel: "sms/whatsapp", icon: Clock },
+      { id: "wellness_newsletter", name: "Wellness Newsletter", purpose: "Keeps the clinic top-of-mind for all active patients between visits with relevant health tips.", trigger: "Admin manually sends from the Wellness Newsletter screen — content is AI-generated per hospital", channel: "email", icon: Newspaper },
+    ],
+  },
 ];
 
 const CHANNEL_STYLE: Record<string, string> = {
@@ -263,37 +339,53 @@ const CHANNEL_STYLE: Record<string, string> = {
   "both": "bg-purple-500/10 text-purple-400 border-purple-500/20",
 };
 
+const totalCount = AUTOMATION_GROUPS.reduce((acc, g) => acc + g.items.length, 0);
+
 function AutomationsSection() {
   return (
     <section className="rounded-lg border border-border bg-card p-5">
-      <SectionHeader icon={Zap} title="All Automations" subtitle={`${AUTOMATIONS.length} automations — purpose, trigger, channel, and exact timing`} />
-      <div className="space-y-2">
-        {AUTOMATIONS.map(a => (
-          <div key={a.id} className="rounded-lg border border-border bg-background/40 p-4">
-            <div className="flex items-start gap-3">
-              <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                <a.icon className="w-3.5 h-3.5 text-muted-foreground" />
-              </div>
+      <SectionHeader icon={Zap} title="All Automations" subtitle={`${totalCount} automations across ${AUTOMATION_GROUPS.length} categories`} />
+      <div className="space-y-5">
+        {AUTOMATION_GROUPS.map(group => (
+          <div key={group.label}>
+            {/* Group header */}
+            <div className={`flex items-center gap-3 px-4 py-2.5 border-l-2 mb-2 ${group.accentBorder} ${group.accentBg}`}>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap mb-1">
-                  <span className="text-sm font-bold text-foreground">{a.name}</span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${CHANNEL_STYLE[a.channel]}`}>
-                    {a.channel}
-                  </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-xs font-bold uppercase tracking-widest ${group.accentText}`}>{group.label}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 border uppercase tracking-wider ${group.badgeBg}`}>{group.timingBadge}</span>
+                  <span className="text-[10px] text-muted-foreground/30 font-mono">{group.items.length} automation{group.items.length !== 1 ? "s" : ""}</span>
                 </div>
-                <p className="text-xs text-foreground/70 leading-relaxed mb-2">{a.purpose}</p>
-                <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1">
-                  <div>
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Trigger</span>
-                    <p className="text-xs text-muted-foreground mt-0.5">{a.trigger}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Timing</span>
-                    <p className="text-xs text-muted-foreground mt-0.5">{a.timing}</p>
-                  </div>
-                </div>
-                {a.notes && <p className="text-[11px] text-amber-400/80 mt-2 border-t border-border pt-2">⚠ {a.notes}</p>}
+                <p className="text-[11px] text-muted-foreground/50 mt-0.5 leading-relaxed">{group.description}</p>
               </div>
+            </div>
+            {/* Automation cards */}
+            <div className="space-y-1.5 pl-3">
+              {group.items.map(a => (
+                <div key={a.id} className="border border-border bg-background/40 p-3.5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                      <a.icon className="w-3 h-3 text-muted-foreground/60" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-[13px] font-bold text-foreground">{a.name}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 border uppercase tracking-wider ${CHANNEL_STYLE[a.channel]}`}>
+                          {a.channel}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-foreground/60 leading-relaxed mb-1.5">{a.purpose}</p>
+                      <div>
+                        <span className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">Trigger · </span>
+                        <span className="text-[11px] text-muted-foreground/50">{a.trigger}</span>
+                      </div>
+                      {a.note && (
+                        <p className="text-[10px] text-amber-400/60 mt-1.5 border-t border-border/60 pt-1.5">↳ {a.note}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ))}

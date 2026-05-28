@@ -8,11 +8,15 @@ import {
 } from "lucide-react";
 
 interface MonthSnapshot {
-  month: string;
   label: string;
-  patients: number;
-  emails: number;
-  sms: number;
+  // Cumulative totals from day 1 up to end of this month
+  cumPatients: number;
+  cumEmails: number;
+  cumSms: number;
+  // All-time running average as of end of this month
+  avgPatientsDay: number;
+  avgEmailsDay: number;
+  avgSmsDay: number;
 }
 
 interface CurrentMonth {
@@ -73,16 +77,14 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
     : <ArrowDown className="w-3 h-3 text-primary ml-1 shrink-0" />;
 }
 
-// Compute a simple growth indicator from history
+// Growth trend: compare avg patients/day at end of last two completed months
 function growthTrend(history: MonthSnapshot[]): { pct: number | null; up: boolean } {
-  const months = history.filter(m => m.patients > 0 || m.emails > 0);
-  if (months.length < 2) return { pct: null, up: true };
-  const prev = months[months.length - 2];
-  const last = months[months.length - 1];
-  const prevTotal = prev.patients + prev.emails + prev.sms;
-  const lastTotal = last.patients + last.emails + last.sms;
-  if (prevTotal === 0) return { pct: null, up: true };
-  const pct = Math.round(((lastTotal - prevTotal) / prevTotal) * 100);
+  const active = history.filter(m => m.avgPatientsDay > 0);
+  if (active.length < 2) return { pct: null, up: true };
+  const prev = active[active.length - 2].avgPatientsDay;
+  const last = active[active.length - 1].avgPatientsDay;
+  if (prev === 0) return { pct: null, up: true };
+  const pct = Math.round(((last - prev) / prev) * 100);
   return { pct, up: pct >= 0 };
 }
 
@@ -125,9 +127,9 @@ export default function Usage() {
     });
   }
 
-  const sorted = [...stats].sort((a, b) => {
+  const sorted = [...stats].filter(s => s?.currentMonth).sort((a, b) => {
     let cmp = 0;
-    if (sortKey === "name")          cmp = a.name.localeCompare(b.name);
+    if (sortKey === "name")           cmp = a.name.localeCompare(b.name);
     else if (sortKey === "daysSince") cmp = a.daysSince - b.daysSince;
     else {
       const map: Record<string, number> = {
@@ -140,7 +142,7 @@ export default function Usage() {
     return sortDir === "asc" ? cmp : -cmp;
   });
 
-  const tierCounts = stats.reduce<Record<string, number>>((acc, h) => {
+  const tierCounts = stats.filter(s => s?.currentMonth).reduce<Record<string, number>>((acc, h) => {
     const { label } = getTier(h.currentMonth.avgPatientsDay);
     acc[label] = (acc[label] ?? 0) + 1;
     return acc;
@@ -345,49 +347,73 @@ export default function Usage() {
                               <div className="overflow-x-auto">
                                 <table className="w-full text-xs">
                                   <thead>
-                                    <tr className="border-b border-border/30">
-                                      <th className="pb-2 text-left font-semibold text-muted-foreground/40 pr-8">Month</th>
-                                      <th className="pb-2 text-right font-semibold text-muted-foreground/40 pr-6">
-                                        <span className="inline-flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Patients</span>
+                                    <tr className="border-b border-border/30 text-muted-foreground/40 font-semibold">
+                                      <th className="pb-2 text-left pr-6 whitespace-nowrap">Month (end of)</th>
+                                      {/* Patients */}
+                                      <th className="pb-2 text-right pr-2 whitespace-nowrap">
+                                        <span className="inline-flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Avg/day</span>
                                       </th>
-                                      <th className="pb-2 text-right font-semibold text-muted-foreground/40 pr-6">
-                                        <span className="inline-flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Emails</span>
+                                      <th className="pb-2 text-right pr-6 whitespace-nowrap text-muted-foreground/25">Total</th>
+                                      {/* Emails */}
+                                      <th className="pb-2 text-right pr-2 whitespace-nowrap border-l border-border/20 pl-4">
+                                        <span className="inline-flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Avg/day</span>
                                       </th>
-                                      <th className="pb-2 text-right font-semibold text-muted-foreground/40 pr-6">
-                                        <span className="inline-flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> SMS</span>
+                                      <th className="pb-2 text-right pr-6 whitespace-nowrap text-muted-foreground/25">Total</th>
+                                      {/* SMS */}
+                                      <th className="pb-2 text-right pr-2 whitespace-nowrap border-l border-border/20 pl-4">
+                                        <span className="inline-flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> Avg/day</span>
                                       </th>
-                                      <th className="pb-2 text-right font-semibold text-muted-foreground/40">Total activity</th>
+                                      <th className="pb-2 text-right whitespace-nowrap text-muted-foreground/25">Total</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-border/20">
                                     {h.history.map((m, idx) => {
-                                      const total = m.patients + m.emails + m.sms;
-                                      const prev  = idx > 0 ? h.history[idx - 1] : null;
-                                      const prevTotal = prev ? prev.patients + prev.emails + prev.sms : null;
-                                      const growthPct = prevTotal && prevTotal > 0
-                                        ? Math.round(((total - prevTotal) / prevTotal) * 100)
+                                      // Growth: compare this month's avgPatientsDay vs previous month
+                                      const prev = idx > 0 ? h.history[idx - 1] : null;
+                                      const growthPct = prev && prev.avgPatientsDay > 0
+                                        ? Math.round(((m.avgPatientsDay - prev.avgPatientsDay) / prev.avgPatientsDay) * 100)
                                         : null;
+                                      const hasData = m.cumPatients > 0 || m.cumEmails > 0 || m.cumSms > 0;
                                       return (
-                                        <tr key={m.month} className="hover:bg-white/[0.02]">
-                                          <td className="py-2 pr-8 font-medium text-foreground/70">{m.label}</td>
-                                          <td className="py-2 pr-6 text-right tabular-nums">
-                                            {m.patients > 0 ? <span className="text-foreground">{m.patients}</span> : <span className="text-muted-foreground/25">—</span>}
-                                          </td>
-                                          <td className="py-2 pr-6 text-right tabular-nums">
-                                            {m.emails > 0 ? <span className="text-foreground">{m.emails}</span> : <span className="text-muted-foreground/25">—</span>}
-                                          </td>
-                                          <td className="py-2 pr-6 text-right tabular-nums">
-                                            {m.sms > 0 ? <span className="text-foreground">{m.sms}</span> : <span className="text-muted-foreground/25">—</span>}
-                                          </td>
-                                          <td className="py-2 text-right">
-                                            <span className={`font-semibold tabular-nums ${total > 0 ? "text-foreground" : "text-muted-foreground/25"}`}>
-                                              {total > 0 ? total : "—"}
-                                            </span>
-                                            {growthPct !== null && total > 0 && (
-                                              <span className={`ml-2 text-[10px] ${growthPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                                {growthPct >= 0 ? "▲" : "▼"} {Math.abs(growthPct)}%
+                                        <tr key={m.label} className="hover:bg-white/[0.02]">
+                                          {/* Month label + growth indicator */}
+                                          <td className="py-2 pr-6 font-medium text-foreground/70 whitespace-nowrap">
+                                            {m.label}
+                                            {growthPct !== null && hasData && (
+                                              <span className={`ml-2 ${growthPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                                {growthPct >= 0 ? "▲" : "▼"}{Math.abs(growthPct)}%
                                               </span>
                                             )}
+                                          </td>
+                                          {/* Patients avg/day */}
+                                          <td className="py-2 pr-2 text-right tabular-nums font-semibold">
+                                            {m.avgPatientsDay > 0
+                                              ? <span className="text-foreground">{fmt(m.avgPatientsDay)}</span>
+                                              : <span className="text-muted-foreground/25">—</span>}
+                                          </td>
+                                          {/* Patients cumulative total */}
+                                          <td className="py-2 pr-6 text-right tabular-nums text-muted-foreground/40">
+                                            {m.cumPatients > 0 ? m.cumPatients : "—"}
+                                          </td>
+                                          {/* Emails avg/day */}
+                                          <td className="py-2 pr-2 text-right tabular-nums font-semibold border-l border-border/20 pl-4">
+                                            {m.avgEmailsDay > 0
+                                              ? <span className="text-foreground">{fmt(m.avgEmailsDay)}</span>
+                                              : <span className="text-muted-foreground/25">—</span>}
+                                          </td>
+                                          {/* Emails cumulative total */}
+                                          <td className="py-2 pr-6 text-right tabular-nums text-muted-foreground/40">
+                                            {m.cumEmails > 0 ? m.cumEmails : "—"}
+                                          </td>
+                                          {/* SMS avg/day */}
+                                          <td className="py-2 pr-2 text-right tabular-nums font-semibold border-l border-border/20 pl-4">
+                                            {m.avgSmsDay > 0
+                                              ? <span className="text-foreground">{fmt(m.avgSmsDay)}</span>
+                                              : <span className="text-muted-foreground/25">—</span>}
+                                          </td>
+                                          {/* SMS cumulative total */}
+                                          <td className="py-2 text-right tabular-nums text-muted-foreground/40">
+                                            {m.cumSms > 0 ? m.cumSms : "—"}
                                           </td>
                                         </tr>
                                       );

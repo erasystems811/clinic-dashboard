@@ -13,6 +13,7 @@ import wellnessRouter from "./wellness";
 import messagesRouter from "./messages";
 import superAdminRouter from "./super-admin";
 import carePlansRouter from "./care-plans";
+import automationTestsRouter from "./automation-tests";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(wellnessRouter);
 router.use(messagesRouter);
 router.use(superAdminRouter);
 router.use(carePlansRouter);
+router.use(automationTestsRouter);
 
 export default router;

@@ -6,6 +6,7 @@ import Analytics from "@/pages/analytics";
 import Hospitals from "@/pages/dashboard";
 import HospitalDetail from "@/pages/hospital-detail";
 import Settings from "@/pages/settings";
+import AutomationTests from "@/pages/automation-tests";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ function AppRoutes() {
         {(params) => <HospitalDetail id={parseInt(params.id)} />}
       </Route>
       <Route path="/settings" component={Settings} />
+      <Route path="/automation-tests" component={AutomationTests} />
       <Route>
         <div className="flex items-center justify-center min-h-screen text-muted-foreground text-sm">
           404 — Page not found

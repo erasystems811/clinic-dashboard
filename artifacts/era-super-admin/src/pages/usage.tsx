@@ -2,7 +2,29 @@ import { useState } from "react";
 import Layout from "@/components/layout";
 import { get } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Users, Zap, ArrowUpDown, ArrowUp, ArrowDown, CalendarDays, Radio } from "lucide-react";
+import {
+  RefreshCw, Users, Mail, MessageSquare, ArrowUpDown, ArrowUp, ArrowDown,
+  CalendarDays, Radio, ChevronDown, ChevronUp,
+} from "lucide-react";
+
+interface MonthSnapshot {
+  month: string;
+  label: string;
+  patients: number;
+  emails: number;
+  sms: number;
+}
+
+interface CurrentMonth {
+  label: string;
+  daysElapsed: number;
+  patients: number;
+  emails: number;
+  sms: number;
+  avgPatientsDay: number;
+  avgEmailsDay: number;
+  avgSmsDay: number;
+}
 
 interface HospitalUsageStat {
   id: number;
@@ -10,28 +32,24 @@ interface HospitalUsageStat {
   active: boolean;
   createdAt: string | null;
   daysSince: number;
-  avgPatientsDay: number;
-  avgPatientsMonth: number;
-  avgAutosDay: number;
-  avgAutosMonth: number;
-  totalPatients: number;
-  totalAutos: number;
+  currentMonth: CurrentMonth;
+  history: MonthSnapshot[];
 }
 
-type SortKey = "avgPatientsDay" | "avgPatientsMonth" | "avgAutosDay" | "avgAutosMonth" | "name" | "daysSince";
+type SortKey = "avgPatientsDay" | "avgEmailsDay" | "avgSmsDay" | "name" | "daysSince";
 type SortDir = "asc" | "desc";
 
-function getTier(avgPerDay: number): { label: string; color: string; bg: string } {
-  if (avgPerDay >= 100) return { label: "Large",   color: "text-purple-400",        bg: "bg-purple-500/15 border-purple-500/25" };
-  if (avgPerDay >= 41)  return { label: "Big",     color: "text-orange-400",        bg: "bg-orange-500/15 border-orange-500/25" };
-  if (avgPerDay >= 21)  return { label: "Mid",     color: "text-blue-400",          bg: "bg-blue-500/15 border-blue-500/25" };
-  if (avgPerDay >= 1)   return { label: "Small",   color: "text-emerald-400",       bg: "bg-emerald-500/15 border-emerald-500/25" };
+function getTier(avgPerDay: number) {
+  if (avgPerDay >= 100) return { label: "Large",   color: "text-purple-400",  bg: "bg-purple-500/15 border-purple-500/25" };
+  if (avgPerDay >= 41)  return { label: "Big",     color: "text-orange-400",  bg: "bg-orange-500/15 border-orange-500/25" };
+  if (avgPerDay >= 21)  return { label: "Mid",     color: "text-blue-400",    bg: "bg-blue-500/15 border-blue-500/25" };
+  if (avgPerDay >= 1)   return { label: "Small",   color: "text-emerald-400", bg: "bg-emerald-500/15 border-emerald-500/25" };
   return                       { label: "No data", color: "text-muted-foreground/40", bg: "bg-white/5 border-border" };
 }
 
 function fmt(n: number) {
-  if (n === 0) return "—";
-  if (n < 0.1) return "< 0.1";
+  if (n === 0)   return "—";
+  if (n < 0.1)   return "< 0.1";
   return n % 1 === 0 ? String(n) : n.toFixed(1);
 }
 
@@ -55,6 +73,19 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
     : <ArrowDown className="w-3 h-3 text-primary ml-1 shrink-0" />;
 }
 
+// Compute a simple growth indicator from history
+function growthTrend(history: MonthSnapshot[]): { pct: number | null; up: boolean } {
+  const months = history.filter(m => m.patients > 0 || m.emails > 0);
+  if (months.length < 2) return { pct: null, up: true };
+  const prev = months[months.length - 2];
+  const last = months[months.length - 1];
+  const prevTotal = prev.patients + prev.emails + prev.sms;
+  const lastTotal = last.patients + last.emails + last.sms;
+  if (prevTotal === 0) return { pct: null, up: true };
+  const pct = Math.round(((lastTotal - prevTotal) / prevTotal) * 100);
+  return { pct, up: pct >= 0 };
+}
+
 const TIER_SUMMARY = [
   { label: "Large",   range: "100+ / day",  color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
   { label: "Big",     range: "41–100 / day",color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
@@ -66,11 +97,11 @@ const TIER_SUMMARY = [
 export default function Usage() {
   const [sortKey, setSortKey] = useState<SortKey>("avgPatientsDay");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
-  // Auto-recalculates every 2 minutes — picks up new patients, automations, and hospitals automatically
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<{ stats: HospitalUsageStat[] }>({
     queryKey: ["usage-stats"],
-    queryFn: () => get("/super-admin/usage-stats"),
+    queryFn:  () => get("/super-admin/usage-stats"),
     staleTime: 0,
     refetchInterval: 2 * 60_000,
   });
@@ -86,30 +117,52 @@ export default function Usage() {
     else { setSortKey(key); setSortDir("desc"); }
   }
 
+  function toggleExpand(id: number) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
   const sorted = [...stats].sort((a, b) => {
-    const cmp = sortKey === "name"
-      ? a.name.localeCompare(b.name)
-      : (a[sortKey] as number) - (b[sortKey] as number);
+    let cmp = 0;
+    if (sortKey === "name")          cmp = a.name.localeCompare(b.name);
+    else if (sortKey === "daysSince") cmp = a.daysSince - b.daysSince;
+    else {
+      const map: Record<string, number> = {
+        avgPatientsDay: a.currentMonth.avgPatientsDay - b.currentMonth.avgPatientsDay,
+        avgEmailsDay:   a.currentMonth.avgEmailsDay   - b.currentMonth.avgEmailsDay,
+        avgSmsDay:      a.currentMonth.avgSmsDay       - b.currentMonth.avgSmsDay,
+      };
+      cmp = map[sortKey] ?? 0;
+    }
     return sortDir === "asc" ? cmp : -cmp;
   });
 
   const tierCounts = stats.reduce<Record<string, number>>((acc, h) => {
-    const { label } = getTier(h.avgPatientsDay);
+    const { label } = getTier(h.currentMonth.avgPatientsDay);
     acc[label] = (acc[label] ?? 0) + 1;
     return acc;
   }, {});
 
-  const Col = ({ col, label, right }: { col: SortKey; label: string; right?: boolean }) => (
-    <th
-      onClick={() => toggleSort(col)}
-      className={`px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest cursor-pointer hover:text-muted-foreground transition select-none whitespace-nowrap ${right ? "text-right" : "text-left"}`}
-    >
-      <span className={`inline-flex items-center ${right ? "justify-end" : ""}`}>
-        {label}
-        <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-      </span>
-    </th>
-  );
+  // First hospital's current month label for display
+  const currentMonthLabel = stats[0]?.currentMonth.label ?? "";
+  const daysElapsed       = stats[0]?.currentMonth.daysElapsed ?? new Date().getDate();
+
+  function Col({ col, label, right }: { col: SortKey; label: string; right?: boolean }) {
+    return (
+      <th
+        onClick={() => toggleSort(col)}
+        className={`px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest cursor-pointer hover:text-muted-foreground transition select-none whitespace-nowrap ${right ? "text-right" : "text-left"}`}
+      >
+        <span className={`inline-flex items-center ${right ? "justify-end" : ""}`}>
+          {label}
+          <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
+        </span>
+      </th>
+    );
+  }
 
   return (
     <Layout breadcrumb={[{ label: "Usage" }]}>
@@ -118,20 +171,22 @@ export default function Usage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg font-semibold text-foreground">Hospital Usage</h1>
               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">
-                <Radio className="w-2.5 h-2.5" />
-                Live
+                <Radio className="w-2.5 h-2.5" /> Live
               </span>
+              {currentMonthLabel && (
+                <span className="text-[11px] text-muted-foreground/50 font-medium">
+                  {currentMonthLabel} · day {daysElapsed}
+                </span>
+              )}
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
-              All-time rolling averages from each hospital's first day — recalculates automatically every 2 min. New hospitals appear instantly.
+              Rolling averages for <strong className="text-foreground/70">this calendar month</strong> — resets on the 1st. Expand any hospital to see month-by-month growth history.
             </p>
             {lastUpdated && (
-              <p className="text-[11px] text-muted-foreground/40 mt-1">
-                Last updated: {lastUpdated}
-              </p>
+              <p className="text-[11px] text-muted-foreground/35 mt-1">Last updated: {lastUpdated} · auto-refreshes every 2 min</p>
             )}
           </div>
           <button
@@ -140,7 +195,7 @@ export default function Usage() {
             className="shrink-0 flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? "animate-spin" : ""}`} />
-            Refresh now
+            Refresh
           </button>
         </div>
 
@@ -157,61 +212,62 @@ export default function Usage() {
           ))}
         </div>
 
-        {/* Table */}
+        {/* Main table */}
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           {isLoading ? (
-            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">
-              Loading usage data…
-            </div>
+            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading usage data…</div>
           ) : sorted.length === 0 ? (
-            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">
-              No hospitals found.
-            </div>
+            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">No hospitals found.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  {/* Group header row */}
+                  {/* Group header */}
                   <tr className="border-b border-border bg-white/[0.015]">
-                    <th className="px-4 py-2.5 text-left" colSpan={2} />
-                    <th className="px-4 py-2.5 border-l border-border" colSpan={2}>
+                    <th className="px-4 py-2.5" colSpan={2} />
+                    <th className="px-4 py-2.5 border-l border-border/60" colSpan={1}>
                       <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
-                        <Users className="w-3 h-3" /> Patients seen (avg)
+                        <Users className="w-3 h-3" /> Patients / day
                       </span>
                     </th>
-                    <th className="px-4 py-2.5 border-l border-border" colSpan={2}>
+                    <th className="px-4 py-2.5 border-l border-border/60" colSpan={1}>
                       <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
-                        <Zap className="w-3 h-3" /> Automations fired (avg)
+                        <Mail className="w-3 h-3" /> Emails / day
                       </span>
                     </th>
-                    <th className="px-4 py-2.5 border-l border-border">
+                    <th className="px-4 py-2.5 border-l border-border/60" colSpan={1}>
+                      <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
+                        <MessageSquare className="w-3 h-3" /> SMS / day
+                      </span>
+                    </th>
+                    <th className="px-4 py-2.5 border-l border-border/60">
                       <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
                         <CalendarDays className="w-3 h-3" /> Since
                       </span>
                     </th>
+                    <th className="px-4 py-2.5 w-8" />
                   </tr>
-                  {/* Sub-header row */}
+                  {/* Sort header */}
                   <tr className="border-b border-border">
-                    <Col col="name"     label="Hospital" />
-                    <th className="px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest text-left whitespace-nowrap">
-                      Tier
-                    </th>
-                    {/* Patients */}
-                    <Col col="avgPatientsDay"   label="Per day"   right />
-                    <Col col="avgPatientsMonth" label="Per month" right />
-                    {/* Automations */}
-                    <Col col="avgAutosDay"      label="Per day"   right />
-                    <Col col="avgAutosMonth"    label="Per month" right />
-                    {/* Since */}
-                    <Col col="daysSince"        label="Active for" right />
+                    <Col col="name" label="Hospital" />
+                    <th className="px-4 py-2.5 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest text-left whitespace-nowrap">Tier</th>
+                    <Col col="avgPatientsDay" label="Avg / day" right />
+                    <Col col="avgEmailsDay"   label="Avg / day" right />
+                    <Col col="avgSmsDay"      label="Avg / day" right />
+                    <Col col="daysSince"      label="Active for" right />
+                    <th className="px-4 py-2.5 w-8" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody>
                   {sorted.map(h => {
-                    const tier = getTier(h.avgPatientsDay);
-                    return (
-                      <tr key={h.id} className="hover:bg-white/[0.02] transition-colors">
+                    const tier   = getTier(h.currentMonth.avgPatientsDay);
+                    const isOpen = expanded.has(h.id);
+                    const trend  = growthTrend(h.history);
+                    const cm     = h.currentMonth;
 
+                    return [
+                      /* ─ main row ─ */
+                      <tr key={h.id} className={`border-t border-border hover:bg-white/[0.02] transition-colors ${isOpen ? "bg-white/[0.02]" : ""}`}>
                         {/* Name */}
                         <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
                           <div className="flex items-center gap-2">
@@ -219,54 +275,131 @@ export default function Usage() {
                             {h.name}
                           </div>
                         </td>
-
                         {/* Tier */}
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${tier.bg} ${tier.color}`}>
-                            {tier.label}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${tier.bg} ${tier.color}`}>
+                              {tier.label}
+                            </span>
+                            {trend.pct !== null && (
+                              <span className={`text-[10px] font-medium ${trend.up ? "text-emerald-400" : "text-red-400"}`}>
+                                {trend.up ? "▲" : "▼"} {Math.abs(trend.pct)}%
+                              </span>
+                            )}
+                          </div>
                         </td>
-
-                        {/* Avg patients / day */}
-                        <td className="px-4 py-3 text-right tabular-nums border-l border-border/50">
-                          <span className={h.avgPatientsDay > 0 ? "text-foreground font-semibold" : "text-muted-foreground/25"}>
-                            {fmt(h.avgPatientsDay)}
+                        {/* Patients */}
+                        <td className="px-4 py-3 text-right tabular-nums border-l border-border/40">
+                          <span className={cm.avgPatientsDay > 0 ? "text-foreground font-semibold" : "text-muted-foreground/25"}>
+                            {fmt(cm.avgPatientsDay)}
                           </span>
-                          {h.avgPatientsDay > 0 && <span className="ml-1 text-[10px] text-muted-foreground/35">/day</span>}
+                          {cm.avgPatientsDay > 0 && (
+                            <span className="block text-[10px] text-muted-foreground/35">{cm.patients} total</span>
+                          )}
                         </td>
-
-                        {/* Avg patients / month */}
-                        <td className="px-4 py-3 text-right tabular-nums">
-                          <span className={h.avgPatientsMonth > 0 ? "text-foreground font-medium" : "text-muted-foreground/25"}>
-                            {fmt(h.avgPatientsMonth)}
+                        {/* Emails */}
+                        <td className="px-4 py-3 text-right tabular-nums border-l border-border/40">
+                          <span className={cm.avgEmailsDay > 0 ? "text-foreground font-semibold" : "text-muted-foreground/25"}>
+                            {fmt(cm.avgEmailsDay)}
                           </span>
-                          {h.avgPatientsMonth > 0 && <span className="ml-1 text-[10px] text-muted-foreground/35">/mo</span>}
+                          {cm.avgEmailsDay > 0 && (
+                            <span className="block text-[10px] text-muted-foreground/35">{cm.emails} total</span>
+                          )}
                         </td>
-
-                        {/* Avg autos / day */}
-                        <td className="px-4 py-3 text-right tabular-nums border-l border-border/50">
-                          <span className={h.avgAutosDay > 0 ? "text-foreground font-semibold" : "text-muted-foreground/25"}>
-                            {fmt(h.avgAutosDay)}
+                        {/* SMS */}
+                        <td className="px-4 py-3 text-right tabular-nums border-l border-border/40">
+                          <span className={cm.avgSmsDay > 0 ? "text-foreground font-semibold" : "text-muted-foreground/25"}>
+                            {fmt(cm.avgSmsDay)}
                           </span>
-                          {h.avgAutosDay > 0 && <span className="ml-1 text-[10px] text-muted-foreground/35">/day</span>}
+                          {cm.avgSmsDay > 0 && (
+                            <span className="block text-[10px] text-muted-foreground/35">{cm.sms} total</span>
+                          )}
                         </td>
-
-                        {/* Avg autos / month */}
-                        <td className="px-4 py-3 text-right tabular-nums">
-                          <span className={h.avgAutosMonth > 0 ? "text-foreground font-medium" : "text-muted-foreground/25"}>
-                            {fmt(h.avgAutosMonth)}
-                          </span>
-                          {h.avgAutosMonth > 0 && <span className="ml-1 text-[10px] text-muted-foreground/35">/mo</span>}
-                        </td>
-
-                        {/* Since / active for */}
-                        <td className="px-4 py-3 text-right whitespace-nowrap border-l border-border/50">
+                        {/* Since */}
+                        <td className="px-4 py-3 text-right whitespace-nowrap border-l border-border/40">
                           <p className="text-xs font-medium text-foreground/70 tabular-nums">{fmtDays(h.daysSince)}</p>
                           <p className="text-[10px] text-muted-foreground/35 mt-0.5">{fmtDate(h.createdAt)}</p>
                         </td>
+                        {/* Expand */}
+                        <td className="px-3 py-3 text-center">
+                          <button
+                            onClick={() => toggleExpand(h.id)}
+                            title={isOpen ? "Hide history" : "Show monthly history"}
+                            className="p-1 rounded-md text-muted-foreground/40 hover:text-muted-foreground hover:bg-white/5 transition"
+                          >
+                            {isOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </button>
+                        </td>
+                      </tr>,
 
-                      </tr>
-                    );
+                      /* ─ history panel ─ */
+                      isOpen && (
+                        <tr key={`hist-${h.id}`} className="border-t border-border/30 bg-white/[0.015]">
+                          <td colSpan={7} className="px-6 py-4">
+                            <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest mb-3">
+                              Month-by-month history — {h.name}
+                            </p>
+                            {h.history.length === 0 ? (
+                              <p className="text-xs text-muted-foreground/40">No history yet — data will appear after the first complete month.</p>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b border-border/30">
+                                      <th className="pb-2 text-left font-semibold text-muted-foreground/40 pr-8">Month</th>
+                                      <th className="pb-2 text-right font-semibold text-muted-foreground/40 pr-6">
+                                        <span className="inline-flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Patients</span>
+                                      </th>
+                                      <th className="pb-2 text-right font-semibold text-muted-foreground/40 pr-6">
+                                        <span className="inline-flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Emails</span>
+                                      </th>
+                                      <th className="pb-2 text-right font-semibold text-muted-foreground/40 pr-6">
+                                        <span className="inline-flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> SMS</span>
+                                      </th>
+                                      <th className="pb-2 text-right font-semibold text-muted-foreground/40">Total activity</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/20">
+                                    {h.history.map((m, idx) => {
+                                      const total = m.patients + m.emails + m.sms;
+                                      const prev  = idx > 0 ? h.history[idx - 1] : null;
+                                      const prevTotal = prev ? prev.patients + prev.emails + prev.sms : null;
+                                      const growthPct = prevTotal && prevTotal > 0
+                                        ? Math.round(((total - prevTotal) / prevTotal) * 100)
+                                        : null;
+                                      return (
+                                        <tr key={m.month} className="hover:bg-white/[0.02]">
+                                          <td className="py-2 pr-8 font-medium text-foreground/70">{m.label}</td>
+                                          <td className="py-2 pr-6 text-right tabular-nums">
+                                            {m.patients > 0 ? <span className="text-foreground">{m.patients}</span> : <span className="text-muted-foreground/25">—</span>}
+                                          </td>
+                                          <td className="py-2 pr-6 text-right tabular-nums">
+                                            {m.emails > 0 ? <span className="text-foreground">{m.emails}</span> : <span className="text-muted-foreground/25">—</span>}
+                                          </td>
+                                          <td className="py-2 pr-6 text-right tabular-nums">
+                                            {m.sms > 0 ? <span className="text-foreground">{m.sms}</span> : <span className="text-muted-foreground/25">—</span>}
+                                          </td>
+                                          <td className="py-2 text-right">
+                                            <span className={`font-semibold tabular-nums ${total > 0 ? "text-foreground" : "text-muted-foreground/25"}`}>
+                                              {total > 0 ? total : "—"}
+                                            </span>
+                                            {growthPct !== null && total > 0 && (
+                                              <span className={`ml-2 text-[10px] ${growthPct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                                {growthPct >= 0 ? "▲" : "▼"} {Math.abs(growthPct)}%
+                                              </span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ),
+                    ];
                   })}
                 </tbody>
               </table>
@@ -274,7 +407,7 @@ export default function Usage() {
           )}
         </div>
 
-        {/* Legend + footnote */}
+        {/* Legend */}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pb-2">
           <p className="text-[10px] text-muted-foreground/30 uppercase tracking-widest">Tier</p>
           {[
@@ -289,7 +422,7 @@ export default function Usage() {
             </span>
           ))}
           <span className="ml-auto text-[10px] text-muted-foreground/30">
-            Averages run from each hospital's creation date · Patients = queue visits · Test automations excluded
+            Resets 1st of each month · Patients = queue visits · Test automations excluded · ▲▼ = vs previous month
           </span>
         </div>
 

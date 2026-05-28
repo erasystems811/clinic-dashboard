@@ -1243,19 +1243,41 @@ router.post("/super-admin/test-email", requireSuperAdmin, async (req, res): Prom
 });
 
 // ── GET /super-admin/usage-stats ─────────────────────────────────────────────
-// All-time rolling average patients/day, patients/month, automations/day,
-// automations/month for every hospital — calculated from each hospital's
-// creation date so the average grows more accurate over time.
+// Current-month rolling averages (patients/day, emails/day, sms/day) for every
+// hospital, plus 12-month history so you can see month-over-month growth.
+// "Current month" resets on the 1st of each month automatically.
 router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
-  const now = Date.now();
+  const now       = new Date();
+  const nowMs     = now.getTime();
 
-  // Fetch hospitals + all-time queue + all-time automation_log in parallel
-  const [hospitalsRes, queueRes, autoRes] = await Promise.all([
+  // Current month window: 00:00 on the 1st → now
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const daysElapsed = Math.max(1, now.getDate()); // 1 – 31
+
+  // History window: 13 months back (12 complete + current partial)
+  const histStart  = new Date(now.getFullYear(), now.getMonth() - 12, 1).toISOString();
+
+  const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+  function monthKey(iso: string)   { const d = new Date(iso); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; }
+  function monthLabel(key: string) { const [y,m] = key.split("-"); return `${MONTH_NAMES[parseInt(m,10)-1]} ${y}`; }
+
+  // Run all queries in parallel
+  const [hospitalsRes, qCurrRes, eCurrRes, sCurrRes, qHistRes, aHistRes] = await Promise.all([
     supabase.from("hospitals").select("id, name, active, hospital_code, created_at").order("name"),
-    // All queue visits ever (hospital_id = hospital_code TEXT)
-    supabase.from("queue").select("hospital_id").limit(500000),
-    // All automation entries ever, excluding test entries (patient_id = -1)
-    supabase.from("automation_log").select("hospital_id").neq("patient_id", -1).limit(500000),
+    // Queue visits — current month (hospital_id = hospital_code TEXT)
+    supabase.from("queue").select("hospital_id").gte("added_at", monthStart).limit(100000),
+    // Email automations — current month
+    supabase.from("automation_log").select("hospital_id")
+      .gte("created_at", monthStart).eq("channel", "email").neq("patient_id", -1).limit(100000),
+    // SMS/WhatsApp automations — current month
+    supabase.from("automation_log").select("hospital_id")
+      .gte("created_at", monthStart).in("channel", ["sms","whatsapp"]).neq("patient_id", -1).limit(100000),
+    // Queue history — last 13 months (need added_at for month grouping)
+    supabase.from("queue").select("hospital_id, added_at").gte("added_at", histStart).limit(500000),
+    // Automation history — last 13 months
+    supabase.from("automation_log").select("hospital_id, channel, created_at")
+      .gte("created_at", histStart).neq("patient_id", -1).limit(500000),
   ]);
 
   const hospitals = hospitalsRes.data ?? [];
@@ -1266,50 +1288,91 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
     if (h.hospital_code) codeToId.set(h.hospital_code, h.id);
   }
 
-  // Count queue visits by integer hospital id (all time)
-  const patientTotals = new Map<number, number>();
-  for (const r of (queueRes.data ?? []) as { hospital_id: string }[]) {
+  // Helper: count by integer hospital id
+  function countByHospital(rows: { hospital_id: string }[], useCode = true): Map<number, number> {
+    const m = new Map<number, number>();
+    for (const r of rows) {
+      const id = useCode ? codeToId.get(r.hospital_id) : parseInt(r.hospital_id, 10);
+      if (id !== undefined && !isNaN(id)) m.set(id, (m.get(id) ?? 0) + 1);
+    }
+    return m;
+  }
+
+  // Current month counts
+  const currPatients = countByHospital((qCurrRes.data ?? []) as { hospital_id: string }[], true);
+  const currEmails   = countByHospital((eCurrRes.data ?? []) as { hospital_id: string }[], false);
+  const currSms      = countByHospital((sCurrRes.data ?? []) as { hospital_id: string }[], false);
+
+  // --- Monthly history ---
+  // key: `${hospitalId}|${monthKey}` → { patients, emails, sms }
+  type MonthBucket = { patients: number; emails: number; sms: number };
+  const hist = new Map<string, MonthBucket>();
+  const bucket = (hId: number, mk: string): MonthBucket => {
+    const k = `${hId}|${mk}`;
+    if (!hist.has(k)) hist.set(k, { patients: 0, emails: 0, sms: 0 });
+    return hist.get(k)!;
+  };
+
+  for (const r of (qHistRes.data ?? []) as { hospital_id: string; added_at: string }[]) {
     const id = codeToId.get(r.hospital_id);
-    if (id !== undefined) patientTotals.set(id, (patientTotals.get(id) ?? 0) + 1);
+    if (id !== undefined) bucket(id, monthKey(r.added_at)).patients++;
+  }
+  for (const r of (aHistRes.data ?? []) as { hospital_id: number; channel: string; created_at: string }[]) {
+    const mk = monthKey(r.created_at);
+    if (r.channel === "email")                  bucket(r.hospital_id, mk).emails++;
+    else if (r.channel === "sms" || r.channel === "whatsapp") bucket(r.hospital_id, mk).sms++;
   }
 
-  // Count automation_log entries by integer hospital id (all time)
-  const autoTotals = new Map<number, number>();
-  for (const r of (autoRes.data ?? []) as { hospital_id: number }[]) {
-    autoTotals.set(r.hospital_id, (autoTotals.get(r.hospital_id) ?? 0) + 1);
+  // Build the 12 completed-month keys (excluding current month)
+  const completedMonths: string[] = [];
+  for (let i = 12; i >= 1; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    completedMonths.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);
   }
+  const currentMonthKey = monthKey(now.toISOString());
 
-  const AVG_DAYS_PER_MONTH = 30.44;
+  const r1 = (n: number) => Math.round(n * 10) / 10;
+  const currentMonthLabel = monthLabel(currentMonthKey);
 
   const stats = hospitals.map(h => {
-    const createdAt    = h.created_at ? new Date(h.created_at as string).getTime() : now;
-    const daysSince    = Math.max(1, (now - createdAt) / 86_400_000);
-    const monthsSince  = daysSince / AVG_DAYS_PER_MONTH;
+    const createdAt = h.created_at ? new Date(h.created_at as string).getTime() : nowMs;
+    const daysSince = Math.max(1, (nowMs - createdAt) / 86_400_000);
 
-    const totalPatients = patientTotals.get(h.id) ?? 0;
-    const totalAutos    = autoTotals.get(h.id)    ?? 0;
+    const patients = currPatients.get(h.id) ?? 0;
+    const emails   = currEmails.get(h.id)   ?? 0;
+    const sms      = currSms.get(h.id)      ?? 0;
 
-    const r1 = (n: number) => Math.round(n * 10) / 10;
+    const history = completedMonths.map(mk => {
+      const b = hist.get(`${h.id}|${mk}`);
+      return { month: mk, label: monthLabel(mk), patients: b?.patients ?? 0, emails: b?.emails ?? 0, sms: b?.sms ?? 0 };
+    }).filter(m => {
+      // Only include months from after the hospital was created
+      const mStart = new Date(m.month + "-01").getTime();
+      return mStart >= new Date(h.created_at as string ?? 0).setDate(1);
+    });
 
     return {
-      id:               h.id,
-      name:             h.name,
-      active:           h.active,
-      createdAt:        h.created_at as string | null,
-      daysSince:        Math.floor(daysSince),
-      // All-time averages
-      avgPatientsDay:   r1(totalPatients / daysSince),
-      avgPatientsMonth: r1(totalPatients / monthsSince),
-      avgAutosDay:      r1(totalAutos    / daysSince),
-      avgAutosMonth:    r1(totalAutos    / monthsSince),
-      // Raw totals
-      totalPatients,
-      totalAutos,
+      id:           h.id,
+      name:         h.name,
+      active:       h.active,
+      createdAt:    h.created_at as string | null,
+      daysSince:    Math.floor(daysSince),
+      currentMonth: {
+        label:          currentMonthLabel,
+        daysElapsed,
+        patients,
+        emails,
+        sms,
+        avgPatientsDay: r1(patients / daysElapsed),
+        avgEmailsDay:   r1(emails   / daysElapsed),
+        avgSmsDay:      r1(sms      / daysElapsed),
+      },
+      history,
     };
   });
 
-  // Sort by avg patients/day descending
-  stats.sort((a, b) => b.avgPatientsDay - a.avgPatientsDay);
+  // Sort by current month avg patients/day descending
+  stats.sort((a, b) => b.currentMonth.avgPatientsDay - a.currentMonth.avgPatientsDay);
 
   res.json({ stats });
 });

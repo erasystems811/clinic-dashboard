@@ -32,38 +32,38 @@
   --radius-lg: calc(var(--radius) + 2px);
 }
 
-/* ERA Systems Super Admin — Deep Black · Vibrant Gold · Crisp Contrast */
+/* ERA Systems Super Admin — Charcoal · Vibrant Gold · Crisp Contrast */
 :root {
-  /* Near-pure black content area */
-  --background: 0 0% 5%;
+  /* Charcoal content area — brighter than black, still clearly dark */
+  --background: 0 0% 11%;
   --foreground: 0 0% 96%;
 
   /* Visible borders — sharp layer separation */
-  --border: 0 0% 15%;
-  --input: 0 0% 9%;
+  --border: 0 0% 19%;
+  --input: 0 0% 14%;
   --ring: 43 90% 56%;
 
   /* Cards: clearly lifted from background */
-  --card: 0 0% 8.5%;
+  --card: 0 0% 14%;
   --card-foreground: 0 0% 96%;
 
   /* Gold — vivid champagne, high saturation */
   --primary: 43 90% 56%;
   --primary-foreground: 0 0% 4%;
 
-  --secondary: 0 0% 12%;
+  --secondary: 0 0% 17%;
   --secondary-foreground: 0 0% 80%;
-  --muted: 0 0% 10%;
-  --muted-foreground: 0 0% 52%;
-  --accent: 0 0% 13%;
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 54%;
+  --accent: 0 0% 18%;
   --accent-foreground: 0 0% 94%;
   --destructive: 0 76% 54%;
   --destructive-foreground: 0 0% 100%;
 
-  /* Sidebar: true black — maximum contrast against content */
-  --sidebar: 0 0% 2.5%;
+  /* Sidebar: darker than content — keeps contrast & depth */
+  --sidebar: 0 0% 6%;
   --sidebar-foreground: 0 0% 88%;
-  --sidebar-border: 0 0% 12%;
+  --sidebar-border: 0 0% 15%;
 
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
   --app-font-mono: 'DM Mono', 'SF Mono', Menlo, monospace;

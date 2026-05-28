@@ -5,7 +5,8 @@ import { api, Hospital } from "@/lib/api";
 import {
   Building2, Plus, Search, CheckCircle2, XCircle,
   AlertCircle, Loader2, ChevronRight, RefreshCw, CalendarClock,
-  Database, MessageSquare, Clock, Activity, Mail, Smartphone
+  Database, MessageSquare, Clock, Activity, Mail, Smartphone,
+  Flag, X
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";
 
@@ -29,7 +30,7 @@ function StatusBadge({ status, active }: { status: string; active: boolean }) {
   );
 }
 
-type HealthCheck = { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string };
+type HealthCheck = { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string; flagged?: boolean; flaggedAt?: string };
 
 export default function Dashboard() {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
@@ -42,6 +43,7 @@ export default function Dashboard() {
 
   const [health, setHealth] = useState<{ ok: boolean; anyWarning?: boolean; checks: HealthCheck[] } | null>(null);
   const [healthLoading, setHealthLoading] = useState(true);
+  const [flagging, setFlagging] = useState<string | null>(null);
 
   const fetchHealth = useCallback(async () => {
     setHealthLoading(true);
@@ -54,6 +56,26 @@ export default function Dashboard() {
       setHealthLoading(false);
     }
   }, []);
+
+  const handleFlag = useCallback(async (service: string) => {
+    setFlagging(service);
+    try {
+      await api.setServiceAlert(service);
+      await fetchHealth();
+    } catch { /* ignore */ } finally {
+      setFlagging(null);
+    }
+  }, [fetchHealth]);
+
+  const handleClearFlag = useCallback(async (service: string) => {
+    setFlagging(service);
+    try {
+      await api.clearServiceAlert(service);
+      await fetchHealth();
+    } catch { /* ignore */ } finally {
+      setFlagging(null);
+    }
+  }, [fetchHealth]);
 
   const fetchHospitals = useCallback(async () => {
     setLoading(true);
@@ -176,25 +198,48 @@ export default function Dashboard() {
               const Icon = c.name === "Database" ? Database : c.name.startsWith("SMS") ? MessageSquare : c.name.startsWith("WhatsApp") ? Smartphone : c.name.startsWith("Email") ? Mail : Clock;
           
               const isWarn = c.ok && c.warning;
+              const isBusy = flagging === c.name;
               return (
-                <div key={c.name} className={`flex items-start gap-2.5 p-3 rounded-lg border ${
+                <div key={c.name} className={`flex flex-col p-3 rounded-lg border ${
                   !c.ok ? "border-red-500/20 bg-red-500/5"
                   : isWarn ? "border-amber-500/20 bg-amber-500/5"
                   : "border-emerald-500/20 bg-emerald-500/5"
                 }`}>
-                  <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${!c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400"}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-foreground">{c.name}</p>
-                    <p className="text-xs text-muted-foreground truncate" title={c.detail}>{c.detail}</p>
-                    {c.balance && (
-                      <p className={`text-xs font-semibold mt-0.5 ${isWarn || !c.ok ? "text-amber-400" : "text-emerald-400"}`}>{c.balance}</p>
-                    )}
+                  <div className="flex items-start gap-2">
+                    <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${!c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400"}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-foreground">{c.name}</p>
+                      <p className="text-xs text-muted-foreground truncate" title={c.detail}>{c.detail}</p>
+                      {c.balance && (
+                        <p className={`text-xs font-semibold mt-0.5 ${isWarn || !c.ok ? "text-amber-400" : "text-emerald-400"}`}>{c.balance}</p>
+                      )}
+                    </div>
+                    {!c.ok
+                      ? <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                      : isWarn
+                        ? <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />}
                   </div>
-                  {!c.ok
-                    ? <XCircle className="w-3.5 h-3.5 text-red-400 ml-auto shrink-0 mt-0.5" />
-                    : isWarn
-                      ? <AlertCircle className="w-3.5 h-3.5 text-amber-400 ml-auto shrink-0 mt-0.5" />
-                      : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 ml-auto shrink-0 mt-0.5" />}
+                  {/* Manual alert flag — press when billing alert email arrives */}
+                  {c.flagged ? (
+                    <button
+                      onClick={() => handleClearFlag(c.name)}
+                      disabled={isBusy}
+                      className="mt-2 flex items-center justify-center gap-1 w-full py-1 rounded text-xs bg-red-500/10 text-red-400 hover:bg-red-500/20 transition border border-red-500/20"
+                    >
+                      {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                      {!isBusy && "Clear alert"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleFlag(c.name)}
+                      disabled={isBusy}
+                      className="mt-2 flex items-center justify-center gap-1 w-full py-0.5 rounded text-xs text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted transition"
+                      title="Got a low-credit email for this service? Click to flag it red."
+                    >
+                      {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flag className="w-3 h-3" />}
+                    </button>
+                  )}
                 </div>
               );
             })}

@@ -713,7 +713,7 @@ router.post("/super-admin/reset-test-data", requireSuperAdmin, async (req, res):
 
 // GET /super-admin/health
 router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<void> => {
-  const checks: { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string }[] = [];
+  const checks: { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string; flagged?: boolean; flaggedAt?: string }[] = [];
 
   // 1. Database
   try {
@@ -722,6 +722,10 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
   } catch (e) {
     checks.push({ name: "Database", ok: false, detail: e instanceof Error ? e.message : "Unreachable" });
   }
+
+  // Load manual service flags (set by super admin when billing alert email arrives)
+  const { data: alertFlags } = await supabase.from("platform_alerts").select("service, alerted_at");
+  const flagMap = new Map<string, string>((alertFlags ?? []).map((a: Record<string, string>) => [a.service, a.alerted_at]));
 
   const isProd = process.env.NODE_ENV === "production";
 
@@ -800,9 +804,36 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     detail: schedulerEnabled ? "Running" : isProd ? "Not running — set ENABLE_SCHEDULER=true" : "Off in dev — runs automatically on Railway",
   });
 
+  // Merge manual flags — overrides auto state to red
+  for (const c of checks) {
+    const flaggedAt = flagMap.get(c.name);
+    if (flaggedAt) {
+      c.flagged = true;
+      c.flaggedAt = flaggedAt;
+      c.ok = false;
+      c.warning = false;
+    }
+  }
+
   const allOk = checks.every(c => c.ok);
   const anyWarning = !allOk ? false : checks.some((c: Record<string, unknown>) => c.warning);
   res.json({ ok: allOk, anyWarning, checks });
+});
+
+// POST /super-admin/service-alert — manually flag a service as having a billing issue
+router.post("/super-admin/service-alert", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { service } = req.body as { service?: string };
+  if (!service) { res.status(400).json({ error: "service required" }); return; }
+  const { error } = await supabase.from("platform_alerts").upsert({ service, alerted_at: new Date().toISOString() });
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ ok: true });
+});
+
+// DELETE /super-admin/service-alert/:service — clear a manual flag
+router.delete("/super-admin/service-alert/:service", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { error } = await supabase.from("platform_alerts").delete().eq("service", req.params.service);
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ ok: true });
 });
 
 // ── Automation Log (Failed Automations) ───────────────────────────────────────

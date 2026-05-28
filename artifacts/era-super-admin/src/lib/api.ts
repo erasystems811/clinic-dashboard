@@ -40,6 +40,9 @@ export function patch<T>(path: string, body: unknown) {
 export function put<T>(path: string, body: unknown) {
   return request<T>(path, { method: "PUT", body: JSON.stringify(body) });
 }
+export function del<T>(path: string) {
+  return request<T>(path, { method: "DELETE" });
+}
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 export interface StaffCredentials {
@@ -164,7 +167,13 @@ export const api = {
     post<{ ok: boolean; message: string }>("/super-admin/reset-test-data", { hospitalId }),
 
   getHealth: () =>
-    get<{ ok: boolean; checks: { name: string; ok: boolean; detail: string }[] }>("/super-admin/health"),
+    get<{ ok: boolean; anyWarning?: boolean; checks: { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string; flagged?: boolean; flaggedAt?: string }[] }>("/super-admin/health"),
+
+  setServiceAlert: (service: string) =>
+    post<{ ok: boolean }>("/super-admin/service-alert", { service }),
+
+  clearServiceAlert: (service: string) =>
+    del<{ ok: boolean }>(`/super-admin/service-alert/${encodeURIComponent(service)}`),
 
   changePassword: (currentPassword: string, newPassword: string) =>
     post<{ ok: boolean }>("/super-admin/change-password", { currentPassword, newPassword }),

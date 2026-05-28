@@ -18,8 +18,8 @@ function AppRoutes() {
 
   return (
     <Switch>
-      <Route path="/" component={Analytics} />
-      <Route path="/hospitals" component={Hospitals} />
+      <Route path="/" component={Hospitals} />
+      <Route path="/overview" component={Analytics} />
       <Route path="/hospitals/:id">
         {(params) => <HospitalDetail id={parseInt(params.id)} />}
       </Route>

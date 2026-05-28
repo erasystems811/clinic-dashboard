@@ -2,7 +2,8 @@ import { Router, type IRouter } from "express";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { verifyHospitalToken } from "./super-admin.js";
-import { deliverWhatsApp } from "../lib/whatsapp.js";
+import { deliverMobileMessage } from "../lib/messaging.js";
+import { getHospitalContext } from "../lib/automation.js";
 import { z } from "zod/v4";
 
 const router: IRouter = Router();
@@ -200,11 +201,13 @@ router.post("/messages/reply", async (req, res): Promise<void> => {
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  // Attempt delivery via WhatsApp stub (no-op until Meta API is connected)
+  // Attempt delivery via Termii (hospital's configured channel — whatsapp or sms)
   try {
-    await deliverWhatsApp({ to: phone, body });
-  } catch {
-    // Delivery failure doesn't block — message is stored, will be retried when connected
+    const hCtx = await getHospitalContext(hospitalId);
+    await deliverMobileMessage(hCtx.notificationChannel, phone, body, { senderId: hCtx.termiiSenderId });
+  } catch (deliveryErr) {
+    // Log but don't block — message is stored in the DB regardless
+    console.error("[messages/reply] delivery failed:", deliveryErr instanceof Error ? deliveryErr.message : deliveryErr);
   }
 
   res.json(camelize(inserted));

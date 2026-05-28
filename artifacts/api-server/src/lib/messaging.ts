@@ -111,11 +111,13 @@ async function termiiSend(
 }
 
 export async function deliverWhatsApp(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
-  await termiiSend(msg, "whatsapp", opts);
+  const result = await termiiSend(msg, "whatsapp", opts);
+  if (!result.ok) throw new Error(result.detail);
 }
 
 export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
-  await termiiSend(msg, "generic", opts);
+  const result = await termiiSend(msg, "generic", opts);
+  if (!result.ok) throw new Error(result.detail);
 }
 
 export async function deliverMobileMessage(

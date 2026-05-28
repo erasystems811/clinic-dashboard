@@ -12,6 +12,7 @@ import {
   sendBirthdayEmail,
   sendCareVisitReminderEmail,
   sendCarePlanEmail,
+  sendQueueLongWaitApology,
   type InCareTimeSlot,
 } from "./automation.js";
 
@@ -623,7 +624,70 @@ export function startScheduler() {
     await runTermiiBalanceCheck();
   });
 
+  // Every 10 minutes: long-wait apology — patients in queue > 20 min with no apology yet
+  cron.schedule("*/10 * * * *", async () => {
+    await runQueueLongWaitApology();
+  });
+
   log("Scheduler started — all automations are email-first");
+}
+
+// ── Queue long-wait apology — runs every 10 min ───────────────────────────────
+// Patients who have been in the queue for > 20 minutes and haven't yet received
+// an apology for this queue session get a single sorry message via SMS/WhatsApp.
+// Uses a per-queue-entry dedup key so it only fires once per visit.
+async function runQueueLongWaitApology() {
+  try {
+    const cutoff = new Date(Date.now() - 20 * 60 * 1000); // 20 min ago
+
+    const { data: hospitals } = await supabase
+      .from("hospitals")
+      .select("id, hospital_code")
+      .eq("active", true);
+    if (!hospitals?.length) return;
+
+    for (const h of hospitals) {
+      const { data: entries } = await supabase
+        .from("queue")
+        .select("id, patient_id, patient_name, phone, whatsapp_number, added_at")
+        .eq("hospital_id", h.hospital_code)
+        .lte("added_at", cutoff.toISOString());
+
+      if (!entries?.length) continue;
+
+      for (const entry of entries) {
+        // Unique per-queue-entry key — fires at most once per queue session
+        const key = `queue_long_wait_${entry.id}`;
+        if (await checkSentLog(h.id, key)) continue;
+
+        const phone = (entry.whatsapp_number as string) || (entry.phone as string) || null;
+        if (!phone) continue;
+
+        await sendQueueLongWaitApology(
+          h.id,
+          entry.patient_id as number,
+          entry.patient_name as string,
+          phone,
+        );
+
+        // Insert dedup record so this entry never receives a second apology
+        await supabase.from("automation_log").insert({
+          hospital_id: h.id,
+          patient_id: entry.patient_id,
+          automation_type: key,
+          status: "sent",
+          channel: "sms",
+          message: `Long wait apology dedup → queue entry ${entry.id}`,
+          created_at: new Date().toISOString(),
+        });
+
+        log(`Long wait apology → queue entry ${entry.id} patient ${entry.patient_id}`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Queue long-wait apology error: ${err}`);
+  }
 }
 
 // ── Delayed care plan summary emails (20 min after plan creation) ─────────────

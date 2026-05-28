@@ -160,9 +160,24 @@ export default function SettingsPage() {
             value="Instant"
           />
           <Row
-            label="Queue updates — SMS / WhatsApp"
-            note="Three messages fire as the patient moves through the queue: check-in confirmation with position, next-in-line alert, and 'it's your turn' notification. A long-wait apology is sent if the wait exceeds 20 minutes."
-            value="Per queue action"
+            label="Queue: you're in — SMS / WhatsApp"
+            note="Sent the moment a patient is checked in. Confirms their position in the queue and reassures them the team is ready."
+            value="On check-in"
+          />
+          <Row
+            label="Queue: you're next — SMS / WhatsApp"
+            note="Sent automatically to whoever moves to position 1 after the patient ahead of them is called in. No manual action needed."
+            value="Auto on position 1"
+          />
+          <Row
+            label="Queue: it's your turn — SMS / WhatsApp"
+            note="Sent to a patient the moment the receptionist ticks 'Called in' — confirming they should proceed to the consultation room."
+            value="On called-in"
+          />
+          <Row
+            label="Queue: long-wait apology — SMS / WhatsApp"
+            note="Sent once to any patient who has been waiting more than 20 minutes. Fires automatically — the receptionist doesn't need to do anything."
+            value="After 20 min"
           />
           <Row
             label="Appointment confirmation — Email"

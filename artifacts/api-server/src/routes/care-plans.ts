@@ -132,7 +132,8 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
     department: parsed.data.department,
     treatment_started_at: now.toISOString(),
     treatment_duration_days: durationDays,
-    treatment_end_date: treatmentEndDate.toISOString().split("T")[0],
+    // Only GenOut has meaningful treatment_end_date; other departments use null.
+    treatment_end_date: isGeneralOutpatient ? treatmentEndDate.toISOString().split("T")[0] : null,
     pre_queue_stage: null,
   }).eq("id", patientId);
   if (metaErr) console.error("[care-plans] metadata update failed:", metaErr);
@@ -228,7 +229,9 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
     const today = new Date().toISOString().split("T")[0];
     await supabase.from("patients").update({
       stage: nextStage,
-      treatment_end_date: today,
+      // Only stamp treatment_end_date for GenOut — other departments never trigger
+      // post-treatment emails, so leave the field null to avoid false-positives.
+      treatment_end_date: isGeneralOutpatientEnd ? today : null,
       updated_at: new Date().toISOString(),
     }).eq("id", existing.patient_id as number);
 

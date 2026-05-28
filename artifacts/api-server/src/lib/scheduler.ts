@@ -101,6 +101,7 @@ async function runPostTreatmentCheckins() {
         .from("patients")
         .select("id, first_name, last_name, email, treatment_end_date")
         .eq("hospital_id", h.hospital_code)
+        .eq("stage", "Post Treatment")
         .not("treatment_end_date", "is", null)
         .not("email", "is", null)
         .lte("treatment_end_date", today);

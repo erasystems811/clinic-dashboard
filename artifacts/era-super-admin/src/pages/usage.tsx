@@ -269,29 +269,35 @@ export default function Usage() {
         ══════════════════════════════════════════ */}
         {tab === "history" && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
+            {/* Table header bar */}
             <div className="px-5 py-2.5 border-b border-border flex items-center gap-3 bg-white/[0.04]">
               <History className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
               <span className="text-xs font-semibold text-foreground">12-month history</span>
-              <span className="text-[11px] text-muted-foreground/40">Each month's own avg/day — same as Live, snapshotted at month-end</span>
+              <span className="text-[11px] text-muted-foreground/40">Avg/day that month</span>
+              {/* Legend */}
+              <div className="ml-auto flex items-center gap-3 text-[10px] text-muted-foreground/40">
+                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Patients</span>
+                <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Emails</span>
+                <span className="flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> SMS</span>
+              </div>
             </div>
+
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="text-xs border-collapse" style={{ minWidth: "max-content" }}>
                   <thead>
-                    {/* Month header row */}
-                    <tr className="border-b border-border">
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap sticky left-0 bg-card z-10 min-w-[180px]">
+                    <tr className="border-b border-border bg-white/[0.02]">
+                      {/* Fixed: hospital column */}
+                      <th className="px-5 py-2.5 text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap sticky left-0 bg-[#1a1a1a] z-10 min-w-[200px]">
                         Hospital
                       </th>
-                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">
-                        Metric
-                      </th>
+                      {/* One column per past month */}
                       {allMonths.map(label => (
                         <th
                           key={label}
-                          className="px-4 py-3 text-center text-[10px] font-semibold text-muted-foreground/40 whitespace-nowrap border-l border-border/30 min-w-[72px]"
+                          className="px-4 py-2.5 text-center text-[10px] font-semibold text-muted-foreground/40 whitespace-nowrap border-l border-border/40 min-w-[80px]"
                         >
                           {shortLabel(label)}
                         </th>
@@ -301,69 +307,56 @@ export default function Usage() {
                   <tbody>
                     {sorted.map((h, hi) => {
                       const tier = getTier(h.currentMonth.avgPatientsDay);
+                      const rowBg = hi % 2 === 0 ? "bg-card" : "bg-white/[0.015]";
 
-                      const rows: { icon: React.ReactNode; key: keyof MonthSnapshot; label: string }[] = [
-                        { icon: <Users className="w-2.5 h-2.5 shrink-0" />,         key: "avgPatientsDay", label: "Patients/day" },
-                        { icon: <Mail className="w-2.5 h-2.5 shrink-0" />,          key: "avgEmailsDay",   label: "Emails/day"   },
-                        { icon: <MessageSquare className="w-2.5 h-2.5 shrink-0" />, key: "avgSmsDay",      label: "SMS/day"      },
-                      ];
-
-                      return rows.map((row, ri) => (
+                      return (
                         <tr
-                          key={`${h.id}-${row.key}`}
-                          className={`
-                            ${ri === 0 ? "border-t border-border/60" : "border-t border-border/20"}
-                            ${hi % 2 === 0 ? "" : "bg-white/[0.01]"}
-                            hover:bg-white/[0.025] transition-colors
-                          `}
+                          key={h.id}
+                          className={`border-t border-border/50 hover:bg-white/[0.03] transition-colors ${rowBg}`}
                         >
-                          {/* Hospital name — only on first metric row, spans 3 */}
-                          {ri === 0 ? (
-                            <td
-                              rowSpan={3}
-                              className="px-5 py-2 align-middle font-medium text-foreground whitespace-nowrap sticky left-0 bg-card z-10"
-                            >
-                              <div className="flex flex-col gap-0.5">
-                                <div className="flex items-center gap-1.5">
-                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
-                                  <span className="text-[13px]">{h.name}</span>
-                                </div>
-                                <div className="flex items-center gap-2 pl-3">
-                                  <span className={`text-[10px] font-semibold ${tier.color}`}>{tier.label}</span>
-                                  <span className="text-[10px] text-muted-foreground/35">{fmtDays(h.daysSince)}</span>
-                                </div>
-                              </div>
-                            </td>
-                          ) : null}
-
-                          {/* Metric label */}
-                          <td className="px-4 py-1.5 whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1 text-muted-foreground/40">
-                              {row.icon}
-                              <span className="text-[10px]">{row.label}</span>
-                            </span>
+                          {/* Hospital name cell — sticky */}
+                          <td className={`px-5 py-3 whitespace-nowrap sticky left-0 z-10 ${rowBg}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
+                              <span className="font-medium text-foreground text-[13px]">{h.name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 pl-3.5">
+                              <span className={`text-[10px] font-semibold ${tier.color}`}>{tier.label}</span>
+                              <span className="text-[10px] text-muted-foreground/35">{fmtDays(h.daysSince)}</span>
+                            </div>
                           </td>
 
-                          {/* One cell per past month */}
+                          {/* One cell per past month — stacks all 3 metrics */}
                           {h.history.map((snap, mi) => {
-                            const val = snap[row.key] as number;
-                            const hasData = snap.patients > 0 || snap.emails > 0 || snap.sms > 0;
+                            const noData = snap.patients === 0 && snap.emails === 0 && snap.sms === 0;
                             return (
                               <td
                                 key={mi}
-                                className="px-4 py-1.5 text-center tabular-nums border-l border-border/15"
+                                className="px-4 py-2.5 text-center align-middle border-l border-border/20"
                               >
-                                {hasData
-                                  ? <span className={val > 0 ? "text-foreground font-medium" : "text-muted-foreground/20"}>
-                                      {fmt(val)}
+                                {noData ? (
+                                  <span className="text-muted-foreground/15 text-base">·</span>
+                                ) : (
+                                  <div className="flex flex-col gap-0.5 tabular-nums">
+                                    {/* Patients */}
+                                    <span className={`text-xs font-semibold ${snap.avgPatientsDay > 0 ? "text-foreground" : "text-muted-foreground/20"}`}>
+                                      {fmt(snap.avgPatientsDay)}
                                     </span>
-                                  : <span className="text-muted-foreground/15">·</span>
-                                }
+                                    {/* Emails */}
+                                    <span className={`text-[10px] ${snap.avgEmailsDay > 0 ? "text-muted-foreground/60" : "text-muted-foreground/15"}`}>
+                                      {fmt(snap.avgEmailsDay)}
+                                    </span>
+                                    {/* SMS */}
+                                    <span className={`text-[10px] ${snap.avgSmsDay > 0 ? "text-muted-foreground/40" : "text-muted-foreground/15"}`}>
+                                      {fmt(snap.avgSmsDay)}
+                                    </span>
+                                  </div>
+                                )}
                               </td>
                             );
                           })}
                         </tr>
-                      ));
+                      );
                     })}
                   </tbody>
                 </table>

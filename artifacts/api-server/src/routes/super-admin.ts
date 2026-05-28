@@ -811,10 +811,29 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
       const { Resend } = await import("resend");
       const resend = new Resend(resendKey);
       const { error } = await resend.domains.list();
+
+      // Also check last real email delivery attempt from automation_log
+      const { data: lastEmail } = await supabase
+        .from("automation_log")
+        .select("status, error_message, last_attempted_at")
+        .eq("channel", "email")
+        .order("last_attempted_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      const lastEmailFailure = lastEmail?.status === "failed" ? lastEmail.error_message : null;
+      const keyOk = !error;
+
       checks.push({
         name: "Email (Resend)",
-        ok: !error,
-        detail: error ? `API key invalid: ${error.message}` : "Connected — key is valid",
+        ok: keyOk && !lastEmailFailure,
+        detail: !keyOk
+          ? `API key invalid: ${error!.message}`
+          : lastEmailFailure
+            ? lastEmailFailure
+            : lastEmail?.status === "sent"
+              ? "Last email delivered"
+              : "Connected — key is valid",
       });
     } catch (e) {
       checks.push({ name: "Email (Resend)", ok: false, detail: e instanceof Error ? e.message : "Resend error" });

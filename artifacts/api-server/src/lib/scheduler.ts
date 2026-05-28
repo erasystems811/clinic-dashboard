@@ -829,7 +829,7 @@ async function runCarePlanRemindersHourly() {
           .from("patients")
           .select("id, first_name, last_name, email, stage, treatment_end_date")
           .eq("id", plan.patient_id)
-          .eq("hospital_id", h.id)
+          .eq("hospital_id", h.hospital_code)
           .single();
 
         if (!patient?.email) continue;

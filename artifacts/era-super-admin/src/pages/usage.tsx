@@ -103,6 +103,7 @@ export default function Usage() {
   }, {});
 
   const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const now = new Date();
   const COLS_PER_PAGE = 6;
   const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
@@ -354,8 +355,8 @@ export default function Usage() {
                             maxWidth: 90,
                           }}
                         >
-                          {/* Abbreviate: "May 2026" → "May '26" */}
-                          {label.replace(/\s(\d{4})$/, (_, y) => ` '${y.slice(2)}`)}
+                          {/* "November 2025" → "Nov '25" */}
+                          {(() => { const [mn, yr] = label.split(" "); return `${MONTH_SHORT[MONTH_NAMES.indexOf(mn)]} '${yr.slice(2)}`; })()}
                         </th>
                       );
                     })}

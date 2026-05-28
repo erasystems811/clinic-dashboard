@@ -1,5 +1,6 @@
 import { Switch, Route, Router as WouterRouter, Redirect, useRoute } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth, type Role } from "@/contexts/auth-context";
@@ -112,15 +113,59 @@ function ProtectedRouter() {
   );
 }
 
+/* ── Role-based theme ───────────────────────────────────────────────────────
+   Applies CSS variable overrides to :root based on the logged-in role so the
+   accent colour the user chose at login flows through the entire app.
+   nurse / receptionist → navy  hsl(221 78% 57%)
+   admin                → gold  hsl(43 60% 52%)
+*/
+function RoleThemeProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!user) {
+      root.style.removeProperty("--primary");
+      root.style.removeProperty("--primary-foreground");
+      root.style.removeProperty("--ring");
+      root.style.removeProperty("--sidebar-primary");
+      root.style.removeProperty("--sidebar-primary-foreground");
+      root.style.removeProperty("--sidebar-ring");
+      return;
+    }
+
+    if (user.role === "admin") {
+      root.style.setProperty("--primary", "43 60% 52%");
+      root.style.setProperty("--primary-foreground", "0 0% 8%");
+      root.style.setProperty("--ring", "43 60% 52%");
+      root.style.setProperty("--sidebar-primary", "43 60% 52%");
+      root.style.setProperty("--sidebar-primary-foreground", "0 0% 8%");
+      root.style.setProperty("--sidebar-ring", "43 60% 52%");
+    } else {
+      // nurse + receptionist
+      root.style.setProperty("--primary", "221 78% 57%");
+      root.style.setProperty("--primary-foreground", "0 0% 100%");
+      root.style.setProperty("--ring", "221 78% 57%");
+      root.style.setProperty("--sidebar-primary", "221 78% 57%");
+      root.style.setProperty("--sidebar-primary-foreground", "0 0% 100%");
+      root.style.setProperty("--sidebar-ring", "221 78% 57%");
+    }
+  }, [user?.role]);
+
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <ProtectedRouter />
-          </WouterRouter>
-          <Toaster />
+          <RoleThemeProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <ProtectedRouter />
+            </WouterRouter>
+            <Toaster />
+          </RoleThemeProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

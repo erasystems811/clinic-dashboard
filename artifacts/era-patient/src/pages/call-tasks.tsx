@@ -55,6 +55,7 @@ function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedTo
   const [callText, setCallText] = useState("");
 
   const [textMsg, setTextMsg] = useState("");
+  const [draftIsAi, setDraftIsAi] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -139,6 +140,7 @@ function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedTo
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
       setTextMsg(data.draft ?? "");
+      setDraftIsAi(true);
       if (data.dailyCount !== undefined) onAiUsed(data.dailyCount);
     } catch (err: unknown) {
       toast({ title: "Generation failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
@@ -147,12 +149,28 @@ function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedTo
     }
   };
 
-  const handleSendText = () => {
-    if (!textMsg.trim()) return;
-    logOutcome.mutate(
-      { id: task.id, data: { outcome: `[Text sent] ${textMsg}` } },
-      { onError: () => setSending(false) },
-    );
+  const handleSendText = async () => {
+    if (!textMsg.trim() || !hospital?.token) return;
+    setSending(true);
+    try {
+      const endpoint = draftIsAi
+        ? `/api/call-tasks/${task.id}/send-message`
+        : `/api/call-tasks/${task.id}/send-manual-email`;
+      const res = await fetch(apiUrl(endpoint), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        body: JSON.stringify({ message: textMsg }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Send failed");
+      logOutcome.mutate(
+        { id: task.id, data: { outcome: `[Text sent] ${textMsg}` } },
+        { onError: () => { toast({ title: "Sent but failed to complete task", variant: "destructive" }); setSending(false); } },
+      );
+    } catch (err: unknown) {
+      toast({ title: "Failed to send", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+      setSending(false);
+    }
   };
 
   return (
@@ -161,7 +179,7 @@ function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedTo
         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[90px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
         placeholder="Type your message here, or generate one with AI…"
         value={textMsg}
-        onChange={(e) => setTextMsg(e.target.value)}
+        onChange={(e) => { setTextMsg(e.target.value); setDraftIsAi(false); }}
       />
       <div className="flex gap-2">
         <Button

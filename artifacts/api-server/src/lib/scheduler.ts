@@ -79,7 +79,7 @@ async function runPostTreatmentCheckins() {
     const now = new Date();
     const today = now.toISOString().split("T")[0];
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code");
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
     for (const h of hospitals ?? []) {
       // Source of truth: treatment_end_date — no stage filter needed
       const { data: patients } = await supabase
@@ -255,7 +255,7 @@ async function runPostTreatmentTransitions() {
   try {
     const today = new Date().toISOString().split("T")[0];
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code");
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
     for (const h of hospitals ?? []) {
       // In Care → Post Treatment when treatment_end_date has passed
       const { data: patients } = await supabase

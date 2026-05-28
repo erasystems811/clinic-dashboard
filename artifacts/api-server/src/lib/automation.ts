@@ -65,11 +65,14 @@ interface HospitalContext {
 
 async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
   const [{ data: hospital }, { data: settings }] = await Promise.all([
-    supabase.from("hospitals").select("id, name, username, hospital_code").eq("id", hospitalId).single(),
+    supabase.from("hospitals").select("id, name, username, hospital_code, active").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
       .select("sender_name, notification_channel, phone_number, tone, termii_sender_id, language")
       .eq("hospital_id", hospitalId).single(),
   ]);
+  if (hospital?.active === false) {
+    throw new Error(`[automation] Hospital ${hospitalId} is suspended — automation skipped.`);
+  }
   const hospitalName = hospital?.name ?? "The Hospital";
   const displayName = (settings?.sender_name as string | null)?.trim() || hospitalName;
   const rawEmail = process.env.PLATFORM_FROM_EMAIL || "onboarding@resend.dev";

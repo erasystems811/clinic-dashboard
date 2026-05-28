@@ -16,11 +16,9 @@ import {
   Newspaper,
   Building2,
   HelpCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
   Menu,
-  X,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiUrl } from "@/lib/api";
@@ -86,30 +84,24 @@ const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
 };
 
-const SIDEBAR_KEY = "era_sidebar_collapsed";
-
-function NavContent({
+function SidebarContent({
   navItems,
   location,
   role,
   hospital,
   user,
-  collapsed,
   feedbackUnread,
-  setCollapsed,
   onLogout,
-  onNavClick,
+  onClose,
 }: {
   navItems: NavItem[];
   location: string;
   role: Role;
   hospital: { name: string; username: string } | null;
   user: { displayName?: string } | null;
-  collapsed: boolean;
   feedbackUnread: number;
-  setCollapsed: (v: boolean | ((p: boolean) => boolean)) => void;
   onLogout: () => void;
-  onNavClick?: () => void;
+  onClose?: () => void;
 }) {
   const initials = user?.displayName
     ?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() ?? "??";
@@ -117,64 +109,41 @@ function NavContent({
   return (
     <>
       {/* ── Hospital header ──────────────────────────────── */}
-      <div className={cn(
-        "shrink-0 border-b border-sidebar-border",
-        collapsed ? "flex items-center justify-center py-4 px-2" : "px-4 py-4"
-      )}>
-        {collapsed ? (
-          <div className="w-9 h-9 rounded-lg bg-primary/20 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
-            <Activity className="w-4.5 h-4.5 text-primary" />
+      <div className="shrink-0 border-b border-sidebar-border px-4 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+            <Activity className="w-5 h-5 text-primary" />
           </div>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-primary/20 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
-              <Activity className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-sm text-white leading-tight truncate tracking-wide">
-                {hospital?.name?.toUpperCase() ?? "ERA PATIENT"}
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-0.5 truncate flex items-center gap-1">
-                <Building2 className="w-3 h-3 shrink-0" />
-                <span className="font-mono">{hospital?.username ?? "clinical"}</span>
-              </p>
-            </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-sm text-white leading-tight truncate tracking-wide">
+              {hospital?.name?.toUpperCase() ?? "ERA PATIENT"}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5 truncate flex items-center gap-1">
+              <Building2 className="w-3 h-3 shrink-0" />
+              <span className="font-mono">{hospital?.username ?? "clinical"}</span>
+            </p>
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── New Patient CTA ──────────────────────────────── */}
       {(role === "admin" || role === "receptionist") && (
-        <div className={cn("shrink-0", collapsed ? "px-2 py-3 flex justify-center" : "px-3 py-3")}>
-          <Link href="/patients/new" onClick={onNavClick}>
-            {collapsed ? (
-              <button
-                data-tour="new-patient"
-                title="New Patient"
-                className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground hover:bg-primary/90 transition"
-                style={{ boxShadow: "0 2px 10px hsl(var(--primary) / 0.35)" }}
-              >
-                <Plus className="w-5 h-5" />
-              </button>
-            ) : (
-              <button
-                data-tour="new-patient"
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition"
-                style={{ boxShadow: "0 2px 12px hsl(var(--primary) / 0.35)" }}
-              >
-                <Plus className="w-5 h-5" />
-                New Patient
-              </button>
-            )}
+        <div className="shrink-0 px-4 py-3">
+          <Link href="/patients/new" onClick={onClose}>
+            <button
+              data-tour="new-patient"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition"
+              style={{ boxShadow: "0 2px 12px hsl(var(--primary) / 0.30)" }}
+            >
+              <Plus className="w-5 h-5" />
+              New Patient
+            </button>
           </Link>
         </div>
       )}
 
       {/* ── Navigation ───────────────────────────────────── */}
-      <nav className={cn(
-        "flex-1 px-2 space-y-1 overflow-y-auto py-3",
-        role !== "admin" && role !== "receptionist" && "mt-2"
-      )}>
+      <nav className="flex-1 px-3 space-y-1 overflow-y-auto py-3">
         {navItems.map((item) => {
           const isActive =
             location === item.href ||
@@ -186,35 +155,22 @@ function NavContent({
           const badge = isFeedback && feedbackUnread > 0 ? feedbackUnread : 0;
 
           return (
-            <Link key={item.href} href={item.href} onClick={onNavClick}>
+            <Link key={item.href} href={item.href} onClick={onClose}>
               <button
                 data-tour={tourId}
-                title={collapsed ? `${item.label}${badge ? ` (${badge} new)` : ""}` : undefined}
                 className={cn(
-                  "flex items-center rounded-lg text-sm font-medium w-full text-left transition-all duration-100 relative",
-                  collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
+                  "flex items-center gap-3 rounded-lg text-sm font-medium w-full text-left px-3 py-2.5 transition-all duration-100",
                   isActive
                     ? "bg-white/10 text-white font-semibold"
-                    : "text-muted-foreground hover:text-sidebar-foreground hover:bg-white/5"
+                    : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-white/5"
                 )}
               >
-                <span className="relative shrink-0">
-                  <item.icon className="w-5 h-5" />
-                  {badge > 0 && collapsed && (
-                    <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center px-0.5 leading-none">
-                      {badge > 99 ? "99+" : badge}
-                    </span>
-                  )}
-                </span>
-                {!collapsed && (
-                  <>
-                    <span>{item.label}</span>
-                    {badge > 0 && (
-                      <span className="ml-auto min-w-[18px] h-[18px] rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center px-1 leading-none">
-                        {badge > 99 ? "99+" : badge}
-                      </span>
-                    )}
-                  </>
+                <item.icon className="w-5 h-5 shrink-0" />
+                <span className="flex-1">{item.label}</span>
+                {badge > 0 && (
+                  <span className="min-w-[18px] h-[18px] rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center px-1 leading-none">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
                 )}
               </button>
             </Link>
@@ -222,71 +178,48 @@ function NavContent({
         })}
       </nav>
 
-      {/* ── Bottom: Settings + User + Collapse ───────────── */}
-      <div className="border-t border-sidebar-border shrink-0 px-2 py-3 space-y-0.5">
+      {/* ── Bottom: Settings + User + (mobile close) ─────── */}
+      <div className="border-t border-sidebar-border shrink-0 px-3 py-3 space-y-1">
 
         {/* Settings */}
         {role === "admin" && (
-          <Link href="/settings" onClick={onNavClick}>
+          <Link href="/settings" onClick={onClose}>
             <button
               data-tour="nav-settings"
-              title={collapsed ? "Settings" : undefined}
               className={cn(
-                "flex items-center rounded-lg text-sm font-medium w-full text-left transition-all",
-                collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
+                "flex items-center gap-3 rounded-lg text-sm font-medium w-full text-left px-3 py-2.5 transition-all",
                 location === "/settings"
                   ? "bg-white/10 text-white font-semibold"
-                  : "text-muted-foreground hover:text-sidebar-foreground hover:bg-white/5"
+                  : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-white/5"
               )}
             >
               <Settings className="w-5 h-5 shrink-0" />
-              {!collapsed && <span>Settings</span>}
+              <span>Settings</span>
             </button>
           </Link>
         )}
 
         {/* User card */}
-        <div className={cn(
-          "mt-1",
-          collapsed
-            ? "flex flex-col items-center gap-2 py-2"
-            : "flex items-center gap-2.5 px-3 py-2.5"
-        )}>
-          {/* Avatar */}
-          <div className="w-8 h-8 rounded-full bg-primary/20 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
+        <div className="flex items-center gap-2.5 px-3 py-2.5">
+          <div className="w-8 h-8 rounded-full bg-primary/20 ring-1 ring-primary/25 flex items-center justify-center shrink-0">
             <span className="text-xs font-bold text-primary">{initials}</span>
           </div>
-
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold leading-tight truncate text-sidebar-foreground">
-                {user?.displayName ?? "User"}
-              </p>
-              <p className="text-xs text-muted-foreground font-medium mt-0.5">
-                {ROLE_LABELS[role]}
-              </p>
-            </div>
-          )}
-
-          {/* Help + Logout */}
-          {!collapsed ? (
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={() => window.dispatchEvent(new Event("era:start-tour"))}
-                className="p-1.5 rounded-md text-muted-foreground/60 hover:text-muted-foreground hover:bg-white/5 transition"
-                title="Restart guided tour"
-              >
-                <HelpCircle className="w-4 h-4" />
-              </button>
-              <button
-                onClick={onLogout}
-                className="p-1.5 rounded-md text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 transition"
-                title="Sign out"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-tight truncate text-sidebar-foreground">
+              {user?.displayName ?? "User"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {ROLE_LABELS[role]}
+            </p>
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={() => window.dispatchEvent(new Event("era:start-tour"))}
+              className="p-1.5 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/5 transition"
+              title="Restart guided tour"
+            >
+              <HelpCircle className="w-4 h-4" />
+            </button>
             <button
               onClick={onLogout}
               className="p-1.5 rounded-md text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition"
@@ -294,20 +227,19 @@ function NavContent({
             >
               <LogOut className="w-4 h-4" />
             </button>
-          )}
+          </div>
         </div>
 
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="flex items-center justify-center w-full rounded-lg py-2 text-muted-foreground/50 hover:bg-white/5 hover:text-muted-foreground transition-colors text-xs gap-2 font-medium"
-        >
-          {collapsed
-            ? <PanelLeftOpen className="w-4 h-4" />
-            : <><PanelLeftClose className="w-4 h-4" /><span>Collapse</span></>
-          }
-        </button>
+        {/* Mobile-only close button */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center gap-2 w-full rounded-lg py-2 text-muted-foreground/50 hover:bg-white/5 hover:text-muted-foreground transition-colors text-xs font-medium"
+          >
+            <X className="w-4 h-4" />
+            <span>Close</span>
+          </button>
+        )}
       </div>
     </>
   );
@@ -323,14 +255,6 @@ export function Layout({ children }: LayoutProps) {
   const [feedbackUnread, setFeedbackUnread] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem(SIDEBAR_KEY) === "true"; } catch { return false; }
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem(SIDEBAR_KEY, String(collapsed)); } catch { /* ignore */ }
-  }, [collapsed]);
 
   useEffect(() => { setMobileNavOpen(false); }, [location]);
 
@@ -361,30 +285,26 @@ export function Layout({ children }: LayoutProps) {
     setTimeout(() => setRefreshing(false), 800);
   };
 
-  const navProps = {
+  const sidebarProps = {
     navItems,
     location,
     role,
     hospital: hospital ? { name: hospital.name, username: hospital.username } : null,
     user: user ? { displayName: user.displayName } : null,
     feedbackUnread,
-    setCollapsed,
     onLogout: () => setShowLogoutDialog(true),
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
 
-      {/* ── Desktop sidebar ──────────────────────────────── */}
+      {/* ── Desktop sidebar — always visible, never collapses ── */}
       {!isMobile && (
         <aside
-          className={cn(
-            "border-r border-sidebar-border bg-sidebar flex flex-col shrink-0 transition-all duration-200",
-            collapsed ? "w-14" : "w-72"
-          )}
-          style={{ boxShadow: "2px 0 24px rgba(0,0,0,0.4)" }}
+          className="w-72 border-r border-sidebar-border bg-sidebar flex flex-col shrink-0"
+          style={{ boxShadow: "2px 0 20px rgba(0,0,0,0.35)" }}
         >
-          <NavContent {...navProps} collapsed={collapsed} />
+          <SidebarContent {...sidebarProps} />
         </aside>
       )}
 
@@ -392,14 +312,13 @@ export function Layout({ children }: LayoutProps) {
       {isMobile && mobileNavOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/60"
             onClick={() => setMobileNavOpen(false)}
           />
           <aside className="fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border flex flex-col shadow-2xl">
-            <NavContent
-              {...navProps}
-              collapsed={false}
-              onNavClick={() => setMobileNavOpen(false)}
+            <SidebarContent
+              {...sidebarProps}
+              onClose={() => setMobileNavOpen(false)}
             />
           </aside>
         </>
@@ -409,24 +328,19 @@ export function Layout({ children }: LayoutProps) {
       <main className="flex-1 flex flex-col overflow-hidden">
 
         {/* Top bar */}
-        <header className={cn(
-          "h-12 flex items-center justify-between px-6 shrink-0 border-b border-border bg-background/80 backdrop-blur-sm",
-        )}>
-          {/* Mobile hamburger */}
-          {isMobile && (
+        <header className="h-12 flex items-center justify-between px-5 shrink-0 border-b border-border bg-background">
+          {isMobile ? (
             <button
               onClick={() => setMobileNavOpen(o => !o)}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition mr-3"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
               aria-label="Open menu"
             >
-              {mobileNavOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              <Menu className="w-5 h-5" />
             </button>
+          ) : (
+            <div />
           )}
 
-          {/* Breadcrumb / spacer */}
-          <div className="flex-1" />
-
-          {/* Right: feedback badge + refresh */}
           <div className="flex items-center gap-2">
             {feedbackUnread > 0 && (
               <span className="min-w-[20px] h-5 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center px-1.5">
@@ -435,11 +349,10 @@ export function Layout({ children }: LayoutProps) {
             )}
             <button
               onClick={handleRefresh}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition"
-              title="Refresh"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", refreshing && "animate-spin")} />
-              {!isMobile && <span>Refresh</span>}
+              <span>Refresh</span>
             </button>
           </div>
         </header>
@@ -457,7 +370,7 @@ export function Layout({ children }: LayoutProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Sign out</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to sign out? You'll need to log in again to continue.
+              Are you sure you want to sign out?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

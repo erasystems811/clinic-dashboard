@@ -93,7 +93,7 @@ export default function Usage() {
   const [tab, setTab] = useState<Tab>("live");
 
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<{ stats: HospitalUsageStat[] }>({
-    queryKey: ["usage-stats-v7"],
+    queryKey: ["usage-stats-v8"],
     queryFn: () => get("/super-admin/usage-stats"),
     staleTime: 0,
     refetchInterval: 2 * 60_000,
@@ -136,7 +136,8 @@ export default function Usage() {
     return y > now.getFullYear() || (y === now.getFullYear() && mIdx > now.getMonth());
   };
   const isCurrentMonth = (label: string) => label === currentMonthLabel;
-  const daysElapsed = stats[0]?.currentMonth.daysElapsed ?? now.getDate();
+  const calendarDayToday = now.getDate();
+  const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
 
   return (
     <Layout breadcrumb={[{ label: "Usage" }]}>
@@ -215,7 +216,7 @@ export default function Usage() {
               <span className="text-xs font-semibold text-foreground">
                 {MONTH_SHORT[now.getMonth()]} '{String(now.getFullYear()).slice(2)}
               </span>
-              <span className="text-[11px] text-muted-foreground/40">Day {daysElapsed} of {new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()} · resets 1st</span>
+              <span className="text-[11px] text-muted-foreground/40">Day {calendarDayToday} of {daysInCurrentMonth} · resets 1st</span>
               <div className="ml-auto flex items-center gap-4 text-[10px] text-muted-foreground/35">
                 <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Patients</span>
                 <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Emails</span>

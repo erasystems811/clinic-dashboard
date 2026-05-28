@@ -1270,15 +1270,13 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   });
 
   // Fetch all data in parallel (all-time, no date cutoff)
-  const [hospitalsRes, allQueueRes, allAutoRes, allPatientsRes] = await Promise.all([
+  const [hospitalsRes, allAutoRes, allPatientsRes] = await Promise.all([
     supabase.from("hospitals").select("id, name, active, hospital_code, created_at").order("name"),
-    // All queue visits ever — need added_at timestamp for cumulative calc
-    supabase.from("queue").select("hospital_id, added_at").limit(500000),
     // All automation_log ever — need created_at and channel
     supabase.from("automation_log").select("hospital_id, channel, created_at")
       .neq("patient_id", -1).limit(500000),
-    // Total registered patients per hospital (hospital_id = hospital_code UUID)
-    supabase.from("patients").select("hospital_id").limit(500000),
+    // All patients — checked_in_at is the reliable check-in timestamp (queue rows are deleted on discharge)
+    supabase.from("patients").select("hospital_id, checked_in_at").limit(500000),
   ]);
 
   const hospitals = hospitalsRes.data ?? [];
@@ -1291,24 +1289,24 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
 
   // Total registered patients per hospital (keyed by hospital_code UUID)
   const patientCountByCode = new Map<string, number>();
-  for (const p of (allPatientsRes.data ?? []) as { hospital_id: string }[]) {
+  for (const p of (allPatientsRes.data ?? []) as { hospital_id: string; checked_in_at: string | null }[]) {
     if (p.hospital_id) patientCountByCode.set(p.hospital_id, (patientCountByCode.get(p.hospital_id) ?? 0) + 1);
   }
 
   // Build per-hospital event lists (sorted timestamps for efficient cumulative scan)
-  // queue events: Map<hospitalId, number[]>  (timestamps)
-  const queueTs   = new Map<number, number[]>();
+  // patientTs: keyed by integer hospital id, timestamps = checked_in_at of each patient
+  const patientTs = new Map<number, number[]>();
   const emailTs   = new Map<number, number[]>();
   const smsTs     = new Map<number, number[]>();
 
-  for (const r of (allQueueRes.data ?? []) as { hospital_id: string; added_at: string }[]) {
-    // Primary match: hospital_code (UUID). Fallback: integer id stored as string.
-    const numId = parseInt(r.hospital_id);
-    const id = codeToId.get(r.hospital_id) ?? (!isNaN(numId) ? numId : undefined);
+  for (const p of (allPatientsRes.data ?? []) as { hospital_id: string; checked_in_at: string | null }[]) {
+    if (!p.hospital_id || !p.checked_in_at) continue;
+    const id = codeToId.get(p.hospital_id);
     if (id === undefined) continue;
-    const ts = new Date(r.added_at).getTime();
-    if (!queueTs.has(id)) queueTs.set(id, []);
-    queueTs.get(id)!.push(ts);
+    const ts = new Date(p.checked_in_at).getTime();
+    if (isNaN(ts)) continue;
+    if (!patientTs.has(id)) patientTs.set(id, []);
+    patientTs.get(id)!.push(ts);
   }
   for (const r of (allAutoRes.data ?? []) as { hospital_id: number; channel: string; created_at: string }[]) {
     const ts  = new Date(r.created_at).getTime();
@@ -1318,7 +1316,7 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   }
 
   // Sort all lists ascending
-  for (const arr of [...queueTs.values(), ...emailTs.values(), ...smsTs.values()]) arr.sort((a,b) => a-b);
+  for (const arr of [...patientTs.values(), ...emailTs.values(), ...smsTs.values()]) arr.sort((a,b) => a-b);
 
   // countUpTo: how many timestamps in arr are <= cutoffMs
   function countUpTo(arr: number[] | undefined, cutoffMs: number): number {
@@ -1344,7 +1342,7 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
       ? Math.max(1, daysElapsed - createdAtDate!.getDate() + 1)
       : daysElapsed;
 
-    const hq = queueTs.get(h.id);
+    const hq = patientTs.get(h.id);
     const he = emailTs.get(h.id);
     const hs = smsTs.get(h.id);
 

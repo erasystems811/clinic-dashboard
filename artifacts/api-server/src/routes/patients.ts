@@ -566,11 +566,14 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   const now = new Date();
   const nowIso = now.toISOString();
 
-  // Stage is a REFLECTION — checkin never overwrites the patient's primary stage.
-  // Queue membership is tracked separately; the API attaches is_in_queue at read time.
+  // Dormant → Active: checking in re-activates the patient.
+  // For all other stages, check-in is a REFLECTION and does not change the primary stage.
+  const reactivating = existing.stage === "Dormant";
+  const stageUpdate = reactivating ? { stage: "Active", checked_in_at: nowIso, updated_at: nowIso } : { checked_in_at: nowIso, updated_at: nowIso };
+
   const { data: patient, error: updateErr } = await supabase
     .from("patients")
-    .update({ checked_in_at: nowIso, updated_at: nowIso })
+    .update(stageUpdate)
     .eq("id", id)
     .select()
     .single();
@@ -578,6 +581,16 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   if (updateErr || !patient) { res.status(500).json({ error: "Update failed" }); return; }
 
   const patientName = `${patient.first_name} ${patient.last_name}`;
+
+  if (reactivating) {
+    await supabase.from("activity").insert({
+      type: "stage_changed",
+      description: `${patientName} re-activated — moved from Dormant to Active on queue check-in`,
+      patient_id: id,
+      patient_name: patientName,
+      metadata: "Active",
+    });
+  }
 
   const { data: scheduledAppts } = await supabase
     .from("appointments")

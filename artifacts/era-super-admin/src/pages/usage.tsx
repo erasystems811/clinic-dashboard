@@ -208,104 +208,135 @@ export default function Usage() {
         {tab === "live" && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             {/* Bar: current month context */}
-            <div className="px-5 py-2.5 border-b border-border flex items-center gap-3 bg-white/[0.04]">
+            <div className="px-4 py-2.5 border-b border-border flex items-center gap-3 flex-wrap bg-white/[0.04]">
               <Zap className="w-3.5 h-3.5 text-primary/60 shrink-0" />
               <span className="text-xs font-semibold text-foreground">
                 {MONTH_SHORT[now.getMonth()]} '{String(now.getFullYear()).slice(2)}
               </span>
               <span className="text-[11px] text-muted-foreground/40">Day {calendarDayToday} of {daysInCurrentMonth} · resets 1st</span>
-              <div className="ml-auto flex items-center gap-4 text-[10px] text-muted-foreground/35">
+              <div className="ml-auto hidden sm:flex items-center gap-4 text-[10px] text-muted-foreground/35">
                 <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Patients</span>
                 <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Emails</span>
                 <span className="flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> SMS</span>
               </div>
             </div>
-            {/* Key */}
-            <div style={{ padding: "6px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.015)", fontSize: 10, color: "rgba(255,255,255,0.35)", display: "flex", gap: 16 }}>
+            {/* Key — desktop only */}
+            <div className="hidden sm:flex" style={{ padding: "6px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.015)", fontSize: 10, color: "rgba(255,255,255,0.35)", gap: 16 }}>
               <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Pts</strong> = Patients avg/day this month</span>
               <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Em</strong> = Emails avg/day this month</span>
               <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>SMS</strong> = Text messages avg/day this month</span>
               <span style={{ marginLeft: "auto", color: "rgba(255,255,255,0.22)" }}>Tier = most recent completed month</span>
             </div>
+
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (
-              <table className="w-full text-xs" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
-                <colgroup>
-                  <col style={{ width: 190 }} />
-                  <col style={{ width: 72 }} />
-                  <col style={{ width: 80 }} />
-                  <col /><col /><col />
-                </colgroup>
-                <thead>
-                  <tr style={{ backgroundColor: "rgba(255,255,255,0.04)", borderBottom: "2px solid rgba(255,255,255,0.12)" }}>
-                    <th style={{ padding: "9px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderRight: "3px solid rgba(255,255,255,0.22)" }}>Hospital</th>
-                    <th style={{ padding: "9px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>Tier</th>
-                    <th style={{ padding: "9px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>Since</th>
-                    <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
-                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>Pts · avg/day</div>
-                    </th>
-                    <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
-                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>Em · avg/day</div>
-                    </th>
-                    <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
-                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>SMS · avg/day</div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sorted.map((h, hi) => {
+              <>
+                {/* ── Mobile cards (< sm) ── */}
+                <div className="block sm:hidden divide-y" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+                  {sorted.map((h) => {
                     const tier = getTier(recentAvg(h.history));
                     const cm   = h.currentMonth;
-                    const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
                     return (
-                      <tr
-                        key={h.id}
-                        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: rowBg }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = rowBg)}
-                      >
-                        {/* Hospital — fixed width, truncated */}
-                        <td style={{ padding: "10px 14px", background: hi % 2 === 0 ? "rgb(24,24,24)" : "rgb(26,26,26)", borderRight: "3px solid rgba(255,255,255,0.22)", overflow: "hidden" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
-                            <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.88)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
+                      <div key={h.id} className="px-4 py-3">
+                        <div className="flex items-center justify-between mb-2.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
+                            <span className="font-semibold text-sm truncate" style={{ color: "rgba(255,255,255,0.88)" }}>{h.name}</span>
                           </div>
-                        </td>
-                        {/* Tier */}
-                        <td style={{ padding: "10px 10px" }}>
-                          <span className={`text-[10px] font-semibold ${tier.color}`}>{tier.label}</span>
-                        </td>
-                        {/* Since */}
-                        <td style={{ padding: "10px 10px", overflow: "hidden" }}>
-                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", whiteSpace: "nowrap" }}>{fmtDays(h.daysSince)}</span>
-                        </td>
-                        {/* Patients avg/day this month */}
-                        <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
-                          <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgPatientsDay > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)" }}>
-                            {fmt(cm.avgPatientsDay)}
-                          </span>
-                          {cm.patients > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.patients} this month</div>}
-                        </td>
-                        {/* Emails avg/day */}
-                        <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
-                          <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgEmailsDay > 0 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.15)" }}>
-                            {fmt(cm.avgEmailsDay)}
-                          </span>
-                          {cm.emails > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.emails} total</div>}
-                        </td>
-                        {/* SMS avg/day */}
-                        <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
-                          <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgSmsDay > 0 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.15)" }}>
-                            {fmt(cm.avgSmsDay)}
-                          </span>
-                          {cm.sms > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.sms} total</div>}
-                        </td>
-                      </tr>
+                          <div className="flex items-center gap-2 shrink-0 ml-3">
+                            <span className={`text-[10px] font-semibold ${tier.color}`}>{tier.label}</span>
+                            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)" }}>{fmtDays(h.daysSince)}</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { label: "Pts/day", val: cm.avgPatientsDay, sub: cm.patients > 0 ? `${cm.patients} total` : null, bright: true },
+                            { label: "Em/day",  val: cm.avgEmailsDay,   sub: cm.emails  > 0 ? `${cm.emails} total`  : null, bright: false },
+                            { label: "SMS/day", val: cm.avgSmsDay,      sub: cm.sms     > 0 ? `${cm.sms} total`     : null, bright: false },
+                          ].map(({ label, val, sub, bright }) => (
+                            <div key={label} className="rounded-lg px-2 py-2 text-center" style={{ backgroundColor: "rgba(255,255,255,0.04)" }}>
+                              <div className="tabular-nums font-bold text-base" style={{ color: val > 0 ? (bright ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.7)") : "rgba(255,255,255,0.15)" }}>
+                                {fmt(val)}
+                              </div>
+                              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>{label}</div>
+                              {sub && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.2)", marginTop: 1 }}>{sub}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+
+                {/* ── Desktop table (sm+) ── */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-xs" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+                    <colgroup>
+                      <col style={{ width: 190 }} />
+                      <col style={{ width: 72 }} />
+                      <col style={{ width: 80 }} />
+                      <col /><col /><col />
+                    </colgroup>
+                    <thead>
+                      <tr style={{ backgroundColor: "rgba(255,255,255,0.04)", borderBottom: "2px solid rgba(255,255,255,0.12)" }}>
+                        <th style={{ padding: "9px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderRight: "3px solid rgba(255,255,255,0.22)" }}>Hospital</th>
+                        <th style={{ padding: "9px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>Tier</th>
+                        <th style={{ padding: "9px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>Since</th>
+                        <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>Pts · avg/day</div>
+                        </th>
+                        <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>Em · avg/day</div>
+                        </th>
+                        <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>SMS · avg/day</div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sorted.map((h, hi) => {
+                        const tier = getTier(recentAvg(h.history));
+                        const cm   = h.currentMonth;
+                        const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
+                        return (
+                          <tr
+                            key={h.id}
+                            style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: rowBg }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = rowBg)}
+                          >
+                            <td style={{ padding: "10px 14px", background: hi % 2 === 0 ? "rgb(24,24,24)" : "rgb(26,26,26)", borderRight: "3px solid rgba(255,255,255,0.22)", overflow: "hidden" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.88)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
+                              </div>
+                            </td>
+                            <td style={{ padding: "10px 10px" }}>
+                              <span className={`text-[10px] font-semibold ${tier.color}`}>{tier.label}</span>
+                            </td>
+                            <td style={{ padding: "10px 10px", overflow: "hidden" }}>
+                              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", whiteSpace: "nowrap" }}>{fmtDays(h.daysSince)}</span>
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
+                              <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgPatientsDay > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)" }}>{fmt(cm.avgPatientsDay)}</span>
+                              {cm.patients > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.patients} this month</div>}
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
+                              <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgEmailsDay > 0 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.15)" }}>{fmt(cm.avgEmailsDay)}</span>
+                              {cm.emails > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.emails} total</div>}
+                            </td>
+                            <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
+                              <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgSmsDay > 0 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.15)" }}>{fmt(cm.avgSmsDay)}</span>
+                              {cm.sms > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.sms} total</div>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -357,6 +388,7 @@ export default function Usage() {
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (
+              <div className="overflow-x-auto">
               <table className="text-xs w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
                 <colgroup>
                   <col style={{ width: 200 }} />
@@ -472,6 +504,7 @@ export default function Usage() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         )}

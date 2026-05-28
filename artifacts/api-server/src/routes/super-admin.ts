@@ -729,7 +729,7 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
 
   const isProd = process.env.NODE_ENV === "production";
 
-  // 2. SMS + WhatsApp (Termii) — fetch balance live
+  // 2. SMS + WhatsApp (Termii) — fetch balance + check last real delivery attempt
   const hasTermii = !!process.env.TERMII_API_KEY;
   const hasSender = !!process.env.TERMII_SENDER_ID;
   const smsOk = hasTermii && hasSender;
@@ -748,31 +748,57 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
   const lowBalance = termiiBalance !== null && termiiBalance < 50;
   const balanceLabel = termiiBalance !== null ? `₦${termiiBalance.toFixed(2)}` : null;
 
-  // Low balance = red always (same threshold as email alert); missing config in dev = amber
+  // Check last real SMS delivery attempt from automation_log
+  const { data: lastSms } = await supabase
+    .from("automation_log")
+    .select("status, error_message, last_attempted_at")
+    .eq("channel", "sms")
+    .order("last_attempted_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  const lastSmsFailure = lastSms?.status === "failed" ? lastSms.error_message : null;
+
+  // Check last real WhatsApp delivery attempt
+  const { data: lastWa } = await supabase
+    .from("automation_log")
+    .select("status, error_message, last_attempted_at")
+    .eq("channel", "whatsapp")
+    .order("last_attempted_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  const lastWaFailure = lastWa?.status === "failed" ? lastWa.error_message : null;
+
+  // Red if: low balance OR last real send failed; amber if config missing in dev
   checks.push({
     name: "SMS (Termii)",
-    ok: lowBalance ? false : (smsOk || !isProd),
-    warning: !lowBalance && !smsOk && !isProd,
+    ok: lowBalance || lastSmsFailure ? false : (smsOk || !isProd),
+    warning: !lowBalance && !lastSmsFailure && !smsOk && !isProd,
     detail: !hasTermii
       ? (isProd ? "TERMII_API_KEY not set" : "Not set in dev — on Railway")
       : !hasSender
         ? (isProd ? "TERMII_SENDER_ID not set" : "Sender ID not set in dev")
         : lowBalance
           ? "Low credit — top up at termii.com"
-          : "Configured",
+          : lastSmsFailure
+            ? lastSmsFailure
+            : "Configured",
     ...(balanceLabel ? { balance: balanceLabel } : {}),
   });
 
-  // 3. WhatsApp (Termii) — same API key + balance as SMS
+  // 3. WhatsApp (Termii) — same API key + balance, plus last WA delivery check
   checks.push({
     name: "WhatsApp (Termii)",
-    ok: lowBalance ? false : (hasTermii || !isProd),
-    warning: !lowBalance && !hasTermii && !isProd,
+    ok: lowBalance || lastWaFailure ? false : (hasTermii || !isProd),
+    warning: !lowBalance && !lastWaFailure && !hasTermii && !isProd,
     detail: !hasTermii
       ? (isProd ? "TERMII_API_KEY not set" : "Not set in dev — on Railway")
       : lowBalance
         ? "Low credit — top up at termii.com"
-        : "Configured",
+        : lastWaFailure
+          ? lastWaFailure
+          : "Configured",
     ...(balanceLabel ? { balance: balanceLabel } : {}),
   });
 

@@ -1,12 +1,8 @@
-import { useState } from "react";
 import Layout from "@/components/layout";
-import { api } from "@/lib/api";
 import {
   Mail, MessageSquare, Clock, Zap, Calendar, Star, Newspaper,
   UserPlus, ClipboardList, BellRing, HeartPulse, Users, Gift,
-  ShieldCheck, KeyRound, Eye, EyeOff, CheckCircle2, Server,
-  Cpu, AlertTriangle, ArrowRight, Activity, GitBranch, Phone,
-  Loader2,
+  Server, Cpu, AlertTriangle, ArrowRight, Activity, GitBranch, Phone,
 } from "lucide-react";
 
 // ── Section header ─────────────────────────────────────────────────────────────
@@ -21,84 +17,6 @@ function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ComponentT
         {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
       </div>
     </div>
-  );
-}
-
-// ── Security ───────────────────────────────────────────────────────────────────
-function SecuritySection() {
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
-  const [showNext, setShowNext] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [done, setDone] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    if (next.length < 8) { setError("New password must be at least 8 characters."); return; }
-    if (next !== confirm) { setError("Passwords do not match."); return; }
-    setSaving(true);
-    try {
-      await api.changePassword(current, next);
-      setDone(true);
-      setCurrent(""); setNext(""); setConfirm("");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to change password.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/40 transition";
-
-  return (
-    <section className="rounded-lg border border-border bg-card p-5">
-      <SectionHeader icon={ShieldCheck} title="Account Security" subtitle="Super admin password — protects access to all hospital data" />
-      {done ? (
-        <div className="flex items-center gap-3 py-4 text-emerald-400">
-          <CheckCircle2 className="w-5 h-5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold">Password updated successfully</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Your new password is active. Use it on next sign-in.</p>
-          </div>
-          <button onClick={() => setDone(false)} className="ml-auto text-xs text-muted-foreground hover:text-foreground transition">Change again</button>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="grid sm:grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Current Password</label>
-            <div className="relative">
-              <input type={showCurrent ? "text" : "password"} value={current} onChange={e => setCurrent(e.target.value)} required className={inputCls} placeholder="Current password" />
-              <button type="button" onClick={() => setShowCurrent(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition">
-                {showCurrent ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">New Password</label>
-            <div className="relative">
-              <input type={showNext ? "text" : "password"} value={next} onChange={e => setNext(e.target.value)} required className={inputCls} placeholder="Min. 8 characters" />
-              <button type="button" onClick={() => setShowNext(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition">
-                {showNext ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Confirm New</label>
-            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required className={inputCls.replace("pr-10", "")} placeholder="Repeat new password" />
-          </div>
-          {error && <p className="sm:col-span-3 text-xs text-destructive">{error}</p>}
-          <div className="sm:col-span-3 flex justify-end">
-            <button type="submit" disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition">
-              {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Updating…</> : <><KeyRound className="w-3.5 h-3.5" />Update Password</>}
-            </button>
-          </div>
-        </form>
-      )}
-    </section>
   );
 }
 
@@ -125,24 +43,24 @@ const SERVICES = [
     from: "Per-hospital: WhatsApp sender number or SMS sender ID",
   },
   {
-    name: "OpenAI",
-    icon: Cpu,
-    color: "text-violet-400",
-    bg: "bg-violet-500/10 border-violet-500/20",
-    purpose: "AI message generation",
-    used_for: "Personalised in-care reminders, post-treatment check-in emails, appointment reminders, no-show follow-ups, post-care wellness emails, birthday messages. All written in the patient's language and the hospital's tone.",
-    env: "OPENAI_API_KEY",
-    from: "gpt-4o-mini model — currently routed through Anthropic Claude as fallback",
-  },
-  {
     name: "Anthropic (Claude)",
     icon: Cpu,
     color: "text-orange-400",
     bg: "bg-orange-500/10 border-orange-500/20",
-    purpose: "Newsletter AI generation",
-    used_for: "Wellness newsletter content — long-form health tips and seasonal wellness articles generated for each hospital's patient base. Also currently handling all OpenAI fallback calls.",
+    purpose: "All AI message generation",
+    used_for: "Every AI-written message in Era — in-care reminders, post-treatment check-ins, appointment reminders, no-show follow-ups, birthday greetings, post-care wellness emails, and wellness newsletters. All written in the patient's language with the hospital's configured tone.",
     env: "ANTHROPIC_API_KEY",
-    from: "claude-3-5-haiku model",
+    from: "Model: claude-haiku-4-5-20251001 — used for both short patient messages and long-form newsletter content",
+  },
+  {
+    name: "OpenAI",
+    icon: Cpu,
+    color: "text-violet-400",
+    bg: "bg-violet-500/10 border-violet-500/20",
+    purpose: "Key held — not currently active",
+    used_for: "OpenAI (gpt-4o-mini) is the intended AI provider for patient message generation. All calls are currently routed through Anthropic Claude to use existing credits. OpenAI will take over when routing is switched back in ai.ts.",
+    env: "OPENAI_API_KEY",
+    from: "Key is validated in health checks but not used for live generation at this time",
   },
   {
     name: "Sentry",
@@ -195,8 +113,8 @@ function ServicesSection() {
 // ── Scheduler Reference ────────────────────────────────────────────────────────
 const SCHEDULE = [
   { time: "Every 5 min",  jobs: ["Care plan email delay — picks up plans created 15–25 min ago, sends full summary email to patient"] },
-  { time: "Every 15 min", jobs: ["Appointment reminders (24h + 1h before visit)", "No-show detection — checks for missed appointments", "No-show 1-hour follow-up email"] },
-  { time: "Every hour",   jobs: ["In-care reminders — checks all active care plan patients, fires morning/afternoon/evening/night slot reminders based on department settings"] },
+  { time: "Every 15 min", jobs: ["Appointment reminders (24h + 2h before visit)", "No-show detection — checks for missed appointments", "No-show 1-hour follow-up email"] },
+  { time: "Every hour",   jobs: ["In-care reminders — checks all active care plan patients, fires morning/afternoon/evening/night slot reminders based on department settings", "Scheduled care visit reminders — fires 4h before nurse-set visit time (General Outpatient: 2h before)"] },
   { time: "Daily 7 AM",   jobs: ["Post-treatment stage transitions", "Post-treatment check-in emails (days 1, 4, 7)", "Dormant patient detection", "Birthday emails"] },
   { time: "Daily 9 AM",   jobs: ["Termii credit balance alert — warns if SMS/WhatsApp credits are low"] },
   { time: "Daily 12 PM",  jobs: ["Feedback request emails — covers previous day's completed visits"] },
@@ -328,12 +246,12 @@ const AUTOMATIONS: AutomationDef[] = [
   { id: "queue_long_wait_apology", name: "Long Wait Apology", purpose: "Preserves patient goodwill during unusually long waits by proactively acknowledging the delay.", trigger: "Staff manually sends from the queue screen", channel: "sms/whatsapp", icon: Clock, timing: "Manual trigger only" },
   { id: "care_plan_notification", name: "Care Plan Ready (SMS/WhatsApp)", purpose: "Immediately notifies the patient the moment their care plan is saved, directing them to check their email for full details.", trigger: "Nurse saves a care plan in the nurse station", channel: "sms/whatsapp", icon: UserPlus, timing: "Instant — fires on save" },
   { id: "care_plan_email", name: "Care Plan Summary Email", purpose: "Delivers the full care plan in plain, patient-friendly language so they understand their treatment without needing to ask questions.", trigger: "Care plan created — 20-minute delay gives nurse time for last-minute edits", channel: "email", icon: Mail, timing: "20 minutes after save — checked every 5 min by scheduler" },
-  { id: "in_care_reminder", name: "Continuous In-Care Reminders", purpose: "Keeps the patient on track with medication and clinic visits throughout their treatment, reducing missed doses and no-shows.", trigger: "Patient is active in a care plan with time-slot preferences set (morning/afternoon/evening/night)", channel: "email", icon: HeartPulse, timing: "Every hour — fires based on department time slots, NOT a fixed daily time.", notes: "Each department can have different reminder frequencies and slots configured in hospital settings." },
-  { id: "care_plan_visit_reminder", name: "Scheduled Care Visit Reminder", purpose: "Ensures the patient remembers a specific clinic or procedure date from their care plan.", trigger: "Patient has a scheduled care/procedure date set by the nurse in their care plan", channel: "email", icon: Calendar, timing: "Every hour — fires 4 hours before the nurse-set visit time (General Outpatient: 2 hours before). Timing is department-driven, not a fixed daily slot." },
+  { id: "in_care_reminder", name: "Continuous In-Care Reminders", purpose: "Keeps the patient on track with medication and clinic visits throughout their treatment, reducing missed doses and no-shows.", trigger: "Patient is active in a care plan with time-slot preferences set (morning/afternoon/evening/night)", channel: "email", icon: HeartPulse, timing: "Every hour — fires based on department time slots, not a fixed daily time" },
+  { id: "care_plan_visit_reminder", name: "Scheduled Care Visit Reminder", purpose: "Ensures the patient remembers a specific clinic or procedure date from their care plan.", trigger: "Patient has a scheduled care or procedure date set by the nurse in their care plan", channel: "email", icon: Calendar, timing: "Every hour — fires 4 hours before the nurse-set visit time (General Outpatient: 2 hours before). Department-driven." },
   { id: "post_treatment_checkin", name: "Post-Treatment Check-Ins", purpose: "Shows the patient the clinic still cares about their recovery after they leave, reducing anxiety and increasing loyalty.", trigger: "Patient moves to Post-Treatment stage", channel: "email", icon: HeartPulse, timing: "Day 1, Day 4, and Day 7 after treatment ends — checked daily at 7 AM" },
   { id: "post_care_email", name: "Dormant Re-Engagement", purpose: "Gently reminds long-inactive patients the clinic exists and invites them back before they are lost.", trigger: "Patient has been dormant for 30+ days", channel: "email", icon: Users, timing: "Daily at 6 PM" },
-  { id: "appointment_reminder", name: "Appointment Reminder", purpose: "Reduces no-shows by keeping the patient aware of their upcoming visit at two critical moments.", trigger: "Patient has an upcoming appointment", channel: "both", icon: Calendar, timing: "24 hours before + 1 hour before — checked every 15 minutes" },
-  { id: "no_show_followup", name: "No-Show Follow-Up", purpose: "Recovers potentially lost patients by reaching out compassionately after a missed appointment.", trigger: "Patient misses an appointment (no check-in recorded)", channel: "email", icon: Calendar, timing: "1 hour after missed appointment time — checked every 15 minutes" },
+  { id: "appointment_reminder", name: "Appointment Reminder", purpose: "Reduces no-shows by keeping the patient aware of their upcoming visit at two critical moments.", trigger: "Patient has an upcoming appointment", channel: "both", icon: Calendar, timing: "24 hours before + 2 hours before — checked every 15 minutes" },
+  { id: "no_show_followup", name: "No-Show Follow-Up", purpose: "Recovers potentially lost patients by reaching out compassionately after a missed appointment.", trigger: "Patient misses an appointment (no check-in recorded within 1 hour of scheduled time)", channel: "email", icon: Calendar, timing: "1 hour after the missed appointment time — checked every 15 minutes" },
   { id: "feedback_email", name: "Post-Visit Feedback Request", purpose: "Captures patient satisfaction data while the visit is fresh.", trigger: "Patient has a completed appointment from the previous day", channel: "email", icon: Star, timing: "Daily at 12 PM" },
   { id: "birthday_email", name: "Birthday Greeting", purpose: "Deepens the patient relationship with a personal touch that most clinics never bother with.", trigger: "Patient's date of birth matches today's date", channel: "email", icon: Gift, timing: "Daily at 7 AM" },
   { id: "wellness_newsletter", name: "Wellness Newsletter", purpose: "Keeps the clinic top-of-mind for all active patients between visits with relevant health tips.", trigger: "Admin manually sends from the Wellness Newsletter screen", channel: "email", icon: Newspaper, timing: "Manual trigger — admin chooses when to send" },
@@ -388,16 +306,14 @@ function AutomationsSection() {
 export default function Settings() {
   return (
     <Layout>
-      <div className="mb-8">
-        <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1.5">Platform Configuration</p>
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1.5">
-          Everything about this platform — security, services, scheduler, pipeline stages, and all automations
+      <div className="mb-6">
+        <p className="text-[9px] font-bold text-primary/60 uppercase tracking-[0.3em] mb-2">Configuration</p>
+        <h1 className="text-xl font-bold text-foreground tracking-tight">Platform Settings</h1>
+        <p className="text-[11px] text-muted-foreground/40 mt-1 tracking-wide">
+          Connected services · scheduler · pipeline stages · automations reference
         </p>
       </div>
-
       <div className="space-y-5">
-        <SecuritySection />
         <ServicesSection />
         <SchedulerSection />
         <PipelineSection />

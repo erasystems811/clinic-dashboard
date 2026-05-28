@@ -444,14 +444,6 @@ const AUTOMATION_GROUPS: AutomationGroup[] = [
     badgeBg: "bg-zinc-500/10 text-zinc-400 border-zinc-500/25",
     items: [
       {
-        id: "queue_long_wait_apology",
-        name: "Long Wait Apology",
-        purpose: "Preserves patient goodwill when the wait is unusually long by proactively acknowledging the delay before the patient gets frustrated.",
-        trigger: "Staff manually taps 'Send Apology' on the queue screen — entirely at staff discretion",
-        channel: "sms/whatsapp",
-        icon: Clock,
-      },
-      {
         id: "call_task_ai",
         name: "Call Task — AI Draft (Staff-Reviewed)",
         purpose: "Sends an AI-written 'IMPORTANT' email to a flagged patient. Staff generate the draft, read it, edit if needed, then approve it before it goes out.",

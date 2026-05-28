@@ -323,6 +323,13 @@ export default function Usage() {
               <span className="text-xs font-semibold text-foreground">History</span>
               <span className="text-[11px] text-muted-foreground/40">Avg/day that month</span>
               <div className="ml-auto flex items-center gap-1">
+                <button
+                  onClick={() => setWindowOffset(o => o - COLS_PER_PAGE)}
+                  disabled={windowOffset <= COLS_PER_PAGE}
+                  className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-25 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Back
+                </button>
                 <span className="text-[11px] text-muted-foreground/40 px-2 tabular-nums">
                   {visibleMonths[0]} – {visibleMonths[visibleMonths.length - 1]}
                 </span>

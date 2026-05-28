@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -64,8 +64,9 @@
   --sidebar-foreground: 0 0% 85%;
   --sidebar-border: 0 0% 9%;
 
+  /* Plus Jakarta Sans for UI · DM Mono for data (numbers, dates, usernames, codes) */
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
-  --app-font-mono: 'SF Mono', Menlo, monospace;
+  --app-font-mono: 'DM Mono', 'SF Mono', Menlo, monospace;
   --radius: 0.25rem;
 
   color-scheme: dark;

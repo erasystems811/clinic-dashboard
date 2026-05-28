@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
 import { Activity, Loader2, Building2, ArrowLeft, Eye, EyeOff, AlertCircle } from "lucide-react";
 
-type Mode = "staff" | "admin";
+type Mode = "nurse" | "receptionist" | "admin";
 
 interface PreloadedHospital {
   name: string;
@@ -11,21 +11,21 @@ interface PreloadedHospital {
 }
 
 /* ── Per-mode colour palettes ─────────────────────────────────────────────── */
+const NAVY = {
+  primary:     "hsl(221 78% 57%)",
+  primaryDark: "hsl(221 78% 48%)",
+  glow:        "hsl(221 78% 57% / 0.20)",
+  ring:        "hsl(221 78% 57% / 0.30)",
+  iconBg:      "hsl(221 78% 57% / 0.12)",
+  iconRing:    "hsl(221 78% 57% / 0.28)",
+  tabBg:       "hsl(221 78% 57% / 0.10)",
+  tabRing:     "hsl(221 78% 57% / 0.22)",
+};
+
 const PALETTES = {
-  staff: {
-    /* Navy / royal blue */
-    primary:     "hsl(221 78% 57%)",
-    primaryDark: "hsl(221 78% 48%)",
-    glow:        "hsl(221 78% 57% / 0.20)",
-    ring:        "hsl(221 78% 57% / 0.30)",
-    iconBg:      "hsl(221 78% 57% / 0.12)",
-    iconRing:    "hsl(221 78% 57% / 0.28)",
-    tabBg:       "hsl(221 78% 57% / 0.10)",
-    tabRing:     "hsl(221 78% 57% / 0.22)",
-    label:       "Staff Access",
-  },
+  nurse:        { ...NAVY, label: "Nurse Access" },
+  receptionist: { ...NAVY, label: "Receptionist Access" },
   admin: {
-    /* Champagne gold — matches ERA Super Admin */
     primary:     "hsl(43 60% 52%)",
     primaryDark: "hsl(43 60% 44%)",
     glow:        "hsl(43 60% 52% / 0.20)",
@@ -38,9 +38,15 @@ const PALETTES = {
   },
 } as const;
 
+const TABS: { id: Mode; label: string }[] = [
+  { id: "nurse",        label: "Nurse" },
+  { id: "receptionist", label: "Receptionist" },
+  { id: "admin",        label: "Admin" },
+];
+
 export default function Login() {
   const { loginAdmin, loginStaff } = useAuth();
-  const [mode, setMode] = useState<Mode>("staff");
+  const [mode, setMode] = useState<Mode>("nurse");
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -87,7 +93,7 @@ export default function Login() {
     const url = new URL(window.location.href);
     url.searchParams.delete("h");
     window.history.replaceState({}, "", url.toString());
-    reset("staff");
+    reset("nurse");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -206,7 +212,6 @@ export default function Login() {
                     placeholder="Enter your password"
                     required
                     className={inputCls + " pr-10"}
-                    style={{ outline: "none" }}
                     onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${pal.ring}`; e.currentTarget.style.borderColor = pal.primary; }}
                     onBlur={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = ""; }}
                   />
@@ -251,17 +256,17 @@ export default function Login() {
         {/* Normal login mode */}
         {!preloadLoading && !preloadError && !preloaded && (
           <>
-            {/* Mode selector */}
+            {/* Mode selector — 3 tabs */}
             <div className="flex rounded-md border border-border bg-muted/40 p-0.5 mb-5">
-              {(["staff", "admin"] as Mode[]).map(m => {
-                const p = PALETTES[m];
-                const isActive = mode === m;
+              {TABS.map(({ id, label }) => {
+                const p = PALETTES[id];
+                const isActive = mode === id;
                 return (
                   <button
-                    key={m}
+                    key={id}
                     type="button"
-                    onClick={() => reset(m)}
-                    className="flex-1 py-2 text-xs font-medium rounded transition-all duration-300 uppercase tracking-[0.14em]"
+                    onClick={() => reset(id)}
+                    className="flex-1 py-2 text-[11px] font-medium rounded transition-all duration-300 uppercase tracking-[0.12em]"
                     style={isActive ? {
                       background: p.tabBg,
                       color: p.primary,
@@ -270,7 +275,7 @@ export default function Login() {
                       color: "hsl(215 12% 46%)",
                     }}
                   >
-                    {m === "staff" ? "Staff" : "Admin"}
+                    {label}
                   </button>
                 );
               })}

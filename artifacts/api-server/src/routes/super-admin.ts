@@ -795,33 +795,6 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     }
   }
 
-  // 4. OpenAI
-  const hasOpenAI = !!process.env.OPENAI_API_KEY;
-  checks.push({
-    name: "OpenAI",
-    ok: hasOpenAI || !isProd,
-    warning: !hasOpenAI && !isProd,
-    detail: hasOpenAI ? "API key configured" : isProd ? "OPENAI_API_KEY not set" : "Not set in dev — on Railway",
-  });
-
-  // 5. Claude (Anthropic)
-  const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
-  checks.push({
-    name: "Claude (Anthropic)",
-    ok: hasAnthropic || !isProd,
-    warning: !hasAnthropic && !isProd,
-    detail: hasAnthropic ? "API key configured" : isProd ? "ANTHROPIC_API_KEY not set" : "Not set in dev — on Railway",
-  });
-
-  // 6. Scheduler
-  const schedulerEnabled = process.env.ENABLE_SCHEDULER === "true";
-  checks.push({
-    name: "Scheduler",
-    ok: schedulerEnabled || !isProd,
-    warning: !schedulerEnabled && !isProd,
-    detail: schedulerEnabled ? "Running" : isProd ? "Not running — set ENABLE_SCHEDULER=true" : "Off in dev — runs automatically on Railway",
-  });
-
   // Merge manual flags — overrides auto state to red
   for (const c of checks) {
     const flaggedAt = flagMap.get(c.name);

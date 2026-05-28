@@ -93,7 +93,7 @@ export default function Usage() {
   const [tab, setTab] = useState<Tab>("live");
 
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<{ stats: HospitalUsageStat[] }>({
-    queryKey: ["usage-stats-v8"],
+    queryKey: ["usage-stats-v9"],
     queryFn: () => get("/super-admin/usage-stats"),
     staleTime: 0,
     refetchInterval: 2 * 60_000,

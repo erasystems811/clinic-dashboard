@@ -1258,9 +1258,9 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   function monthLabel(y: number, m: number) { return `${MONTH_NAMES[m]} ${y}`; }
   function endOfMonth(y: number, m: number) { return new Date(y, m + 1, 0, 23, 59, 59, 999).getTime(); }
 
-  // 12 completed months: each has a startMs, endMs (exclusive = next month start), daysInMonth, label
-  const completedMonths = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 12 + i, 1);
+  // 48 completed months (4 years): each has a startMs, endMs, daysInMonth, label
+  const completedMonths = Array.from({ length: 48 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 48 + i, 1);
     const y = d.getFullYear(), m = d.getMonth();
     const startMs = d.getTime();
     const endMs   = new Date(y, m + 1, 0, 23, 59, 59, 999).getTime(); // last ms of the month

@@ -3,7 +3,7 @@ import Layout from "@/components/layout";
 import { get } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import {
-  RefreshCw, Radio, Users, Mail, MessageSquare, History, Zap,
+  RefreshCw, Radio, Users, Mail, MessageSquare, History, Zap, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 interface MonthSnapshot {
@@ -83,7 +83,7 @@ export default function Usage() {
   const [tab, setTab] = useState<Tab>("live");
 
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<{ stats: HospitalUsageStat[] }>({
-    queryKey: ["usage-stats-v3"],
+    queryKey: ["usage-stats-v4"],
     queryFn: () => get("/super-admin/usage-stats"),
     staleTime: 0,
     refetchInterval: 2 * 60_000,
@@ -102,13 +102,20 @@ export default function Usage() {
     return acc;
   }, {});
 
-  // Generate the 12 completed month labels from today — never depends on data being loaded
+  // 48 completed months (4 years) — always derived from today, never from data
   const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const now = new Date();
-  const allMonths: string[] = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 12 + i, 1);
+  const TOTAL_MONTHS = 48;
+  const COLS_PER_PAGE = 6;
+  const allMonths: string[] = Array.from({ length: TOTAL_MONTHS }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - TOTAL_MONTHS + i, 1);
     return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
   });
+
+  const [windowStart, setWindowStart] = useState(TOTAL_MONTHS - COLS_PER_PAGE);
+  const visibleMonths = allMonths.slice(windowStart, windowStart + COLS_PER_PAGE);
+  const canPrev = windowStart > 0;
+  const canNext = windowStart + COLS_PER_PAGE < TOTAL_MONTHS;
 
   const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
   const daysElapsed = stats[0]?.currentMonth.daysElapsed ?? now.getDate();
@@ -275,14 +282,33 @@ export default function Usage() {
         {tab === "history" && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
             {/* Table header bar */}
-            <div className="px-5 py-2.5 border-b border-border flex items-center gap-3 bg-white/[0.04]">
+            {/* Section header: title + prev/next navigation + legend */}
+            <div className="px-5 py-2.5 border-b border-border flex items-center gap-3 bg-white/[0.04] flex-wrap">
               <History className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
-              <span className="text-xs font-semibold text-foreground">12-month history</span>
-              <span className="text-[11px] text-muted-foreground/40">Avg/day that month</span>
-              {/* Legend */}
-              <div className="ml-auto flex items-center gap-3 text-[10px] text-muted-foreground/40">
-                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Patients</span>
-                <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Emails</span>
+              <span className="text-xs font-semibold text-foreground">History</span>
+              <span className="text-[11px] text-muted-foreground/40">Avg/day that month · up to 4 years</span>
+              <div className="ml-auto flex items-center gap-1">
+                <button
+                  onClick={() => setWindowStart(s => Math.max(0, s - COLS_PER_PAGE))}
+                  disabled={!canPrev}
+                  className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-25 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" /> Older
+                </button>
+                <span className="text-[11px] text-muted-foreground/40 px-2 tabular-nums">
+                  {visibleMonths[0]} – {visibleMonths[visibleMonths.length - 1]}
+                </span>
+                <button
+                  onClick={() => setWindowStart(s => Math.min(TOTAL_MONTHS - COLS_PER_PAGE, s + COLS_PER_PAGE))}
+                  disabled={!canNext}
+                  className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-25 disabled:cursor-not-allowed"
+                >
+                  Newer <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex items-center gap-3 text-[10px] text-muted-foreground/40">
+                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Pts</span>
+                <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Em</span>
                 <span className="flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> SMS</span>
               </div>
             </div>
@@ -290,104 +316,97 @@ export default function Usage() {
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="text-xs" style={{ minWidth: "max-content", borderCollapse: "collapse" }}>
-                  <thead>
-                    {/* Month header row — dark distinct background */}
-                    <tr style={{ backgroundColor: "rgba(255,255,255,0.06)", borderBottom: "2px solid rgba(255,255,255,0.12)" }}>
+              <table className="text-xs w-full" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: 200 }} />
+                  {visibleMonths.map(m => <col key={m} />)}
+                </colgroup>
+                <thead>
+                  <tr style={{ backgroundColor: "rgba(255,255,255,0.06)", borderBottom: "2px solid rgba(255,255,255,0.12)" }}>
+                    <th
+                      className="text-left whitespace-nowrap"
+                      style={{ padding: "10px 20px", background: "rgba(30,30,30,0.98)", borderRight: "2px solid rgba(255,255,255,0.12)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)" }}
+                    >
+                      Hospital
+                    </th>
+                    {visibleMonths.map(label => (
                       <th
-                        className="sticky left-0 z-10 text-left whitespace-nowrap"
-                        style={{ padding: "10px 20px", minWidth: 200, background: "rgba(30,30,30,0.98)", borderRight: "2px solid rgba(255,255,255,0.12)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)" }}
+                        key={label}
+                        className="whitespace-nowrap text-center"
+                        style={{ padding: "10px 8px", borderLeft: "1px solid rgba(255,255,255,0.10)", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: "0.02em" }}
                       >
-                        Hospital
+                        {label}
                       </th>
-                      {allMonths.map(label => (
-                        <th
-                          key={label}
-                          className="whitespace-nowrap text-center"
-                          style={{ padding: "10px 16px", minWidth: 90, borderLeft: "1px solid rgba(255,255,255,0.10)", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: "0.02em" }}
+                    ))}
+                  </tr>
+                  <tr style={{ backgroundColor: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)" }}>
+                    <th style={{ background: "rgba(30,30,30,0.98)", borderRight: "2px solid rgba(255,255,255,0.12)", padding: "4px 20px" }} />
+                    {visibleMonths.map(label => (
+                      <th key={label} style={{ borderLeft: "1px solid rgba(255,255,255,0.10)", padding: "4px 0" }}>
+                        <div className="flex justify-around px-2" style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.3)", letterSpacing: "0.04em" }}>
+                          <span>Pts</span><span>Em</span><span>SMS</span>
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((h, hi) => {
+                    const tier = getTier(h.currentMonth.avgPatientsDay);
+                    const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
+                    const windowSnaps = (h.history ?? []).slice(windowStart, windowStart + COLS_PER_PAGE);
+
+                    return (
+                      <tr
+                        key={h.id}
+                        style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", backgroundColor: rowBg }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = rowBg)}
+                      >
+                        <td
+                          className="whitespace-nowrap"
+                          style={{ padding: "10px 20px", background: hi % 2 === 0 ? "rgb(24,24,24)" : "rgb(27,27,27)", borderRight: "2px solid rgba(255,255,255,0.12)" }}
                         >
-                          {label}
-                        </th>
-                      ))}
-                    </tr>
-                    {/* Sub-header: metric labels under each month */}
-                    <tr style={{ backgroundColor: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)" }}>
-                      <th className="sticky left-0 z-10" style={{ background: "rgba(30,30,30,0.98)", borderRight: "2px solid rgba(255,255,255,0.12)", padding: "4px 20px" }} />
-                      {allMonths.map(label => (
-                        <th key={label} style={{ borderLeft: "1px solid rgba(255,255,255,0.10)", padding: "4px 0" }}>
-                          <div className="flex justify-around px-2" style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.3)", letterSpacing: "0.04em" }}>
-                            <span title="Patients">Pts</span>
-                            <span title="Emails">Em</span>
-                            <span title="SMS">SMS</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
+                            <span className="font-semibold text-foreground" style={{ fontSize: 13 }}>{h.name}</span>
                           </div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sorted.map((h, hi) => {
-                      const tier = getTier(h.currentMonth.avgPatientsDay);
-                      const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
-
-                      return (
-                        <tr
-                          key={h.id}
-                          style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", backgroundColor: rowBg }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = rowBg)}
-                        >
-                          {/* Hospital name — sticky left */}
-                          <td
-                            className="sticky left-0 z-10 whitespace-nowrap"
-                            style={{ padding: "10px 20px", background: hi % 2 === 0 ? "rgb(24,24,24)" : "rgb(27,27,27)", borderRight: "2px solid rgba(255,255,255,0.12)" }}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
-                              <span className="font-semibold text-foreground" style={{ fontSize: 13 }}>{h.name}</span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5 pl-3.5">
-                              <span className={`font-semibold ${tier.color}`} style={{ fontSize: 10 }}>{tier.label}</span>
-                              <span className="text-muted-foreground/35" style={{ fontSize: 10 }}>{fmtDays(h.daysSince)}</span>
-                            </div>
-                          </td>
-
-                          {/* Month cells */}
-                          {h.history.map((snap, mi) => {
-                            const noData = snap.patients === 0 && snap.emails === 0 && snap.sms === 0;
-                            return (
-                              <td
-                                key={mi}
-                                className="text-center tabular-nums"
-                                style={{ padding: "8px 4px", borderLeft: "1px solid rgba(255,255,255,0.08)", verticalAlign: "middle" }}
-                              >
-                                {noData ? (
-                                  <span style={{ color: "rgba(255,255,255,0.08)", fontSize: 16 }}>·</span>
-                                ) : (
-                                  <div className="flex justify-around px-1 gap-1">
-                                    {/* Patients */}
-                                    <span className="font-semibold" style={{ fontSize: 12, color: snap.avgPatientsDay > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.12)", minWidth: 28, textAlign: "center" }}>
-                                      {fmt(snap.avgPatientsDay)}
-                                    </span>
-                                    {/* Emails */}
-                                    <span style={{ fontSize: 11, color: snap.avgEmailsDay > 0 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.10)", minWidth: 24, textAlign: "center" }}>
-                                      {fmt(snap.avgEmailsDay)}
-                                    </span>
-                                    {/* SMS */}
-                                    <span style={{ fontSize: 11, color: snap.avgSmsDay > 0 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)", minWidth: 20, textAlign: "center" }}>
-                                      {fmt(snap.avgSmsDay)}
-                                    </span>
-                                  </div>
-                                )}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          <div className="flex items-center gap-2 mt-0.5 pl-3.5">
+                            <span className={`font-semibold ${tier.color}`} style={{ fontSize: 10 }}>{tier.label}</span>
+                            <span className="text-muted-foreground/35" style={{ fontSize: 10 }}>{fmtDays(h.daysSince)}</span>
+                          </div>
+                        </td>
+                        {windowSnaps.map((snap, mi) => {
+                          const noData = snap.patients === 0 && snap.emails === 0 && snap.sms === 0;
+                          return (
+                            <td
+                              key={mi}
+                              className="text-center tabular-nums"
+                              style={{ padding: "8px 4px", borderLeft: "1px solid rgba(255,255,255,0.08)", verticalAlign: "middle" }}
+                            >
+                              {noData ? (
+                                <span style={{ color: "rgba(255,255,255,0.08)", fontSize: 16 }}>·</span>
+                              ) : (
+                                <div className="flex justify-around px-1 gap-1">
+                                  <span className="font-semibold" style={{ fontSize: 12, color: snap.avgPatientsDay > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.12)", minWidth: 24, textAlign: "center" }}>
+                                    {fmt(snap.avgPatientsDay)}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: snap.avgEmailsDay > 0 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.10)", minWidth: 22, textAlign: "center" }}>
+                                    {fmt(snap.avgEmailsDay)}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: snap.avgSmsDay > 0 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)", minWidth: 20, textAlign: "center" }}>
+                                    {fmt(snap.avgSmsDay)}
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
         )}

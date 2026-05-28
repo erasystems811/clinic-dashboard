@@ -5,31 +5,47 @@ import { api, Hospital } from "@/lib/api";
 import {
   Building2, Plus, Search, CheckCircle2, XCircle,
   AlertCircle, Loader2, ChevronRight, RefreshCw, CalendarClock,
-  Database, MessageSquare, Clock, Activity, Mail, Smartphone, Cpu
+  Database, MessageSquare, Activity, Mail, Smartphone, Cpu, Clock
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";
 
-const STATUS_STYLES: Record<string, string> = {
-  active: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  trial: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  suspended: "bg-red-500/10 text-red-400 border-red-500/20",
-  inactive: "bg-zinc-500/10 text-zinc-400 border-zinc-500/20",
+// Status config — color only used for left edge and badge dot
+const STATUS_CONFIG: Record<string, { dot: string; label: string; text: string }> = {
+  active:    { dot: "bg-emerald-400",  label: "text-emerald-400",  text: "Active"    },
+  trial:     { dot: "bg-amber-400",    label: "text-amber-400",    text: "Trial"     },
+  suspended: { dot: "bg-red-400",      label: "text-red-400",      text: "Suspended" },
+  inactive:  { dot: "bg-zinc-500",     label: "text-zinc-400",     text: "Inactive"  },
+};
+
+const STAT_ACCENT: Record<string, string> = {
+  "Total Accounts": "border-l-primary/60",
+  "Active":         "border-l-emerald-400/70",
+  "Trial":          "border-l-amber-400/70",
+  "Suspended":      "border-l-red-400/70",
+  "Expiring Soon":  "border-l-orange-400/70",
 };
 
 function StatusBadge({ status, active }: { status: string; active: boolean }) {
-  const label = (!active || status === "inactive") ? "suspended" : status;
-  const style = STATUS_STYLES[label] ?? STATUS_STYLES.inactive;
+  const key = (!active || status === "inactive") ? "suspended" : status;
+  const cfg = STATUS_CONFIG[key] ?? STATUS_CONFIG.inactive;
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded border uppercase tracking-wide ${style}`}>
-      {label === "active" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />}
-      {label === "suspended" && <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />}
-      {label === "trial" && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
-      {label}
+    <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-widest">
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+      <span className={cfg.label}>{cfg.text}</span>
     </span>
   );
 }
 
-type HealthCheck = { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string; flagged?: boolean; flaggedAt?: string };
+type HealthCheck = { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string; flagged?: boolean };
+
+const HEALTH_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  "Database":        Database,
+  "SMS (Termii)":    MessageSquare,
+  "WhatsApp (Termii)": Smartphone,
+  "Email (Resend)":  Mail,
+  "OpenAI":          Cpu,
+  "Scheduler":       Clock,
+};
 
 export default function Dashboard() {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
@@ -42,29 +58,17 @@ export default function Dashboard() {
 
   const [health, setHealth] = useState<{ ok: boolean; anyWarning?: boolean; checks: HealthCheck[] } | null>(null);
   const [healthLoading, setHealthLoading] = useState(true);
+
   const fetchHealth = useCallback(async () => {
     setHealthLoading(true);
-    try {
-      const data = await api.getHealth();
-      setHealth(data);
-    } catch {
-      setHealth(null);
-    } finally {
-      setHealthLoading(false);
-    }
+    try { setHealth(await api.getHealth()); } catch { setHealth(null); } finally { setHealthLoading(false); }
   }, []);
 
   const fetchHospitals = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const data = await api.listHospitals();
-      setHospitals(data);
-    } catch (e: any) {
-      setError(e.message ?? "Failed to load hospitals");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError("");
+    try { setHospitals(await api.listHospitals()); }
+    catch (e: any) { setError(e.message ?? "Failed to load hospitals"); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchHospitals(); fetchHealth(); }, [fetchHospitals, fetchHealth]);
@@ -73,10 +77,7 @@ export default function Dashboard() {
 
   const filtered = hospitals.filter(h => {
     if (!showSuspended && isSuspended(h)) return false;
-    return (
-      h.name.toLowerCase().includes(search.toLowerCase()) ||
-      h.username.toLowerCase().includes(search.toLowerCase())
-    );
+    return h.name.toLowerCase().includes(search.toLowerCase()) || h.username.toLowerCase().includes(search.toLowerCase());
   });
 
   const now = Date.now();
@@ -95,121 +96,139 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      {/* Page header */}
-      <div className="flex items-start justify-between mb-8">
+      {/* ── Page header ─────────────────────────────────────────── */}
+      <div className="flex items-end justify-between mb-10">
         <div>
-          <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1.5">Era Systems Platform</p>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Hospital Accounts</h1>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            Manage all hospital accounts on the Era platform
+          <p className="text-[10px] font-mono text-primary/60 uppercase tracking-[0.2em] mb-2">
+            ERA SYSTEMS / PLATFORM
           </p>
+          <h1
+            className="text-3xl font-bold tracking-tight text-foreground leading-none"
+            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          >
+            Hospital Accounts
+          </h1>
         </div>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2">
           <button
             onClick={fetchHospitals}
-            className="p-2 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition"
-            title="Refresh"
+            className="p-2 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition"
-            style={{ boxShadow: "0 2px 12px hsl(43 96% 54% / 0.25)" }}
+            className="flex items-center gap-2 px-4 py-2 rounded bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition uppercase tracking-widest font-mono"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             Add Hospital
           </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      {/* ── Stat cards — left edge only ─────────────────────────── */}
+      <div className="grid grid-cols-5 gap-3 mb-8">
         {[
-          { label: "Total", value: stats.total, icon: Building2, color: "text-primary", accent: false },
-          { label: "Active", value: stats.active, icon: CheckCircle2, color: "text-emerald-400", accent: false },
-          { label: "Trial", value: stats.trial, icon: AlertCircle, color: "text-amber-400", accent: false },
-          { label: "Suspended", value: stats.suspended, icon: XCircle, color: "text-red-400", accent: false },
-          { label: "Expiring", value: stats.expiringSoon, icon: CalendarClock, color: stats.expiringSoon > 0 ? "text-orange-400" : "text-muted-foreground", accent: stats.expiringSoon > 0 },
+          { label: "Total Accounts", value: stats.total,        accent: "border-l-primary/50"        },
+          { label: "Active",          value: stats.active,       accent: "border-l-emerald-400/60"    },
+          { label: "Trial",           value: stats.trial,        accent: "border-l-amber-400/60"      },
+          { label: "Suspended",       value: stats.suspended,    accent: "border-l-red-400/60"        },
+          { label: "Expiring Soon",   value: stats.expiringSoon, accent: stats.expiringSoon > 0 ? "border-l-orange-400/80" : "border-l-border" },
         ].map(stat => (
-          <div key={stat.label}
-            className={`rounded-lg border p-4 ${stat.accent ? "border-orange-500/30 bg-orange-500/5" : "border-border bg-card"}`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{stat.label}</span>
-              <stat.icon className={`w-3.5 h-3.5 ${stat.color}`} />
-            </div>
-            <div className="text-3xl font-extrabold text-foreground tracking-tight">{stat.value}</div>
+          <div
+            key={stat.label}
+            className={`bg-card border border-border border-l-2 ${stat.accent} rounded px-4 py-4`}
+          >
+            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-[0.15em] mb-3">
+              {stat.label}
+            </p>
+            <p
+              className="text-3xl font-bold text-foreground leading-none"
+              style={{ fontFamily: "'Space Mono', monospace" }}
+            >
+              {stat.value}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* System Health */}
-      <div className="rounded-lg border border-border bg-card p-4 mb-6">
-        <div className="flex items-center justify-between mb-4">
+      {/* ── System Health ────────────────────────────────────────── */}
+      <div className="bg-card border border-border rounded mb-8">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
           <div className="flex items-center gap-2">
             <Activity className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-xs font-bold text-foreground uppercase tracking-widest">System Health</span>
+            <span
+              className="text-xs font-bold uppercase tracking-[0.15em] text-foreground"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              System Health
+            </span>
           </div>
           <div className="flex items-center gap-2">
             {!healthLoading && health && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-widest ${
-                !health.ok
-                  ? "bg-red-500/10 text-red-400 border-red-500/20"
-                  : health.anyWarning
-                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                    : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+              <span className={`text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 border rounded ${
+                !health.ok ? "border-red-500/30 text-red-400" : "border-emerald-500/20 text-emerald-400"
               }`}>
-                {!health.ok ? "Degraded" : "Operational"}
+                {!health.ok ? "DEGRADED" : "OPERATIONAL"}
               </span>
             )}
-            <button onClick={fetchHealth} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition" title="Refresh health">
-              <RefreshCw className={`w-3.5 h-3.5 ${healthLoading ? "animate-spin" : ""}`} />
+            <button
+              onClick={fetchHealth}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition"
+            >
+              <RefreshCw className={`w-3 h-3 ${healthLoading ? "animate-spin" : ""}`} />
             </button>
           </div>
         </div>
+
+        {/* Service rows — full untruncated names */}
         {healthLoading ? (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {[1,2,3,4,5,6].map(i => <div key={i} className="h-14 rounded-md bg-muted animate-pulse" />)}
+          <div className="px-5 py-4 space-y-3">
+            {[1,2,3,4,5,6].map(i => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-muted animate-pulse" />
+                <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+                <div className="ml-auto h-3 w-20 bg-muted animate-pulse rounded" />
+              </div>
+            ))}
           </div>
         ) : health ? (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          <div className="divide-y divide-border">
             {health.checks.map(c => {
-              const Icon = c.name === "Database" ? Database
-                : c.name.startsWith("SMS") ? MessageSquare
-                : c.name.startsWith("WhatsApp") ? Smartphone
-                : c.name.startsWith("Email") ? Mail
-                : c.name === "OpenAI" ? Cpu
-                : Clock;
+              const Icon = HEALTH_ICON[c.name] ?? Activity;
               const isWarn = c.ok && c.warning;
+              const statusColor = !c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400";
+              const dotColor = !c.ok ? "bg-red-400" : isWarn ? "bg-amber-400" : "bg-emerald-400";
               const tooltip = [c.detail, c.balance].filter(Boolean).join(" · ");
               return (
                 <div
                   key={c.name}
                   title={tooltip}
-                  className={`flex flex-col gap-2 p-2.5 rounded-md border cursor-default select-none ${
-                    !c.ok ? "border-red-500/30 bg-red-500/6"
-                    : isWarn ? "border-amber-500/30 bg-amber-500/6"
-                    : "border-border bg-muted/30"
-                  }`}
+                  className="flex items-center gap-3 px-5 py-3 hover:bg-muted/20 transition"
                 >
-                  <div className="flex items-center justify-between">
-                    <Icon className={`w-3.5 h-3.5 ${!c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400"}`} />
-                    <span className={`w-1.5 h-1.5 rounded-full ${!c.ok ? "bg-red-400" : isWarn ? "bg-amber-400" : "bg-emerald-400"}`} />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-foreground truncate">{c.name}</p>
-                    {c.balance && <p className={`text-[10px] font-medium ${!c.ok || isWarn ? "text-amber-400" : "text-emerald-400"}`}>{c.balance}</p>}
-                  </div>
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${statusColor}`} />
+                  <span className="text-sm font-medium text-foreground">{c.name}</span>
+                  {c.balance && (
+                    <span className={`text-xs font-mono ${statusColor}`}>{c.balance}</span>
+                  )}
+                  <span className="ml-auto text-xs text-muted-foreground font-medium truncate max-w-[260px]">
+                    {c.detail}
+                  </span>
+                  <span className={`text-[10px] font-mono font-bold uppercase tracking-widest shrink-0 ${statusColor}`}>
+                    {!c.ok ? "FAIL" : isWarn ? "WARN" : "OK"}
+                  </span>
                 </div>
               );
             })}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground">Unable to reach health endpoint.</p>
+          <p className="px-5 py-4 text-xs text-muted-foreground font-mono">Unable to reach health endpoint.</p>
         )}
       </div>
 
-      {/* Search + filters */}
+      {/* ── Search + filter ──────────────────────────────────────── */}
       <div className="flex items-center gap-2 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -218,58 +237,58 @@ export default function Dashboard() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search hospitals…"
-            className="w-full pl-9 pr-4 py-2 rounded-md bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition font-medium"
+            className="w-full pl-9 pr-4 py-2 rounded bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/50 transition font-medium"
           />
         </div>
         <button
           onClick={() => setShowSuspended(s => !s)}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-md border text-xs font-bold transition whitespace-nowrap uppercase tracking-wide ${
+          className={`flex items-center gap-1.5 px-3 py-2 rounded border text-[11px] font-mono font-bold uppercase tracking-widest transition ${
             showSuspended
-              ? "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/15"
-              : "bg-muted text-muted-foreground border-border hover:text-foreground"
+              ? "bg-red-500/8 text-red-400 border-red-500/20 hover:bg-red-500/12"
+              : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
           }`}
         >
           <XCircle className="w-3.5 h-3.5" />
-          {showSuspended ? "Suspended Shown" : "Suspended Hidden"}
+          {showSuspended ? "Suspended On" : "Suspended Off"}
         </button>
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      {/* ── Hospital table ───────────────────────────────────────── */}
+      <div className="bg-card border border-border rounded overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="text-sm font-medium">Loading hospitals…</span>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm font-medium">Loading…</span>
           </div>
         ) : error ? (
           <div className="flex items-center justify-center gap-2 py-16 text-destructive">
-            <AlertCircle className="w-5 h-5" />
+            <AlertCircle className="w-4 h-4" />
             <span className="text-sm font-medium">{error}</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-            <Building2 className="w-8 h-8 opacity-20" />
-            <span className="text-sm font-medium">{search ? "No hospitals match your search" : "No hospitals yet"}</span>
+            <Building2 className="w-8 h-8 opacity-15" />
+            <span className="text-sm font-medium">{search ? "No hospitals match search" : "No hospitals yet"}</span>
             {!search && (
-              <button onClick={() => setShowCreate(true)} className="text-xs text-primary hover:underline font-bold">
-                Add the first hospital
+              <button onClick={() => setShowCreate(true)} className="text-xs font-bold text-primary hover:underline uppercase tracking-widest font-mono">
+                Add First Hospital
               </button>
             )}
           </div>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border bg-muted/60">
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Hospital</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Username</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Expires</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Created</th>
-                <th className="px-4 py-3"></th>
+              <tr className="border-b border-border">
+                <th className="px-5 py-3 text-left text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-[0.15em]">Hospital</th>
+                <th className="px-5 py-3 text-left text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-[0.15em]">Username</th>
+                <th className="px-5 py-3 text-left text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-[0.15em]">Status</th>
+                <th className="px-5 py-3 text-left text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-[0.15em]">Expires</th>
+                <th className="px-5 py-3 text-left text-[10px] font-mono font-bold text-muted-foreground uppercase tracking-[0.15em]">Created</th>
+                <th className="px-5 py-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.map(hospital => {
+            <tbody>
+              {filtered.map((hospital, idx) => {
                 const expDate = hospital.subscriptionExpiresAt ? new Date(hospital.subscriptionExpiresAt) : null;
                 const daysLeft = expDate ? Math.ceil((expDate.getTime() - now) / (1000 * 60 * 60 * 24)) : null;
                 const isExpired = daysLeft !== null && daysLeft < 0;
@@ -277,46 +296,46 @@ export default function Dashboard() {
                 return (
                   <tr
                     key={hospital.id}
-                    className="hover:bg-muted/25 transition cursor-pointer group"
                     onClick={() => setLocation(`/hospitals/${hospital.id}`)}
+                    className={`cursor-pointer hover:bg-muted/25 transition group ${idx !== filtered.length - 1 ? "border-b border-border" : ""}`}
                   >
-                    <td className="px-4 py-3.5">
+                    <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-md bg-primary/10 ring-1 ring-primary/15 flex items-center justify-center shrink-0">
-                          <Building2 className="w-3.5 h-3.5 text-primary" />
+                        <div className="w-7 h-7 rounded border border-border flex items-center justify-center shrink-0 bg-muted/50">
+                          <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
                         </div>
                         <div>
-                          <p className="font-bold text-sm text-foreground">{hospital.name}</p>
-                          <p className="text-[11px] text-muted-foreground font-medium">{hospital.slug}</p>
+                          <p className="font-semibold text-sm text-foreground leading-tight">{hospital.name}</p>
+                          <p className="text-[11px] text-muted-foreground font-mono">{hospital.slug}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5">
-                      <span className="text-xs text-muted-foreground font-mono">{hospital.username}</span>
+                    <td className="px-5 py-3.5">
+                      <span className="text-xs font-mono text-muted-foreground">{hospital.username}</span>
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td className="px-5 py-3.5">
                       <StatusBadge status={hospital.subscriptionStatus} active={hospital.active} />
                     </td>
-                    <td className="px-4 py-3.5">
+                    <td className="px-5 py-3.5">
                       {expDate ? (
                         <div>
-                          <p className={`text-xs font-semibold ${isExpired ? "text-red-400" : isExpiringSoon ? "text-orange-400" : "text-muted-foreground"}`}>
+                          <p className={`text-xs font-mono font-bold ${isExpired ? "text-red-400" : isExpiringSoon ? "text-orange-400" : "text-muted-foreground"}`}>
                             {expDate.toLocaleDateString()}
                           </p>
-                          {isExpired && <p className="text-[10px] text-red-400 font-medium">Expired {Math.abs(daysLeft!)}d ago</p>}
-                          {isExpiringSoon && <p className="text-[10px] text-orange-400 font-medium">{daysLeft}d remaining</p>}
+                          {isExpired && <p className="text-[10px] text-red-400 font-mono">–{Math.abs(daysLeft!)}d</p>}
+                          {isExpiringSoon && <p className="text-[10px] text-orange-400 font-mono">{daysLeft}d left</p>}
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground/40 font-medium">Not set</span>
+                        <span className="text-xs font-mono text-muted-foreground/30">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3.5">
-                      <span className="text-xs text-muted-foreground font-medium">
+                    <td className="px-5 py-3.5">
+                      <span className="text-xs font-mono text-muted-foreground">
                         {new Date(hospital.createdAt).toLocaleDateString()}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-right">
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 ml-auto group-hover:text-muted-foreground transition" />
+                    <td className="px-5 py-3.5 text-right">
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/30 ml-auto group-hover:text-muted-foreground transition" />
                     </td>
                   </tr>
                 );

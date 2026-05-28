@@ -938,14 +938,14 @@ router.post("/super-admin/automation-log/:id/retry", requireSuperAdmin, async (r
 });
 
 // ── Test SMS delivery ─────────────────────────────────────────────────────────
-// POST /super-admin/test-sms  { to: "2348012345678", senderId?: "Era" }
+// POST /super-admin/test-sms  { to: "2348012345678", senderId?: "Era", channel?: "dnd"|"generic" }
 router.post("/super-admin/test-sms", requireSuperAdmin, async (req, res): Promise<void> => {
-  const { to, senderId } = req.body ?? {};
+  const { to, senderId, channel } = req.body ?? {};
   if (!to) { res.status(400).json({ error: "Missing 'to' phone number" }); return; }
-  // Normalise Nigerian local format → international (09012345678 → 2349012345678)
   let phone = String(to).replace(/\s+/g, "");
   if (phone.startsWith("0")) phone = "234" + phone.slice(1);
-  const result = await testSmsDelivery(phone, senderId ? String(senderId) : undefined);
+  const ch = channel === "generic" ? "generic" : "dnd";
+  const result = await testSmsDelivery(phone, senderId ? String(senderId) : undefined, ch);
   res.status(200).json(result);
 });
 

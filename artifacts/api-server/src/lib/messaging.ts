@@ -34,7 +34,7 @@ function normalisePhone(raw: string): string {
 
 async function termiiSend(
   msg: MobileMessage,
-  channel: "whatsapp" | "generic",
+  channel: "whatsapp" | "generic" | "dnd",
   opts: MessagingOptions = {},
 ): Promise<{ ok: boolean; detail: string }> {
   const apiKey = process.env.TERMII_API_KEY;
@@ -110,7 +110,7 @@ export async function deliverWhatsApp(msg: MobileMessage, opts: MessagingOptions
 }
 
 export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
-  await termiiSend(msg, "generic", opts);
+  await termiiSend(msg, "dnd", opts);
 }
 
 export async function deliverMobileMessage(
@@ -130,11 +130,15 @@ export async function deliverMobileMessage(
  * Test SMS delivery — used by the /api/super-admin/test-sms endpoint.
  * Returns a result object instead of throwing.
  */
-export async function testSmsDelivery(to: string, senderId?: string): Promise<{ ok: boolean; detail: string }> {
+export async function testSmsDelivery(
+  to: string,
+  senderId?: string,
+  channel: "generic" | "dnd" = "dnd",
+): Promise<{ ok: boolean; detail: string }> {
   try {
     return await termiiSend(
       { to, body: "Era test message — SMS delivery is working." },
-      "generic",
+      channel,
       { senderId },
     );
   } catch (err) {

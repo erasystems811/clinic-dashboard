@@ -1,93 +1,31 @@
 import { ReactNode, useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth";
-import {
-  Building2, BarChart3, Settings2, LogOut, ShieldCheck,
-  Upload, CheckCircle2, XCircle, Loader2, ChevronRight,
-} from "lucide-react";
+import { LayoutDashboard, LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2, Settings2 } from "lucide-react";
 import ChangePasswordModal from "@/components/change-password-modal";
-import { post } from "@/lib/api";
-import { cn } from "@/lib/utils";
-
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
-
-interface NavItem {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  href: string;
-  exact?: boolean;
-}
-
-const NAV_ITEMS: NavItem[] = [
-  { icon: BarChart3, label: "Analytics", href: "/analytics" },
-  { icon: Building2, label: "Hospitals", href: "/", exact: true },
-];
-
-const BOTTOM_NAV: NavItem[] = [
-  { icon: Settings2, label: "Settings", href: "/settings" },
-];
+import { post, api } from "@/lib/api";
 
 type DeployState = "idle" | "pushing" | "done" | "error";
 
 interface LayoutProps {
   children: ReactNode;
-  title?: string;
+  breadcrumb?: { label: string; href?: string }[];
 }
 
-function NavLink({
-  item,
-  location,
-  collapsed,
-  onClick,
-}: {
-  item: NavItem;
-  location: string;
-  collapsed: boolean;
-  onClick?: () => void;
-}) {
-  const [, setLocation] = useLocation();
-  const isActive = item.exact
-    ? location === item.href
-    : location === item.href || location.startsWith(item.href + "/");
-
-  return (
-    <button
-      onClick={() => { setLocation(item.href); onClick?.(); }}
-      title={collapsed ? item.label : undefined}
-      className={cn(
-        "w-full flex items-center rounded transition-all duration-150 text-sm font-semibold",
-        collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
-        isActive
-          ? "text-white border-l-2 border-primary"
-          : "text-sidebar-foreground/50 hover:text-sidebar-foreground/90 hover:bg-white/5 border-l-2 border-transparent"
-      )}
-      style={isActive ? {
-        background: "linear-gradient(90deg, hsl(43 90% 56% / 0.12) 0%, hsl(43 90% 56% / 0.04) 100%)",
-        boxShadow: "inset 0 0 0 1px hsl(43 90% 56% / 0.06)",
-      } : undefined}
-    >
-      <item.icon className={cn(
-        "shrink-0 w-4 h-4 transition-colors",
-        isActive ? "text-primary" : "text-current"
-      )} />
-      {!collapsed && <span className="truncate tracking-wide">{item.label}</span>}
-    </button>
-  );
-}
-
-export default function Layout({ children, title }: LayoutProps) {
+export default function Layout({ children, breadcrumb }: LayoutProps) {
   const { logout } = useAuth();
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const [showSecurity, setShowSecurity] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [deployState, setDeployState] = useState<DeployState>("idle");
   const [deployMsg, setDeployMsg] = useState("");
   const [confirmDeploy, setConfirmDeploy] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const deployRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (deployRef.current && !deployRef.current.contains(e.target as Node)) {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setShowSettings(false);
         setConfirmDeploy(false);
       }
     };
@@ -99,6 +37,7 @@ export default function Layout({ children, title }: LayoutProps) {
     if (deployState === "pushing") return;
     setConfirmDeploy(false);
     setDeployState("pushing");
+    setDeployMsg("");
     try {
       const result = await post<{ ok: boolean; output: string }>("/super-admin/deploy", {});
       setDeployMsg(result.output);
@@ -107,174 +46,149 @@ export default function Layout({ children, title }: LayoutProps) {
       setDeployMsg(err instanceof Error ? err.message : "Push failed");
       setDeployState("error");
     } finally {
-      setTimeout(() => setDeployState("idle"), 5000);
+      setTimeout(() => { setDeployState("idle"); setShowSettings(false); }, 4000);
     }
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Top bar */}
+      <header className="border-b border-border flex items-center px-6 gap-4 shrink-0 h-16"
+        style={{ boxShadow: "0 1px 0 0 hsl(43 96% 54% / 0.08)" }}>
 
-      {/* ── Sidebar ───────────────────────────────────────────── */}
-      <aside
-        className={cn(
-          "flex flex-col shrink-0 border-r border-sidebar-border bg-sidebar transition-all duration-200",
-          collapsed ? "w-[52px]" : "w-[220px]"
-        )}
-        style={{ boxShadow: "2px 0 20px rgba(0,0,0,0.5)" }}
-      >
-        {/* Logo */}
-        <div
-          className={cn(
-            "flex items-center shrink-0 border-b border-sidebar-border",
-            collapsed ? "h-16 justify-center px-3" : "h-16 px-4 gap-3"
-          )}
-          style={{
-            background: "linear-gradient(180deg, hsl(43 90% 56% / 0.05) 0%, transparent 100%)",
-          }}
+        {/* Brand */}
+        <button
+          onClick={() => setLocation("/")}
+          className="flex items-center gap-3 hover:opacity-80 transition shrink-0 group"
         >
-          <div
-            className="shrink-0 cursor-pointer"
-            style={{ width: collapsed ? 28 : 32, height: collapsed ? 28 : 32 }}
-            onClick={() => setLocation("/")}
-          >
-            <img
-              src={`${BASE}/era-logo.png`}
-              alt="ERA Systems"
-              className="w-full h-full object-contain"
-              style={{ imageRendering: "auto" }}
-            />
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-lg"
+            style={{ boxShadow: "0 0 12px hsl(43 96% 54% / 0.35)" }}>
+            <span className="text-primary-foreground font-black text-sm tracking-tighter">E</span>
           </div>
-          {!collapsed && (
-            <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setLocation("/")}>
-              <p className="text-[11px] font-extrabold text-white tracking-[0.18em] leading-tight truncate uppercase">
-                ERA Systems
-              </p>
-              <p className="text-[9px] text-muted-foreground tracking-widest mt-0.5 truncate uppercase">
-                <span className="text-white/35">Evaluate</span>
-                <span className="text-primary mx-1">·</span>
-                <span className="text-white/35">Rebuild</span>
-                <span className="text-primary mx-1">·</span>
-                <span className="text-white/35">Automate</span>
-              </p>
-            </div>
-          )}
-        </div>
+          <div className="hidden sm:block">
+            <span className="font-extrabold text-sm text-foreground tracking-tight">Era Systems</span>
+            <span className="ml-2 text-[10px] font-semibold text-primary/80 uppercase tracking-widest border border-primary/25 bg-primary/8 px-1.5 py-0.5 rounded">
+              Super Admin
+            </span>
+          </div>
+        </button>
 
-        {/* Nav */}
-        <div className="flex-1 flex flex-col px-2 py-3 gap-0.5 overflow-y-auto">
-          {!collapsed && (
-            <p className="px-3 pb-2 text-[9px] font-bold text-muted-foreground/40 uppercase tracking-[0.18em]">
-              Platform
-            </p>
-          )}
-          {NAV_ITEMS.map(item => (
-            <NavLink key={item.href} item={item} location={location} collapsed={collapsed} />
-          ))}
-        </div>
+        {/* Breadcrumb */}
+        {breadcrumb && breadcrumb.length > 0 && (
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0 flex-1">
+            <ChevronRight className="w-3.5 h-3.5 shrink-0 text-border" />
+            {breadcrumb.map((crumb, i) => (
+              <span key={i} className="flex items-center gap-1.5 min-w-0">
+                {crumb.href ? (
+                  <button
+                    onClick={() => setLocation(crumb.href!)}
+                    className="hover:text-foreground transition truncate max-w-[140px] sm:max-w-none text-xs"
+                  >
+                    {crumb.label}
+                  </button>
+                ) : (
+                  <span className="text-foreground font-semibold text-xs truncate max-w-[140px] sm:max-w-none">{crumb.label}</span>
+                )}
+                {i < breadcrumb.length - 1 && (
+                  <ChevronRight className="w-3 h-3 shrink-0 text-border" />
+                )}
+              </span>
+            ))}
+          </div>
+        )}
 
-        {/* Bottom nav + user */}
-        <div className="px-2 py-3 border-t border-sidebar-border space-y-0.5">
-          {BOTTOM_NAV.map(item => (
-            <NavLink key={item.href} item={item} location={location} collapsed={collapsed} />
-          ))}
-
-          {/* Security */}
+        {/* Right actions */}
+        <div className="ml-auto flex items-center gap-1 shrink-0">
           <button
-            onClick={() => setShowSecurity(true)}
-            title={collapsed ? "Security" : undefined}
-            className={cn(
-              "w-full flex items-center rounded transition-all text-sm font-semibold text-sidebar-foreground/50 hover:text-sidebar-foreground/90 hover:bg-white/5",
-              collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
-            )}
+            onClick={() => setLocation("/")}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition font-medium"
           >
-            <ShieldCheck className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="tracking-wide">Security</span>}
+            <LayoutDashboard className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Hospitals</span>
           </button>
 
-          {/* Deploy */}
-          <div className="relative" ref={deployRef}>
+          {/* Settings */}
+          <div className="relative" ref={settingsRef}>
             <button
-              onClick={() => setConfirmDeploy(s => !s)}
-              title={collapsed ? "Deploy" : undefined}
-              className={cn(
-                "w-full flex items-center rounded transition-all text-sm font-semibold",
-                collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
-                deployState === "done" ? "text-emerald-400" :
-                deployState === "error" ? "text-red-400" :
-                "text-sidebar-foreground/35 hover:text-sidebar-foreground/70 hover:bg-white/5"
-              )}
+              onClick={() => { setShowSettings(s => !s); setConfirmDeploy(false); }}
+              className={`p-2 rounded-md transition ${showSettings ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+              title="Settings"
             >
-              {deployState === "pushing" ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> :
-               deployState === "done" ? <CheckCircle2 className="w-4 h-4 shrink-0" /> :
-               deployState === "error" ? <XCircle className="w-4 h-4 shrink-0" /> :
-               <Upload className="w-4 h-4 shrink-0" />}
-              {!collapsed && (
-                <span className="text-xs tracking-wide">
-                  {deployState === "pushing" ? "Deploying…" :
-                   deployState === "done" ? "Deployed!" :
-                   deployState === "error" ? "Failed" : "Deploy"}
-                </span>
-              )}
+              <Settings2 className="w-4 h-4" />
             </button>
 
-            {confirmDeploy && (
-              <div
-                className="absolute bottom-full left-0 mb-2 w-56 bg-card border border-border rounded shadow-2xl z-50 p-3 space-y-2.5"
-                style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px hsl(43 90% 56% / 0.1)" }}
-              >
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Push to GitHub and trigger Railway deploy?
-                </p>
-                <div className="flex gap-2">
-                  <button onClick={handleDeploy}
-                    className="flex-1 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-bold hover:bg-primary/90 transition"
-                    style={{ boxShadow: "0 2px 12px hsl(43 90% 56% / 0.3)" }}>
-                    Deploy
-                  </button>
-                  <button onClick={() => setConfirmDeploy(false)}
-                    className="flex-1 py-1.5 rounded border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition">
-                    Cancel
+            {showSettings && (
+              <div className="absolute right-0 top-10 w-56 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden"
+                style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px hsl(220 14% 11%)" }}>
+                <div className="p-1">
+                  <button
+                    onClick={() => { setShowSecurity(true); setShowSettings(false); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground hover:bg-muted rounded-lg transition text-left font-medium"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+                    Security
                   </button>
                 </div>
-                {deployMsg && <p className="text-[10px] text-muted-foreground font-mono break-all">{deployMsg}</p>}
+
+                <div className="border-t border-border mx-1" />
+
+                <div className="p-1">
+                  {!confirmDeploy ? (
+                    <button
+                      onClick={() => setConfirmDeploy(true)}
+                      disabled={deployState === "pushing"}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg transition text-left disabled:opacity-50 font-medium"
+                    >
+                      {deployState === "pushing" ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                       deployState === "done" ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> :
+                       deployState === "error" ? <XCircle className="w-4 h-4 text-red-400" /> :
+                       <Upload className="w-4 h-4" />}
+                      <span className={deployState === "done" ? "text-emerald-400" : deployState === "error" ? "text-red-400" : ""}>
+                        {deployState === "pushing" ? "Pushing…" :
+                         deployState === "done" ? "Pushed!" :
+                         deployState === "error" ? "Push failed" :
+                         "Push to GitHub"}
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="px-3 py-3 space-y-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed">This will overwrite GitHub with current Replit code and trigger a Railway deploy.</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleDeploy}
+                          className="flex-1 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition"
+                        >
+                          Deploy
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeploy(false)}
+                          className="flex-1 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
-          {/* Divider + logout */}
-          <div className="pt-2 border-t border-sidebar-border mt-2">
-            <button
-              onClick={() => logout()}
-              title={collapsed ? "Sign out" : undefined}
-              className={cn(
-                "w-full flex items-center rounded transition-all text-sm font-semibold text-sidebar-foreground/35 hover:text-sidebar-foreground/70 hover:bg-white/5",
-                collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
-              )}
-            >
-              <LogOut className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="text-xs tracking-wide">Sign out</span>}
-            </button>
-          </div>
+          <div className="w-px h-4 bg-border mx-1" />
+
+          <button
+            onClick={() => logout()}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition font-medium"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Sign out</span>
+          </button>
         </div>
+      </header>
 
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(c => !c)}
-          className="border-t border-sidebar-border flex items-center justify-center py-2 text-muted-foreground/25 hover:text-primary/60 transition text-[10px] gap-1"
-        >
-          <ChevronRight className={cn("w-3 h-3 transition-transform", !collapsed && "rotate-180")} />
-          {!collapsed && <span className="font-mono uppercase tracking-widest text-[9px]">Collapse</span>}
-        </button>
-      </aside>
-
-      {/* ── Main content ─────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top accent bar */}
-        <div className="h-[1px] shrink-0" style={{ background: "linear-gradient(90deg, hsl(43 90% 56% / 0.3) 0%, transparent 60%)" }} />
-        <main className="flex-1 overflow-auto p-7">
-          {children}
-        </main>
-      </div>
+      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
+        {children}
+      </main>
 
       {showSecurity && <ChangePasswordModal onClose={() => setShowSecurity(false)} />}
     </div>

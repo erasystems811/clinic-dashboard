@@ -12,7 +12,6 @@ import {
   sendBirthdayEmail,
   sendCareVisitReminderEmail,
   sendCarePlanEmail,
-  sendQueueLongWaitApology,
   type InCareTimeSlot,
 } from "./automation.js";
 
@@ -43,8 +42,8 @@ async function runAppointmentReminders() {
       const patient = (appt as Record<string, unknown>).patients as Record<string, unknown> | null;
       if (!patient || !patient.email) continue;
 
-      const hospitalCode = patient.hospital_id as string;
-      const { data: hospital } = await supabase.from("hospitals").select("id").eq("hospital_code", hospitalCode).single();
+      const hospitalUsername = patient.hospital_id as string;
+      const { data: hospital } = await supabase.from("hospitals").select("id").eq("username", hospitalUsername).single();
       if (!hospital) continue;
 
       const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
@@ -448,7 +447,7 @@ async function runNoShowFollowup() {
       if (patient && patient.email) {
         const patientName = `${patient.first_name} ${patient.last_name}`;
         const { data: hospital } = await supabase
-          .from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).single();
+          .from("hospitals").select("id").eq("username", (patient.hospital_id as string).toLowerCase()).single();
 
         if (hospital) {
           const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
@@ -604,6 +603,11 @@ export function startScheduler() {
     await checkSubscriptionExpirations();
   });
 
+  // Daily at 8am: birthday emails
+  cron.schedule("0 8 * * *", async () => {
+    await runBirthdayEmails();
+  });
+
   // Every hour: care plan reminders — time-based (General Outpatient + all departments)
   cron.schedule("0 * * * *", async () => {
     await runCarePlanRemindersHourly();
@@ -619,70 +623,7 @@ export function startScheduler() {
     await runTermiiBalanceCheck();
   });
 
-  // Every 10 minutes: long-wait apology — patients in queue > 20 min with no apology yet
-  cron.schedule("*/10 * * * *", async () => {
-    await runQueueLongWaitApology();
-  });
-
   log("Scheduler started — all automations are email-first");
-}
-
-// ── Queue long-wait apology — runs every 10 min ───────────────────────────────
-// Patients who have been in the queue for > 20 minutes and haven't yet received
-// an apology for this queue session get a single sorry message via SMS/WhatsApp.
-// Uses a per-queue-entry dedup key so it only fires once per visit.
-async function runQueueLongWaitApology() {
-  try {
-    const cutoff = new Date(Date.now() - 20 * 60 * 1000); // 20 min ago
-
-    const { data: hospitals } = await supabase
-      .from("hospitals")
-      .select("id, hospital_code")
-      .eq("active", true);
-    if (!hospitals?.length) return;
-
-    for (const h of hospitals) {
-      const { data: entries } = await supabase
-        .from("queue")
-        .select("id, patient_id, patient_name, phone, whatsapp_number, added_at")
-        .eq("hospital_id", h.hospital_code)
-        .lte("added_at", cutoff.toISOString());
-
-      if (!entries?.length) continue;
-
-      for (const entry of entries) {
-        // Unique per-queue-entry key — fires at most once per queue session
-        const key = `queue_long_wait_${entry.id}`;
-        if (await checkSentLog(h.id, key)) continue;
-
-        const phone = (entry.whatsapp_number as string) || (entry.phone as string) || null;
-        if (!phone) continue;
-
-        await sendQueueLongWaitApology(
-          h.id,
-          entry.patient_id as number,
-          entry.patient_name as string,
-          phone,
-        );
-
-        // Insert dedup record so this entry never receives a second apology
-        await supabase.from("automation_log").insert({
-          hospital_id: h.id,
-          patient_id: entry.patient_id,
-          automation_type: key,
-          status: "sent",
-          channel: "sms",
-          message: `Long wait apology dedup → queue entry ${entry.id}`,
-          created_at: new Date().toISOString(),
-        });
-
-        log(`Long wait apology → queue entry ${entry.id} patient ${entry.patient_id}`);
-      }
-    }
-  } catch (err) {
-    Sentry.captureException(err);
-    log(`Queue long-wait apology error: ${err}`);
-  }
 }
 
 // ── Delayed care plan summary emails (20 min after plan creation) ─────────────
@@ -705,11 +646,11 @@ async function runCarePlanEmailDelay() {
     for (const plan of plans) {
       const key = `care_plan_email_${plan.id}`;
 
-      // Resolve integer hospital id from the UUID code stored in care_plans.hospital_id
+      // Resolve integer hospital id
       const { data: hosp } = await supabase
         .from("hospitals")
         .select("id")
-        .eq("hospital_code", plan.hospital_id as string)
+        .eq("username", plan.hospital_id as string)
         .single();
       if (!hosp) continue;
 
@@ -779,14 +720,14 @@ async function runCarePlanRemindersHourly() {
     const WINDOW_MS = 25 * 60 * 1000; // ±25 min window around the cron firing time
     const today = now.toISOString().slice(0, 10);
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
     if (!hospitals?.length) return;
 
     for (const h of hospitals) {
       const { data: plans } = await supabase
         .from("care_plans")
         .select("id, patient_id, department, summary, template_data")
-        .eq("hospital_id", h.hospital_code);
+        .eq("hospital_id", h.id);
 
       if (!plans?.length) continue;
 
@@ -798,7 +739,7 @@ async function runCarePlanRemindersHourly() {
           .from("patients")
           .select("id, first_name, last_name, email, stage, treatment_end_date")
           .eq("id", plan.patient_id)
-          .eq("hospital_id", h.hospital_code)
+          .eq("hospital_id", h.id)
           .single();
 
         if (!patient?.email) continue;
@@ -924,14 +865,14 @@ async function runCareVisitReminders() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowDate = tomorrow.toISOString().slice(0, 10);
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
     if (!hospitals?.length) return;
 
     for (const h of hospitals) {
       const { data: plans } = await supabase
         .from("care_plans")
         .select("id, patient_id, department, summary, template_data")
-        .eq("hospital_id", h.hospital_code);
+        .eq("hospital_id", h.id);
 
       if (!plans?.length) continue;
 
@@ -950,7 +891,7 @@ async function runCareVisitReminders() {
           .from("patients")
           .select("id, first_name, last_name, email")
           .eq("id", plan.patient_id)
-          .eq("hospital_id", h.hospital_code)
+          .eq("hospital_id", h.id)
           .single();
 
         if (!patient?.email) continue;

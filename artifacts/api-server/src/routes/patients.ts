@@ -4,8 +4,6 @@ import { camelize, camelizeArr, snakify } from "../lib/camel.js";
 import { z } from "zod/v4";
 import {
   sendQueueJoinMessage,
-  sendQueueNextInLine,
-  sendQueueYourTurn,
   sendCarePlanNotification,
   sendCarePlanEmail,
 } from "../lib/automation.js";
@@ -675,37 +673,15 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
     ? Math.max(0, Math.round((Date.now() - new Date(existing.checked_in_at).getTime()) / 60000))
     : null;
 
-  const hospitalIntIdForQueue = await resolveHospitalIntId(existing.hospital_id as string);
-
   await supabase.from("activity").insert({
     type: "dequeued",
     description: `${patient!.first_name} ${patient!.last_name} removed from queue`,
     patient_id: id,
     patient_name: `${patient!.first_name} ${patient!.last_name}`,
-    hospital_id: hospitalIntIdForQueue,
+    hospital_id: await resolveHospitalIntId(existing.hospital_id as string),
     // metadata stores wait_minutes as a numeric string so dashboard can compute all-time avg
     metadata: waitMins !== null ? String(waitMins) : null,
   });
-
-  // ── Queue automations: "your turn" to called-in patient + "next in line" to new #1 ──
-  if (hospitalIntIdForQueue) {
-    const patientName = `${existing.first_name} ${existing.last_name}`;
-    const phone = (existing.whatsapp_number as string) || (existing.phone as string) || null;
-    if (phone) sendQueueYourTurn(hospitalIntIdForQueue, id, patientName, phone).catch(() => {});
-
-    if (remaining && remaining.length > 0) {
-      const next = remaining[0];
-      const nextPhone = (next.whatsapp_number as string) || (next.phone as string) || null;
-      if (nextPhone) {
-        sendQueueNextInLine(
-          hospitalIntIdForQueue,
-          next.patient_id as number,
-          next.patient_name as string,
-          nextPhone,
-        ).catch(() => {});
-      }
-    }
-  }
 
   res.json(camelize(patient!));
 });

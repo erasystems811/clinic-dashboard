@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -22,54 +22,34 @@
   --color-accent-foreground: hsl(var(--accent-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-sidebar: hsl(var(--sidebar));
-  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
-  --color-sidebar-border: hsl(var(--sidebar-border));
   --font-sans: var(--app-font-sans);
-  --font-mono: var(--app-font-mono);
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 2px);
+  --radius-sm: calc(var(--radius) - 3px);
+  --radius-md: calc(var(--radius) - 1px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* ERA Systems Super Admin — Charcoal · Vibrant Gold · Crisp Contrast */
+/* Era Systems Super Admin — Obsidian + Sovereign Gold */
 :root {
-  /* Charcoal content area — brighter than black, still clearly dark */
-  --background: 0 0% 11%;
-  --foreground: 0 0% 96%;
-
-  /* Visible borders — sharp layer separation */
-  --border: 0 0% 19%;
-  --input: 0 0% 14%;
-  --ring: 43 90% 56%;
-
-  /* Cards: clearly lifted from background */
-  --card: 0 0% 14%;
-  --card-foreground: 0 0% 96%;
-
-  /* Gold — vivid champagne, high saturation */
-  --primary: 43 90% 56%;
-  --primary-foreground: 0 0% 4%;
-
-  --secondary: 0 0% 17%;
-  --secondary-foreground: 0 0% 80%;
-  --muted: 0 0% 15%;
-  --muted-foreground: 0 0% 54%;
-  --accent: 0 0% 18%;
-  --accent-foreground: 0 0% 94%;
-  --destructive: 0 76% 54%;
+  --background: 220 14% 3%;
+  --foreground: 0 0% 95%;
+  --border: 220 14% 11%;
+  --input: 220 14% 9%;
+  --ring: 43 96% 54%;
+  --card: 220 14% 5%;
+  --card-foreground: 0 0% 95%;
+  --primary: 43 96% 54%;
+  --primary-foreground: 220 14% 3%;
+  --secondary: 220 14% 9%;
+  --secondary-foreground: 0 0% 70%;
+  --muted: 220 14% 7%;
+  --muted-foreground: 220 10% 42%;
+  --accent: 220 14% 9%;
+  --accent-foreground: 0 0% 95%;
+  --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-
-  /* Sidebar: darker than content — keeps contrast & depth */
-  --sidebar: 0 0% 6%;
-  --sidebar-foreground: 0 0% 88%;
-  --sidebar-border: 0 0% 15%;
-
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
-  --app-font-mono: 'DM Mono', 'SF Mono', Menlo, monospace;
-  --radius: 0.25rem;
-
-  color-scheme: dark;
+  --radius: 0.375rem;
 }
 
 @layer base {
@@ -87,6 +67,13 @@
     max-width: 100vw;
   }
 
-  img, video, svg { max-width: 100%; height: auto; }
-  table { min-width: 0; width: 100%; }
+  img, video, svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  table {
+    min-width: 0;
+    width: 100%;
+  }
 }

@@ -795,14 +795,15 @@ async function runCarePlanRemindersHourly() {
     const WINDOW_MS = 25 * 60 * 1000; // ±25 min window around the cron firing time
     const today = now.toISOString().slice(0, 10);
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
+    // care_plans.hospital_id stores hospital_code UUID (post-migration), not the integer id
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code").eq("active", true);
     if (!hospitals?.length) return;
 
     for (const h of hospitals) {
       const { data: plans } = await supabase
         .from("care_plans")
         .select("id, patient_id, department, summary, template_data")
-        .eq("hospital_id", h.id);
+        .eq("hospital_id", h.hospital_code);
 
       if (!plans?.length) continue;
 
@@ -937,14 +938,15 @@ async function runCareVisitReminders() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowDate = tomorrow.toISOString().slice(0, 10);
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username").eq("active", true);
+    // care_plans.hospital_id stores hospital_code UUID (post-migration), not the integer id
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code").eq("active", true);
     if (!hospitals?.length) return;
 
     for (const h of hospitals) {
       const { data: plans } = await supabase
         .from("care_plans")
         .select("id, patient_id, department, summary, template_data")
-        .eq("hospital_id", h.id);
+        .eq("hospital_id", h.hospital_code);
 
       if (!plans?.length) continue;
 

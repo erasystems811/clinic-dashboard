@@ -70,7 +70,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
 
   /* ── sidebar bg ────────────────────────────────────────────────────────── */
   const sbBg = "hsl(222 20% 4%)";
-  const sbBorder = "hsl(220 12% 13%)";
+  const sbBorder = "hsl(220 18% 22%)";
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -86,7 +86,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
             <>
               <button onClick={() => setLocation("/")} className="flex items-center gap-2.5 flex-1 min-w-0 hover:opacity-80 transition group">
                 {/* Mark */}
-                <div className="relative w-6 h-6 shrink-0 flex items-center justify-center border border-[hsl(43_65%_58%/0.3)]"
+                <div className="relative w-6 h-6 shrink-0 flex items-center justify-center border border-[hsl(43_70%_62%/0.3)]"
                   style={{ background: "hsl(222 20% 4%)" }}>
                   <span className="font-black text-[10px]" style={{ color: "hsl(43 65% 58%)" }}>E</span>
                   <span className="absolute -top-px -left-px w-1.5 h-px" style={{ background: "hsl(43 65% 58% / 0.7)" }} />
@@ -106,7 +106,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
             </>
           ) : (
             <button onClick={toggleOpen} title="Expand"
-              className="relative w-6 h-6 flex items-center justify-center border border-[hsl(43_65%_58%/0.3)] hover:opacity-80 transition"
+              className="relative w-6 h-6 flex items-center justify-center border border-[hsl(43_70%_62%/0.3)] hover:opacity-80 transition"
               style={{ background: "hsl(222 20% 4%)" }}>
               <span className="font-black text-[10px]" style={{ color: "hsl(43 65% 58%)" }}>E</span>
             </button>
@@ -174,13 +174,13 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
               )}
             </button>
           ) : (
-            <div className="p-2.5 space-y-2 border border-[hsl(220_12%_16%)] bg-[hsl(220_14%_6%)]">
+            <div className="p-2.5 space-y-2 border border-[hsl(220_18%_25%)] bg-[hsl(220_20%_8%)]">
               <p className="text-[10px] text-muted-foreground leading-relaxed">Trigger Railway deploy?</p>
               <div className="flex gap-1.5">
-                <button onClick={handleDeploy} className="flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[hsl(43_65%_58%)] border border-[hsl(43_65%_58%/0.3)] hover:bg-[hsl(43_65%_58%/0.08)] transition">
+                <button onClick={handleDeploy} className="flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[hsl(43_70%_62%)] border border-[hsl(43_70%_62%/0.3)] hover:bg-[hsl(43_70%_62%/0.08)] transition">
                   Deploy
                 </button>
-                <button onClick={() => setConfirmDeploy(false)} className="flex-1 py-1.5 border border-[hsl(220_12%_16%)] text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition">
+                <button onClick={() => setConfirmDeploy(false)} className="flex-1 py-1.5 border border-[hsl(220_18%_25%)] text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition">
                   Cancel
                 </button>
               </div>
@@ -224,7 +224,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
 
         {/* Top bar */}
         <header className="shrink-0 h-11 border-b flex items-center px-6 gap-2"
-          style={{ borderBottomColor: "hsl(220 12% 12%)", background: "hsl(222 18% 5%)" }}>
+          style={{ borderBottomColor: "hsl(220 18% 22%)", background: "hsl(224 22% 4%)" }}>
           {breadcrumb && breadcrumb.length > 0 ? (
             <>
               <span className="text-[10px] text-muted-foreground/30 font-medium tracking-wider uppercase">Era</span>

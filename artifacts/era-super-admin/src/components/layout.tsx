@@ -19,8 +19,8 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { icon: Building2, label: "Hospitals", href: "/", exact: true },
   { icon: BarChart3, label: "Analytics", href: "/analytics" },
+  { icon: Building2, label: "Hospitals", href: "/", exact: true },
 ];
 
 const BOTTOM_NAV: NavItem[] = [

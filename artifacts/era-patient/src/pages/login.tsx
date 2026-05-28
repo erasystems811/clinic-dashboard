@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
-import { Activity, Loader2, Building2, ArrowLeft, Eye, EyeOff, Lock } from "lucide-react";
+import { Loader2, Building2, ArrowLeft, Eye, EyeOff, Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -120,10 +120,8 @@ export default function Login() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mb-4 shadow-lg">
-            <Activity className="w-7 h-7 text-primary-foreground" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Era Patient</h1>
+          <img src="/es-logo.png" alt="Era Systems" className="w-16 h-16 rounded-2xl shadow-lg mb-4" />
+          <h1 className="text-2xl font-bold tracking-tight">Era Systems</h1>
         </div>
 
         {preloadLoading && (

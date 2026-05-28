@@ -4,6 +4,8 @@ import { camelize, camelizeArr, snakify } from "../lib/camel.js";
 import { z } from "zod/v4";
 import {
   sendQueueJoinMessage,
+  sendQueueYourTurn,
+  sendQueueNextInLine,
   sendCarePlanNotification,
   sendCarePlanEmail,
 } from "../lib/automation.js";
@@ -647,6 +649,15 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   const { data: existing } = await supabase.from("patients").select("*").eq("id", id).single();
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
+  // ── Automation: "Your Turn" message to the patient being called in ────────────
+  const calledPatientName = `${existing.first_name} ${existing.last_name}`;
+  const calledPhone = (existing.whatsapp_number as string) || (existing.phone as string);
+  const hospitalIntId = await resolveHospitalIntId(existing.hospital_id as string);
+  if (hospitalIntId && calledPhone) {
+    sendQueueYourTurn(hospitalIntId, id, calledPatientName, calledPhone)
+      .catch((err) => console.error("[dequeue] sendQueueYourTurn failed:", err));
+  }
+
   // Stage is never changed on dequeue — it's a primary lifecycle state (Active/Post Treatment/Dormant/In Care).
   // Queue membership was always tracked separately in the queue table; removing from there is enough.
   const { data: patient } = await supabase
@@ -666,6 +677,16 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
 
   for (let i = 0; i < (remaining ?? []).length; i++) {
     await supabase.from("queue").update({ position: i + 1 }).eq("id", remaining![i].id);
+  }
+
+  // ── Automation: "Next in Line" to the new position 1 patient ─────────────────
+  if (hospitalIntId && remaining && remaining.length > 0) {
+    const newFirst = remaining[0];
+    const nextPhone = (newFirst.whatsapp_number as string) || (newFirst.phone as string);
+    if (nextPhone) {
+      sendQueueNextInLine(hospitalIntId, newFirst.patient_id as number, newFirst.patient_name as string, nextPhone)
+        .catch((err) => console.error("[dequeue] sendQueueNextInLine failed:", err));
+    }
   }
 
   // Compute how long this patient actually waited (checked_in_at → now)

@@ -12,6 +12,7 @@ import {
   sendBirthdayEmail,
   sendCareVisitReminderEmail,
   sendCarePlanEmail,
+  sendQueueLongWaitApology,
   type InCareTimeSlot,
 } from "./automation.js";
 
@@ -561,17 +562,83 @@ async function checkSubscriptionExpirations() {
   }
 }
 
+// ── Queue Long-Wait Apology — runs every 15 minutes ───────────────────────────
+// Sends an apology message to any patient who has been waiting in the queue for
+// more than 45 minutes and has NOT already received an apology in the last hour.
+async function runQueueLongWaitCheck() {
+  try {
+    const fortyFiveMinAgo = new Date(Date.now() - 45 * 60 * 1000).toISOString();
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+    const { data: stalledEntries } = await supabase
+      .from("queue")
+      .select("patient_id, patient_name, phone, whatsapp_number, hospital_id")
+      .lt("added_at", fortyFiveMinAgo);
+
+    if (!stalledEntries?.length) return;
+
+    // Group by hospital code
+    const byHospital = new Map<string, typeof stalledEntries>();
+    for (const entry of stalledEntries) {
+      const code = entry.hospital_id as string;
+      if (!byHospital.has(code)) byHospital.set(code, []);
+      byHospital.get(code)!.push(entry);
+    }
+
+    for (const [hospitalCode, patients] of byHospital) {
+      const { data: hospital } = await supabase
+        .from("hospitals")
+        .select("id")
+        .eq("hospital_code", hospitalCode)
+        .single();
+      if (!hospital) continue;
+
+      const hospitalIntId = hospital.id as number;
+
+      for (const patient of patients) {
+        const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+        if (!phone) continue;
+
+        // Deduplicate: skip if already sent an apology to this patient in the last hour
+        const { data: recent } = await supabase
+          .from("automation_log")
+          .select("id")
+          .eq("hospital_id", hospitalIntId)
+          .eq("patient_id", patient.patient_id as number)
+          .eq("automation_type", "queue_long_wait_apology")
+          .gte("last_attempted_at", oneHourAgo)
+          .limit(1)
+          .maybeSingle();
+
+        if (recent) continue;
+
+        await sendQueueLongWaitApology(
+          hospitalIntId,
+          patient.patient_id as number,
+          patient.patient_name as string,
+          phone,
+        );
+        log(`Long-wait apology sent → patient ${patient.patient_id as number} hospital ${hospitalIntId}`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`runQueueLongWaitCheck error: ${err}`);
+  }
+}
+
 export function startScheduler() {
   if (process.env.ENABLE_SCHEDULER !== "true") {
     log("Scheduler disabled — set ENABLE_SCHEDULER=true to enable (production only)");
     return;
   }
 
-  // Every 15 minutes: appointment reminders + no-show detection + 1-hour follow-up email
+  // Every 15 minutes: appointment reminders + no-show detection + 1-hour follow-up email + queue long-wait check
   cron.schedule("*/15 * * * *", async () => {
     await runAppointmentReminders();
     await runNoShowDetection();
     await runNoShowFollowup();
+    await runQueueLongWaitCheck();
   });
 
   // Daily at 7:00 AM: pipeline transitions + post-treatment check-ins + dormant + birthdays

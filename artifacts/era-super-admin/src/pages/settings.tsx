@@ -113,13 +113,13 @@ function ServicesSection() {
 
 // ── Scheduler Reference ────────────────────────────────────────────────────────
 const SCHEDULE = [
-  { time: "Every 5 min",  jobs: ["Care plan email delay — picks up plans created 15–25 min ago, sends full summary email to patient"] },
-  { time: "Every 15 min", jobs: ["Appointment reminders (24h + 2h before visit)", "No-show detection — checks for missed appointments", "No-show 1-hour follow-up email"] },
-  { time: "Every hour",   jobs: ["In-care reminders — checks all active care plan patients, fires morning/afternoon/evening/night slot reminders based on department settings", "Scheduled care visit reminders — fires 4h before nurse-set visit time (General Outpatient: 2h before)"] },
-  { time: "Daily 7 AM",   jobs: ["Post-treatment stage transitions", "Post-treatment check-in emails (days 1, 4, 7)", "Dormant patient detection", "Birthday emails"] },
+  { time: "Every 5 min",  jobs: ["Care plan email delay — picks up plans saved 20+ min ago, sends full AI-written summary email to patient"] },
+  { time: "Every 15 min", jobs: ["Appointment confirmation already sent instantly on booking — not scheduler-driven", "Appointment reminders (24h before + 2h before visit)", "No-show detection — checks for missed appointments", "No-show 1-hour follow-up email"] },
+  { time: "Every hour",   jobs: ["In-care reminders (General Outpatient): medication-only fires AT the nurse-set medication time · come-to-hospital fires 3h before · combination fires 2h before (one message covers both)", "Scheduled care visit reminders (all other departments) — fires 4h before nurse-set visit date/time"] },
+  { time: "Daily 7 AM",   jobs: ["Post-treatment stage transitions (Active after 7-day sequence)", "Post-treatment check-in emails (Day 1, Day 4, Day 7 after treatment end)", "Dormant detection — moves Active patients with no queue check-in for 30+ days to Dormant (configurable per hospital)", "Birthday emails"] },
   { time: "Daily 9 AM",   jobs: ["Termii credit balance alert — warns if SMS/WhatsApp credits are low"] },
   { time: "Daily 12 PM",  jobs: ["Feedback request emails — covers previous day's completed visits"] },
-  { time: "Daily 6 PM",   jobs: ["Post-care wellness emails — targets patients dormant 30+ days"] },
+  { time: "Daily 6 PM",   jobs: ["Post-care wellness emails — targets Active patients with no queue check-in for 30+ days · 30-day cooldown per patient"] },
   { time: "Daily 11 PM",  jobs: ["No-show dismissal — clears unresolved no-shows from today's schedule"] },
   { time: "Every 6 hours", jobs: ["Subscription expiration check — flags hospitals approaching expiry, deactivates expired ones"] },
 ];
@@ -157,7 +157,7 @@ const STAGES = [
     dot: "bg-blue-400",
     description: "Patient has an active care plan saved by the nurse. This is the primary treatment stage.",
     triggers: "Nurse saves a care plan from the nurse station.",
-    automations: "Instant care plan SMS/WhatsApp notification → 20-min delayed care plan email → Hourly in-care reminders (based on time slots in the care plan).",
+    automations: "Instant care plan SMS/WhatsApp notification → 20-min delayed AI-written care plan email → Hourly in-care reminders (timing based on department and treatment type set in the care plan).",
     exits: "Manual stage update or when all care plan dates pass.",
   },
   {
@@ -174,18 +174,18 @@ const STAGES = [
     color: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
     dot: "bg-emerald-400",
     description: "Patient is in the system with no active treatment. Stays engaged through wellness content.",
-    triggers: "Moves here automatically after Post Treatment, or manually set.",
-    automations: "Eligible for wellness newsletter, appointment reminders, birthday emails, and feedback requests.",
-    exits: "Moves to Dormant if no activity for the configured number of days (default 90).",
+    triggers: "Moves here automatically after Post Treatment completes, or manually set.",
+    automations: "Eligible for wellness newsletter, appointment reminders, birthday emails, and feedback requests. Daily 6 PM — wellness re-engagement email if no queue check-in for 30+ days (30-day cooldown per patient).",
+    exits: "Moves to Dormant if no queue check-in for the configured number of days (default 30, set per hospital).",
   },
   {
     id: "Dormant",
     color: "bg-zinc-500/10 border-zinc-500/20 text-zinc-400",
     dot: "bg-zinc-400",
-    description: "Patient has been inactive for an extended period. Era tries to bring them back.",
-    triggers: "Daily 7 AM — patient has had no appointment or visit for 30+ days (configurable per hospital).",
-    automations: "Daily 6 PM — post-care wellness re-engagement email. Continues until patient books again.",
-    exits: "Returns to Active when patient books or visits again.",
+    description: "Patient has been inactive for an extended period. Moved here automatically when no queue check-in is recorded within the configured window.",
+    triggers: "Daily 7 AM — Active patient has had no queue check-in for the hospital's configured dormant threshold (default 30 days).",
+    automations: "No automations target Dormant patients directly. Re-engagement happens via the Active stage wellness emails before the patient reaches Dormant.",
+    exits: "Returns to Active when patient is manually moved or re-books.",
   },
 ];
 
@@ -426,9 +426,9 @@ const AUTOMATION_GROUPS: AutomationGroup[] = [
       },
       {
         id: "post_care_email",
-        name: "Dormant Re-Engagement",
-        purpose: "Gently nudges patients who haven't visited in a long time to remember the clinic and consider coming back.",
-        trigger: "Patient has been dormant (no queue check-in) for 30+ days · checked daily at 6 PM · 30-day cooldown per patient so they are not spammed",
+        name: "Active Patient Wellness Email",
+        purpose: "Gently nudges Active patients who haven't visited in a while to remember the clinic and consider coming back — before they go fully dormant.",
+        trigger: "Patient is in Active stage with no queue check-in for 30+ days · checked daily at 6 PM · 30-day cooldown per patient so they are not spammed",
         channel: "email",
         icon: Users,
       },

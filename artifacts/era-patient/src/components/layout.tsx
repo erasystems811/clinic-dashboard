@@ -172,7 +172,7 @@ function NavContent({
 
       {/* ── Navigation ───────────────────────────────────── */}
       <nav className={cn(
-        "flex-1 px-2 space-y-0.5 overflow-y-auto py-2",
+        "flex-1 px-2 space-y-1 overflow-y-auto py-3",
         role !== "admin" && role !== "receptionist" && "mt-2"
       )}>
         {navItems.map((item) => {
@@ -380,7 +380,7 @@ export function Layout({ children }: LayoutProps) {
         <aside
           className={cn(
             "border-r border-sidebar-border bg-sidebar flex flex-col shrink-0 transition-all duration-200",
-            collapsed ? "w-14" : "w-60"
+            collapsed ? "w-14" : "w-72"
           )}
           style={{ boxShadow: "2px 0 24px rgba(0,0,0,0.4)" }}
         >
@@ -395,7 +395,7 @@ export function Layout({ children }: LayoutProps) {
             className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
             onClick={() => setMobileNavOpen(false)}
           />
-          <aside className="fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col shadow-2xl">
+          <aside className="fixed inset-y-0 left-0 z-50 w-72 bg-sidebar border-r border-sidebar-border flex flex-col shadow-2xl">
             <NavContent
               {...navProps}
               collapsed={false}

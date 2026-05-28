@@ -1243,81 +1243,68 @@ router.post("/super-admin/test-email", requireSuperAdmin, async (req, res): Prom
 });
 
 // ── GET /super-admin/usage-stats ─────────────────────────────────────────────
-// Rolling average patients/day, patients/month, automations/day, automations/month
-// for every hospital. Used by the Usage tab in the super admin console.
+// All-time rolling average patients/day, patients/month, automations/day,
+// automations/month for every hospital — calculated from each hospital's
+// creation date so the average grows more accurate over time.
 router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   const now = Date.now();
-  const cut30  = new Date(now - 30  * 86_400_000).toISOString();
-  const cut365 = new Date(now - 365 * 86_400_000).toISOString();
 
-  // Run all four aggregation queries in parallel
-  const [q30, q365, a30, a365, hospitalsRes] = await Promise.all([
-    // Queue visits — last 30 days (hospital_id = hospital_code TEXT)
-    supabase.from("queue").select("hospital_id").gte("added_at", cut30).limit(50000),
-    // Queue visits — last 365 days
-    supabase.from("queue").select("hospital_id").gte("added_at", cut365).limit(200000),
-    // Automation log — last 30 days (hospital_id = integer id; exclude test entries)
-    supabase.from("automation_log").select("hospital_id").gte("created_at", cut30).neq("patient_id", -1).limit(50000),
-    // Automation log — last 365 days
-    supabase.from("automation_log").select("hospital_id").gte("created_at", cut365).neq("patient_id", -1).limit(200000),
-    // All hospitals with hospital_code mapping
-    supabase.from("hospitals").select("id, name, active, hospital_code").order("name"),
+  // Fetch hospitals + all-time queue + all-time automation_log in parallel
+  const [hospitalsRes, queueRes, autoRes] = await Promise.all([
+    supabase.from("hospitals").select("id, name, active, hospital_code, created_at").order("name"),
+    // All queue visits ever (hospital_id = hospital_code TEXT)
+    supabase.from("queue").select("hospital_id").limit(500000),
+    // All automation entries ever, excluding test entries (patient_id = -1)
+    supabase.from("automation_log").select("hospital_id").neq("patient_id", -1).limit(500000),
   ]);
 
   const hospitals = hospitalsRes.data ?? [];
 
-  // Build lookup maps: hospital_code → integer id, and integer id → hospital_code
-  const codeToId  = new Map<string, number>();
-  const idToCode  = new Map<number, string>();
+  // Build lookup: hospital_code (TEXT) → integer id
+  const codeToId = new Map<string, number>();
   for (const h of hospitals) {
     if (h.hospital_code) codeToId.set(h.hospital_code, h.id);
-    idToCode.set(h.id, h.hospital_code ?? "");
   }
 
-  // Group queue rows by integer hospital id
-  function groupQueue(rows: { hospital_id: string }[] | null): Map<number, number> {
-    const m = new Map<number, number>();
-    for (const r of rows ?? []) {
-      const id = codeToId.get(r.hospital_id);
-      if (id !== undefined) m.set(id, (m.get(id) ?? 0) + 1);
-    }
-    return m;
+  // Count queue visits by integer hospital id (all time)
+  const patientTotals = new Map<number, number>();
+  for (const r of (queueRes.data ?? []) as { hospital_id: string }[]) {
+    const id = codeToId.get(r.hospital_id);
+    if (id !== undefined) patientTotals.set(id, (patientTotals.get(id) ?? 0) + 1);
   }
 
-  // Group automation_log rows by integer hospital id
-  function groupAuto(rows: { hospital_id: number }[] | null): Map<number, number> {
-    const m = new Map<number, number>();
-    for (const r of rows ?? []) {
-      m.set(r.hospital_id, (m.get(r.hospital_id) ?? 0) + 1);
-    }
-    return m;
+  // Count automation_log entries by integer hospital id (all time)
+  const autoTotals = new Map<number, number>();
+  for (const r of (autoRes.data ?? []) as { hospital_id: number }[]) {
+    autoTotals.set(r.hospital_id, (autoTotals.get(r.hospital_id) ?? 0) + 1);
   }
 
-  const patients30  = groupQueue(q30.data  as { hospital_id: string }[] | null);
-  const patients365 = groupQueue(q365.data as { hospital_id: string }[] | null);
-  const autos30     = groupAuto(a30.data   as { hospital_id: number }[] | null);
-  const autos365    = groupAuto(a365.data  as { hospital_id: number }[] | null);
+  const AVG_DAYS_PER_MONTH = 30.44;
 
   const stats = hospitals.map(h => {
-    const p30  = patients30.get(h.id)  ?? 0;
-    const p365 = patients365.get(h.id) ?? 0;
-    const au30  = autos30.get(h.id)   ?? 0;
-    const au365 = autos365.get(h.id)  ?? 0;
+    const createdAt    = h.created_at ? new Date(h.created_at as string).getTime() : now;
+    const daysSince    = Math.max(1, (now - createdAt) / 86_400_000);
+    const monthsSince  = daysSince / AVG_DAYS_PER_MONTH;
+
+    const totalPatients = patientTotals.get(h.id) ?? 0;
+    const totalAutos    = autoTotals.get(h.id)    ?? 0;
+
+    const r1 = (n: number) => Math.round(n * 10) / 10;
 
     return {
-      id:           h.id,
-      name:         h.name,
-      active:       h.active,
-      // rolling averages — rounded to 1 decimal place
-      avgPatientsDay:   Math.round((p30  / 30)  * 10) / 10,
-      avgPatientsMonth: Math.round((p365 / 12)  * 10) / 10,
-      avgAutosDay:      Math.round((au30  / 30) * 10) / 10,
-      avgAutosMonth:    Math.round((au365 / 12) * 10) / 10,
-      // raw totals for context
-      totalPatients30:  p30,
-      totalPatients365: p365,
-      totalAutos30:     au30,
-      totalAutos365:    au365,
+      id:               h.id,
+      name:             h.name,
+      active:           h.active,
+      createdAt:        h.created_at as string | null,
+      daysSince:        Math.floor(daysSince),
+      // All-time averages
+      avgPatientsDay:   r1(totalPatients / daysSince),
+      avgPatientsMonth: r1(totalPatients / monthsSince),
+      avgAutosDay:      r1(totalAutos    / daysSince),
+      avgAutosMonth:    r1(totalAutos    / monthsSince),
+      // Raw totals
+      totalPatients,
+      totalAutos,
     };
   });
 

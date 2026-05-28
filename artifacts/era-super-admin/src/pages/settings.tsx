@@ -190,9 +190,14 @@ export default function SettingsPage() {
           </div>
 
           <Row
-            label="Care plan email — Email"
+            label="Care plan summary — Email"
             note="Sent 20 minutes after a nurse creates a care plan — giving staff time for edits before the patient receives the full AI-written explanation of their plan."
             value="20-min delay"
+          />
+          <Row
+            label="In-care visit reminders — Email"
+            note="Fire based on the exact times the nurse sets in the care plan. Lead times are per-department: medication-only fires at the exact time, come-to-hospital fires 3 hours before, combination fires 2 hours before, and all other departments (Antenatal, Paediatrics, Surgery, Dental, Eye, ENT, Fertility) fire 4 hours before the scheduled visit. The scheduler checks every hour and fires within a ±25-minute window of the correct lead time."
+            value="Hourly check · dept-specific lead"
           />
           <Row
             label="Appointment reminders — Email"
@@ -211,8 +216,8 @@ export default function SettingsPage() {
           />
           <Row
             label="Active patient follow-ups — Email"
-            note="Patients in the Active stage who haven't visited in 30 days receive a warm check-in — keeping the clinic present in their lives between visits."
-            value="30-day cadence"
+            note="Patients in the Active stage who haven't visited or received this message in the last 30 days get a warm 'thinking of you' email. Runs daily at 6 PM. A 30-day per-patient cooldown prevents repeat sends."
+            value="Daily 6 PM · 30-day cooldown"
           />
           <Row
             label="Birthday messages — Email"

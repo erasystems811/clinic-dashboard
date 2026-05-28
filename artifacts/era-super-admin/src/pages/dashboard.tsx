@@ -98,15 +98,6 @@ export default function Hospitals() {
       {/* Table container */}
       <div className="border border-[hsl(0_0%_22%)] overflow-hidden">
 
-        {/* Table header */}
-        <div className="border-b border-[hsl(0_0%_14%)] bg-black grid grid-cols-[1fr_140px_120px_130px_110px_32px] gap-0">
-          {["Hospital Account", "Username", "Status", "Subscription Ends", "Registered", ""].map((h, i) => (
-            <div key={i} className="px-4 py-1.5">
-              <p className="text-[8px] font-bold text-muted-foreground/30 uppercase tracking-[0.25em]">{h}</p>
-            </div>
-          ))}
-        </div>
-
         {loading ? (
           <div className="flex items-center justify-center gap-2.5 py-16 bg-[hsl(0_0%_7%)]">
             <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/40" />

@@ -795,7 +795,25 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     }
   }
 
-  // 4. Scheduler
+  // 4. OpenAI
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
+  checks.push({
+    name: "OpenAI",
+    ok: hasOpenAI || !isProd,
+    warning: !hasOpenAI && !isProd,
+    detail: hasOpenAI ? "API key configured" : isProd ? "OPENAI_API_KEY not set" : "Not set in dev — on Railway",
+  });
+
+  // 5. Claude (Anthropic)
+  const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+  checks.push({
+    name: "Claude (Anthropic)",
+    ok: hasAnthropic || !isProd,
+    warning: !hasAnthropic && !isProd,
+    detail: hasAnthropic ? "API key configured" : isProd ? "ANTHROPIC_API_KEY not set" : "Not set in dev — on Railway",
+  });
+
+  // 6. Scheduler
   const schedulerEnabled = process.env.ENABLE_SCHEDULER === "true";
   checks.push({
     name: "Scheduler",
@@ -834,6 +852,49 @@ router.delete("/super-admin/service-alert/:service", requireSuperAdmin, async (r
   const { error } = await supabase.from("platform_alerts").delete().eq("service", req.params.service);
   if (error) { res.status(500).json({ error: error.message }); return; }
   res.json({ ok: true });
+});
+
+// POST /webhooks/inbound-email — called by Resend inbound routing when a billing alert email arrives
+// No auth middleware — secured by INBOUND_EMAIL_SECRET query param instead
+// Setup: resend.com → Inbound → route alerts@yourdomain.com → POST https://your-api.railway.app/api/webhooks/inbound-email?secret=INBOUND_EMAIL_SECRET
+router.post("/webhooks/inbound-email", async (req, res): Promise<void> => {
+  const secret = process.env.INBOUND_EMAIL_SECRET;
+  if (secret && req.query.secret !== secret) {
+    res.status(401).json({ error: "Unauthorized" }); return;
+  }
+
+  const { from = "", subject = "", text = "" } = req.body as { from?: string; subject?: string; text?: string };
+  const fromLower = (from || "").toLowerCase();
+  const subjectLower = (subject || "").toLowerCase();
+  const textLower = (text || "").toLowerCase();
+
+  function identifyService(): string | null {
+    if (fromLower.includes("openai.com")) return "OpenAI";
+    if (fromLower.includes("anthropic.com")) return "Claude (Anthropic)";
+    if (fromLower.includes("resend.com") || fromLower.includes("resend.io")) return "Email (Resend)";
+    if (fromLower.includes("supabase.io") || fromLower.includes("supabase.com")) return "Database";
+    if (fromLower.includes("railway.app")) return "Scheduler";
+    if (subjectLower.includes("openai")) return "OpenAI";
+    if (subjectLower.includes("anthropic") || subjectLower.includes("claude")) return "Claude (Anthropic)";
+    if (subjectLower.includes("resend")) return "Email (Resend)";
+    if (subjectLower.includes("supabase")) return "Database";
+    if (subjectLower.includes("railway")) return "Scheduler";
+    return null;
+  }
+
+  const alertKeywords = ["credit", "balance", "billing", "payment", "invoice", "limit", "usage", "low", "threshold", "spending"];
+  const isAlert = alertKeywords.some(kw => subjectLower.includes(kw) || textLower.includes(kw));
+  const service = identifyService();
+
+  if (!service || !isAlert) {
+    console.log(`[inbound-email] Skipped — service=${service ?? "unknown"} isAlert=${isAlert} from="${from}" subject="${subject}"`);
+    res.json({ ok: true, action: "skipped" }); return;
+  }
+
+  console.log(`[inbound-email] Auto-flagging service=${service} from="${from}" subject="${subject}"`);
+  const { error } = await supabase.from("platform_alerts").upsert({ service, alerted_at: new Date().toISOString(), note: `Email: ${subject}` });
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ ok: true, action: "flagged", service });
 });
 
 // ── Automation Log (Failed Automations) ───────────────────────────────────────

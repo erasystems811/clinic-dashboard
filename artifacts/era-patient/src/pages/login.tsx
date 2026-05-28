@@ -10,6 +10,34 @@ interface PreloadedHospital {
   username: string;
 }
 
+/* ── Per-mode colour palettes ─────────────────────────────────────────────── */
+const PALETTES = {
+  staff: {
+    /* Navy / royal blue */
+    primary:     "hsl(221 78% 57%)",
+    primaryDark: "hsl(221 78% 48%)",
+    glow:        "hsl(221 78% 57% / 0.20)",
+    ring:        "hsl(221 78% 57% / 0.30)",
+    iconBg:      "hsl(221 78% 57% / 0.12)",
+    iconRing:    "hsl(221 78% 57% / 0.28)",
+    tabBg:       "hsl(221 78% 57% / 0.10)",
+    tabRing:     "hsl(221 78% 57% / 0.22)",
+    label:       "Staff Access",
+  },
+  admin: {
+    /* Champagne gold — matches ERA Super Admin */
+    primary:     "hsl(43 60% 52%)",
+    primaryDark: "hsl(43 60% 44%)",
+    glow:        "hsl(43 60% 52% / 0.20)",
+    ring:        "hsl(43 60% 52% / 0.30)",
+    iconBg:      "hsl(43 60% 52% / 0.12)",
+    iconRing:    "hsl(43 60% 52% / 0.28)",
+    tabBg:       "hsl(43 60% 52% / 0.10)",
+    tabRing:     "hsl(43 60% 52% / 0.22)",
+    label:       "Admin Access",
+  },
+} as const;
+
 export default function Login() {
   const { loginAdmin, loginStaff } = useAuth();
   const [mode, setMode] = useState<Mode>("staff");
@@ -81,48 +109,59 @@ export default function Login() {
     }
   };
 
-  const inputCls = "w-full px-3 py-2.5 rounded-md bg-muted border border-border text-foreground text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/35 focus:border-primary/60 transition font-medium";
+  const effectiveMode: Mode = (preloaded && !preloadLoading && !preloadError) ? "admin" : mode;
+  const pal = PALETTES[effectiveMode];
+
+  const inputCls =
+    "w-full px-3 py-2.5 rounded-md bg-muted border border-border text-foreground text-sm " +
+    "placeholder:text-muted-foreground/35 transition font-normal tracking-wide " +
+    "focus:outline-none";
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center bg-background px-4"
-      style={{ backgroundImage: "radial-gradient(ellipse 70% 50% at 50% -5%, hsl(183 52% 40% / 0.07), transparent)" }}
+      className="min-h-screen flex flex-col items-center justify-center bg-background px-4 transition-all duration-500"
+      style={{
+        backgroundImage: `radial-gradient(ellipse 70% 50% at 50% -5%, ${pal.glow}, transparent)`,
+      }}
     >
       <div className="w-full max-w-sm">
 
         {/* Brand mark */}
         <div className="flex flex-col items-center mb-8">
           <div
-            className="w-12 h-12 rounded-xl bg-primary/12 ring-1 ring-primary/30 flex items-center justify-center mb-4"
-            style={{ boxShadow: "0 0 32px hsl(183 52% 40% / 0.2)" }}
+            className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-500"
+            style={{
+              background: pal.iconBg,
+              boxShadow: `0 0 32px ${pal.glow}, 0 0 0 1px ${pal.iconRing}`,
+            }}
           >
-            <Activity className="w-5 h-5 text-primary" />
+            <Activity className="w-5 h-5 transition-colors duration-500" style={{ color: pal.primary }} />
           </div>
-          <h1 className="text-xl font-extrabold tracking-tight text-foreground">Era Patient</h1>
-          <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-widest font-semibold">
-            Clinical Management Platform
+          <h1 className="text-xl font-semibold tracking-tight text-foreground">Era Patient</h1>
+          <p className="text-[10px] text-muted-foreground mt-1.5 uppercase tracking-[0.18em] font-medium">
+            {pal.label}
           </p>
         </div>
 
         {/* Preload loading */}
         {preloadLoading && (
           <div className="flex items-center justify-center gap-2.5 py-10 text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin text-primary" />
-            <span className="text-sm font-medium">Loading hospital…</span>
+            <Loader2 className="w-4 h-4 animate-spin" style={{ color: pal.primary }} />
+            <span className="text-sm font-normal">Loading hospital…</span>
           </div>
         )}
 
         {/* Preload error */}
         {preloadError && (
           <div className="space-y-4">
-            <div className="flex items-start gap-2.5 rounded-md border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive font-medium">
+            <div className="flex items-start gap-2.5 rounded-md border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive font-normal">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               {preloadError}
             </div>
             <button
               type="button"
               onClick={clearPreload}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition font-semibold"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition font-medium"
             >
               <ArrowLeft className="w-3.5 h-3.5" /> Back to login
             </button>
@@ -133,17 +172,20 @@ export default function Login() {
         {!preloadLoading && !preloadError && preloaded && (
           <>
             <div className="flex items-center gap-3 rounded-md border border-border bg-card px-4 py-3 mb-5">
-              <div className="w-8 h-8 rounded-md bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center shrink-0">
-                <Building2 className="w-3.5 h-3.5 text-primary" />
+              <div
+                className="w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-all duration-500"
+                style={{ background: pal.iconBg, boxShadow: `0 0 0 1px ${pal.iconRing}` }}
+              >
+                <Building2 className="w-3.5 h-3.5 transition-colors duration-500" style={{ color: pal.primary }} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Signing into</p>
-                <p className="text-sm font-bold text-foreground truncate">{preloaded.name}</p>
+                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-[0.14em]">Signing into</p>
+                <p className="text-sm font-semibold text-foreground truncate">{preloaded.name}</p>
               </div>
               <button
                 type="button"
                 onClick={clearPreload}
-                className="text-[10px] text-muted-foreground hover:text-foreground transition font-bold uppercase tracking-wide shrink-0"
+                className="text-[10px] text-muted-foreground hover:text-foreground transition font-medium uppercase tracking-wide shrink-0"
               >
                 Change
               </button>
@@ -151,7 +193,7 @@ export default function Login() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-[0.14em]">
                   Admin Password
                 </label>
                 <div className="relative">
@@ -164,6 +206,9 @@ export default function Login() {
                     placeholder="Enter your password"
                     required
                     className={inputCls + " pr-10"}
+                    style={{ outline: "none" }}
+                    onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${pal.ring}`; e.currentTarget.style.borderColor = pal.primary; }}
+                    onBlur={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = ""; }}
                   />
                   <button
                     type="button"
@@ -177,7 +222,7 @@ export default function Login() {
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/8 border border-destructive/20 rounded-md px-3 py-2.5 font-medium">
+                <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/8 border border-destructive/20 rounded-md px-3 py-2.5 font-normal">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   {error}
                 </div>
@@ -186,8 +231,14 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                style={{ boxShadow: "0 2px 16px hsl(183 52% 40% / 0.25)" }}
+                className="w-full py-2.5 rounded-md text-sm font-semibold tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                style={{
+                  background: pal.primary,
+                  color: effectiveMode === "admin" ? "hsl(0 0% 8%)" : "#fff",
+                  boxShadow: `0 2px 20px ${pal.glow}`,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = pal.primaryDark; }}
+                onMouseLeave={e => { e.currentTarget.style.background = pal.primary; }}
               >
                 {loading
                   ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Signing in…</span>
@@ -202,63 +253,74 @@ export default function Login() {
           <>
             {/* Mode selector */}
             <div className="flex rounded-md border border-border bg-muted/40 p-0.5 mb-5">
-              {(["staff", "admin"] as Mode[]).map(m => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => reset(m)}
-                  className={`flex-1 py-2 text-xs font-bold rounded transition-all uppercase tracking-widest ${
-                    mode === m
-                      ? "bg-card text-foreground shadow-sm ring-1 ring-border"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {m === "staff" ? "Staff" : "Admin"}
-                </button>
-              ))}
+              {(["staff", "admin"] as Mode[]).map(m => {
+                const p = PALETTES[m];
+                const isActive = mode === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => reset(m)}
+                    className="flex-1 py-2 text-xs font-medium rounded transition-all duration-300 uppercase tracking-[0.14em]"
+                    style={isActive ? {
+                      background: p.tabBg,
+                      color: p.primary,
+                      boxShadow: `0 0 0 1px ${p.tabRing}`,
+                    } : {
+                      color: "hsl(215 12% 46%)",
+                    }}
+                  >
+                    {m === "staff" ? "Staff" : "Admin"}
+                  </button>
+                );
+              })}
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  Username
-                </label>
-                <input
-                  autoComplete="username"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder="Enter username"
-                  required
-                  className={inputCls}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    required
-                    className={inputCls + " pr-10"}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground transition"
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+              {(["username", "password"] as const).map(field => (
+                <div key={field} className="space-y-1.5">
+                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-[0.14em]">
+                    {field.charAt(0).toUpperCase() + field.slice(1)}
+                  </label>
+                  {field === "password" ? (
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        placeholder="Enter your password"
+                        required
+                        className={inputCls + " pr-10"}
+                        onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${pal.ring}`; e.currentTarget.style.borderColor = pal.primary; }}
+                        onBlur={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = ""; }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(v => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground transition"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      autoComplete="username"
+                      value={username}
+                      onChange={e => setUsername(e.target.value)}
+                      placeholder="Enter username"
+                      required
+                      className={inputCls}
+                      onFocus={e => { e.currentTarget.style.boxShadow = `0 0 0 2px ${pal.ring}`; e.currentTarget.style.borderColor = pal.primary; }}
+                      onBlur={e => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = ""; }}
+                    />
+                  )}
                 </div>
-              </div>
+              ))}
 
               {error && (
-                <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/8 border border-destructive/20 rounded-md px-3 py-2.5 font-medium">
+                <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/8 border border-destructive/20 rounded-md px-3 py-2.5 font-normal">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   {error}
                 </div>
@@ -267,8 +329,14 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                style={{ boxShadow: "0 2px 16px hsl(183 52% 40% / 0.25)" }}
+                className="w-full py-2.5 rounded-md text-sm font-semibold tracking-wide disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                style={{
+                  background: pal.primary,
+                  color: effectiveMode === "admin" ? "hsl(0 0% 8%)" : "#fff",
+                  boxShadow: `0 2px 20px ${pal.glow}`,
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = pal.primaryDark; }}
+                onMouseLeave={e => { e.currentTarget.style.background = pal.primary; }}
               >
                 {loading
                   ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" />Signing in…</span>
@@ -278,7 +346,7 @@ export default function Login() {
           </>
         )}
 
-        <p className="text-center text-[10px] text-muted-foreground/35 uppercase tracking-widest font-medium mt-8">
+        <p className="text-center text-[9px] text-muted-foreground/30 uppercase tracking-[0.2em] font-normal mt-8">
           Secure Clinical Access · Era Systems
         </p>
       </div>

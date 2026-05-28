@@ -3,7 +3,7 @@ import Layout from "@/components/layout";
 import { get } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import {
-  RefreshCw, Users, Mail, MessageSquare, Radio,
+  RefreshCw, Radio, Users, Mail, MessageSquare, History, Zap,
 } from "lucide-react";
 
 interface MonthSnapshot {
@@ -37,62 +37,54 @@ interface HospitalUsageStat {
   history: MonthSnapshot[];
 }
 
-type Metric = "patients" | "emails" | "sms";
-type Window = 6 | 12;
+type Tab = "history" | "live";
 
-function getTier(avgPerDay: number) {
-  if (avgPerDay >= 100) return { label: "Large", color: "text-purple-400", dot: "bg-purple-400" };
-  if (avgPerDay >= 41)  return { label: "Big",   color: "text-orange-400", dot: "bg-orange-400" };
-  if (avgPerDay >= 21)  return { label: "Mid",   color: "text-blue-400",   dot: "bg-blue-400"   };
-  if (avgPerDay >= 1)   return { label: "Small", color: "text-emerald-400",dot: "bg-emerald-400" };
-  return                       { label: "—",     color: "text-muted-foreground/25", dot: "bg-muted-foreground/20" };
-}
-
-function heatColor(val: number, max: number): string {
-  if (val === 0 || max === 0) return "text-muted-foreground/20";
-  const ratio = val / max;
-  if (ratio >= 0.75) return "text-emerald-300 font-bold";
-  if (ratio >= 0.5)  return "text-emerald-400 font-semibold";
-  if (ratio >= 0.25) return "text-foreground/80";
-  return "text-foreground/50";
+function getTier(avg: number) {
+  if (avg >= 100) return { label: "Large", color: "text-purple-400" };
+  if (avg >= 41)  return { label: "Big",   color: "text-orange-400" };
+  if (avg >= 21)  return { label: "Mid",   color: "text-blue-400"   };
+  if (avg >= 1)   return { label: "Small", color: "text-emerald-400" };
+  return                 { label: "—",     color: "text-muted-foreground/25" };
 }
 
 function fmt(n: number) {
-  if (n === 0)   return "—";
-  if (n < 0.1)   return "<0.1";
+  if (!n || n === 0) return "—";
+  if (n < 0.1) return "<0.1";
   return n % 1 === 0 ? String(n) : n.toFixed(1);
-}
-
-function fmtShortMonth(label: string) {
-  // "May 2026" → "May'26"
-  const parts = label.split(" ");
-  if (parts.length === 2) return `${parts[0]}'${parts[1].slice(2)}`;
-  return label;
 }
 
 function fmtDays(d: number) {
   if (d < 30)  return `${d}d`;
   if (d < 365) return `${Math.floor(d / 30)}mo`;
-  const yrs = Math.floor(d / 365);
-  const mo  = Math.floor((d % 365) / 30);
-  return mo > 0 ? `${yrs}y ${mo}mo` : `${yrs}y`;
+  const y = Math.floor(d / 365), m = Math.floor((d % 365) / 30);
+  return m > 0 ? `${y}y ${m}mo` : `${y}y`;
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" });
+}
+
+// Short month: "May 2026" → "May '26"
+function shortLabel(label: string) {
+  const p = label.split(" ");
+  return p.length === 2 ? `${p[0]} '${p[1].slice(2)}` : label;
 }
 
 const TIER_DEFS = [
-  { label: "Large", range: "100+/day",   color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
-  { label: "Big",   range: "41–100/day", color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
-  { label: "Mid",   range: "21–40/day",  color: "text-blue-400",   bg: "bg-blue-500/10 border-blue-500/20"   },
-  { label: "Small", range: "1–20/day",   color: "text-emerald-400",bg: "bg-emerald-500/10 border-emerald-500/20" },
-  { label: "—",     range: "0/day",      color: "text-muted-foreground/40", bg: "bg-white/5 border-border"    },
+  { label: "Large", range: "100+/d",   color: "text-purple-400", bg: "bg-purple-500/10 border-purple-500/20" },
+  { label: "Big",   range: "41–100/d", color: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
+  { label: "Mid",   range: "21–40/d",  color: "text-blue-400",   bg: "bg-blue-500/10 border-blue-500/20"   },
+  { label: "Small", range: "1–20/d",   color: "text-emerald-400",bg: "bg-emerald-500/10 border-emerald-500/20" },
+  { label: "—",     range: "0/d",      color: "text-muted-foreground/40", bg: "bg-white/5 border-border"    },
 ];
 
 export default function Usage() {
-  const [metric, setMetric]   = useState<Metric>("patients");
-  const [window_, setWindow]  = useState<Window>(6);
+  const [tab, setTab] = useState<Tab>("live");
 
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<{ stats: HospitalUsageStat[] }>({
     queryKey: ["usage-stats"],
-    queryFn:  () => get("/super-admin/usage-stats"),
+    queryFn: () => get("/super-admin/usage-stats"),
     staleTime: 0,
     refetchInterval: 2 * 60_000,
   });
@@ -102,8 +94,6 @@ export default function Usage() {
     : null;
 
   const stats = (data?.stats ?? []).filter(s => s?.currentMonth);
-
-  // Sort by current month avg patients/day descending
   const sorted = [...stats].sort((a, b) => b.currentMonth.avgPatientsDay - a.currentMonth.avgPatientsDay);
 
   const tierCounts = stats.reduce<Record<string, number>>((acc, h) => {
@@ -112,41 +102,17 @@ export default function Usage() {
     return acc;
   }, {});
 
-  // Build the month columns we'll show: last N completed months from history
-  // All hospitals share the same history length (12), slice the last N
-  const historyMonths = stats[0]?.history ?? [];
-  const visibleMonths = historyMonths.slice(historyMonths.length - window_);
+  // All 12 past month labels (from the first hospital's history)
+  const allMonths: string[] = stats[0]?.history.map(m => m.label) ?? [];
 
-  // Compute per-column max for heat coloring
-  function getAvg(m: MonthSnapshot, met: Metric) {
-    if (met === "patients") return m.avgPatientsDay;
-    if (met === "emails")   return m.avgEmailsDay;
-    return m.avgSmsDay;
-  }
-  function getCurrAvg(cm: CurrentMonth, met: Metric) {
-    if (met === "patients") return cm.avgPatientsDay;
-    if (met === "emails")   return cm.avgEmailsDay;
-    return cm.avgSmsDay;
-  }
-
-  // Global max across all visible cells for consistent heat scale
-  const allValues = [
-    ...sorted.flatMap(h => visibleMonths.map((_, ci) => getAvg(h.history[h.history.length - window_ + ci] ?? {} as MonthSnapshot, metric))),
-    ...sorted.map(h => getCurrAvg(h.currentMonth, metric)),
-  ].filter(Boolean);
-  const globalMax = allValues.length > 0 ? Math.max(...allValues) : 1;
-
-  const METRIC_OPTS: { id: Metric; icon: React.ReactNode; label: string }[] = [
-    { id: "patients", icon: <Users className="w-3 h-3" />,         label: "Patients / day" },
-    { id: "emails",   icon: <Mail className="w-3 h-3" />,          label: "Emails / day"   },
-    { id: "sms",      icon: <MessageSquare className="w-3 h-3" />, label: "SMS / day"      },
-  ];
+  const currentMonthLabel = stats[0]?.currentMonth.label ?? "";
+  const daysElapsed = stats[0]?.currentMonth.daysElapsed ?? new Date().getDate();
 
   return (
     <Layout breadcrumb={[{ label: "Usage" }]}>
       <div className="space-y-5">
 
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -155,9 +121,6 @@ export default function Usage() {
                 <Radio className="w-2.5 h-2.5" /> Live
               </span>
             </div>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Running averages per day — each past month shows the all-time average as it stood at month-end.
-            </p>
             {lastUpdated && (
               <p className="text-[11px] text-muted-foreground/35 mt-1">
                 Last updated: {lastUpdated} · auto-refreshes every 2 min
@@ -174,7 +137,7 @@ export default function Usage() {
           </button>
         </div>
 
-        {/* Tier strip */}
+        {/* ── Tier summary strip ── */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {TIER_DEFS.map(t => (
             <div key={t.label} className={`rounded-xl border ${t.bg} px-4 py-3`}>
@@ -187,156 +150,234 @@ export default function Usage() {
           ))}
         </div>
 
-        {/* Controls row */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Metric toggle */}
-          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
-            {METRIC_OPTS.map(m => (
-              <button
-                key={m.id}
-                onClick={() => setMetric(m.id)}
-                className={`flex items-center gap-1.5 px-3 h-7 transition font-medium whitespace-nowrap
-                  ${metric === m.id
-                    ? "bg-white/10 text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"}`}
-              >
-                {m.icon} {m.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Window toggle */}
-          <div className="flex rounded-lg border border-border overflow-hidden text-xs">
-            {([6, 12] as Window[]).map(w => (
-              <button
-                key={w}
-                onClick={() => setWindow(w)}
-                className={`px-3 h-7 font-medium transition whitespace-nowrap
-                  ${window_ === w
-                    ? "bg-white/10 text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"}`}
-              >
-                {w}M
-              </button>
-            ))}
-          </div>
-
-          <span className="text-[11px] text-muted-foreground/35 ml-1">
-            Brighter = higher avg · each past month = all-time average as of that month-end
-          </span>
+        {/* ── Tabs ── */}
+        <div className="flex border-b border-border gap-1">
+          <button
+            onClick={() => setTab("live")}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition
+              ${tab === "live"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Live — {currentMonthLabel}
+          </button>
+          <button
+            onClick={() => setTab("history")}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition
+              ${tab === "history"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            <History className="w-3.5 h-3.5" />
+            History — last 12 months
+          </button>
         </div>
 
-        {/* Matrix table */}
-        <div className="rounded-xl border border-border bg-card overflow-hidden">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
-          ) : sorted.length === 0 ? (
-            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">No hospitals found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
+        {/* ══════════════════════════════════════════
+            TAB: LIVE — current month rolling stats
+        ══════════════════════════════════════════ */}
+        {tab === "live" && (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+              <Zap className="w-3.5 h-3.5 text-primary/70" />
+              <span className="text-sm font-medium text-foreground">{currentMonthLabel}</span>
+              <span className="text-xs text-muted-foreground/50">— day {daysElapsed} of this month · resets on the 1st</span>
+            </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
+            ) : (
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border">
-                    {/* Fixed columns */}
-                    <th className="px-4 py-3 text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap sticky left-0 bg-card z-10 min-w-[160px]">
-                      Hospital
+                  <tr className="border-b border-border text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
+                    <th className="px-5 py-3 text-left">Hospital</th>
+                    <th className="px-4 py-3 text-left">Tier</th>
+                    <th className="px-4 py-3 text-left">Since</th>
+                    <th className="px-4 py-3 text-right">
+                      <span className="inline-flex items-center gap-1 justify-end"><Users className="w-3 h-3" /> Avg / day</span>
                     </th>
-                    <th className="px-3 py-3 text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">
-                      Tier
+                    <th className="px-4 py-3 text-right text-muted-foreground/30">Total this month</th>
+                    <th className="px-4 py-3 text-right">
+                      <span className="inline-flex items-center gap-1 justify-end"><Mail className="w-3 h-3" /> Avg / day</span>
                     </th>
-                    <th className="px-3 py-3 text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">
-                      Since
+                    <th className="px-4 py-3 text-right text-muted-foreground/30">Total</th>
+                    <th className="px-4 py-3 text-right">
+                      <span className="inline-flex items-center gap-1 justify-end"><MessageSquare className="w-3 h-3" /> Avg / day</span>
                     </th>
-                    {/* Month columns */}
-                    {visibleMonths.map((m) => (
-                      <th
-                        key={m.label}
-                        className="px-3 py-3 text-center text-[10px] font-semibold text-muted-foreground/35 whitespace-nowrap border-l border-border/40 min-w-[64px]"
-                      >
-                        {fmtShortMonth(m.label)}
-                      </th>
-                    ))}
-                    {/* Current month */}
-                    {stats[0] && (
-                      <th className="px-3 py-3 text-center text-[10px] font-semibold text-primary/60 whitespace-nowrap border-l border-primary/20 bg-primary/5 min-w-[72px]">
-                        {fmtShortMonth(stats[0].currentMonth.label)} ▸
-                      </th>
-                    )}
+                    <th className="px-4 py-3 text-right text-muted-foreground/30">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map((h, rowIdx) => {
+                  {sorted.map(h => {
                     const tier = getTier(h.currentMonth.avgPatientsDay);
-                    const currVal = getCurrAvg(h.currentMonth, metric);
-
-                    // Slice the right portion of this hospital's history
-                    const visHist = h.history.slice(h.history.length - window_);
-
+                    const cm   = h.currentMonth;
                     return (
-                      <tr
-                        key={h.id}
-                        className={`border-t border-border/50 hover:bg-white/[0.02] transition-colors ${rowIdx % 2 === 0 ? "" : "bg-white/[0.01]"}`}
-                      >
-                        {/* Name */}
-                        <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap sticky left-0 bg-card group-hover:bg-white/[0.02] z-10">
+                      <tr key={h.id} className="border-t border-border/50 hover:bg-white/[0.02] transition-colors">
+                        <td className="px-5 py-3 font-medium text-foreground whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
                             {h.name}
                           </div>
                         </td>
-                        {/* Tier */}
-                        <td className="px-3 py-3 whitespace-nowrap">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <span className={`text-xs font-semibold ${tier.color}`}>{tier.label}</span>
                         </td>
-                        {/* Since */}
-                        <td className="px-3 py-3 text-center whitespace-nowrap">
-                          <span className="text-[11px] text-muted-foreground/40 tabular-nums">{fmtDays(h.daysSince)}</span>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-muted-foreground/50">{fmtDays(h.daysSince)}</span>
+                          <span className="text-[10px] text-muted-foreground/30 ml-1.5">{fmtDate(h.createdAt)}</span>
                         </td>
-                        {/* Past month cells */}
-                        {visibleMonths.map((_, ci) => {
-                          const snap  = visHist[ci];
-                          const val   = snap ? getAvg(snap, metric) : 0;
-                          const color = heatColor(val, globalMax);
-                          return (
-                            <td
-                              key={ci}
-                              className={`px-3 py-3 text-center tabular-nums border-l border-border/20 ${color}`}
-                            >
-                              {snap ? fmt(val) : <span className="text-muted-foreground/20 text-[10px]">·</span>}
-                            </td>
-                          );
-                        })}
-                        {/* Current month cell */}
-                        <td className={`px-3 py-3 text-center tabular-nums border-l border-primary/15 bg-primary/[0.04] ${heatColor(currVal, globalMax)}`}>
-                          {fmt(currVal)}
+                        {/* Patients */}
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                          <span className={cm.avgPatientsDay > 0 ? "text-foreground" : "text-muted-foreground/25"}>
+                            {fmt(cm.avgPatientsDay)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground/40">
+                          {cm.patients > 0 ? cm.patients : "—"}
+                        </td>
+                        {/* Emails */}
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                          <span className={cm.avgEmailsDay > 0 ? "text-foreground" : "text-muted-foreground/25"}>
+                            {fmt(cm.avgEmailsDay)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground/40">
+                          {cm.emails > 0 ? cm.emails : "—"}
+                        </td>
+                        {/* SMS */}
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                          <span className={cm.avgSmsDay > 0 ? "text-foreground" : "text-muted-foreground/25"}>
+                            {fmt(cm.avgSmsDay)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground/40">
+                          {cm.sms > 0 ? cm.sms : "—"}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
-        {/* Footer legend */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 pb-2">
-          <span className="text-[10px] text-muted-foreground/30 uppercase tracking-widest">Tier</span>
-          {[
-            { label: "Small", range: "1–20/d",   color: "text-emerald-400" },
-            { label: "Mid",   range: "21–40/d",  color: "text-blue-400"   },
-            { label: "Big",   range: "41–100/d", color: "text-orange-400" },
-            { label: "Large", range: "100+/d",   color: "text-purple-400" },
-          ].map(t => (
-            <span key={t.label} className="flex items-center gap-1.5">
-              <span className={`text-[11px] font-semibold ${t.color}`}>{t.label}</span>
-              <span className="text-[10px] text-muted-foreground/35">{t.range}</span>
-            </span>
-          ))}
-          <span className="ml-auto text-[10px] text-muted-foreground/30">
-            Past months = all-time avg as of month-end · Current month resets on the 1st · Test automations excluded
-          </span>
-        </div>
+        {/* ══════════════════════════════════════════
+            TAB: HISTORY — all 12 months open at once
+            Rows = hospitals · Columns = every month
+            3 metric rows per hospital (patients, emails, SMS)
+        ══════════════════════════════════════════ */}
+        {tab === "history" && (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+              <History className="w-3.5 h-3.5 text-muted-foreground/50" />
+              <span className="text-sm font-medium text-foreground">All-time running average as of each month-end</span>
+              <span className="text-xs text-muted-foreground/40 ml-1">— each value = cumulative avg/day from day 1 to that month's last day</span>
+            </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="text-xs border-collapse" style={{ minWidth: "max-content" }}>
+                  <thead>
+                    {/* Month header row */}
+                    <tr className="border-b border-border">
+                      <th className="px-5 py-3 text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap sticky left-0 bg-card z-10 min-w-[180px]">
+                        Hospital
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap">
+                        Metric
+                      </th>
+                      {allMonths.map(label => (
+                        <th
+                          key={label}
+                          className="px-4 py-3 text-center text-[10px] font-semibold text-muted-foreground/40 whitespace-nowrap border-l border-border/30 min-w-[72px]"
+                        >
+                          {shortLabel(label)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((h, hi) => {
+                      const tier = getTier(h.currentMonth.avgPatientsDay);
+
+                      const rows: { icon: React.ReactNode; key: keyof MonthSnapshot; label: string }[] = [
+                        { icon: <Users className="w-2.5 h-2.5 shrink-0" />,         key: "avgPatientsDay", label: "Patients/day" },
+                        { icon: <Mail className="w-2.5 h-2.5 shrink-0" />,          key: "avgEmailsDay",   label: "Emails/day"   },
+                        { icon: <MessageSquare className="w-2.5 h-2.5 shrink-0" />, key: "avgSmsDay",      label: "SMS/day"      },
+                      ];
+
+                      return rows.map((row, ri) => (
+                        <tr
+                          key={`${h.id}-${row.key}`}
+                          className={`
+                            ${ri === 0 ? "border-t border-border/60" : "border-t border-border/20"}
+                            ${hi % 2 === 0 ? "" : "bg-white/[0.01]"}
+                            hover:bg-white/[0.025] transition-colors
+                          `}
+                        >
+                          {/* Hospital name — only on first metric row, spans 3 */}
+                          {ri === 0 ? (
+                            <td
+                              rowSpan={3}
+                              className="px-5 py-2 align-middle font-medium text-foreground whitespace-nowrap sticky left-0 bg-card z-10"
+                            >
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
+                                  <span className="text-[13px]">{h.name}</span>
+                                </div>
+                                <div className="flex items-center gap-2 pl-3">
+                                  <span className={`text-[10px] font-semibold ${tier.color}`}>{tier.label}</span>
+                                  <span className="text-[10px] text-muted-foreground/35">{fmtDays(h.daysSince)}</span>
+                                </div>
+                              </div>
+                            </td>
+                          ) : null}
+
+                          {/* Metric label */}
+                          <td className="px-4 py-1.5 whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 text-muted-foreground/40">
+                              {row.icon}
+                              <span className="text-[10px]">{row.label}</span>
+                            </span>
+                          </td>
+
+                          {/* One cell per past month */}
+                          {h.history.map((snap, mi) => {
+                            const val = snap[row.key] as number;
+                            const hasData = snap.cumPatients > 0 || snap.cumEmails > 0;
+                            return (
+                              <td
+                                key={mi}
+                                className="px-4 py-1.5 text-center tabular-nums border-l border-border/15"
+                              >
+                                {hasData
+                                  ? <span className={val > 0 ? "text-foreground font-medium" : "text-muted-foreground/20"}>
+                                      {fmt(val)}
+                                    </span>
+                                  : <span className="text-muted-foreground/15">·</span>
+                                }
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ));
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer */}
+        <p className="text-[10px] text-muted-foreground/30 pb-2">
+          {tab === "live"
+            ? `Live tab resets on the 1st of each month · Avg/day = total so far ÷ days elapsed · Test automations excluded`
+            : `History = cumulative all-time avg/day as of each month's last day · A rising number = hospital is growing`}
+        </p>
 
       </div>
     </Layout>

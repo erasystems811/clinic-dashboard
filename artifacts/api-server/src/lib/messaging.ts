@@ -115,7 +115,7 @@ export async function deliverWhatsApp(msg: MobileMessage, opts: MessagingOptions
 }
 
 export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
-  await termiiSend(msg, "dnd", opts);
+  await termiiSend(msg, "generic", opts);
 }
 
 export async function deliverMobileMessage(

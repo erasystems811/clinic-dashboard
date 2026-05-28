@@ -1,7 +1,7 @@
 import { ReactNode, useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth";
-import { LayoutDashboard, LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2, Settings2 } from "lucide-react";
+import { LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2, Settings2, BarChart2, Building2, Settings } from "lucide-react";
 import ChangePasswordModal from "@/components/change-password-modal";
 import { post, api } from "@/lib/api";
 
@@ -14,7 +14,7 @@ interface LayoutProps {
 
 export default function Layout({ children, breadcrumb }: LayoutProps) {
   const { logout } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const [showSecurity, setShowSecurity] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [deployState, setDeployState] = useState<DeployState>("idle");
@@ -50,16 +50,25 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
     }
   };
 
+  const navItems = [
+    { icon: BarChart2, label: "Analytics", href: "/" },
+    { icon: Building2, label: "Hospitals", href: "/hospitals" },
+    { icon: Settings, label: "Settings", href: "/settings" },
+  ];
+
+  const isActive = (href: string) =>
+    href === "/" ? location === "/" : location.startsWith(href);
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Top bar */}
-      <header className="border-b border-border flex items-center px-6 gap-4 shrink-0 h-16"
+      <header className="border-b border-border flex items-center px-6 gap-6 shrink-0 h-16"
         style={{ boxShadow: "0 1px 0 0 hsl(43 96% 54% / 0.08)" }}>
 
         {/* Brand */}
         <button
           onClick={() => setLocation("/")}
-          className="flex items-center gap-3 hover:opacity-80 transition shrink-0 group"
+          className="flex items-center gap-3 hover:opacity-80 transition shrink-0"
         >
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-lg"
             style={{ boxShadow: "0 0 12px hsl(43 96% 54% / 0.35)" }}>
@@ -73,6 +82,24 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
           </div>
         </button>
 
+        {/* Primary Nav */}
+        <nav className="flex items-center gap-1">
+          {navItems.map(item => (
+            <button
+              key={item.href}
+              onClick={() => setLocation(item.href)}
+              className={`flex items-center gap-1.5 text-xs px-3 py-2 rounded-md font-semibold transition ${
+                isActive(item.href)
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <item.icon className="w-3.5 h-3.5" />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
         {/* Breadcrumb */}
         {breadcrumb && breadcrumb.length > 0 && (
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0 flex-1">
@@ -80,18 +107,14 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
             {breadcrumb.map((crumb, i) => (
               <span key={i} className="flex items-center gap-1.5 min-w-0">
                 {crumb.href ? (
-                  <button
-                    onClick={() => setLocation(crumb.href!)}
-                    className="hover:text-foreground transition truncate max-w-[140px] sm:max-w-none text-xs"
-                  >
+                  <button onClick={() => setLocation(crumb.href!)}
+                    className="hover:text-foreground transition truncate max-w-[140px] sm:max-w-none text-xs">
                     {crumb.label}
                   </button>
                 ) : (
                   <span className="text-foreground font-semibold text-xs truncate max-w-[140px] sm:max-w-none">{crumb.label}</span>
                 )}
-                {i < breadcrumb.length - 1 && (
-                  <ChevronRight className="w-3 h-3 shrink-0 text-border" />
-                )}
+                {i < breadcrumb.length - 1 && <ChevronRight className="w-3 h-3 shrink-0 text-border" />}
               </span>
             ))}
           </div>
@@ -99,20 +122,12 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
 
         {/* Right actions */}
         <div className="ml-auto flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => setLocation("/")}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition font-medium"
-          >
-            <LayoutDashboard className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Hospitals</span>
-          </button>
-
-          {/* Settings */}
+          {/* Settings/Deploy gear */}
           <div className="relative" ref={settingsRef}>
             <button
               onClick={() => { setShowSettings(s => !s); setConfirmDeploy(false); }}
               className={`p-2 rounded-md transition ${showSettings ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
-              title="Settings"
+              title="Deploy"
             >
               <Settings2 className="w-4 h-4" />
             </button>
@@ -129,9 +144,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
                     Security
                   </button>
                 </div>
-
                 <div className="border-t border-border mx-1" />
-
                 <div className="p-1">
                   {!confirmDeploy ? (
                     <button
@@ -144,28 +157,15 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
                        deployState === "error" ? <XCircle className="w-4 h-4 text-red-400" /> :
                        <Upload className="w-4 h-4" />}
                       <span className={deployState === "done" ? "text-emerald-400" : deployState === "error" ? "text-red-400" : ""}>
-                        {deployState === "pushing" ? "Pushing…" :
-                         deployState === "done" ? "Pushed!" :
-                         deployState === "error" ? "Push failed" :
-                         "Push to GitHub"}
+                        {deployState === "pushing" ? "Pushing…" : deployState === "done" ? "Pushed!" : deployState === "error" ? "Push failed" : "Push to GitHub"}
                       </span>
                     </button>
                   ) : (
                     <div className="px-3 py-3 space-y-3">
-                      <p className="text-xs text-muted-foreground leading-relaxed">This will overwrite GitHub with current Replit code and trigger a Railway deploy.</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">Overwrites GitHub with current Replit code and triggers a Railway deploy.</p>
                       <div className="flex gap-2">
-                        <button
-                          onClick={handleDeploy}
-                          className="flex-1 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition"
-                        >
-                          Deploy
-                        </button>
-                        <button
-                          onClick={() => setConfirmDeploy(false)}
-                          className="flex-1 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition"
-                        >
-                          Cancel
-                        </button>
+                        <button onClick={handleDeploy} className="flex-1 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition">Deploy</button>
+                        <button onClick={() => setConfirmDeploy(false)} className="flex-1 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition">Cancel</button>
                       </div>
                     </div>
                   )}
@@ -176,10 +176,8 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
 
           <div className="w-px h-4 bg-border mx-1" />
 
-          <button
-            onClick={() => logout()}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition font-medium"
-          >
+          <button onClick={() => logout()}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition font-medium">
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sign out</span>
           </button>

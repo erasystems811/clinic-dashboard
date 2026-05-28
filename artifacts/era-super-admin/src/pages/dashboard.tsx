@@ -4,8 +4,7 @@ import Layout from "@/components/layout";
 import { api, Hospital } from "@/lib/api";
 import {
   Building2, Plus, Search, CheckCircle2, XCircle,
-  AlertCircle, Loader2, ChevronRight, RefreshCw, CalendarClock,
-  Database, MessageSquare, Clock, Activity, Mail, Smartphone, Cpu
+  AlertCircle, Loader2, ChevronRight, RefreshCw
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";
 
@@ -21,17 +20,13 @@ function StatusBadge({ status, active }: { status: string; active: boolean }) {
   const style = STATUS_STYLES[label] ?? STATUS_STYLES.inactive;
   return (
     <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded border uppercase tracking-wide ${style}`}>
-      {label === "active" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />}
-      {label === "suspended" && <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />}
-      {label === "trial" && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${label === "active" ? "bg-emerald-400" : label === "suspended" ? "bg-red-400" : "bg-amber-400"}`} />
       {label}
     </span>
   );
 }
 
-type HealthCheck = { name: string; ok: boolean; warning?: boolean; detail: string; balance?: string; flagged?: boolean; flaggedAt?: string };
-
-export default function Dashboard() {
+export default function Hospitals() {
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,26 +35,11 @@ export default function Dashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [, setLocation] = useLocation();
 
-  const [health, setHealth] = useState<{ ok: boolean; anyWarning?: boolean; checks: HealthCheck[] } | null>(null);
-  const [healthLoading, setHealthLoading] = useState(true);
-  const fetchHealth = useCallback(async () => {
-    setHealthLoading(true);
-    try {
-      const data = await api.getHealth();
-      setHealth(data);
-    } catch {
-      setHealth(null);
-    } finally {
-      setHealthLoading(false);
-    }
-  }, []);
-
   const fetchHospitals = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await api.listHospitals();
-      setHospitals(data);
+      setHospitals(await api.listHospitals());
     } catch (e: any) {
       setError(e.message ?? "Failed to load hospitals");
     } finally {
@@ -67,7 +47,7 @@ export default function Dashboard() {
     }
   }, []);
 
-  useEffect(() => { fetchHospitals(); fetchHealth(); }, [fetchHospitals, fetchHealth]);
+  useEffect(() => { fetchHospitals(); }, [fetchHospitals]);
 
   const isSuspended = (h: Hospital) => !h.active || h.subscriptionStatus === "suspended" || h.subscriptionStatus === "inactive";
 
@@ -80,136 +60,30 @@ export default function Dashboard() {
   });
 
   const now = Date.now();
-  const in30days = now + 30 * 24 * 60 * 60 * 1000;
-  const stats = {
-    total: hospitals.length,
-    active: hospitals.filter(h => h.active && h.subscriptionStatus === "active").length,
-    trial: hospitals.filter(h => h.active && h.subscriptionStatus === "trial").length,
-    suspended: hospitals.filter(h => !h.active || h.subscriptionStatus === "inactive").length,
-    expiringSoon: hospitals.filter(h => {
-      if (!h.active || !h.subscriptionExpiresAt) return false;
-      const exp = new Date(h.subscriptionExpiresAt).getTime();
-      return exp > now && exp <= in30days;
-    }).length,
-  };
 
   return (
     <Layout>
-      {/* Page header */}
       <div className="flex items-start justify-between mb-8">
         <div>
           <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1.5">Era Systems Platform</p>
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Hospital Accounts</h1>
-          <p className="text-sm text-muted-foreground mt-1.5">
-            Manage all hospital accounts on the Era platform
-          </p>
+          <p className="text-sm text-muted-foreground mt-1.5">Manage all hospital accounts on the Era platform</p>
         </div>
         <div className="flex items-center gap-2 mt-1">
-          <button
-            onClick={fetchHospitals}
-            className="p-2 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition"
-            title="Refresh"
-          >
+          <button onClick={fetchHospitals}
+            className="p-2 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition" title="Refresh">
             <RefreshCw className="w-4 h-4" />
           </button>
-          <button
-            onClick={() => setShowCreate(true)}
+          <button onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition"
-            style={{ boxShadow: "0 2px 12px hsl(43 96% 54% / 0.25)" }}
-          >
+            style={{ boxShadow: "0 2px 12px hsl(43 96% 54% / 0.25)" }}>
             <Plus className="w-4 h-4" />
             Add Hospital
           </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
-        {[
-          { label: "Total", value: stats.total, icon: Building2, color: "text-primary", accent: false },
-          { label: "Active", value: stats.active, icon: CheckCircle2, color: "text-emerald-400", accent: false },
-          { label: "Trial", value: stats.trial, icon: AlertCircle, color: "text-amber-400", accent: false },
-          { label: "Suspended", value: stats.suspended, icon: XCircle, color: "text-red-400", accent: false },
-          { label: "Expiring", value: stats.expiringSoon, icon: CalendarClock, color: stats.expiringSoon > 0 ? "text-orange-400" : "text-muted-foreground", accent: stats.expiringSoon > 0 },
-        ].map(stat => (
-          <div key={stat.label}
-            className={`rounded-lg border p-4 ${stat.accent ? "border-orange-500/30 bg-orange-500/5" : "border-border bg-card"}`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{stat.label}</span>
-              <stat.icon className={`w-3.5 h-3.5 ${stat.color}`} />
-            </div>
-            <div className="text-3xl font-extrabold text-foreground tracking-tight">{stat.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* System Health */}
-      <div className="rounded-lg border border-border bg-card p-4 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Activity className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-xs font-bold text-foreground uppercase tracking-widest">System Health</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {!healthLoading && health && (
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-widest ${
-                !health.ok
-                  ? "bg-red-500/10 text-red-400 border-red-500/20"
-                  : health.anyWarning
-                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                    : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-              }`}>
-                {!health.ok ? "Degraded" : "Operational"}
-              </span>
-            )}
-            <button onClick={fetchHealth} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition" title="Refresh health">
-              <RefreshCw className={`w-3.5 h-3.5 ${healthLoading ? "animate-spin" : ""}`} />
-            </button>
-          </div>
-        </div>
-        {healthLoading ? (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {[1,2,3,4,5,6].map(i => <div key={i} className="h-14 rounded-md bg-muted animate-pulse" />)}
-          </div>
-        ) : health ? (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {health.checks.map(c => {
-              const Icon = c.name === "Database" ? Database
-                : c.name.startsWith("SMS") ? MessageSquare
-                : c.name.startsWith("WhatsApp") ? Smartphone
-                : c.name.startsWith("Email") ? Mail
-                : c.name === "OpenAI" ? Cpu
-                : Clock;
-              const isWarn = c.ok && c.warning;
-              const tooltip = [c.detail, c.balance].filter(Boolean).join(" · ");
-              return (
-                <div
-                  key={c.name}
-                  title={tooltip}
-                  className={`flex flex-col gap-2 p-2.5 rounded-md border cursor-default select-none ${
-                    !c.ok ? "border-red-500/30 bg-red-500/6"
-                    : isWarn ? "border-amber-500/30 bg-amber-500/6"
-                    : "border-border bg-muted/30"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <Icon className={`w-3.5 h-3.5 ${!c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400"}`} />
-                    <span className={`w-1.5 h-1.5 rounded-full ${!c.ok ? "bg-red-400" : isWarn ? "bg-amber-400" : "bg-emerald-400"}`} />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold text-foreground truncate">{c.name}</p>
-                    {c.balance && <p className={`text-[10px] font-medium ${!c.ok || isWarn ? "text-amber-400" : "text-emerald-400"}`}>{c.balance}</p>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground">Unable to reach health endpoint.</p>
-        )}
-      </div>
-
-      {/* Search + filters */}
+      {/* Search + filter */}
       <div className="flex items-center gap-2 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />

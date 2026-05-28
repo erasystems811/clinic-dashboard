@@ -2,8 +2,10 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "@/contexts/auth";
 import LoginPage from "@/pages/login";
-import Dashboard from "@/pages/dashboard";
+import Analytics from "@/pages/analytics";
+import Hospitals from "@/pages/dashboard";
 import HospitalDetail from "@/pages/hospital-detail";
+import Settings from "@/pages/settings";
 
 const queryClient = new QueryClient();
 
@@ -16,10 +18,12 @@ function AppRoutes() {
 
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
+      <Route path="/" component={Analytics} />
+      <Route path="/hospitals" component={Hospitals} />
       <Route path="/hospitals/:id">
         {(params) => <HospitalDetail id={parseInt(params.id)} />}
       </Route>
+      <Route path="/settings" component={Settings} />
       <Route>
         <div className="flex items-center justify-center min-h-screen text-muted-foreground text-sm">
           404 — Page not found

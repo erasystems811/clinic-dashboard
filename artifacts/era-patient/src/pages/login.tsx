@@ -182,14 +182,14 @@ export default function Login() {
         {!preloadLoading && !preloadError && !preloaded && (
           <>
             {/* Mode Tabs */}
-            <div className="flex rounded-lg border border-border bg-muted/30 p-1 mb-6">
+            <div className="flex rounded-xl border border-border bg-muted/20 p-1 mb-6 gap-1">
               <button
                 type="button"
                 onClick={() => reset("staff")}
-                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
                   mode === "staff"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-blue-900/60 text-blue-200 shadow-sm ring-1 ring-blue-700/40"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
                 Staff Login
@@ -197,10 +197,10 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => reset("admin")}
-                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${
                   mode === "admin"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-primary/15 text-primary shadow-sm ring-1 ring-primary/30"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/40"
                 }`}
               >
                 Admin Login
@@ -246,10 +246,14 @@ export default function Login() {
 
               {error && <p className="text-sm text-destructive">{error}</p>}
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button
+                type="submit"
+                className={`w-full font-semibold ${mode === "staff" ? "bg-blue-700 hover:bg-blue-600 text-white" : ""}`}
+                disabled={loading}
+              >
                 {loading
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in…</>
-                  : "Sign In"}
+                  : mode === "staff" ? "Sign In as Staff" : "Sign In as Admin"}
               </Button>
             </form>
           </>

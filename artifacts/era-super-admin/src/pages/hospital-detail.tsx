@@ -369,7 +369,7 @@ export default function HospitalDetail({ id }: Props) {
 
   if (loading) {
     return (
-      <Layout breadcrumb={[{ label: "Hospitals", href: "/" }, { label: "…" }]}>
+      <Layout breadcrumb={[{ label: "Hospitals", href: "/hospitals" }, { label: "…" }]}>
         <div className="flex items-center justify-center py-24 gap-2 text-muted-foreground">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span className="text-sm">Loading…</span>
@@ -380,11 +380,11 @@ export default function HospitalDetail({ id }: Props) {
 
   if (!hospital) {
     return (
-      <Layout breadcrumb={[{ label: "Hospitals", href: "/" }]}>
+      <Layout breadcrumb={[{ label: "Hospitals", href: "/hospitals" }]}>
         <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
           <AlertCircle className="w-6 h-6" />
           <span className="text-sm">{error || "Hospital not found"}</span>
-          <button onClick={() => setLocation("/")} className="text-xs text-primary hover:underline">Back to dashboard</button>
+          <button onClick={() => setLocation("/hospitals")} className="text-xs text-primary hover:underline">Back to hospitals</button>
         </div>
       </Layout>
     );
@@ -394,11 +394,11 @@ export default function HospitalDetail({ id }: Props) {
     t.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
   return (
-    <Layout breadcrumb={[{ label: "Hospitals", href: "/" }, { label: hospital.name }]}>
+    <Layout breadcrumb={[{ label: "Hospitals", href: "/hospitals" }, { label: hospital.name }]}>
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-4">
-          <button onClick={() => setLocation("/")} className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition">
+          <button onClick={() => setLocation("/hospitals")} className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition">
             <ChevronLeft className="w-4 h-4" />
           </button>
           <div className="flex items-center gap-3">

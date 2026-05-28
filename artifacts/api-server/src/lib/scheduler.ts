@@ -646,11 +646,11 @@ async function runCarePlanEmailDelay() {
     for (const plan of plans) {
       const key = `care_plan_email_${plan.id}`;
 
-      // Resolve integer hospital id
+      // Resolve integer hospital id — care_plans.hospital_id stores hospital_code UUID post-migration
       const { data: hosp } = await supabase
         .from("hospitals")
         .select("id")
-        .eq("username", plan.hospital_id as string)
+        .eq("hospital_code", plan.hospital_id as string)
         .single();
       if (!hosp) continue;
 

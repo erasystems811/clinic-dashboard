@@ -199,79 +199,92 @@ export default function Usage() {
         ══════════════════════════════════════════ */}
         {tab === "live" && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
+            {/* Bar: current month context */}
             <div className="px-5 py-2.5 border-b border-border flex items-center gap-3 bg-white/[0.04]">
               <Zap className="w-3.5 h-3.5 text-primary/60 shrink-0" />
-              <span className="text-xs font-semibold text-foreground">{currentMonthLabel}</span>
-              <span className="text-[11px] text-muted-foreground/40">Day {daysElapsed} · resets on the 1st</span>
+              <span className="text-xs font-semibold text-foreground">
+                {MONTH_SHORT[now.getMonth()]} '{String(now.getFullYear()).slice(2)}
+              </span>
+              <span className="text-[11px] text-muted-foreground/40">Day {daysElapsed} of {new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()} · resets 1st</span>
+              <div className="ml-auto flex items-center gap-4 text-[10px] text-muted-foreground/35">
+                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Patients</span>
+                <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Emails</span>
+                <span className="flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> SMS</span>
+              </div>
             </div>
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full text-xs" style={{ borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <colgroup>
+                  <col style={{ width: 190 }} />
+                  <col style={{ width: 72 }} />
+                  <col style={{ width: 80 }} />
+                  <col /><col /><col />
+                </colgroup>
                 <thead>
-                  <tr className="border-b border-border bg-white/[0.02] text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
-                    <th className="px-5 py-3 text-left">Hospital</th>
-                    <th className="px-4 py-3 text-left">Tier</th>
-                    <th className="px-4 py-3 text-left">Since</th>
-                    <th className="px-4 py-3 text-right">
-                      <span className="inline-flex items-center gap-1 justify-end"><Users className="w-3 h-3" /> Avg / day</span>
+                  <tr style={{ backgroundColor: "rgba(255,255,255,0.04)", borderBottom: "2px solid rgba(255,255,255,0.12)" }}>
+                    <th style={{ padding: "9px 14px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderRight: "3px solid rgba(255,255,255,0.22)" }}>Hospital</th>
+                    <th style={{ padding: "9px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>Tier</th>
+                    <th style={{ padding: "9px 10px", textAlign: "left", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)" }}>Since</th>
+                    <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
+                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>Pts · avg/day</div>
                     </th>
-                    <th className="px-4 py-3 text-right text-muted-foreground/30">Total this month</th>
-                    <th className="px-4 py-3 text-right">
-                      <span className="inline-flex items-center gap-1 justify-end"><Mail className="w-3 h-3" /> Avg / day</span>
+                    <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
+                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>Em · avg/day</div>
                     </th>
-                    <th className="px-4 py-3 text-right text-muted-foreground/30">Total</th>
-                    <th className="px-4 py-3 text-right">
-                      <span className="inline-flex items-center gap-1 justify-end"><MessageSquare className="w-3 h-3" /> Avg / day</span>
+                    <th style={{ padding: "9px 12px", textAlign: "right", fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase", color: "rgba(255,255,255,0.4)", borderLeft: "1px solid rgba(255,255,255,0.10)" }}>
+                      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.28)" }}>SMS · avg/day</div>
                     </th>
-                    <th className="px-4 py-3 text-right text-muted-foreground/30">Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sorted.map(h => {
+                  {sorted.map((h, hi) => {
                     const tier = getTier(h.currentMonth.avgPatientsDay);
                     const cm   = h.currentMonth;
+                    const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
                     return (
-                      <tr key={h.id} className="border-t border-border/50 hover:bg-white/[0.02] transition-colors">
-                        <td className="px-5 py-3 font-medium text-foreground whitespace-nowrap">
-                          <div className="flex items-center gap-2">
+                      <tr
+                        key={h.id}
+                        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: rowBg }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = rowBg)}
+                      >
+                        {/* Hospital — fixed width, truncated */}
+                        <td style={{ padding: "10px 14px", background: hi % 2 === 0 ? "rgb(24,24,24)" : "rgb(26,26,26)", borderRight: "3px solid rgba(255,255,255,0.22)", overflow: "hidden" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
-                            {h.name}
+                            <span style={{ fontSize: 12, fontWeight: 600, color: "rgba(255,255,255,0.88)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`text-xs font-semibold ${tier.color}`}>{tier.label}</span>
+                        {/* Tier */}
+                        <td style={{ padding: "10px 10px" }}>
+                          <span className={`text-[10px] font-semibold ${tier.color}`}>{tier.label}</span>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="text-xs text-muted-foreground/50">{fmtDays(h.daysSince)}</span>
-                          <span className="text-[10px] text-muted-foreground/30 ml-1.5">{fmtDate(h.createdAt)}</span>
+                        {/* Since */}
+                        <td style={{ padding: "10px 10px", overflow: "hidden" }}>
+                          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", whiteSpace: "nowrap" }}>{fmtDays(h.daysSince)}</span>
                         </td>
-                        {/* Patients */}
-                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
-                          <span className={cm.avgPatientsDay > 0 ? "text-foreground" : "text-muted-foreground/25"}>
+                        {/* Patients avg/day */}
+                        <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
+                          <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgPatientsDay > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.15)" }}>
                             {fmt(cm.avgPatientsDay)}
                           </span>
+                          {cm.patients > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.patients} total</div>}
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground/40">
-                          {cm.patients > 0 ? cm.patients : "—"}
-                        </td>
-                        {/* Emails */}
-                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
-                          <span className={cm.avgEmailsDay > 0 ? "text-foreground" : "text-muted-foreground/25"}>
+                        {/* Emails avg/day */}
+                        <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
+                          <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgEmailsDay > 0 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.15)" }}>
                             {fmt(cm.avgEmailsDay)}
                           </span>
+                          {cm.emails > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.emails} total</div>}
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground/40">
-                          {cm.emails > 0 ? cm.emails : "—"}
-                        </td>
-                        {/* SMS */}
-                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
-                          <span className={cm.avgSmsDay > 0 ? "text-foreground" : "text-muted-foreground/25"}>
+                        {/* SMS avg/day */}
+                        <td style={{ padding: "10px 12px", textAlign: "right", borderLeft: "1px solid rgba(255,255,255,0.07)" }}>
+                          <span className="tabular-nums font-semibold" style={{ fontSize: 13, color: cm.avgSmsDay > 0 ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.15)" }}>
                             {fmt(cm.avgSmsDay)}
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground/40">
-                          {cm.sms > 0 ? cm.sms : "—"}
+                          {cm.sms > 0 && <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", marginTop: 1 }}>{cm.sms} total</div>}
                         </td>
                       </tr>
                     );

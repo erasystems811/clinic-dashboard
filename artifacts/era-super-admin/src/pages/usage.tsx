@@ -105,20 +105,26 @@ export default function Usage() {
   const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const now = new Date();
   const COLS_PER_PAGE = 6;
+  const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
 
-  // windowOffset = how many months ahead of "6 months ago" the window starts.
-  // Default 0 = show the most recent 6 completed months ending last month.
-  // Negative = further in the past. Positive = into the future.
-  const [windowOffset, setWindowOffset] = useState(0);
+  // windowOffset: default COLS_PER_PAGE so May 2026 (current month) is column 0.
+  // Negative = shift left into the past. Positive = shift right into the future.
+  const [windowOffset, setWindowOffset] = useState(COLS_PER_PAGE);
 
-  // Generate the 6 visible month labels from today's position + offset
-  // Index 0 = (now - 6 + windowOffset) months, up to index 5
+  // Visible month labels: starts at (now - COLS_PER_PAGE + windowOffset)
   const visibleMonths: string[] = Array.from({ length: COLS_PER_PAGE }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - COLS_PER_PAGE + windowOffset + i, 1);
     return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
   });
 
-  const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+  // A month is "future" if it's after the current month
+  const isFutureMonth = (label: string) => {
+    const [mName, yr] = label.split(" ");
+    const mIdx = MONTH_NAMES.indexOf(mName);
+    const y = parseInt(yr);
+    return y > now.getFullYear() || (y === now.getFullYear() && mIdx > now.getMonth());
+  };
+  const isCurrentMonth = (label: string) => label === currentMonthLabel;
   const daysElapsed = stats[0]?.currentMonth.daysElapsed ?? now.getDate();
 
   return (
@@ -320,32 +326,53 @@ export default function Usage() {
                   {visibleMonths.map(m => <col key={m} />)}
                 </colgroup>
                 <thead>
-                  <tr style={{ backgroundColor: "rgba(255,255,255,0.06)", borderBottom: "2px solid rgba(255,255,255,0.12)" }}>
+                  <tr style={{ backgroundColor: "rgba(255,255,255,0.06)", borderBottom: "2px solid rgba(255,255,255,0.16)" }}>
                     <th
-                      className="text-left whitespace-nowrap"
-                      style={{ padding: "10px 20px", background: "rgba(30,30,30,0.98)", borderRight: "2px solid rgba(255,255,255,0.12)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)" }}
+                      className="text-left"
+                      style={{ padding: "10px 14px", width: 180, maxWidth: 180, background: "rgba(24,24,24,1)", borderRight: "3px solid rgba(255,255,255,0.22)", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.45)" }}
                     >
                       Hospital
                     </th>
-                    {visibleMonths.map(label => (
-                      <th
-                        key={label}
-                        className="whitespace-nowrap text-center"
-                        style={{ padding: "10px 8px", borderLeft: "1px solid rgba(255,255,255,0.10)", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: "0.02em" }}
-                      >
-                        {label}
-                      </th>
-                    ))}
+                    {visibleMonths.map(label => {
+                      const isCur = isCurrentMonth(label);
+                      const isFut = isFutureMonth(label);
+                      return (
+                        <th
+                          key={label}
+                          className="text-center"
+                          style={{
+                            padding: "10px 6px",
+                            borderLeft: isCur ? "3px solid rgba(99,200,255,0.55)" : "1px solid rgba(255,255,255,0.10)",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            letterSpacing: "0.02em",
+                            color: isFut ? "rgba(255,255,255,0.25)" : isCur ? "rgba(130,210,255,0.9)" : "rgba(255,255,255,0.65)",
+                            backgroundColor: isCur ? "rgba(99,200,255,0.05)" : "transparent",
+                            overflow: "hidden",
+                            whiteSpace: "nowrap",
+                            textOverflow: "ellipsis",
+                            maxWidth: 90,
+                          }}
+                        >
+                          {/* Abbreviate: "May 2026" → "May '26" */}
+                          {label.replace(/\s(\d{4})$/, (_, y) => ` '${y.slice(2)}`)}
+                        </th>
+                      );
+                    })}
                   </tr>
-                  <tr style={{ backgroundColor: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)" }}>
-                    <th style={{ background: "rgba(30,30,30,0.98)", borderRight: "2px solid rgba(255,255,255,0.12)", padding: "4px 20px" }} />
-                    {visibleMonths.map(label => (
-                      <th key={label} style={{ borderLeft: "1px solid rgba(255,255,255,0.10)", padding: "4px 0" }}>
-                        <div className="flex justify-around px-2" style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.3)", letterSpacing: "0.04em" }}>
-                          <span>Pts</span><span>Em</span><span>SMS</span>
-                        </div>
-                      </th>
-                    ))}
+                  <tr style={{ backgroundColor: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.10)" }}>
+                    <th style={{ background: "rgba(24,24,24,1)", borderRight: "3px solid rgba(255,255,255,0.22)", padding: "4px 14px" }} />
+                    {visibleMonths.map(label => {
+                      const isCur = isCurrentMonth(label);
+                      const isFut = isFutureMonth(label);
+                      return (
+                        <th key={label} style={{ borderLeft: isCur ? "3px solid rgba(99,200,255,0.55)" : "1px solid rgba(255,255,255,0.10)", padding: "4px 0", backgroundColor: isCur ? "rgba(99,200,255,0.04)" : "transparent" }}>
+                          <div className="flex justify-around px-2" style={{ fontSize: 9, fontWeight: 600, color: isFut ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.28)", letterSpacing: "0.04em" }}>
+                            <span>Pts</span><span>Em</span><span>SMS</span>
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -362,17 +389,17 @@ export default function Usage() {
                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = rowBg)}
                       >
+                        {/* Hospital name — fixed width, truncated */}
                         <td
-                          className="whitespace-nowrap"
-                          style={{ padding: "10px 20px", background: hi % 2 === 0 ? "rgb(24,24,24)" : "rgb(27,27,27)", borderRight: "2px solid rgba(255,255,255,0.12)" }}
+                          style={{ padding: "9px 14px", width: 180, maxWidth: 180, background: hi % 2 === 0 ? "rgb(24,24,24)" : "rgb(26,26,26)", borderRight: "3px solid rgba(255,255,255,0.22)", overflow: "hidden" }}
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5" style={{ overflow: "hidden" }}>
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
-                            <span className="font-semibold text-foreground" style={{ fontSize: 13 }}>{h.name}</span>
+                            <span className="font-semibold text-foreground" style={{ fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5 pl-3.5">
-                            <span className={`font-semibold ${tier.color}`} style={{ fontSize: 10 }}>{tier.label}</span>
-                            <span className="text-muted-foreground/35" style={{ fontSize: 10 }}>{fmtDays(h.daysSince)}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5 pl-3" style={{ overflow: "hidden" }}>
+                            <span className={`font-semibold shrink-0 ${tier.color}`} style={{ fontSize: 9 }}>{tier.label}</span>
+                            <span className="text-muted-foreground/35 shrink-0" style={{ fontSize: 9 }}>{fmtDays(h.daysSince)}</span>
                           </div>
                         </td>
                         {windowSnaps.map((snap, mi) => {

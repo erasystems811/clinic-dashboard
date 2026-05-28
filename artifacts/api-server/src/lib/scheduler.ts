@@ -43,8 +43,7 @@ async function runAppointmentReminders() {
       const patient = (appt as Record<string, unknown>).patients as Record<string, unknown> | null;
       if (!patient || !patient.email) continue;
 
-      const hospitalUsername = patient.hospital_id as string;
-      const { data: hospital } = await supabase.from("hospitals").select("id").eq("username", hospitalUsername).single();
+      const { data: hospital } = await supabase.from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).single();
       if (!hospital) continue;
 
       const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();

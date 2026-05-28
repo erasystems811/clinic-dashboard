@@ -136,6 +136,9 @@ export default function HospitalDetail({ id }: Props) {
   const [testSmsTo, setTestSmsTo] = useState("");
   const [testSmsSending, setTestSmsSending] = useState(false);
   const [testSmsResult, setTestSmsResult] = useState<{ ok: boolean; detail: string } | null>(null);
+  const [testEmailTo, setTestEmailTo] = useState("");
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
   // CRM — super admin's own records for this account
   const [contactEmail, setContactEmail] = useState("");
@@ -790,6 +793,48 @@ export default function HospitalDetail({ id }: Props) {
             {testSmsResult && (
               <p className={`text-xs rounded px-2 py-1.5 font-mono break-all ${testSmsResult.ok ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
                 {testSmsResult.detail}
+              </p>
+            )}
+          </div>
+
+          {/* Test Email */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Test Email Delivery</p>
+            <p className="text-xs text-muted-foreground">Send a test email to any address to verify Resend is configured correctly.</p>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={testEmailTo}
+                onChange={e => { setTestEmailTo(e.target.value); setTestEmailResult(null); }}
+                placeholder="e.g. you@example.com"
+                className={inputCls() + " flex-1"}
+              />
+              <button
+                type="button"
+                disabled={testEmailSending || !testEmailTo.trim()}
+                onClick={async () => {
+                  setTestEmailSending(true);
+                  setTestEmailResult(null);
+                  try {
+                    const r = await api.testEmail(testEmailTo.trim());
+                    setTestEmailResult(r.ok
+                      ? { ok: true,  msg: `Sent ✓ — from: ${r.from}` }
+                      : { ok: false, msg: r.error ?? "Unknown error" }
+                    );
+                  } catch (e) {
+                    setTestEmailResult({ ok: false, msg: e instanceof Error ? e.message : "Unknown error" });
+                  } finally {
+                    setTestEmailSending(false);
+                  }
+                }}
+                className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 whitespace-nowrap hover:bg-primary/90 transition"
+              >
+                {testEmailSending ? "Sending…" : "Send Test"}
+              </button>
+            </div>
+            {testEmailResult && (
+              <p className={`text-xs rounded px-2 py-1.5 font-mono break-all ${testEmailResult.ok ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+                {testEmailResult.msg}
               </p>
             )}
           </div>

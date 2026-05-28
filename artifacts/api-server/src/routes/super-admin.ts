@@ -1025,4 +1025,32 @@ router.post("/super-admin/test-sms", requireSuperAdmin, async (req, res): Promis
   res.status(200).json(result);
 });
 
+router.post("/super-admin/test-email", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { to } = req.body ?? {};
+  if (!to || typeof to !== "string" || !to.includes("@")) {
+    res.status(400).json({ error: "Missing or invalid 'to' email address" });
+    return;
+  }
+  const fromEmail = process.env.PLATFORM_FROM_EMAIL || "onboarding@resend.dev";
+  const from = `Era Systems <${fromEmail}>`;
+  try {
+    await sendEmail({
+      to,
+      from,
+      subject: "Era Platform — Email Delivery Test",
+      html: wrapHtml(
+        `<p style="font-size:16px;font-weight:600;color:#e6edf3;margin:0 0 12px">Email delivery confirmed ✓</p>
+         <p>This is a test message from your Era Systems platform. If you received this, your Resend configuration is working correctly.</p>
+         <p style="margin-top:16px;color:#8b949e;font-size:13px">Sent from: <strong style="color:#c9d1d9">${fromEmail}</strong></p>`,
+        "Era Systems"
+      ),
+      text: `Era Platform email test — if you received this, Resend is configured correctly. Sent from: ${fromEmail}`,
+    });
+    res.json({ ok: true, to, from });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ ok: false, error: msg });
+  }
+});
+
 export default router;

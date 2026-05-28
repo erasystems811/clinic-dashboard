@@ -183,4 +183,7 @@ export const api = {
 
   testSms: (to: string, senderId?: string) =>
     post<{ ok: boolean; detail: string }>("/super-admin/test-sms", { to, senderId }),
+
+  testEmail: (to: string) =>
+    post<{ ok: boolean; to?: string; from?: string; error?: string }>("/super-admin/test-email", { to }),
 };

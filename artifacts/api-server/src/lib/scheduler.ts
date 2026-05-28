@@ -351,14 +351,19 @@ async function runFeedbackEmails() {
       // Build the hospital's permanent general feedback link
       const feedbackUrl = `${APP_BASE_URL}/feedback/h/${hospital.feedback_slug}`;
 
-      const { data: seenPatients } = await supabase
-        .from("queue")
-        .select("patient_id, patient_name")
-        .eq("hospital_id", hospital.hospital_code)
-        .gte("added_at", `${targetDate}T00:00:00Z`)
-        .lte("added_at", `${targetDate}T23:59:59Z`);
+      // Query activity log — queue rows are deleted after patients are seen,
+      // so by noon they're gone. The activity table is the permanent audit log.
+      // Covers: dequeued (outpatient pass-through), care_plan_added, treatment_plan_logged.
+      const { data: seenActivity } = await supabase
+        .from("activity")
+        .select("patient_id")
+        .in("type", ["dequeued", "care_plan_added", "treatment_plan_logged"])
+        .eq("hospital_id", hm.hospital_id)
+        .gte("created_at", `${targetDate}T00:00:00Z`)
+        .lte("created_at", `${targetDate}T23:59:59Z`)
+        .not("patient_id", "is", null);
 
-      const patientIds = [...new Set((seenPatients ?? []).map((q: Record<string, unknown>) => q.patient_id as number))];
+      const patientIds = [...new Set((seenActivity ?? []).map((a: Record<string, unknown>) => a.patient_id as number))];
 
       for (const patientId of patientIds) {
         const { data: patient } = await supabase

@@ -8,9 +8,9 @@ import {
 
 interface MonthSnapshot {
   label: string;
-  cumPatients: number;
-  cumEmails: number;
-  cumSms: number;
+  patients: number;
+  emails: number;
+  sms: number;
   avgPatientsDay: number;
   avgEmailsDay: number;
   avgSmsDay: number;
@@ -272,7 +272,7 @@ export default function Usage() {
             <div className="px-5 py-2.5 border-b border-border flex items-center gap-3 bg-white/[0.04]">
               <History className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
               <span className="text-xs font-semibold text-foreground">12-month history</span>
-              <span className="text-[11px] text-muted-foreground/40">Cumulative avg/day as of each month-end</span>
+              <span className="text-[11px] text-muted-foreground/40">Each month's own avg/day — same as Live, snapshotted at month-end</span>
             </div>
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
@@ -347,7 +347,7 @@ export default function Usage() {
                           {/* One cell per past month */}
                           {h.history.map((snap, mi) => {
                             const val = snap[row.key] as number;
-                            const hasData = snap.cumPatients > 0 || snap.cumEmails > 0;
+                            const hasData = snap.patients > 0 || snap.emails > 0 || snap.sms > 0;
                             return (
                               <td
                                 key={mi}

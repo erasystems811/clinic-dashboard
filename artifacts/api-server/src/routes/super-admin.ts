@@ -1244,8 +1244,8 @@ router.post("/super-admin/test-email", requireSuperAdmin, async (req, res): Prom
 
 // ── GET /super-admin/usage-stats ─────────────────────────────────────────────
 // Current-month rolling averages (patients/day, emails/day, sms/day) — resets 1st.
-// History: cumulative all-time average snapshots AT THE END of each past month,
-// so you can see how the running average has evolved over the last 12 months.
+// History: each past month's own avg/day (events in that month ÷ days in that month),
+// mirroring exactly what the live counter showed at month-end before it reset.
 router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   const now      = new Date();
   const nowMs    = now.getTime();
@@ -1258,10 +1258,15 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   function monthLabel(y: number, m: number) { return `${MONTH_NAMES[m]} ${y}`; }
   function endOfMonth(y: number, m: number) { return new Date(y, m + 1, 0, 23, 59, 59, 999).getTime(); }
 
-  // 12 completed month endpoints: [{ year, month(0-indexed), endMs, label }]
+  // 12 completed months: each has a startMs, endMs (exclusive = next month start), daysInMonth, label
   const completedMonths = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - 12 + i, 1);
-    return { year: d.getFullYear(), month: d.getMonth(), endMs: endOfMonth(d.getFullYear(), d.getMonth()), label: monthLabel(d.getFullYear(), d.getMonth()) };
+    const y = d.getFullYear(), m = d.getMonth();
+    const startMs = d.getTime();
+    const endMs   = new Date(y, m + 1, 0, 23, 59, 59, 999).getTime(); // last ms of the month
+    const nextMs  = new Date(y, m + 1, 1).getTime();                  // exclusive upper bound for counting
+    const daysInMonth = new Date(y, m + 1, 0).getDate();              // 28/29/30/31
+    return { y, m, startMs, endMs, nextMs, daysInMonth, label: monthLabel(y, m) };
   });
 
   // Fetch all data in parallel (all-time, no date cutoff)
@@ -1337,26 +1342,36 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
     const cEmails   = allEmails   - beforeEmail;
     const cSms      = allSms      - beforeSms;
 
-    // History: cumulative all-time average AS OF end of each completed month
-    const history = completedMonths
-      .filter(cm => cm.endMs > createdAtMs) // skip months before hospital existed
-      .map(cm => {
-        const daysToEndOfMonth = Math.max(1, (cm.endMs - createdAtMs) / 86_400_000);
-        const cumPatients = countUpTo(hq, cm.endMs);
-        const cumEmails   = countUpTo(he, cm.endMs);
-        const cumSms      = countUpTo(hs, cm.endMs);
-        return {
-          label:           cm.label,
-          // Cumulative totals as of end of this month
-          cumPatients,
-          cumEmails,
-          cumSms,
-          // All-time running average as of end of this month
-          avgPatientsDay:  r1(cumPatients / daysToEndOfMonth),
-          avgEmailsDay:    r1(cumEmails   / daysToEndOfMonth),
-          avgSmsDay:       r1(cumSms      / daysToEndOfMonth),
-        };
-      });
+    // History: per-month avg/day — events IN that month ÷ days in that month
+    // This is exactly what the Live tab would have shown at month-end before resetting.
+    const history = completedMonths.map(cm => {
+      // Hospital didn't exist yet → blank slot (keeps all 12 columns aligned)
+      if (cm.endMs <= createdAtMs) {
+        return { label: cm.label, patients: 0, emails: 0, sms: 0, avgPatientsDay: 0, avgEmailsDay: 0, avgSmsDay: 0 };
+      }
+      // Count events strictly within this calendar month
+      const beforeStart = countUpTo(hq, cm.startMs - 1);
+      const atEnd       = countUpTo(hq, cm.endMs);
+      const monthPatients = atEnd - beforeStart;
+
+      const eBeforeStart = countUpTo(he, cm.startMs - 1);
+      const eAtEnd       = countUpTo(he, cm.endMs);
+      const monthEmails  = eAtEnd - eBeforeStart;
+
+      const sBeforeStart = countUpTo(hs, cm.startMs - 1);
+      const sAtEnd       = countUpTo(hs, cm.endMs);
+      const monthSms     = sAtEnd - sBeforeStart;
+
+      return {
+        label:          cm.label,
+        patients:       monthPatients,
+        emails:         monthEmails,
+        sms:            monthSms,
+        avgPatientsDay: r1(monthPatients / cm.daysInMonth),
+        avgEmailsDay:   r1(monthEmails   / cm.daysInMonth),
+        avgSmsDay:      r1(monthSms      / cm.daysInMonth),
+      };
+    });
 
     return {
       id:           h.id,

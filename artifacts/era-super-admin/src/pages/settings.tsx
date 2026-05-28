@@ -263,6 +263,7 @@ const AUTOMATION_GROUPS: AutomationGroup[] = [
       { id: "queue_next_in_line", name: "Next In Line Alert", purpose: "Gives the patient time to get ready before their turn, reducing calling delays and keeping the queue moving.", trigger: "Patient reaches 2nd position in the queue", channel: "sms/whatsapp", icon: BellRing },
       { id: "queue_your_turn", name: "It's Your Turn", purpose: "Calls the patient in when the doctor is ready, eliminating the need for staff to physically search the waiting area.", trigger: "Receptionist taps 'Call Patient' on the queue screen", channel: "sms/whatsapp", icon: BellRing },
       { id: "care_plan_notification", name: "Care Plan Ready", purpose: "Immediately notifies the patient the moment their care plan is saved, directing them to check their email for full details.", trigger: "Nurse saves a care plan in the nurse station", channel: "sms/whatsapp", icon: UserPlus },
+      { id: "appointment_confirmation", name: "Appointment Confirmation", purpose: "Confirms the appointment to the patient the moment it is booked, so they have the date and time on record immediately.", trigger: "Receptionist books an appointment for a patient from the appointments screen", channel: "email", icon: Calendar },
     ],
   },
   {

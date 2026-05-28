@@ -86,14 +86,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
             <>
               <button onClick={() => setLocation("/")} className="flex items-center gap-2.5 flex-1 min-w-0 hover:opacity-80 transition group">
                 {/* Mark */}
-                <div className="relative w-6 h-6 shrink-0 flex items-center justify-center border border-[hsl(43_70%_62%/0.3)]"
-                  style={{ background: "hsl(222 20% 4%)" }}>
-                  <span className="font-black text-[10px]" style={{ color: "hsl(43 65% 58%)" }}>E</span>
-                  <span className="absolute -top-px -left-px w-1.5 h-px" style={{ background: "hsl(43 65% 58% / 0.7)" }} />
-                  <span className="absolute -top-px -left-px w-px h-1.5" style={{ background: "hsl(43 65% 58% / 0.7)" }} />
-                  <span className="absolute -bottom-px -right-px w-1.5 h-px" style={{ background: "hsl(43 65% 58% / 0.7)" }} />
-                  <span className="absolute -bottom-px -right-px w-px h-1.5" style={{ background: "hsl(43 65% 58% / 0.7)" }} />
-                </div>
+                <img src={`${import.meta.env.BASE_URL}era-logo.png`} alt="Era Systems" className="w-8 h-8 shrink-0 object-contain" />
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold text-foreground tracking-[0.15em] uppercase leading-tight">Era Systems</p>
                   <p className="text-[8px] font-medium text-muted-foreground/40 uppercase tracking-[0.2em] leading-tight">Control Room</p>
@@ -105,10 +98,8 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
               </button>
             </>
           ) : (
-            <button onClick={toggleOpen} title="Expand"
-              className="relative w-6 h-6 flex items-center justify-center border border-[hsl(43_70%_62%/0.3)] hover:opacity-80 transition"
-              style={{ background: "hsl(222 20% 4%)" }}>
-              <span className="font-black text-[10px]" style={{ color: "hsl(43 65% 58%)" }}>E</span>
+            <button onClick={toggleOpen} title="Expand" className="hover:opacity-80 transition">
+              <img src={`${import.meta.env.BASE_URL}era-logo.png`} alt="Era Systems" className="w-8 h-8 object-contain" />
             </button>
           )}
         </div>

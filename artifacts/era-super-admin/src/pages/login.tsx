@@ -67,16 +67,8 @@ export default function LoginPage() {
 
         {/* Brand mark */}
         <div className="flex flex-col items-center mb-8">
-          <div className="relative mb-4">
-            <div className="w-10 h-10 flex items-center justify-center border border-[hsl(43_70%_62%/0.3)]"
-              style={{ background: "hsl(224 22% 4%)", boxShadow: "0 0 0 1px hsl(43 70% 62% / 0.15), inset 0 0 20px hsl(43 70% 62% / 0.07)" }}>
-              <span className="font-black text-sm tracking-tighter" style={{ color: "hsl(43 65% 58%)" }}>E</span>
-            </div>
-            {/* Corner accents */}
-            <span className="absolute -top-px -left-px w-2 h-px" style={{ background: "hsl(43 65% 58% / 0.6)" }} />
-            <span className="absolute -top-px -left-px w-px h-2" style={{ background: "hsl(43 65% 58% / 0.6)" }} />
-            <span className="absolute -bottom-px -right-px w-2 h-px" style={{ background: "hsl(43 65% 58% / 0.6)" }} />
-            <span className="absolute -bottom-px -right-px w-px h-2" style={{ background: "hsl(43 65% 58% / 0.6)" }} />
+          <div className="mb-2">
+            <img src={`${import.meta.env.BASE_URL}era-logo.png`} alt="Era Systems" className="w-24 h-24 object-contain" />
           </div>
 
           <div className="text-center space-y-1">

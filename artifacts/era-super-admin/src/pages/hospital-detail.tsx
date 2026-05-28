@@ -98,7 +98,7 @@ export default function HospitalDetail({ id }: Props) {
   const [modules, setModules] = useState<HospitalModules | null>(null);
   const [automations, setAutomations] = useState<AutomationLog[]>([]);
   const [autoLoading, setAutoLoading] = useState(false);
-  const [autoFilter, setAutoFilter] = useState<"all" | "failed" | "queued" | "sent">("all");
+  const [autoFilter, setAutoFilter] = useState<"all" | "failed" | "sent">("all");
   const [retryingId, setRetryingId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -959,7 +959,7 @@ export default function HospitalDetail({ id }: Props) {
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-                {(["all", "failed", "queued", "sent"] as const).map(f => (
+                {(["all", "failed", "sent"] as const).map(f => (
                   <button
                     key={f}
                     type="button"
@@ -1046,7 +1046,6 @@ export default function HospitalDetail({ id }: Props) {
             <span className="flex items-center gap-1"><Filter className="w-3 h-3" />Showing {automations.length} records</span>
             <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-400" />Sent</span>
             <span className="flex items-center gap-1"><XCircle className="w-3 h-3 text-red-400" />Failed</span>
-            <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-amber-400" />In Progress</span>
           </div>
         </div>
       )}

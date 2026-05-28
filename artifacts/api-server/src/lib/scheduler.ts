@@ -603,11 +603,6 @@ export function startScheduler() {
     await checkSubscriptionExpirations();
   });
 
-  // Daily at 8am: birthday emails
-  cron.schedule("0 8 * * *", async () => {
-    await runBirthdayEmails();
-  });
-
   // Every hour: care plan reminders — time-based (General Outpatient + all departments)
   cron.schedule("0 * * * *", async () => {
     await runCarePlanRemindersHourly();

@@ -1147,7 +1147,6 @@ router.post("/super-admin/automation-log/:id/retry", requireSuperAdmin, async (r
     return;
   }
 
-  const patientId = log.patient_id as number | null;
   if (!patientId) {
     res.status(400).json({ ok: false, message: "No patient linked to this log entry — cannot retry." });
     return;

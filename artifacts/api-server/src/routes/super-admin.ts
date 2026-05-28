@@ -1270,13 +1270,15 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   });
 
   // Fetch all data in parallel (all-time, no date cutoff)
-  const [hospitalsRes, allQueueRes, allAutoRes] = await Promise.all([
+  const [hospitalsRes, allQueueRes, allAutoRes, allPatientsRes] = await Promise.all([
     supabase.from("hospitals").select("id, name, active, hospital_code, created_at").order("name"),
     // All queue visits ever — need added_at timestamp for cumulative calc
     supabase.from("queue").select("hospital_id, added_at").limit(500000),
     // All automation_log ever — need created_at and channel
     supabase.from("automation_log").select("hospital_id, channel, created_at")
       .neq("patient_id", -1).limit(500000),
+    // Total registered patients per hospital (hospital_id = hospital_code UUID)
+    supabase.from("patients").select("hospital_id").limit(500000),
   ]);
 
   const hospitals = hospitalsRes.data ?? [];
@@ -1285,6 +1287,12 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   const codeToId = new Map<string, number>();
   for (const h of hospitals) {
     if (h.hospital_code) codeToId.set(h.hospital_code, h.id);
+  }
+
+  // Total registered patients per hospital (keyed by hospital_code UUID)
+  const patientCountByCode = new Map<string, number>();
+  for (const p of (allPatientsRes.data ?? []) as { hospital_id: string }[]) {
+    if (p.hospital_id) patientCountByCode.set(p.hospital_id, (patientCountByCode.get(p.hospital_id) ?? 0) + 1);
   }
 
   // Build per-hospital event lists (sorted timestamps for efficient cumulative scan)
@@ -1389,12 +1397,15 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
       };
     });
 
+    const totalPatients = patientCountByCode.get(h.hospital_code ?? "") ?? 0;
+
     return {
-      id:           h.id,
-      name:         h.name,
-      active:       h.active,
-      createdAt:    h.created_at as string | null,
-      daysSince:    Math.floor(daysSince),
+      id:             h.id,
+      name:           h.name,
+      active:         h.active,
+      createdAt:      h.created_at as string | null,
+      daysSince:      Math.floor(daysSince),
+      totalPatients,
       currentMonth: {
         label:          currentMonthLabel,
         daysElapsed:    effectiveDaysThisMonth,

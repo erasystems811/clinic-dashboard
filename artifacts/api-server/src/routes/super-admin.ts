@@ -795,6 +795,64 @@ router.get("/super-admin/health", requireSuperAdmin, async (_req, res): Promise<
     }
   }
 
+  // 4. OpenAI — try billing endpoint for credit balance, fall back to key validity
+  const openAIKey = process.env.OPENAI_API_KEY;
+  if (openAIKey) {
+    try {
+      const billingRes = await fetch("https://api.openai.com/v1/dashboard/billing/credit_grants", {
+        headers: { Authorization: `Bearer ${openAIKey}` },
+      });
+      if (billingRes.ok) {
+        const billing = await billingRes.json() as { total_available?: number };
+        const available = billing.total_available ?? 0;
+        checks.push({
+          name: "OpenAI",
+          ok: available > 1,
+          detail: available > 1 ? "Credits available" : "Credits low or exhausted",
+          balance: `$${available.toFixed(2)} left`,
+        });
+      } else {
+        // Billing API not accessible — fall back to key validity via models list
+        const modelsRes = await fetch("https://api.openai.com/v1/models", {
+          headers: { Authorization: `Bearer ${openAIKey}` },
+        });
+        checks.push({ name: "OpenAI", ok: modelsRes.ok, detail: modelsRes.ok ? "Key valid" : `Key error (${modelsRes.status})` });
+      }
+    } catch (e) {
+      checks.push({ name: "OpenAI", ok: false, detail: e instanceof Error ? e.message : "OpenAI unreachable" });
+    }
+  } else {
+    checks.push({ name: "OpenAI", ok: !isProd, warning: !isProd, detail: isProd ? "OPENAI_API_KEY not set" : "Not set in dev — on Railway" });
+  }
+
+  // 5. Scheduler — check automation_log for last activity
+  {
+    const schedulerEnabled = process.env.ENABLE_SCHEDULER === "true";
+    const { data: lastLog } = await supabase
+      .from("automation_log")
+      .select("created_at")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (lastLog) {
+      const hoursAgo = (Date.now() - new Date(lastLog.created_at as string).getTime()) / (1000 * 60 * 60);
+      const ok = hoursAgo < 25;
+      checks.push({
+        name: "Scheduler",
+        ok,
+        detail: ok ? `Last ran ${Math.round(hoursAgo)}h ago` : `Silent for ${Math.round(hoursAgo)}h`,
+      });
+    } else {
+      checks.push({
+        name: "Scheduler",
+        ok: !schedulerEnabled,
+        warning: !schedulerEnabled,
+        detail: schedulerEnabled ? "No automations have run yet" : "No activity yet",
+      });
+    }
+  }
+
   // Merge manual flags — overrides auto state to red
   for (const c of checks) {
     const flaggedAt = flagMap.get(c.name);

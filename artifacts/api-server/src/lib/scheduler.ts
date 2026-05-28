@@ -858,11 +858,11 @@ async function runCarePlanRemindersHourly() {
             }
 
           } else if (treatmentType === "combination") {
-            // Combination — ONE combined message 2h before, covering both med + hospital
-            const allSlots = new Set([...medTiming, ...hospTiming]);
-            for (const slot of allSlots) {
-              // Reference time: prefer hospital time (more time-sensitive), fall back to med time
-              const refTime = hospTimingTimes[slot] || medTimingTimes[slot];
+            // Combination — ONE combined message 2h before the single appointment time
+            // (stored under medicationTiming/medicationTimingTimes; hospTiming kept for legacy compat)
+            const comboSlots = medTiming.length > 0 ? medTiming : [...new Set([...medTiming, ...hospTiming])];
+            for (const slot of comboSlots) {
+              const refTime = medTimingTimes[slot] || hospTimingTimes[slot];
               if (!refTime) continue;
               const [hh, mm] = refTime.split(":").map(Number);
               const visitAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
@@ -870,11 +870,8 @@ async function runCarePlanRemindersHourly() {
               if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
               const key = `genout_combo_${plan.id}_${slot}_${today}`;
               if (await checkSentLog(h.id, key)) continue;
-              const types: Array<"med" | "hosp"> = [];
-              if (medTiming.includes(slot)) types.push("med");
-              if (hospTiming.includes(slot)) types.push("hosp");
-              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, types, dept);
-              log(`General Outpatient combination reminder (2h before ${refTime}) → patient ${patient.id} slot=${slot} types=${types.join("+")}`);
+              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med", "hosp"], dept);
+              log(`General Outpatient combination reminder (2h before ${refTime}) → patient ${patient.id} slot=${slot}`);
             }
           }
         } else {

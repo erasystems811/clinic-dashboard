@@ -687,54 +687,78 @@ function DepartmentTemplate({
             ))}
           </div>
         </div>
-        {(td.treatmentType === "medication_only" || td.treatmentType === "combination") && (
+        {td.treatmentType === "medication_only" && (
           <div className="space-y-2 p-3 rounded-lg border border-border bg-background">
             <p className="text-sm font-medium">Medication Timing</p>
-            <p className="text-xs text-muted-foreground">Select times — reminder sent 2 hours before each.</p>
+            <p className="text-xs text-muted-foreground">Enter the time for each dose — reminder fires at the exact time.</p>
             <div className="space-y-2">
               {TIMING_OPTIONS.map(t => {
                 const checked = (td.medicationTiming ?? []).includes(t.value);
                 return (
                   <div key={t.value} className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 cursor-pointer text-sm w-28 shrink-0">
-                      <input type="checkbox" className="w-4 h-4 accent-primary"
-                        checked={checked}
-                        onChange={() => toggleArr("medicationTiming", t.value)} />
-                      {t.label}
-                    </label>
-                    {checked && (
-                      <input type="time"
-                        value={(td.medicationTimingTimes ?? {})[t.value] ?? ""}
-                        onChange={e => setTimingTime("medicationTimingTimes", t.value, e.target.value)}
-                        className={inputCls + " w-32"} />
-                    )}
+                    <span className="text-sm w-28 shrink-0 text-muted-foreground">{t.label}</span>
+                    <input type="time"
+                      value={(td.medicationTimingTimes ?? {})[t.value] ?? ""}
+                      onChange={e => {
+                        setTimingTime("medicationTimingTimes", t.value, e.target.value);
+                        const arr = (td.medicationTiming ?? []) as string[];
+                        if (e.target.value && !arr.includes(t.value)) set("medicationTiming", [...arr, t.value]);
+                        if (!e.target.value && arr.includes(t.value)) set("medicationTiming", arr.filter(v => v !== t.value));
+                      }}
+                      className={inputCls + " w-32"} />
+                    {checked && <span className="text-xs text-green-500">✓</span>}
                   </div>
                 );
               })}
             </div>
           </div>
         )}
-        {(td.treatmentType === "come_to_hospital" || td.treatmentType === "combination") && (
+        {td.treatmentType === "come_to_hospital" && (
           <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
             <p className="text-sm font-medium">Hospital Visit Timing</p>
-            <p className="text-xs text-muted-foreground">Select times — reminder sent 3 hours before each visit.</p>
+            <p className="text-xs text-muted-foreground">Enter the visit time for each slot — reminder fires 3 hours before.</p>
             <div className="space-y-2">
               {TIMING_OPTIONS.map(t => {
                 const checked = (td.hospitalTiming ?? []).includes(t.value);
                 return (
                   <div key={t.value} className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 cursor-pointer text-sm w-28 shrink-0">
-                      <input type="checkbox" className="w-4 h-4 accent-primary"
-                        checked={checked}
-                        onChange={() => toggleArr("hospitalTiming", t.value)} />
-                      {t.label}
-                    </label>
-                    {checked && (
-                      <input type="time"
-                        value={(td.hospitalTimingTimes ?? {})[t.value] ?? ""}
-                        onChange={e => setTimingTime("hospitalTimingTimes", t.value, e.target.value)}
-                        className={inputCls + " w-32"} />
-                    )}
+                    <span className="text-sm w-28 shrink-0 text-muted-foreground">{t.label}</span>
+                    <input type="time"
+                      value={(td.hospitalTimingTimes ?? {})[t.value] ?? ""}
+                      onChange={e => {
+                        setTimingTime("hospitalTimingTimes", t.value, e.target.value);
+                        const arr = (td.hospitalTiming ?? []) as string[];
+                        if (e.target.value && !arr.includes(t.value)) set("hospitalTiming", [...arr, t.value]);
+                        if (!e.target.value && arr.includes(t.value)) set("hospitalTiming", arr.filter(v => v !== t.value));
+                      }}
+                      className={inputCls + " w-32"} />
+                    {checked && <span className="text-xs text-green-500">✓</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {td.treatmentType === "combination" && (
+          <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
+            <p className="text-sm font-medium">Visit & Medication Timing</p>
+            <p className="text-xs text-muted-foreground">Enter the appointment time for each slot — reminder fires 2 hours before.</p>
+            <div className="space-y-2">
+              {TIMING_OPTIONS.map(t => {
+                const checked = (td.medicationTiming ?? []).includes(t.value);
+                return (
+                  <div key={t.value} className="flex items-center gap-3">
+                    <span className="text-sm w-28 shrink-0 text-muted-foreground">{t.label}</span>
+                    <input type="time"
+                      value={(td.medicationTimingTimes ?? {})[t.value] ?? ""}
+                      onChange={e => {
+                        setTimingTime("medicationTimingTimes", t.value, e.target.value);
+                        const arr = (td.medicationTiming ?? []) as string[];
+                        if (e.target.value && !arr.includes(t.value)) set("medicationTiming", [...arr, t.value]);
+                        if (!e.target.value && arr.includes(t.value)) set("medicationTiming", arr.filter(v => v !== t.value));
+                      }}
+                      className={inputCls + " w-32"} />
+                    {checked && <span className="text-xs text-green-500">✓</span>}
                   </div>
                 );
               })}
@@ -920,13 +944,33 @@ function InCareScheduleRows({
 
 function PlanTemplateDetails({ dept, data }: { dept: string; data: Record<string, unknown> }) {
   if (dept === "General Outpatient") {
-    const d = data as { treatmentType?: string; medicationTiming?: string[]; hospitalTiming?: string[]; durationDays?: number };
+    const d = data as {
+      treatmentType?: string;
+      medicationTiming?: string[];
+      medicationTimingTimes?: Record<string, string>;
+      hospitalTiming?: string[];
+      hospitalTimingTimes?: Record<string, string>;
+      durationDays?: number;
+    };
+    const fmtSlots = (slots: string[], times: Record<string, string>) =>
+      slots.map(s => times[s] ? `${s} @ ${times[s]}` : s).join(", ");
+    const medSlots = d.medicationTiming ?? [];
+    const hospSlots = d.hospitalTiming ?? [];
+    const medTimes = d.medicationTimingTimes ?? {};
+    const hospTimes = d.hospitalTimingTimes ?? {};
     return (
       <div className="text-xs text-muted-foreground space-y-1 mt-1">
         {d.treatmentType && <p>Type: <span className="text-foreground capitalize">{d.treatmentType.replace(/_/g, " ")}</span></p>}
         {d.durationDays && <p>Duration: <span className="text-foreground">{d.durationDays} day{d.durationDays !== 1 ? "s" : ""}</span></p>}
-        {(d.medicationTiming ?? []).length > 0 && <p>Medication timing: <span className="text-foreground">{(d.medicationTiming ?? []).join(", ")}</span></p>}
-        {(d.hospitalTiming ?? []).length > 0 && <p>Hospital visits: <span className="text-foreground">{(d.hospitalTiming ?? []).join(", ")}</span></p>}
+        {d.treatmentType === "combination" && medSlots.length > 0 && (
+          <p>Appointment timing: <span className="text-foreground">{fmtSlots(medSlots, medTimes)}</span></p>
+        )}
+        {d.treatmentType === "medication_only" && medSlots.length > 0 && (
+          <p>Medication timing: <span className="text-foreground">{fmtSlots(medSlots, medTimes)}</span></p>
+        )}
+        {d.treatmentType === "come_to_hospital" && hospSlots.length > 0 && (
+          <p>Hospital visits: <span className="text-foreground">{fmtSlots(hospSlots, hospTimes)}</span></p>
+        )}
       </div>
     );
   }

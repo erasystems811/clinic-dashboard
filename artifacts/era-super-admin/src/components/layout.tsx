@@ -1,7 +1,7 @@
 import { ReactNode, useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/auth";
-import { Building2, LayoutDashboard, LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2, Settings2 } from "lucide-react";
+import { LayoutDashboard, LogOut, ChevronRight, ShieldCheck, Upload, CheckCircle2, XCircle, Loader2, Settings2 } from "lucide-react";
 import ChangePasswordModal from "@/components/change-password-modal";
 import { post, api } from "@/lib/api";
 
@@ -53,125 +53,140 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Top bar */}
-      <header className="border-b border-border flex items-center px-4 gap-3 shrink-0 flex-wrap py-2 min-h-14">
+      <header className="border-b border-border flex items-center px-6 gap-4 shrink-0 h-16"
+        style={{ boxShadow: "0 1px 0 0 hsl(43 96% 54% / 0.08)" }}>
+
+        {/* Brand */}
         <button
           onClick={() => setLocation("/")}
-          className="flex items-center gap-2 hover:opacity-80 transition shrink-0"
+          className="flex items-center gap-3 hover:opacity-80 transition shrink-0 group"
         >
-          <div className="w-7 h-7 rounded-lg bg-primary/10 ring-1 ring-primary/30 flex items-center justify-center shrink-0">
-            <Building2 className="w-4 h-4 text-primary" />
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-lg"
+            style={{ boxShadow: "0 0 12px hsl(43 96% 54% / 0.35)" }}>
+            <span className="text-primary-foreground font-black text-sm tracking-tighter">E</span>
           </div>
-          <span className="font-bold text-sm text-foreground whitespace-nowrap">Era Systems</span>
-          <span className="text-xs text-muted-foreground font-medium px-1.5 py-0.5 rounded bg-muted ml-1 whitespace-nowrap hidden sm:inline">
-            Super Admin
-          </span>
+          <div className="hidden sm:block">
+            <span className="font-extrabold text-sm text-foreground tracking-tight">Era Systems</span>
+            <span className="ml-2 text-[10px] font-semibold text-primary/80 uppercase tracking-widest border border-primary/25 bg-primary/8 px-1.5 py-0.5 rounded">
+              Super Admin
+            </span>
+          </div>
         </button>
 
+        {/* Breadcrumb */}
         {breadcrumb && breadcrumb.length > 0 && (
-          <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-0 flex-1">
-            <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0 flex-1">
+            <ChevronRight className="w-3.5 h-3.5 shrink-0 text-border" />
             {breadcrumb.map((crumb, i) => (
-              <span key={i} className="flex items-center gap-1 min-w-0">
+              <span key={i} className="flex items-center gap-1.5 min-w-0">
                 {crumb.href ? (
                   <button
                     onClick={() => setLocation(crumb.href!)}
-                    className="hover:text-foreground transition truncate max-w-[120px] sm:max-w-none"
+                    className="hover:text-foreground transition truncate max-w-[140px] sm:max-w-none text-xs"
                   >
                     {crumb.label}
                   </button>
                 ) : (
-                  <span className="text-foreground font-medium truncate max-w-[120px] sm:max-w-none">{crumb.label}</span>
+                  <span className="text-foreground font-semibold text-xs truncate max-w-[140px] sm:max-w-none">{crumb.label}</span>
                 )}
                 {i < breadcrumb.length - 1 && (
-                  <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                  <ChevronRight className="w-3 h-3 shrink-0 text-border" />
                 )}
               </span>
             ))}
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-2 shrink-0">
+        {/* Right actions */}
+        <div className="ml-auto flex items-center gap-1 shrink-0">
           <button
             onClick={() => setLocation("/")}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition font-medium"
           >
             <LayoutDashboard className="w-3.5 h-3.5" />
-            Hospitals
+            <span className="hidden sm:inline">Hospitals</span>
           </button>
 
-          {/* Settings gear — Security + Deploy hidden inside */}
+          {/* Settings */}
           <div className="relative" ref={settingsRef}>
             <button
               onClick={() => { setShowSettings(s => !s); setConfirmDeploy(false); }}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
+              className={`p-2 rounded-md transition ${showSettings ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
               title="Settings"
             >
               <Settings2 className="w-4 h-4" />
             </button>
 
             {showSettings && (
-              <div className="absolute right-0 top-9 w-52 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
-                <button
-                  onClick={() => { setShowSecurity(true); setShowSettings(false); }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-foreground hover:bg-muted transition text-left"
-                >
-                  <ShieldCheck className="w-4 h-4 text-muted-foreground" />
-                  Security
-                </button>
-
-                <div className="border-t border-border" />
-
-                {!confirmDeploy ? (
+              <div className="absolute right-0 top-10 w-56 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden"
+                style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px hsl(220 14% 11%)" }}>
+                <div className="p-1">
                   <button
-                    onClick={() => setConfirmDeploy(true)}
-                    disabled={deployState === "pushing"}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition text-left disabled:opacity-50"
+                    onClick={() => { setShowSecurity(true); setShowSettings(false); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground hover:bg-muted rounded-lg transition text-left font-medium"
                   >
-                    {deployState === "pushing" ? <Loader2 className="w-4 h-4 animate-spin" /> :
-                     deployState === "done" ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> :
-                     deployState === "error" ? <XCircle className="w-4 h-4 text-red-400" /> :
-                     <Upload className="w-4 h-4" />}
-                    <span className={deployState === "done" ? "text-emerald-400" : deployState === "error" ? "text-red-400" : ""}>
-                      {deployState === "pushing" ? "Pushing to GitHub…" :
-                       deployState === "done" ? "Pushed!" :
-                       deployState === "error" ? "Push failed" :
-                       "Push to GitHub"}
-                    </span>
+                    <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+                    Security
                   </button>
-                ) : (
-                  <div className="px-4 py-3 space-y-2">
-                    <p className="text-xs text-muted-foreground">This will overwrite GitHub with the current Replit code and trigger a Railway deploy. Continue?</p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleDeploy}
-                        className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition"
-                      >
-                        Yes, push
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeploy(false)}
-                        className="flex-1 py-1.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition"
-                      >
-                        Cancel
-                      </button>
+                </div>
+
+                <div className="border-t border-border mx-1" />
+
+                <div className="p-1">
+                  {!confirmDeploy ? (
+                    <button
+                      onClick={() => setConfirmDeploy(true)}
+                      disabled={deployState === "pushing"}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg transition text-left disabled:opacity-50 font-medium"
+                    >
+                      {deployState === "pushing" ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                       deployState === "done" ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> :
+                       deployState === "error" ? <XCircle className="w-4 h-4 text-red-400" /> :
+                       <Upload className="w-4 h-4" />}
+                      <span className={deployState === "done" ? "text-emerald-400" : deployState === "error" ? "text-red-400" : ""}>
+                        {deployState === "pushing" ? "Pushing…" :
+                         deployState === "done" ? "Pushed!" :
+                         deployState === "error" ? "Push failed" :
+                         "Push to GitHub"}
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="px-3 py-3 space-y-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed">This will overwrite GitHub with current Replit code and trigger a Railway deploy.</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleDeploy}
+                          className="flex-1 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition"
+                        >
+                          Deploy
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeploy(false)}
+                          className="flex-1 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </div>
 
+          <div className="w-px h-4 bg-border mx-1" />
+
           <button
             onClick={() => logout()}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-muted transition"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition font-medium"
           >
             <LogOut className="w-3.5 h-3.5" />
-            Sign out
+            <span className="hidden sm:inline">Sign out</span>
           </button>
         </div>
       </header>
 
-      <main className="flex-1 p-6">
+      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
         {children}
       </main>
 

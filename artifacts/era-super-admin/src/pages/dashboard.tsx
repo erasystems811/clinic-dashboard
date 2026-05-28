@@ -20,11 +20,11 @@ function StatusBadge({ status, active }: { status: string; active: boolean }) {
   const label = (!active || status === "inactive") ? "suspended" : status;
   const style = STATUS_STYLES[label] ?? STATUS_STYLES.inactive;
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border ${style}`}>
-      {label === "active" && <CheckCircle2 className="w-3 h-3" />}
-      {label === "suspended" && <XCircle className="w-3 h-3" />}
-      {label === "trial" && <AlertCircle className="w-3 h-3" />}
-      {label.charAt(0).toUpperCase() + label.slice(1)}
+    <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded border uppercase tracking-wide ${style}`}>
+      {label === "active" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />}
+      {label === "suspended" && <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />}
+      {label === "trial" && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />}
+      {label}
     </span>
   );
 }
@@ -84,7 +84,6 @@ export default function Dashboard() {
   const stats = {
     total: hospitals.length,
     active: hospitals.filter(h => h.active && h.subscriptionStatus === "active").length,
-    // Trial only counts if the account is still active (not deactivated/suspended)
     trial: hospitals.filter(h => h.active && h.subscriptionStatus === "trial").length,
     suspended: hospitals.filter(h => !h.active || h.subscriptionStatus === "inactive").length,
     expiringSoon: hospitals.filter(h => {
@@ -96,25 +95,27 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      {/* Page header */}
+      <div className="flex items-start justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Hospital Accounts</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1.5">Era Systems Platform</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Hospital Accounts</h1>
+          <p className="text-sm text-muted-foreground mt-1.5">
             Manage all hospital accounts on the Era platform
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mt-1">
           <button
             onClick={fetchHospitals}
-            className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition"
+            className="p-2 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition"
             title="Refresh"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition"
+            className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-bold hover:bg-primary/90 transition"
+            style={{ boxShadow: "0 2px 12px hsl(43 96% 54% / 0.25)" }}
           >
             <Plus className="w-4 h-4" />
             Add Hospital
@@ -123,41 +124,42 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-5 gap-3 mb-6">
         {[
-          { label: "Total Accounts", value: stats.total, icon: Building2, color: "text-primary" },
-          { label: "Active", value: stats.active, icon: CheckCircle2, color: "text-emerald-400" },
-          { label: "Trial", value: stats.trial, icon: AlertCircle, color: "text-amber-400" },
-          { label: "Suspended", value: stats.suspended, icon: XCircle, color: "text-red-400" },
-          { label: "Expiring Soon", value: stats.expiringSoon, icon: CalendarClock, color: stats.expiringSoon > 0 ? "text-orange-400" : "text-muted-foreground" },
+          { label: "Total", value: stats.total, icon: Building2, color: "text-primary", accent: false },
+          { label: "Active", value: stats.active, icon: CheckCircle2, color: "text-emerald-400", accent: false },
+          { label: "Trial", value: stats.trial, icon: AlertCircle, color: "text-amber-400", accent: false },
+          { label: "Suspended", value: stats.suspended, icon: XCircle, color: "text-red-400", accent: false },
+          { label: "Expiring", value: stats.expiringSoon, icon: CalendarClock, color: stats.expiringSoon > 0 ? "text-orange-400" : "text-muted-foreground", accent: stats.expiringSoon > 0 },
         ].map(stat => (
-          <div key={stat.label} className={`rounded-xl bg-card border p-4 ${stat.label === "Expiring Soon" && stat.value > 0 ? "border-orange-500/40 bg-orange-500/5" : "border-border"}`}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground font-medium">{stat.label}</span>
-              <stat.icon className={`w-4 h-4 ${stat.color}`} />
+          <div key={stat.label}
+            className={`rounded-lg border p-4 ${stat.accent ? "border-orange-500/30 bg-orange-500/5" : "border-border bg-card"}`}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{stat.label}</span>
+              <stat.icon className={`w-3.5 h-3.5 ${stat.color}`} />
             </div>
-            <div className="text-2xl font-bold text-foreground">{stat.value}</div>
+            <div className="text-3xl font-extrabold text-foreground tracking-tight">{stat.value}</div>
           </div>
         ))}
       </div>
 
       {/* System Health */}
-      <div className="rounded-xl border border-border bg-card p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
+      <div className="rounded-lg border border-border bg-card p-4 mb-6">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">System Health</span>
+            <Activity className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-xs font-bold text-foreground uppercase tracking-widest">System Health</span>
           </div>
           <div className="flex items-center gap-2">
             {!healthLoading && health && (
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-widest ${
                 !health.ok
                   ? "bg-red-500/10 text-red-400 border-red-500/20"
                   : health.anyWarning
                     ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
                     : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
               }`}>
-                {!health.ok ? "Degraded" : health.anyWarning ? "All Systems Operational" : "All Systems Operational"}
+                {!health.ok ? "Degraded" : "Operational"}
               </span>
             )}
             <button onClick={fetchHealth} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition" title="Refresh health">
@@ -166,8 +168,8 @@ export default function Dashboard() {
           </div>
         </div>
         {healthLoading ? (
-          <div className="flex gap-4">
-            {[1,2,3].map(i => <div key={i} className="flex-1 h-12 rounded-lg bg-muted animate-pulse" />)}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {[1,2,3,4,5,6].map(i => <div key={i} className="h-14 rounded-md bg-muted animate-pulse" />)}
           </div>
         ) : health ? (
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -184,18 +186,20 @@ export default function Dashboard() {
                 <div
                   key={c.name}
                   title={tooltip}
-                  className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border cursor-default select-none ${
-                    !c.ok ? "border-red-500/30 bg-red-500/8"
-                    : isWarn ? "border-amber-500/30 bg-amber-500/8"
-                    : "border-border bg-muted/40"
+                  className={`flex flex-col gap-2 p-2.5 rounded-md border cursor-default select-none ${
+                    !c.ok ? "border-red-500/30 bg-red-500/6"
+                    : isWarn ? "border-amber-500/30 bg-amber-500/6"
+                    : "border-border bg-muted/30"
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 shrink-0 ${!c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400"}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-foreground truncate">{c.name}</p>
-                    {c.balance && <p className={`text-[10px] ${!c.ok || isWarn ? "text-amber-400" : "text-emerald-400"}`}>{c.balance}</p>}
+                  <div className="flex items-center justify-between">
+                    <Icon className={`w-3.5 h-3.5 ${!c.ok ? "text-red-400" : isWarn ? "text-amber-400" : "text-emerald-400"}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${!c.ok ? "bg-red-400" : isWarn ? "bg-amber-400" : "bg-emerald-400"}`} />
                   </div>
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${!c.ok ? "bg-red-400" : isWarn ? "bg-amber-400" : "bg-emerald-400"}`} />
+                  <div>
+                    <p className="text-[11px] font-bold text-foreground truncate">{c.name}</p>
+                    {c.balance && <p className={`text-[10px] font-medium ${!c.ok || isWarn ? "text-amber-400" : "text-emerald-400"}`}>{c.balance}</p>}
+                  </div>
                 </div>
               );
             })}
@@ -206,51 +210,48 @@ export default function Dashboard() {
       </div>
 
       {/* Search + filters */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-2 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search hospitals…"
-            className="w-full pl-10 pr-4 py-2 rounded-lg bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition"
+            className="w-full pl-9 pr-4 py-2 rounded-md bg-muted border border-border text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition font-medium"
           />
         </div>
         <button
           onClick={() => setShowSuspended(s => !s)}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-md border text-xs font-bold transition whitespace-nowrap uppercase tracking-wide ${
             showSuspended
-              ? "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20"
+              ? "bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/15"
               : "bg-muted text-muted-foreground border-border hover:text-foreground"
           }`}
         >
           <XCircle className="w-3.5 h-3.5" />
-          {showSuspended ? "Suspended shown" : "Suspended hidden"}
+          {showSuspended ? "Suspended Shown" : "Suspended Hidden"}
         </button>
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-border overflow-hidden">
+      <div className="rounded-lg border border-border overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
             <Loader2 className="w-5 h-5 animate-spin" />
-            <span className="text-sm">Loading hospitals…</span>
+            <span className="text-sm font-medium">Loading hospitals…</span>
           </div>
         ) : error ? (
           <div className="flex items-center justify-center gap-2 py-16 text-destructive">
             <AlertCircle className="w-5 h-5" />
-            <span className="text-sm">{error}</span>
+            <span className="text-sm font-medium">{error}</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground">
-            <Building2 className="w-8 h-8 opacity-40" />
-            <span className="text-sm">{search ? "No hospitals match your search" : "No hospitals yet"}</span>
+            <Building2 className="w-8 h-8 opacity-20" />
+            <span className="text-sm font-medium">{search ? "No hospitals match your search" : "No hospitals yet"}</span>
             {!search && (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="text-xs text-primary hover:underline"
-              >
+              <button onClick={() => setShowCreate(true)} className="text-xs text-primary hover:underline font-bold">
                 Add the first hospital
               </button>
             )}
@@ -258,12 +259,12 @@ export default function Dashboard() {
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Hospital</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Username</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Subscription Expires</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Created</th>
+              <tr className="border-b border-border bg-muted/60">
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Hospital</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Username</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Status</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Expires</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Created</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -274,50 +275,50 @@ export default function Dashboard() {
                 const isExpired = daysLeft !== null && daysLeft < 0;
                 const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
                 return (
-                <tr
-                  key={hospital.id}
-                  className="hover:bg-muted/30 transition cursor-pointer"
-                  onClick={() => setLocation(`/hospitals/${hospital.id}`)}
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center shrink-0">
-                        <Building2 className="w-4 h-4 text-primary" />
+                  <tr
+                    key={hospital.id}
+                    className="hover:bg-muted/25 transition cursor-pointer group"
+                    onClick={() => setLocation(`/hospitals/${hospital.id}`)}
+                  >
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-md bg-primary/10 ring-1 ring-primary/15 flex items-center justify-center shrink-0">
+                          <Building2 className="w-3.5 h-3.5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm text-foreground">{hospital.name}</p>
+                          <p className="text-[11px] text-muted-foreground font-medium">{hospital.slug}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-sm text-foreground">{hospital.name}</p>
-                        <p className="text-xs text-muted-foreground">{hospital.slug}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-sm text-muted-foreground font-mono">{hospital.username}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={hospital.subscriptionStatus} active={hospital.active} />
-                  </td>
-                  <td className="px-4 py-3">
-                    {expDate ? (
-                      <div>
-                        <p className={`text-xs font-medium ${isExpired ? "text-red-400" : isExpiringSoon ? "text-orange-400" : "text-muted-foreground"}`}>
-                          {expDate.toLocaleDateString()}
-                        </p>
-                        {isExpired && <p className="text-xs text-red-400">Expired {Math.abs(daysLeft!)}d ago</p>}
-                        {isExpiringSoon && <p className="text-xs text-orange-400">⚠️ {daysLeft}d left</p>}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground/50">Not set</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(hospital.createdAt).toLocaleDateString()}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto" />
-                  </td>
-                </tr>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className="text-xs text-muted-foreground font-mono">{hospital.username}</span>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <StatusBadge status={hospital.subscriptionStatus} active={hospital.active} />
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {expDate ? (
+                        <div>
+                          <p className={`text-xs font-semibold ${isExpired ? "text-red-400" : isExpiringSoon ? "text-orange-400" : "text-muted-foreground"}`}>
+                            {expDate.toLocaleDateString()}
+                          </p>
+                          {isExpired && <p className="text-[10px] text-red-400 font-medium">Expired {Math.abs(daysLeft!)}d ago</p>}
+                          {isExpiringSoon && <p className="text-[10px] text-orange-400 font-medium">{daysLeft}d remaining</p>}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground/40 font-medium">Not set</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className="text-xs text-muted-foreground font-medium">
+                        {new Date(hospital.createdAt).toLocaleDateString()}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 text-right">
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 ml-auto group-hover:text-muted-foreground transition" />
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -331,7 +332,6 @@ export default function Dashboard() {
           onCreated={() => { setShowCreate(false); fetchHospitals(); }}
         />
       )}
-
     </Layout>
   );
 }

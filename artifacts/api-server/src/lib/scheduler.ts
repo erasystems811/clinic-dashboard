@@ -27,42 +27,58 @@ function log(msg: string) {
 async function runAppointmentReminders() {
   try {
     const now = new Date();
-    const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const in24hPlus15 = new Date(in24h.getTime() + 15 * 60 * 1000);
-    const in2h = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-    const in2hPlus15 = new Date(in2h.getTime() + 15 * 60 * 1000);
+    const in24h        = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const in24hPlus15  = new Date(in24h.getTime() + 15 * 60 * 1000);
+    const in2h         = new Date(now.getTime() +  2 * 60 * 60 * 1000);
+    const in2hPlus15   = new Date(in2h.getTime()  + 15 * 60 * 1000);
 
-    const { data: appts } = await supabase
+    // Helper: resolve hospital int id + module check for an appointment's patient
+    async function resolveHospital(patient: Record<string, unknown>) {
+      const { data: hospital } = await supabase.from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).single();
+      if (!hospital) return null;
+      const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
+      if (!mods?.appointments_enabled) return null;
+      return hospital;
+    }
+
+    // ── 24-hour reminder ────────────────────────────────────────────────────────
+    // Only fetch appointments that haven't received the 24h reminder yet.
+    const { data: appts24 } = await supabase
       .from("appointments")
       .select("*, patients(id, first_name, last_name, email, hospital_id)")
       .eq("status", "scheduled")
-      .is("reminder_24h_sent_at", null);
+      .is("reminder_24h_sent_at", null)
+      .gte("scheduled_at", in24h.toISOString())
+      .lt("scheduled_at", in24hPlus15.toISOString());
 
-    for (const appt of appts ?? []) {
-      const scheduledAt = new Date(appt.scheduled_at);
+    for (const appt of appts24 ?? []) {
       const patient = (appt as Record<string, unknown>).patients as Record<string, unknown> | null;
-      if (!patient || !patient.email) continue;
-
-      const { data: hospital } = await supabase.from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).single();
+      if (!patient?.email) continue;
+      const hospital = await resolveHospital(patient);
       if (!hospital) continue;
+      await sendAppointmentReminderEmail(hospital.id, patient.id as number, `${patient.first_name} ${patient.last_name}`, patient.email as string, appt.scheduled_at, 24);
+      await supabase.from("appointments").update({ reminder_24h_sent_at: now.toISOString() }).eq("id", appt.id);
+      log(`Sent 24h email reminder for appt ${appt.id}`);
+    }
 
-      const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
-      if (!mods?.appointments_enabled) continue;
+    // ── 2-hour reminder ─────────────────────────────────────────────────────────
+    // Fetched independently — must run even after the 24h reminder was already sent.
+    const { data: appts2 } = await supabase
+      .from("appointments")
+      .select("*, patients(id, first_name, last_name, email, hospital_id)")
+      .eq("status", "scheduled")
+      .is("reminder_2h_sent_at", null)
+      .gte("scheduled_at", in2h.toISOString())
+      .lt("scheduled_at", in2hPlus15.toISOString());
 
-      const patientEmail = patient.email as string;
-      const patientName = `${patient.first_name} ${patient.last_name}`;
-
-      if (scheduledAt >= in24h && scheduledAt < in24hPlus15) {
-        await sendAppointmentReminderEmail(hospital.id, patient.id as number, patientName, patientEmail, appt.scheduled_at, 24);
-        await supabase.from("appointments").update({ reminder_24h_sent_at: now.toISOString() }).eq("id", appt.id);
-        log(`Sent 24h email reminder for appt ${appt.id}`);
-      }
-
-      if (scheduledAt >= in2h && scheduledAt < in2hPlus15 && !appt.reminder_2h_sent_at) {
-        await sendAppointmentReminderEmail(hospital.id, patient.id as number, patientName, patientEmail, appt.scheduled_at, 2);
-        await supabase.from("appointments").update({ reminder_2h_sent_at: now.toISOString() }).eq("id", appt.id);
-        log(`Sent 2h email reminder for appt ${appt.id}`);
-      }
+    for (const appt of appts2 ?? []) {
+      const patient = (appt as Record<string, unknown>).patients as Record<string, unknown> | null;
+      if (!patient?.email) continue;
+      const hospital = await resolveHospital(patient);
+      if (!hospital) continue;
+      await sendAppointmentReminderEmail(hospital.id, patient.id as number, `${patient.first_name} ${patient.last_name}`, patient.email as string, appt.scheduled_at, 2);
+      await supabase.from("appointments").update({ reminder_2h_sent_at: now.toISOString() }).eq("id", appt.id);
+      log(`Sent 2h email reminder for appt ${appt.id}`);
     }
   } catch (err) {
     Sentry.captureException(err);

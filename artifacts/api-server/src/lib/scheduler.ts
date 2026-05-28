@@ -466,6 +466,19 @@ async function runNoShowFollowup() {
         if (hospital) {
           const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
           if (!mods?.appointments_enabled) continue;
+
+          // Dedup: only one follow-up per appointment (window is 30 min wide across two cron runs)
+          const { data: alreadySent } = await supabase
+            .from("automation_log")
+            .select("id")
+            .eq("hospital_id", hospital.id)
+            .eq("patient_id", patient.id as number)
+            .eq("automation_type", "appointment_no_show")
+            .eq("status", "sent")
+            .gte("created_at", appt.scheduled_at as string)
+            .maybeSingle();
+          if (alreadySent) continue;
+
           await sendAppointmentNoShowEmail(hospital.id, patient.id, patientName, patient.email).catch(() => {});
           log(`No-show follow-up email: appt ${appt.id} (${patientName})`);
         }
@@ -761,7 +774,7 @@ async function runCarePlanEmailDelay() {
         automation_type: key,
         status: "sent",
         channel: "email",
-        message: `Care plan email (20-min delay) → ${patient.email}`,
+        message_preview: `Care plan email (20-min delay) → ${patient.email}`,
         created_at: new Date().toISOString(),
       });
 
@@ -965,7 +978,7 @@ async function runCareVisitReminders() {
           .from("patients")
           .select("id, first_name, last_name, email")
           .eq("id", plan.patient_id)
-          .eq("hospital_id", h.id)
+          .eq("hospital_id", h.hospital_code)
           .single();
 
         if (!patient?.email) continue;

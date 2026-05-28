@@ -286,20 +286,36 @@ export default function Usage() {
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="text-xs border-collapse" style={{ minWidth: "max-content" }}>
+                <table className="text-xs" style={{ minWidth: "max-content", borderCollapse: "collapse" }}>
                   <thead>
-                    <tr className="border-b border-border bg-white/[0.02]">
-                      {/* Fixed: hospital column */}
-                      <th className="px-5 py-2.5 text-left text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest whitespace-nowrap sticky left-0 bg-[#1a1a1a] z-10 min-w-[200px]">
+                    {/* Month header row — dark distinct background */}
+                    <tr style={{ backgroundColor: "rgba(255,255,255,0.06)", borderBottom: "2px solid rgba(255,255,255,0.12)" }}>
+                      <th
+                        className="sticky left-0 z-10 text-left whitespace-nowrap"
+                        style={{ padding: "10px 20px", minWidth: 200, background: "rgba(30,30,30,0.98)", borderRight: "2px solid rgba(255,255,255,0.12)", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)" }}
+                      >
                         Hospital
                       </th>
-                      {/* One column per past month */}
                       {allMonths.map(label => (
                         <th
                           key={label}
-                          className="px-4 py-2.5 text-center text-[10px] font-semibold text-muted-foreground/40 whitespace-nowrap border-l border-border/40 min-w-[80px]"
+                          className="whitespace-nowrap text-center"
+                          style={{ padding: "10px 16px", minWidth: 90, borderLeft: "1px solid rgba(255,255,255,0.10)", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: "0.02em" }}
                         >
-                          {shortLabel(label)}
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                    {/* Sub-header: metric labels under each month */}
+                    <tr style={{ backgroundColor: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.10)" }}>
+                      <th className="sticky left-0 z-10" style={{ background: "rgba(30,30,30,0.98)", borderRight: "2px solid rgba(255,255,255,0.12)", padding: "4px 20px" }} />
+                      {allMonths.map(label => (
+                        <th key={label} style={{ borderLeft: "1px solid rgba(255,255,255,0.10)", padding: "4px 0" }}>
+                          <div className="flex justify-around px-2" style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.3)", letterSpacing: "0.04em" }}>
+                            <span title="Patients">Pts</span>
+                            <span title="Emails">Em</span>
+                            <span title="SMS">SMS</span>
+                          </div>
                         </th>
                       ))}
                     </tr>
@@ -307,47 +323,53 @@ export default function Usage() {
                   <tbody>
                     {sorted.map((h, hi) => {
                       const tier = getTier(h.currentMonth.avgPatientsDay);
-                      const rowBg = hi % 2 === 0 ? "bg-card" : "bg-white/[0.015]";
+                      const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
 
                       return (
                         <tr
                           key={h.id}
-                          className={`border-t border-border/50 hover:bg-white/[0.03] transition-colors ${rowBg}`}
+                          style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", backgroundColor: rowBg }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.05)")}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = rowBg)}
                         >
-                          {/* Hospital name cell — sticky */}
-                          <td className={`px-5 py-3 whitespace-nowrap sticky left-0 z-10 ${rowBg}`}>
+                          {/* Hospital name — sticky left */}
+                          <td
+                            className="sticky left-0 z-10 whitespace-nowrap"
+                            style={{ padding: "10px 20px", background: hi % 2 === 0 ? "rgb(24,24,24)" : "rgb(27,27,27)", borderRight: "2px solid rgba(255,255,255,0.12)" }}
+                          >
                             <div className="flex items-center gap-2">
                               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${h.active ? "bg-emerald-500" : "bg-muted-foreground/25"}`} />
-                              <span className="font-medium text-foreground text-[13px]">{h.name}</span>
+                              <span className="font-semibold text-foreground" style={{ fontSize: 13 }}>{h.name}</span>
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 pl-3.5">
-                              <span className={`text-[10px] font-semibold ${tier.color}`}>{tier.label}</span>
-                              <span className="text-[10px] text-muted-foreground/35">{fmtDays(h.daysSince)}</span>
+                              <span className={`font-semibold ${tier.color}`} style={{ fontSize: 10 }}>{tier.label}</span>
+                              <span className="text-muted-foreground/35" style={{ fontSize: 10 }}>{fmtDays(h.daysSince)}</span>
                             </div>
                           </td>
 
-                          {/* One cell per past month — stacks all 3 metrics */}
+                          {/* Month cells */}
                           {h.history.map((snap, mi) => {
                             const noData = snap.patients === 0 && snap.emails === 0 && snap.sms === 0;
                             return (
                               <td
                                 key={mi}
-                                className="px-4 py-2.5 text-center align-middle border-l border-border/20"
+                                className="text-center tabular-nums"
+                                style={{ padding: "8px 4px", borderLeft: "1px solid rgba(255,255,255,0.08)", verticalAlign: "middle" }}
                               >
                                 {noData ? (
-                                  <span className="text-muted-foreground/15 text-base">·</span>
+                                  <span style={{ color: "rgba(255,255,255,0.08)", fontSize: 16 }}>·</span>
                                 ) : (
-                                  <div className="flex flex-col gap-0.5 tabular-nums">
+                                  <div className="flex justify-around px-1 gap-1">
                                     {/* Patients */}
-                                    <span className={`text-xs font-semibold ${snap.avgPatientsDay > 0 ? "text-foreground" : "text-muted-foreground/20"}`}>
+                                    <span className="font-semibold" style={{ fontSize: 12, color: snap.avgPatientsDay > 0 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.12)", minWidth: 28, textAlign: "center" }}>
                                       {fmt(snap.avgPatientsDay)}
                                     </span>
                                     {/* Emails */}
-                                    <span className={`text-[10px] ${snap.avgEmailsDay > 0 ? "text-muted-foreground/60" : "text-muted-foreground/15"}`}>
+                                    <span style={{ fontSize: 11, color: snap.avgEmailsDay > 0 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.10)", minWidth: 24, textAlign: "center" }}>
                                       {fmt(snap.avgEmailsDay)}
                                     </span>
                                     {/* SMS */}
-                                    <span className={`text-[10px] ${snap.avgSmsDay > 0 ? "text-muted-foreground/40" : "text-muted-foreground/15"}`}>
+                                    <span style={{ fontSize: 11, color: snap.avgSmsDay > 0 ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.10)", minWidth: 20, textAlign: "center" }}>
                                       {fmt(snap.avgSmsDay)}
                                     </span>
                                   </div>

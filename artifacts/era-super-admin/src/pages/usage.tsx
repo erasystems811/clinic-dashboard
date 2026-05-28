@@ -179,17 +179,17 @@ export default function Usage() {
         ══════════════════════════════════════════ */}
         {tab === "live" && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-              <Zap className="w-3.5 h-3.5 text-primary/70" />
-              <span className="text-sm font-medium text-foreground">{currentMonthLabel}</span>
-              <span className="text-xs text-muted-foreground/50">— day {daysElapsed} of this month · resets on the 1st</span>
+            <div className="px-5 py-2.5 border-b border-border flex items-center gap-3 bg-white/[0.04]">
+              <Zap className="w-3.5 h-3.5 text-primary/60 shrink-0" />
+              <span className="text-xs font-semibold text-foreground">{currentMonthLabel}</span>
+              <span className="text-[11px] text-muted-foreground/40">Day {daysElapsed} · resets on the 1st</span>
             </div>
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
+                  <tr className="border-b border-border bg-white/[0.02] text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-widest">
                     <th className="px-5 py-3 text-left">Hospital</th>
                     <th className="px-4 py-3 text-left">Tier</th>
                     <th className="px-4 py-3 text-left">Since</th>
@@ -269,10 +269,10 @@ export default function Usage() {
         ══════════════════════════════════════════ */}
         {tab === "history" && (
           <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <div className="px-5 py-3 border-b border-border flex items-center gap-2">
-              <History className="w-3.5 h-3.5 text-muted-foreground/50" />
-              <span className="text-sm font-medium text-foreground">All-time running average as of each month-end</span>
-              <span className="text-xs text-muted-foreground/40 ml-1">— each value = cumulative avg/day from day 1 to that month's last day</span>
+            <div className="px-5 py-2.5 border-b border-border flex items-center gap-3 bg-white/[0.04]">
+              <History className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+              <span className="text-xs font-semibold text-foreground">12-month history</span>
+              <span className="text-[11px] text-muted-foreground/40">Cumulative avg/day as of each month-end</span>
             </div>
             {isLoading ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground/50">Loading…</div>

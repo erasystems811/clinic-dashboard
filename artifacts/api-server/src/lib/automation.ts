@@ -49,7 +49,7 @@ export async function updateAutomationLog(
   }).eq("id", id);
 }
 
-interface HospitalContext {
+export interface HospitalContext {
   hospitalName: string;
   hospitalUsername: string;
   /** UUID — used as hospital_id in patient-facing tables (patients, care_plans, queue) */
@@ -63,7 +63,7 @@ interface HospitalContext {
   language: string | null;
 }
 
-async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
+export async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
   const [{ data: hospital }, { data: settings }] = await Promise.all([
     supabase.from("hospitals").select("id, name, username, hospital_code, active").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
@@ -89,7 +89,7 @@ async function getHospitalContext(hospitalId: number): Promise<HospitalContext> 
   };
 }
 
-function contactLine(phoneNumber: string | null): string {
+export function contactLine(phoneNumber: string | null): string {
   if (phoneNumber) return `contact us directly on ${phoneNumber}`;
   return "contact us directly";
 }

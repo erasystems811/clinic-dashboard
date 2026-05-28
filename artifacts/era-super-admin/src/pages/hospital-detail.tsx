@@ -1034,7 +1034,7 @@ export default function HospitalDetail({ id }: Props) {
                     </div>
                     <div className="shrink-0 text-right space-y-1.5">
                       <p className="text-xs text-muted-foreground">{formatDate(log.createdAt)}</p>
-                      {log.status === "failed" && log.channel !== "email" && (
+                      {log.status === "failed" && (
                         <button
                           type="button"
                           onClick={() => retryAutomation(log.id)}
@@ -1044,9 +1044,6 @@ export default function HospitalDetail({ id }: Props) {
                           {retryingId === log.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
                           Retry
                         </button>
-                      )}
-                      {log.status === "failed" && log.channel === "email" && (
-                        <span className="text-xs text-muted-foreground italic">Re-trigger from patient</span>
                       )}
                     </div>
                   </div>

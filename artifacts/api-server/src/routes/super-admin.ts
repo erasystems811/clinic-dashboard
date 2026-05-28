@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
+import { getHospitalContext, contactLine } from "../lib/automation.js";
 import { signHospitalToken, verifyHospitalToken as _verifyHospitalToken } from "../lib/hospital-auth.js";
 import { testSmsDelivery, deliverMobileMessage } from "../lib/messaging.js";
 import { invalidateHospitalSessions, getHospitalSessionInvalidatedAt } from "../lib/session-invalidation.js";
@@ -1005,10 +1006,138 @@ router.post("/super-admin/automation-log/:id/retry", requireSuperAdmin, async (r
 
   const channel = log.channel as string;
   const messagePreview = log.message_preview as string | null;
+  const hospitalId = log.hospital_id as number;
+  const patientId = log.patient_id as number | null;
+  const automationType = log.automation_type as string;
 
-  // Email automations cannot be auto-retried — full HTML content is not stored
+  // ── Email retry — reconstruct template and resend directly ────────────────
   if (channel === "email") {
-    res.status(400).json({ ok: false, message: "Email automations cannot be retried automatically — the original email content is not stored. Trigger the action again from the patient record." });
+    // Types that require AI regeneration or human approval cannot be auto-retried
+    const nonRetryableTypes = ["care_plan_email", "care_plan_visit_reminder", "flagged_task_confirmed", "flagged_task_send", "wellness_newsletter"];
+    if (nonRetryableTypes.includes(automationType)) {
+      res.status(400).json({ ok: false, message: "This email contains AI-generated or human-approved content and cannot be auto-retried. Re-trigger it manually from the patient or hospital record." });
+      return;
+    }
+
+    if (!patientId) {
+      res.status(400).json({ ok: false, message: "No patient linked to this log entry — cannot retry." });
+      return;
+    }
+
+    // Look up patient + hospital context in parallel
+    const [{ data: patient }, hCtx] = await Promise.all([
+      supabase.from("patients").select("first_name, last_name, email").eq("id", patientId).single(),
+      getHospitalContext(hospitalId).catch((e: unknown) => { throw e; }),
+    ]);
+
+    if (!patient) { res.status(404).json({ ok: false, message: "Patient not found." }); return; }
+    const patientName = `${patient.first_name} ${patient.last_name}`;
+    const patientEmail = patient.email as string | null;
+    if (!patientEmail) { res.status(400).json({ ok: false, message: "Patient has no email address stored." }); return; }
+
+    const contact = contactLine(hCtx.phoneNumber);
+
+    // Mark original entry as in-progress
+    await supabase.from("automation_log").update({
+      status: "queued",
+      error_message: null,
+      retry_count: (log.retry_count as number ?? 0) + 1,
+      last_attempted_at: new Date().toISOString(),
+    }).eq("id", id);
+
+    try {
+      let subject = "";
+      let body = "";
+      let html = "";
+
+      if (automationType === "post_treatment_day1" || automationType === "post_treatment_day4" || automationType === "post_treatment_day7") {
+        const day = parseInt(automationType.replace("post_treatment_day", ""), 10) as 1 | 4 | 7;
+        if (day === 1) {
+          subject = `Checking in on you — ${hCtx.hospitalName}`;
+          body = `Hi ${patientName},\n\nWe hope you are resting and taking things easy today. Your treatment at ${hCtx.hospitalName} has just concluded and we wanted to reach out on this first day to let you know we are thinking of you. Recovery takes time and that is completely okay. Please follow any instructions given to you and take care of yourself.\n\nIf you have any questions or concerns please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+        } else if (day === 4) {
+          subject = `How are you feeling? — ${hCtx.hospitalName}`;
+          body = `Hi ${patientName},\n\nIt has been a few days since your treatment at ${hCtx.hospitalName} and we just wanted to check in on you. We hope you are feeling a little better each day. Recovery is a journey and we want you to know we are rooting for you.\n\nIf anything feels off or you have any concerns at all please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nTake good care of yourself.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+        } else {
+          subject = `One week check-in — ${hCtx.hospitalName}`;
+          body = `Hi ${patientName},\n\nA week has passed since your treatment at ${hCtx.hospitalName} and we hope you are feeling much better. You have come a long way and we are proud of your progress. As you continue your recovery please remember to stay consistent with any ongoing instructions.\n\nIf you need anything at all please do not hesitate to ${contact}. Please do not reply to this email directly. We are always here for you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+        }
+        html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+
+      } else if (automationType === "post_care_email") {
+        subject = `Thinking of you — ${hCtx.hospitalName}`;
+        body = `Hi ${patientName},\n\nIt has been a little while since we last saw you at ${hCtx.hospitalName} and we just wanted to check in and see how you are doing. We hope you are feeling well and taking good care of yourself. Your health and wellbeing mean a lot to us.\n\nIf you ever need anything or feel it is time for a check-up please do not hesitate to ${contact}. Please do not reply to this email directly. We are always here when you need us.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+        html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+
+      } else if (automationType === "appointment_no_show") {
+        subject = `We missed you today — ${hCtx.hospitalName}`;
+        body = `Hi ${patientName},\n\nWe noticed you were not able to make your appointment at ${hCtx.hospitalName} today. We hope you are good? We completely understand that life gets busy too sometimes.\n\nWhenever you are ready to rebook please do not hesitate to ${contact}. Please do not reply to this email directly. We are here for you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+        html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+
+      } else if (automationType === "birthday_email") {
+        const firstName = patientName.split(" ")[0];
+        subject = `Happy Birthday from ${hCtx.hospitalName} 🎂`;
+        body = `Happy Birthday ${firstName}!\n\nToday we pause to celebrate you. At ${hCtx.hospitalName}, you are never just a name in our system — you are someone we genuinely care about, and your birthday gives us a reason to say that out loud.\n\nWe hope today brings you warmth, laughter, and the company of people who love you. And in this new year of your life, we wish you the one thing that makes everything else possible — good health.\n\nFrom everyone at ${hCtx.hospitalName}, Happy Birthday. We are glad you are here.`;
+        html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+
+      } else if (automationType === "feedback_email") {
+        const { data: hosp } = await supabase.from("hospitals").select("feedback_slug").eq("id", hospitalId).single();
+        const feedbackSlug = hosp?.feedback_slug as string | null;
+        if (!feedbackSlug) { throw new Error("Hospital has no feedback slug configured."); }
+        const APP_BASE_URL = process.env.APP_BASE_URL ?? process.env.REPLIT_DEV_DOMAIN ?? "";
+        const feedbackUrl = `${APP_BASE_URL}/feedback/h/${feedbackSlug}`;
+        subject = `How was your visit? — ${hCtx.hospitalName}`;
+        const intro = `Hi ${patientName},\n\nThank you for visiting ${hCtx.hospitalName} yesterday. We hope your experience was a positive one. We would love to hear your thoughts so we can continue to improve our service. Please take a moment to share your feedback using the link below.`;
+        const closing = `Your feedback means a lot to us. Please do not reply to this email directly — if you need to reach us please ${contact}.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+        html = wrapHtml(
+          `<p>${intro.replace(/\n/g, "</p><p>")}</p>
+           <p style="text-align:center"><a href="${feedbackUrl}" class="btn">Share Your Feedback →</a></p>
+           <p>${closing.replace(/\n/g, "</p><p>")}</p>`,
+          hCtx.hospitalName,
+        );
+        body = `${intro}\n\nShare your feedback: ${feedbackUrl}\n\n${closing}`;
+
+      } else if (automationType === "appointment_confirmation" || automationType === "appointment_reminder_24h" || automationType === "appointment_reminder_2h") {
+        const { data: appt } = await supabase.from("appointments")
+          .select("scheduled_at").eq("patient_id", patientId).order("scheduled_at", { ascending: false }).limit(1).single();
+        if (!appt?.scheduled_at) { throw new Error("Could not find an appointment for this patient."); }
+        const scheduledAt = appt.scheduled_at as string;
+        const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short" });
+        const timeStr = new Date(scheduledAt).toLocaleString("en-GB", { timeStyle: "short" });
+        if (automationType === "appointment_confirmation") {
+          subject = `Appointment Confirmed — ${hCtx.hospitalName}`;
+          body = `Hi ${patientName},\n\nYour appointment at ${hCtx.hospitalName} has been confirmed for ${dateStr}. Please arrive a few minutes early.\n\nIf you need to reschedule please do not hesitate to ${contact} as soon as possible. Please do not reply to this email directly. We look forward to seeing you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+        } else if (automationType === "appointment_reminder_24h") {
+          subject = `Reminder — Your appointment is tomorrow — ${hCtx.hospitalName}`;
+          body = `Hi ${patientName},\n\nThis is a friendly reminder that your appointment at ${hCtx.hospitalName} is tomorrow ${dateStr}. We look forward to seeing you.\n\nIf you need to reschedule please do not hesitate to ${contact} as soon as possible. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+        } else {
+          subject = `Your appointment is in 2 hours — ${hCtx.hospitalName}`;
+          body = `Hi ${patientName},\n\nJust a quick reminder that your appointment at ${hCtx.hospitalName} is in 2 hours at ${timeStr}. We will see you soon.\n\nIf you need to reschedule please do not hesitate to ${contact} immediately. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+        }
+        html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+
+      } else {
+        res.status(400).json({ ok: false, message: `Email retry not supported for automation type: ${automationType}.` });
+        return;
+      }
+
+      await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: body });
+      await supabase.from("automation_log").update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        last_attempted_at: new Date().toISOString(),
+        message_preview: `${subject} → ${patientEmail}`,
+      }).eq("id", id);
+      res.json({ ok: true, message: "Email resent successfully." });
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      await supabase.from("automation_log").update({
+        status: "failed",
+        error_message: errMsg,
+        last_attempted_at: new Date().toISOString(),
+      }).eq("id", id);
+      res.status(500).json({ ok: false, message: `Email retry failed: ${errMsg}` });
+    }
     return;
   }
 

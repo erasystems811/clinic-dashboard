@@ -83,7 +83,7 @@ export default function Usage() {
   const [tab, setTab] = useState<Tab>("live");
 
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<{ stats: HospitalUsageStat[] }>({
-    queryKey: ["usage-stats"],
+    queryKey: ["usage-stats-v3"],
     queryFn: () => get("/super-admin/usage-stats"),
     staleTime: 0,
     refetchInterval: 2 * 60_000,
@@ -102,11 +102,16 @@ export default function Usage() {
     return acc;
   }, {});
 
-  // All 12 past month labels (from the first hospital's history)
-  const allMonths: string[] = stats[0]?.history.map(m => m.label) ?? [];
+  // Generate the 12 completed month labels from today — never depends on data being loaded
+  const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const now = new Date();
+  const allMonths: string[] = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 12 + i, 1);
+    return `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+  });
 
-  const currentMonthLabel = stats[0]?.currentMonth.label ?? "";
-  const daysElapsed = stats[0]?.currentMonth.daysElapsed ?? new Date().getDate();
+  const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
+  const daysElapsed = stats[0]?.currentMonth.daysElapsed ?? now.getDate();
 
   return (
     <Layout breadcrumb={[{ label: "Usage" }]}>

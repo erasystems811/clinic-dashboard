@@ -7,8 +7,8 @@ import { sendCarePlanEmail, sendCarePlanNotification } from "../lib/automation.j
 
 const router: IRouter = Router();
 
-async function resolveHospitalIntId(username: string): Promise<number | null> {
-  const { data } = await supabase.from("hospitals").select("id").eq("username", username.toLowerCase()).single();
+async function resolveHospitalIntId(hospitalCode: string): Promise<number | null> {
+  const { data } = await supabase.from("hospitals").select("id").eq("hospital_code", hospitalCode).single();
   return data?.id ?? null;
 }
 

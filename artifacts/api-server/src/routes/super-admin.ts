@@ -1294,7 +1294,9 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   const smsTs     = new Map<number, number[]>();
 
   for (const r of (allQueueRes.data ?? []) as { hospital_id: string; added_at: string }[]) {
-    const id = codeToId.get(r.hospital_id);
+    // Primary match: hospital_code (UUID). Fallback: integer id stored as string.
+    const numId = parseInt(r.hospital_id);
+    const id = codeToId.get(r.hospital_id) ?? (!isNaN(numId) ? numId : undefined);
     if (id === undefined) continue;
     const ts = new Date(r.added_at).getTime();
     if (!queueTs.has(id)) queueTs.set(id, []);
@@ -1323,8 +1325,16 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   const currentMonthStartMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
   const stats = hospitals.map(h => {
-    const createdAtMs = h.created_at ? new Date(h.created_at as string).getTime() : nowMs;
-    const daysSince   = Math.max(1, (nowMs - createdAtMs) / 86_400_000);
+    const createdAtDate = h.created_at ? new Date(h.created_at as string) : null;
+    const createdAtMs   = createdAtDate ? createdAtDate.getTime() : nowMs;
+    const daysSince     = Math.max(1, (nowMs - createdAtMs) / 86_400_000);
+    // Days this hospital was actually active in the current month (handles mid-month creation)
+    const createdThisMonth = createdAtDate &&
+      createdAtDate.getFullYear() === now.getFullYear() &&
+      createdAtDate.getMonth() === now.getMonth();
+    const effectiveDaysThisMonth = createdThisMonth
+      ? Math.max(1, daysElapsed - createdAtDate!.getDate() + 1)
+      : daysElapsed;
 
     const hq = queueTs.get(h.id);
     const he = emailTs.get(h.id);
@@ -1362,14 +1372,20 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
       const sAtEnd       = countUpTo(hs, cm.endMs);
       const monthSms     = sAtEnd - sBeforeStart;
 
+      // Divide by days hospital was active in this month, not the full month length
+      const createdInHistMonth = createdAtDate &&
+        createdAtDate.getFullYear() === cm.y && createdAtDate.getMonth() === cm.m;
+      const effectiveDays = createdInHistMonth
+        ? Math.max(1, cm.daysInMonth - createdAtDate!.getDate() + 1)
+        : cm.daysInMonth;
       return {
         label:          cm.label,
         patients:       monthPatients,
         emails:         monthEmails,
         sms:            monthSms,
-        avgPatientsDay: r1(monthPatients / cm.daysInMonth),
-        avgEmailsDay:   r1(monthEmails   / cm.daysInMonth),
-        avgSmsDay:      r1(monthSms      / cm.daysInMonth),
+        avgPatientsDay: r1(monthPatients / effectiveDays),
+        avgEmailsDay:   r1(monthEmails   / effectiveDays),
+        avgSmsDay:      r1(monthSms      / effectiveDays),
       };
     });
 
@@ -1381,13 +1397,13 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
       daysSince:    Math.floor(daysSince),
       currentMonth: {
         label:          currentMonthLabel,
-        daysElapsed,
+        daysElapsed:    effectiveDaysThisMonth,
         patients:       cPatients,
         emails:         cEmails,
         sms:            cSms,
-        avgPatientsDay: r1(cPatients / daysElapsed),
-        avgEmailsDay:   r1(cEmails   / daysElapsed),
-        avgSmsDay:      r1(cSms      / daysElapsed),
+        avgPatientsDay: r1(cPatients / effectiveDaysThisMonth),
+        avgEmailsDay:   r1(cEmails   / effectiveDaysThisMonth),
+        avgSmsDay:      r1(cSms      / effectiveDaysThisMonth),
       },
       history,
     };

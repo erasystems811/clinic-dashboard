@@ -332,10 +332,17 @@ export default function Usage() {
                 </button>
               </div>
               <div className="flex items-center gap-3 text-[10px] text-muted-foreground/40">
-                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Pts</span>
-                <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Em</span>
+                <span className="flex items-center gap-1"><Users className="w-2.5 h-2.5" /> Patients</span>
+                <span className="flex items-center gap-1"><Mail className="w-2.5 h-2.5" /> Emails</span>
                 <span className="flex items-center gap-1"><MessageSquare className="w-2.5 h-2.5" /> SMS</span>
               </div>
+            </div>
+            {/* Key */}
+            <div style={{ padding: "6px 14px", borderBottom: "1px solid rgba(255,255,255,0.07)", backgroundColor: "rgba(255,255,255,0.015)", fontSize: 10, color: "rgba(255,255,255,0.35)", display: "flex", gap: 16 }}>
+              <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Pts</strong> = Patients</span>
+              <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>Em</strong> = Emails</span>
+              <span><strong style={{ color: "rgba(255,255,255,0.55)" }}>SMS</strong> = Text messages</span>
+              <span style={{ marginLeft: "auto", color: "rgba(255,255,255,0.22)" }}>All figures = avg per day that month · divided by days the hospital was active</span>
             </div>
 
             {isLoading ? (

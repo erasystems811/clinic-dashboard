@@ -120,7 +120,7 @@ router.post("/super-admin/auth/logout", (req, res): void => {
 // ── Config (exposes server-side APP_BASE_URL so the frontend builds correct links) ──
 router.get("/super-admin/config", requireSuperAdmin, (req, res): void => {
   res.json({
-    eraPatientUrl: (process.env.APP_BASE_URL ?? "https://app.erasystem.com.ng").replace(/\/$/, ""),
+    eraPatientUrl: (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, ""),
   });
 });
 

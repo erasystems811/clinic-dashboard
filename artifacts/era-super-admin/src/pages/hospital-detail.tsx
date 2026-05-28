@@ -117,7 +117,7 @@ export default function HospitalDetail({ id }: Props) {
   const [showAdminPass, setShowAdminPass] = useState(false);
   const [allCopied, setAllCopied] = useState(false);
   const [eraPatientUrl, setEraPatientUrl] = useState(
-    (import.meta.env.VITE_ERA_PATIENT_URL ?? "https://app.erasystem.com.ng").replace(/\/$/, "")
+    (import.meta.env.VITE_ERA_PATIENT_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "")
   );
 
   // Settings form

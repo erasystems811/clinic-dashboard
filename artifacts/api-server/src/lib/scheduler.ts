@@ -16,7 +16,7 @@ import {
   type InCareTimeSlot,
 } from "./automation.js";
 
-const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://app.erasystem.com.ng";
+const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng";
 
 function log(msg: string) {
   console.log(`[scheduler] ${new Date().toISOString()} ${msg}`);

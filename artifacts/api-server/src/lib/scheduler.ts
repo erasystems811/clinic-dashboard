@@ -918,7 +918,7 @@ async function runCarePlanRemindersHourly() {
           }
         } else {
           // All other departments — remind 4 hours before nurse-set visit time
-          const entries = extractVisitEntries(dept, td);
+          const entries = extractVisitEntries(dept, td, today); // today is WAT date
           for (const entry of entries) {
             if (!entry.date || !entry.time) continue;
             const visitAt = new Date(`${entry.date}T${entry.time}:00+01:00`); // WAT (UTC+1)
@@ -946,23 +946,24 @@ async function runCarePlanRemindersHourly() {
 
 interface VisitEntry { date: string; time?: string; }
 
-function extractVisitEntries(dept: string, templateData: Record<string, unknown>): VisitEntry[] {
+// today must be the WAT calendar date (YYYY-MM-DD) — pass nowWAT.toISOString().slice(0,10).
+// Uses >= so same-day visits are included (needed for the 4h-before window check in the caller).
+function extractVisitEntries(dept: string, templateData: Record<string, unknown>, today: string): VisitEntry[] {
   const entries: VisitEntry[] = [];
-  const today = new Date().toISOString().slice(0, 10);
 
   if (dept === "Antenatal / Maternity") {
     const rows = (templateData.ancSchedule as Array<{ date?: string; time?: string }>) ?? [];
-    for (const r of rows) if (r.date && r.date > today) entries.push({ date: r.date, time: r.time });
+    for (const r of rows) if (r.date && r.date >= today) entries.push({ date: r.date, time: r.time });
   } else if (dept === "Paediatrics") {
     const rows = (templateData.vaccinationSchedule as Array<{ date?: string; time?: string }>) ?? [];
-    for (const r of rows) if (r.date && r.date > today) entries.push({ date: r.date, time: r.time });
+    for (const r of rows) if (r.date && r.date >= today) entries.push({ date: r.date, time: r.time });
   } else if (dept === "Surgery / Post-Op" || dept === "Dental" || dept === "Eye" || dept === "Fertility / IVF" || dept === "ENT (Ear, Nose and Throat)") {
     const rows = (templateData.inCareSchedule as Array<{ date?: string; time?: string }>) ?? [];
-    for (const r of rows) if (r.date && r.date > today) entries.push({ date: r.date, time: r.time });
+    for (const r of rows) if (r.date && r.date >= today) entries.push({ date: r.date, time: r.time });
     if (dept === "Surgery / Post-Op") {
       const pd = templateData.procedureDate as string | undefined;
       const pt = templateData.procedureTime as string | undefined;
-      if (pd && pd > today) entries.push({ date: pd, time: pt });
+      if (pd && pd >= today) entries.push({ date: pd, time: pt });
     }
   }
   return entries;
@@ -971,9 +972,11 @@ function extractVisitEntries(dept: string, templateData: Record<string, unknown>
 async function runCareVisitReminders() {
   try {
     // Fire at 7pm: remind patients about tomorrow's appointment
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowDate = tomorrow.toISOString().slice(0, 10);
+    const WAT_MS = 60 * 60 * 1000;
+    const nowWATRef = new Date(Date.now() + WAT_MS);
+    const todayWAT = nowWATRef.toISOString().slice(0, 10);
+    const tomorrowRef = new Date(Date.now() + WAT_MS + 24 * 60 * 60 * 1000);
+    const tomorrowDate = tomorrowRef.toISOString().slice(0, 10);
 
     // care_plans.hospital_id stores hospital_code UUID (post-migration), not the integer id
     const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code").eq("active", true);
@@ -994,7 +997,7 @@ async function runCareVisitReminders() {
         // General Outpatient fires daily (handled separately via daily automation logic)
         if (dept === "General Outpatient") continue;
 
-        const entries = extractVisitEntries(dept, templateData);
+        const entries = extractVisitEntries(dept, templateData, todayWAT);
         const match = entries.find(e => e.date === tomorrowDate);
         if (!match) continue;
 

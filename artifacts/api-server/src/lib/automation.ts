@@ -533,7 +533,7 @@ export async function sendFeedbackEmail(
     console.error("[sendFeedbackEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
-    throw err;
+    // Do NOT re-throw — caller iterates over multiple patients; one failure must not abort the rest.
   }
 }
 

@@ -49,12 +49,9 @@ function getTier(avg: number) {
   return                 { label: "—",     color: "text-muted-foreground/25" };
 }
 
-// Returns the avgPatientsDay from the most recent completed month that had any patients
+// Returns the avgPatientsDay from the most recent completed month (always the previous calendar month)
 function recentAvg(history: MonthSnapshot[]): number {
-  for (let i = history.length - 1; i >= 0; i--) {
-    if ((history[i]?.patients ?? 0) > 0) return history[i].avgPatientsDay;
-  }
-  return 0;
+  return history[history.length - 1]?.avgPatientsDay ?? 0;
 }
 
 function fmt(n: number) {

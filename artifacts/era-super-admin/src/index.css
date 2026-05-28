@@ -32,39 +32,39 @@
   --radius-lg: calc(var(--radius) + 2px);
 }
 
-/* ERA Systems Super Admin — Pure Black + Silver Titanium + Champagne Gold */
+/* ERA Systems Super Admin — Deep Black · Vibrant Gold · Crisp Contrast */
 :root {
-  /* Pure black — logo background match */
+  /* Near-pure black content area */
   --background: 0 0% 5%;
-  --foreground: 0 0% 92%;
+  --foreground: 0 0% 96%;
 
-  --border: 0 0% 11%;
-  --input: 0 0% 8%;
-  --ring: 43 60% 52%;
+  /* Visible borders — sharp layer separation */
+  --border: 0 0% 15%;
+  --input: 0 0% 9%;
+  --ring: 43 90% 56%;
 
-  /* Card: slightly lifted from base */
-  --card: 0 0% 7%;
-  --card-foreground: 0 0% 92%;
+  /* Cards: clearly lifted from background */
+  --card: 0 0% 8.5%;
+  --card-foreground: 0 0% 96%;
 
-  /* Gold accent — mirrors the | separators in tagline */
-  --primary: 43 60% 52%;
+  /* Gold — vivid champagne, high saturation */
+  --primary: 43 90% 56%;
   --primary-foreground: 0 0% 4%;
 
-  --secondary: 0 0% 11%;
-  --secondary-foreground: 0 0% 72%;
-  --muted: 0 0% 9%;
-  --muted-foreground: 0 0% 40%;
-  --accent: 0 0% 12%;
-  --accent-foreground: 0 0% 90%;
-  --destructive: 0 72% 52%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 80%;
+  --muted: 0 0% 10%;
+  --muted-foreground: 0 0% 52%;
+  --accent: 0 0% 13%;
+  --accent-foreground: 0 0% 94%;
+  --destructive: 0 76% 54%;
   --destructive-foreground: 0 0% 100%;
 
-  /* Sidebar: even deeper black — matches logo background exactly */
-  --sidebar: 0 0% 3%;
-  --sidebar-foreground: 0 0% 85%;
-  --sidebar-border: 0 0% 9%;
+  /* Sidebar: true black — maximum contrast against content */
+  --sidebar: 0 0% 2.5%;
+  --sidebar-foreground: 0 0% 88%;
+  --sidebar-border: 0 0% 12%;
 
-  /* Plus Jakarta Sans for UI · DM Mono for data (numbers, dates, usernames, codes) */
   --app-font-sans: 'Plus Jakarta Sans', sans-serif;
   --app-font-mono: 'DM Mono', 'SF Mono', Menlo, monospace;
   --radius: 0.25rem;

@@ -55,15 +55,22 @@ function NavLink({
       onClick={() => { setLocation(item.href); onClick?.(); }}
       title={collapsed ? item.label : undefined}
       className={cn(
-        "w-full flex items-center rounded transition-all text-sm font-medium",
+        "w-full flex items-center rounded transition-all duration-150 text-sm font-semibold",
         collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
         isActive
-          ? "bg-white/7 text-white border-l-2 border-primary"
-          : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-white/4 border-l-2 border-transparent"
+          ? "text-white border-l-2 border-primary"
+          : "text-sidebar-foreground/50 hover:text-sidebar-foreground/90 hover:bg-white/5 border-l-2 border-transparent"
       )}
+      style={isActive ? {
+        background: "linear-gradient(90deg, hsl(43 90% 56% / 0.12) 0%, hsl(43 90% 56% / 0.04) 100%)",
+        boxShadow: "inset 0 0 0 1px hsl(43 90% 56% / 0.06)",
+      } : undefined}
     >
-      <item.icon className={cn("shrink-0", collapsed ? "w-4 h-4" : "w-4 h-4", isActive && "text-primary")} />
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      <item.icon className={cn(
+        "shrink-0 w-4 h-4 transition-colors",
+        isActive ? "text-primary" : "text-current"
+      )} />
+      {!collapsed && <span className="truncate tracking-wide">{item.label}</span>}
     </button>
   );
 }
@@ -113,6 +120,7 @@ export default function Layout({ children, title }: LayoutProps) {
           "flex flex-col shrink-0 border-r border-sidebar-border bg-sidebar transition-all duration-200",
           collapsed ? "w-[52px]" : "w-[220px]"
         )}
+        style={{ boxShadow: "2px 0 20px rgba(0,0,0,0.5)" }}
       >
         {/* Logo */}
         <div
@@ -120,8 +128,10 @@ export default function Layout({ children, title }: LayoutProps) {
             "flex items-center shrink-0 border-b border-sidebar-border",
             collapsed ? "h-16 justify-center px-3" : "h-16 px-4 gap-3"
           )}
+          style={{
+            background: "linear-gradient(180deg, hsl(43 90% 56% / 0.05) 0%, transparent 100%)",
+          }}
         >
-          {/* ERA logo — black bg blends with sidebar */}
           <div
             className="shrink-0 cursor-pointer"
             style={{ width: collapsed ? 28 : 32, height: collapsed ? 28 : 32 }}
@@ -136,15 +146,15 @@ export default function Layout({ children, title }: LayoutProps) {
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setLocation("/")}>
-              <p className="text-xs font-bold text-white tracking-wide leading-tight truncate">
-                ERA SYSTEMS
+              <p className="text-[11px] font-extrabold text-white tracking-[0.18em] leading-tight truncate uppercase">
+                ERA Systems
               </p>
               <p className="text-[9px] text-muted-foreground tracking-widest mt-0.5 truncate uppercase">
-                <span className="text-white/40">Evaluate</span>
+                <span className="text-white/35">Evaluate</span>
                 <span className="text-primary mx-1">·</span>
-                <span className="text-white/40">Rebuild</span>
+                <span className="text-white/35">Rebuild</span>
                 <span className="text-primary mx-1">·</span>
-                <span className="text-white/40">Automate</span>
+                <span className="text-white/35">Automate</span>
               </p>
             </div>
           )}
@@ -153,7 +163,7 @@ export default function Layout({ children, title }: LayoutProps) {
         {/* Nav */}
         <div className="flex-1 flex flex-col px-2 py-3 gap-0.5 overflow-y-auto">
           {!collapsed && (
-            <p className="px-3 pb-1.5 text-[9px] font-bold text-muted-foreground/50 uppercase tracking-widest">
+            <p className="px-3 pb-2 text-[9px] font-bold text-muted-foreground/40 uppercase tracking-[0.18em]">
               Platform
             </p>
           )}
@@ -173,12 +183,12 @@ export default function Layout({ children, title }: LayoutProps) {
             onClick={() => setShowSecurity(true)}
             title={collapsed ? "Security" : undefined}
             className={cn(
-              "w-full flex items-center rounded transition-all text-sm font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-white/4",
+              "w-full flex items-center rounded transition-all text-sm font-semibold text-sidebar-foreground/50 hover:text-sidebar-foreground/90 hover:bg-white/5",
               collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
             )}
           >
             <ShieldCheck className="w-4 h-4 shrink-0" />
-            {!collapsed && <span>Security</span>}
+            {!collapsed && <span className="tracking-wide">Security</span>}
           </button>
 
           {/* Deploy */}
@@ -187,56 +197,62 @@ export default function Layout({ children, title }: LayoutProps) {
               onClick={() => setConfirmDeploy(s => !s)}
               title={collapsed ? "Deploy" : undefined}
               className={cn(
-                "w-full flex items-center rounded transition-all text-sm font-medium",
+                "w-full flex items-center rounded transition-all text-sm font-semibold",
                 collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
                 deployState === "done" ? "text-emerald-400" :
                 deployState === "error" ? "text-red-400" :
-                "text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-white/4"
+                "text-sidebar-foreground/35 hover:text-sidebar-foreground/70 hover:bg-white/5"
               )}
             >
               {deployState === "pushing" ? <Loader2 className="w-4 h-4 shrink-0 animate-spin" /> :
                deployState === "done" ? <CheckCircle2 className="w-4 h-4 shrink-0" /> :
                deployState === "error" ? <XCircle className="w-4 h-4 shrink-0" /> :
                <Upload className="w-4 h-4 shrink-0" />}
-              {!collapsed && <span className="text-xs">
-                {deployState === "pushing" ? "Deploying…" :
-                 deployState === "done" ? "Deployed!" :
-                 deployState === "error" ? "Failed" : "Deploy"}
-              </span>}
+              {!collapsed && (
+                <span className="text-xs tracking-wide">
+                  {deployState === "pushing" ? "Deploying…" :
+                   deployState === "done" ? "Deployed!" :
+                   deployState === "error" ? "Failed" : "Deploy"}
+                </span>
+              )}
             </button>
 
             {confirmDeploy && (
               <div
                 className="absolute bottom-full left-0 mb-2 w-56 bg-card border border-border rounded shadow-2xl z-50 p-3 space-y-2.5"
-                style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.7)" }}
+                style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px hsl(43 90% 56% / 0.1)" }}
               >
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Push to GitHub and trigger Railway deploy?
                 </p>
                 <div className="flex gap-2">
-                  <button onClick={handleDeploy} className="flex-1 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-bold hover:bg-primary/90 transition">
+                  <button onClick={handleDeploy}
+                    className="flex-1 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-bold hover:bg-primary/90 transition"
+                    style={{ boxShadow: "0 2px 12px hsl(43 90% 56% / 0.3)" }}>
                     Deploy
                   </button>
-                  <button onClick={() => setConfirmDeploy(false)} className="flex-1 py-1.5 rounded border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                  <button onClick={() => setConfirmDeploy(false)}
+                    className="flex-1 py-1.5 rounded border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition">
                     Cancel
                   </button>
                 </div>
+                {deployMsg && <p className="text-[10px] text-muted-foreground font-mono break-all">{deployMsg}</p>}
               </div>
             )}
           </div>
 
-          {/* Divider */}
+          {/* Divider + logout */}
           <div className="pt-2 border-t border-sidebar-border mt-2">
             <button
               onClick={() => logout()}
               title={collapsed ? "Sign out" : undefined}
               className={cn(
-                "w-full flex items-center rounded transition-all text-sm font-medium text-sidebar-foreground/40 hover:text-sidebar-foreground/70 hover:bg-white/4",
+                "w-full flex items-center rounded transition-all text-sm font-semibold text-sidebar-foreground/35 hover:text-sidebar-foreground/70 hover:bg-white/5",
                 collapsed ? "justify-center p-2.5" : "gap-3 px-3 py-2.5"
               )}
             >
               <LogOut className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="text-xs">Sign out</span>}
+              {!collapsed && <span className="text-xs tracking-wide">Sign out</span>}
             </button>
           </div>
         </div>
@@ -244,7 +260,7 @@ export default function Layout({ children, title }: LayoutProps) {
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(c => !c)}
-          className="border-t border-sidebar-border flex items-center justify-center py-2 text-muted-foreground/30 hover:text-muted-foreground/60 transition text-[10px] gap-1"
+          className="border-t border-sidebar-border flex items-center justify-center py-2 text-muted-foreground/25 hover:text-primary/60 transition text-[10px] gap-1"
         >
           <ChevronRight className={cn("w-3 h-3 transition-transform", !collapsed && "rotate-180")} />
           {!collapsed && <span className="font-mono uppercase tracking-widest text-[9px]">Collapse</span>}
@@ -253,6 +269,8 @@ export default function Layout({ children, title }: LayoutProps) {
 
       {/* ── Main content ─────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top accent bar */}
+        <div className="h-[1px] shrink-0" style={{ background: "linear-gradient(90deg, hsl(43 90% 56% / 0.3) 0%, transparent 60%)" }} />
         <main className="flex-1 overflow-auto p-7">
           {children}
         </main>

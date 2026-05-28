@@ -618,7 +618,7 @@ export function startScheduler() {
     await runTermiiBalanceCheck();
   });
 
-  log("Scheduler started — all automations are email-first");
+  log("Scheduler started — queue messages via WhatsApp/SMS (per hospital config), scheduled automations via email");
 }
 
 // ── Delayed care plan summary emails (20 min after plan creation) ─────────────

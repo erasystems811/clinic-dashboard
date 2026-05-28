@@ -1,5 +1,5 @@
 - [Messaging channels](messaging-channels.md) — all outbound goes to patients only; admin never receives email/SMS/WhatsApp; 3 WhatsApp types only
-- [Automation inventory](automation-inventory.md) — complete list of all automations, channels, AI models (OpenAI=care/reminders/tasks, Claude=newsletter)
+- [Automation inventory](automation-inventory.md) — canonical source: era-super-admin Settings page (/settings); covers all triggers, timing, channels, dedup, AI models
 - [Care Plans Table](care-plans-table.md) — care_plans table must be created manually in Supabase; SQL at artifacts/api-server/migrations/001_care_plans.sql
 - [Auth Token Pattern](auth-token-pattern.md) — era-patient uses x-hospital-token header; hospital.token from auth-context (not localStorage auth_token)
 - [Stage Semantics](stage-semantics.md) — stages are independent boolean states; primary + derived overlays; no "Queued"/"Booked" written to patients.stage

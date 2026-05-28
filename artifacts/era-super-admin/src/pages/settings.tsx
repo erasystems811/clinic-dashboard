@@ -149,34 +149,64 @@ export default function SettingsPage() {
 
         {/* Automations summary */}
         <Section title="Automations">
+
+          <div className="px-4 pt-3 pb-1">
+            <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-[0.14em]">Real-time · Triggered immediately</p>
+          </div>
+
           <Row
-            label="Care plan emails"
-            note="Sent 20 minutes after a nurse creates a care plan — giving staff time for edits before the patient is notified."
+            label="Care plan onboarding — SMS / WhatsApp"
+            note="The moment a nurse saves a care plan, the patient receives an SMS or WhatsApp message letting them know their plan is ready and to check their email for the full details. Channel is per-hospital (SMS or WhatsApp)."
+            value="Instant"
+          />
+          <Row
+            label="Queue updates — SMS / WhatsApp"
+            note="Three messages fire as the patient moves through the queue: check-in confirmation with position, next-in-line alert, and 'it's your turn' notification. A long-wait apology is sent if the wait exceeds 20 minutes."
+            value="Per queue action"
+          />
+          <Row
+            label="Appointment confirmation — Email"
+            note="Sent immediately when a receptionist or admin books an appointment. Includes the date, time, and a note on how to reschedule."
+            value="On booking"
+          />
+
+          <div className="px-4 pt-3 pb-1">
+            <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-[0.14em]">Scheduled · Automated by the system</p>
+          </div>
+
+          <Row
+            label="Care plan email — Email"
+            note="Sent 20 minutes after a nurse creates a care plan — giving staff time for edits before the patient receives the full AI-written explanation of their plan."
             value="20-min delay"
           />
           <Row
-            label="Appointment reminders"
-            note="Sent automatically 24 hours and 2 hours before each scheduled appointment."
+            label="Appointment reminders — Email"
+            note="Two reminders fire automatically before every scheduled appointment: one the day before and one 2 hours ahead."
             value="24h + 2h"
           />
           <Row
-            label="Post-treatment check-ins"
-            note="Patients who complete treatment receive personal check-in emails on Day 1, 4, and 7 after their treatment ends."
+            label="Appointment no-show follow-up — Email"
+            note="Patients who miss an appointment receive a warm follow-up the next morning — acknowledging the missed visit and inviting them to rebook."
+            value="Next morning"
+          />
+          <Row
+            label="Post-treatment check-ins — Email"
+            note="Patients who complete treatment receive personal check-in emails on Day 1, 4, and 7 after their treatment ends — keeping the clinic present during recovery."
             value="Day 1 · 4 · 7"
           />
           <Row
-            label="Active patient follow-ups"
-            note="Patients in the Active stage who haven't visited in 30 days receive a warm check-in — keeping your clinic present in their lives."
+            label="Active patient follow-ups — Email"
+            note="Patients in the Active stage who haven't visited in 30 days receive a warm check-in — keeping the clinic present in their lives between visits."
             value="30-day cadence"
           />
           <Row
-            label="Birthday emails"
-            note="Every patient with a date of birth on file receives a personal birthday message from the hospital — once per calendar year."
+            label="Birthday messages — Email"
+            note="Every patient with a date of birth on file receives a personal birthday message from their hospital — once per calendar year, on their birthday."
             value="Annual"
           />
           <Row
-            label="Feedback requests"
-            note="Patients who visited the previous day receive a feedback link at noon — capturing responses while the visit is still fresh."
+            label="Feedback requests — Email"
+            note="Patients who visited the previous day receive a feedback link at noon — capturing their impression while the visit is still fresh."
             value="Next day, 12pm"
           />
         </Section>

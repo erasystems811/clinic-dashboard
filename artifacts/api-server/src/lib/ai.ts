@@ -13,23 +13,24 @@ function getClaude(): Anthropic {
   return new Anthropic({ apiKey: key });
 }
 
+// Temporarily routed through Claude to use existing Anthropic credits.
+// To switch back to OpenAI: restore the original implementation below.
 export async function generateOpenAIMessage(
   systemPrompt: string,
   userPrompt: string,
   maxTokens = 400,
 ): Promise<string> {
-  const openai = getOpenAI();
-  const resp = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    max_tokens: maxTokens,
-    temperature: 0.8,
-  });
-  return resp.choices[0]?.message?.content?.trim() ?? "";
+  return generateClaudeMessage(systemPrompt, userPrompt, maxTokens);
 }
+
+// Original OpenAI implementation (kept for easy restoration):
+// export async function generateOpenAIMessage(...) {
+//   const openai = getOpenAI();
+//   const resp = await openai.chat.completions.create({
+//     model: "gpt-4o-mini", messages: [...], max_tokens: maxTokens, temperature: 0.8,
+//   });
+//   return resp.choices[0]?.message?.content?.trim() ?? "";
+// }
 
 // Newsletter generation uses Claude Haiku for quality long-form wellness content
 export async function generateClaudeMessage(

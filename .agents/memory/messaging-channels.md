@@ -31,3 +31,9 @@ The hospital admin NEVER receives any email or SMS/WhatsApp from the system.
 **Why:** User explicitly confirmed — messaging infrastructure is patient-facing only. Hospital admin interacts exclusively through the in-app dashboard. WhatsApp/SMS reserved for time-critical real-time queue updates only.
 
 **How to apply:** Before wiring any automation, ask "who receives this?" If it's the admin → in-app only, never send. If it's the patient → email unless it's one of the 3 WhatsApp/SMS types.
+
+## Termii SMS channel: MUST be `generic`, NOT `dnd`
+
+`dnd` channel returns HTTP 400 "Country Inactive" even when the account is active and Nigeria is enabled. The Termii app and generic API route both use `generic`. **Never change `deliverSms` back to `dnd`.**
+
+**Why:** Confirmed working after switching `deliverSms` in messaging.ts from `dnd` → `generic`. User verified message received.

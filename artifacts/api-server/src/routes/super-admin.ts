@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
 import { signHospitalToken, verifyHospitalToken as _verifyHospitalToken } from "../lib/hospital-auth.js";
-import { testSmsDelivery } from "../lib/messaging.js";
+import { testSmsDelivery, deliverMobileMessage } from "../lib/messaging.js";
 import { invalidateHospitalSessions, getHospitalSessionInvalidatedAt } from "../lib/session-invalidation.js";
 
 const execAsync = promisify(exec);
@@ -1003,6 +1003,51 @@ router.post("/super-admin/automation-log/:id/retry", requireSuperAdmin, async (r
   const { data: log } = await supabase.from("automation_log").select("*").eq("id", id).single();
   if (!log) { res.status(404).json({ error: "Log entry not found" }); return; }
 
+  const channel = log.channel as string;
+  const messagePreview = log.message_preview as string | null;
+
+  // Email automations cannot be auto-retried — full HTML content is not stored
+  if (channel === "email") {
+    res.status(400).json({ ok: false, message: "Email automations cannot be retried automatically — the original email content is not stored. Trigger the action again from the patient record." });
+    return;
+  }
+
+  // SMS / WhatsApp — re-send the stored message to the patient's current phone
+  if (!messagePreview) {
+    res.status(400).json({ ok: false, message: "No message content stored — cannot retry." });
+    return;
+  }
+
+  const patientId = log.patient_id as number | null;
+  if (!patientId) {
+    res.status(400).json({ ok: false, message: "No patient linked to this log entry — cannot retry." });
+    return;
+  }
+
+  // Look up patient phone and hospital sender ID in parallel
+  const [{ data: patient }, { data: hSettings }] = await Promise.all([
+    supabase.from("patients").select("phone, whatsapp_number").eq("id", patientId).single(),
+    supabase.from("hospital_settings").select("termii_sender_id, notification_channel").eq("hospital_id", log.hospital_id).single(),
+  ]);
+
+  if (!patient) {
+    res.status(404).json({ ok: false, message: "Patient not found." });
+    return;
+  }
+
+  const phone = (channel === "whatsapp"
+    ? (patient.whatsapp_number as string | null) || (patient.phone as string | null)
+    : (patient.phone as string | null));
+
+  if (!phone) {
+    res.status(400).json({ ok: false, message: "Patient has no phone number stored." });
+    return;
+  }
+
+  const sendChannel = (channel === "whatsapp" ? "whatsapp" : "sms") as "whatsapp" | "sms";
+  const senderId = (hSettings?.termii_sender_id as string | null) ?? undefined;
+
+  // Mark as in-progress and send
   await supabase.from("automation_log").update({
     status: "queued",
     error_message: null,
@@ -1010,7 +1055,23 @@ router.post("/super-admin/automation-log/:id/retry", requireSuperAdmin, async (r
     last_attempted_at: new Date().toISOString(),
   }).eq("id", id);
 
-  res.json({ ok: true, message: "Marked for retry. The automation will be re-attempted on the next scheduler run." });
+  try {
+    await deliverMobileMessage(sendChannel, phone, messagePreview, { senderId });
+    await supabase.from("automation_log").update({
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      last_attempted_at: new Date().toISOString(),
+    }).eq("id", id);
+    res.json({ ok: true, message: "Retry sent successfully." });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await supabase.from("automation_log").update({
+      status: "failed",
+      error_message: errMsg,
+      last_attempted_at: new Date().toISOString(),
+    }).eq("id", id);
+    res.status(500).json({ ok: false, message: `Retry failed: ${errMsg}` });
+  }
 });
 
 // ── Test SMS delivery ─────────────────────────────────────────────────────────
@@ -1020,7 +1081,7 @@ router.post("/super-admin/test-sms", requireSuperAdmin, async (req, res): Promis
   if (!to) { res.status(400).json({ error: "Missing 'to' phone number" }); return; }
   let phone = String(to).replace(/\s+/g, "");
   if (phone.startsWith("0")) phone = "234" + phone.slice(1);
-  const ch = channel === "generic" ? "generic" : "dnd";
+  const ch = channel === "dnd" ? "dnd" : "generic";
   const result = await testSmsDelivery(phone, senderId ? String(senderId) : undefined, ch);
   res.status(200).json(result);
 });

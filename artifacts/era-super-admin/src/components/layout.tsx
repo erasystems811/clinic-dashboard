@@ -52,44 +52,46 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Top bar — sharp 1px bottom rule, no glow */}
-      <header className="border-b border-border flex items-center px-6 gap-4 shrink-0 h-14 bg-background">
+      {/* Top bar */}
+      <header className="border-b border-border flex items-center px-6 gap-4 shrink-0 h-16"
+        style={{ boxShadow: "0 1px 0 0 hsl(43 96% 54% / 0.08)" }}>
 
-        {/* Brand wordmark */}
+        {/* Brand */}
         <button
           onClick={() => setLocation("/")}
-          className="flex items-center gap-3 hover:opacity-75 transition shrink-0"
+          className="flex items-center gap-3 hover:opacity-80 transition shrink-0 group"
         >
-          {/* Mark: two stacked horizontal lines in gold — editorial logo */}
-          <div className="flex flex-col gap-[3px] justify-center shrink-0">
-            <span className="block h-[2px] w-5 bg-primary" />
-            <span className="block h-[2px] w-3 bg-primary/60" />
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0 shadow-lg"
+            style={{ boxShadow: "0 0 12px hsl(43 96% 54% / 0.35)" }}>
+            <span className="text-primary-foreground font-black text-sm tracking-tighter">E</span>
           </div>
-          <span
-            className="font-display font-700 text-sm tracking-tight text-foreground hidden sm:block"
-            style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}
-          >
-            ERA SYSTEMS
-          </span>
-          <span className="hidden sm:inline-flex items-center text-[9px] font-mono font-bold text-primary/70 border border-primary/20 bg-primary/5 px-1.5 py-0.5 uppercase tracking-widest">
-            ADMIN
-          </span>
+          <div className="hidden sm:block">
+            <span className="font-extrabold text-sm text-foreground tracking-tight">Era Systems</span>
+            <span className="ml-2 text-[10px] font-semibold text-primary/80 uppercase tracking-widest border border-primary/25 bg-primary/8 px-1.5 py-0.5 rounded">
+              Super Admin
+            </span>
+          </div>
         </button>
 
         {/* Breadcrumb */}
         {breadcrumb && breadcrumb.length > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 flex-1">
-            <span className="text-border">›</span>
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground min-w-0 flex-1">
+            <ChevronRight className="w-3.5 h-3.5 shrink-0 text-border" />
             {breadcrumb.map((crumb, i) => (
               <span key={i} className="flex items-center gap-1.5 min-w-0">
                 {crumb.href ? (
-                  <button onClick={() => setLocation(crumb.href!)} className="hover:text-foreground transition truncate">
+                  <button
+                    onClick={() => setLocation(crumb.href!)}
+                    className="hover:text-foreground transition truncate max-w-[140px] sm:max-w-none text-xs"
+                  >
                     {crumb.label}
                   </button>
                 ) : (
-                  <span className="text-foreground font-semibold truncate">{crumb.label}</span>
+                  <span className="text-foreground font-semibold text-xs truncate max-w-[140px] sm:max-w-none">{crumb.label}</span>
                 )}
-                {i < breadcrumb.length - 1 && <span className="text-border">›</span>}
+                {i < breadcrumb.length - 1 && (
+                  <ChevronRight className="w-3 h-3 shrink-0 text-border" />
+                )}
               </span>
             ))}
           </div>
@@ -99,54 +101,71 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
         <div className="ml-auto flex items-center gap-1 shrink-0">
           <button
             onClick={() => setLocation("/")}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded hover:bg-muted transition font-medium"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition font-medium"
           >
             <LayoutDashboard className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Hospitals</span>
           </button>
 
+          {/* Settings */}
           <div className="relative" ref={settingsRef}>
             <button
               onClick={() => { setShowSettings(s => !s); setConfirmDeploy(false); }}
-              className={`p-1.5 rounded transition ${showSettings ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+              className={`p-2 rounded-md transition ${showSettings ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+              title="Settings"
             >
-              <Settings2 className="w-3.5 h-3.5" />
+              <Settings2 className="w-4 h-4" />
             </button>
 
             {showSettings && (
-              <div className="absolute right-0 top-9 w-56 bg-card border border-border rounded shadow-2xl z-50 overflow-hidden"
-                style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px hsl(225 35% 14%)" }}>
+              <div className="absolute right-0 top-10 w-56 bg-card border border-border rounded-xl shadow-2xl z-50 overflow-hidden"
+                style={{ boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px hsl(220 14% 11%)" }}>
                 <div className="p-1">
                   <button
                     onClick={() => { setShowSecurity(true); setShowSettings(false); }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-foreground hover:bg-muted rounded font-semibold transition text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-foreground hover:bg-muted rounded-lg transition text-left font-medium"
                   >
-                    <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" />
+                    <ShieldCheck className="w-4 h-4 text-muted-foreground" />
                     Security
                   </button>
                 </div>
-                <div className="border-t border-border" />
+
+                <div className="border-t border-border mx-1" />
+
                 <div className="p-1">
                   {!confirmDeploy ? (
                     <button
                       onClick={() => setConfirmDeploy(true)}
                       disabled={deployState === "pushing"}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground rounded font-semibold transition text-left disabled:opacity-50"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg transition text-left disabled:opacity-50 font-medium"
                     >
-                      {deployState === "pushing" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
-                       deployState === "done" ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> :
-                       deployState === "error" ? <XCircle className="w-3.5 h-3.5 text-red-400" /> :
-                       <Upload className="w-3.5 h-3.5" />}
+                      {deployState === "pushing" ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                       deployState === "done" ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> :
+                       deployState === "error" ? <XCircle className="w-4 h-4 text-red-400" /> :
+                       <Upload className="w-4 h-4" />}
                       <span className={deployState === "done" ? "text-emerald-400" : deployState === "error" ? "text-red-400" : ""}>
-                        {deployState === "pushing" ? "Pushing…" : deployState === "done" ? "Pushed!" : deployState === "error" ? "Failed" : "Push to GitHub"}
+                        {deployState === "pushing" ? "Pushing…" :
+                         deployState === "done" ? "Pushed!" :
+                         deployState === "error" ? "Push failed" :
+                         "Push to GitHub"}
                       </span>
                     </button>
                   ) : (
-                    <div className="px-3 py-3 space-y-2.5">
-                      <p className="text-[11px] text-muted-foreground leading-relaxed">Overwrites GitHub with current code and triggers Railway deploy.</p>
+                    <div className="px-3 py-3 space-y-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed">This will overwrite GitHub with current Replit code and trigger a Railway deploy.</p>
                       <div className="flex gap-2">
-                        <button onClick={handleDeploy} className="flex-1 py-1.5 rounded bg-primary text-primary-foreground text-[11px] font-bold hover:bg-primary/90 transition">Deploy</button>
-                        <button onClick={() => setConfirmDeploy(false)} className="flex-1 py-1.5 rounded border border-border text-[11px] text-muted-foreground hover:text-foreground hover:bg-muted transition">Cancel</button>
+                        <button
+                          onClick={handleDeploy}
+                          className="flex-1 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition"
+                        >
+                          Deploy
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeploy(false)}
+                          className="flex-1 py-1.5 rounded-md border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                        >
+                          Cancel
+                        </button>
                       </div>
                     </div>
                   )}
@@ -159,7 +178,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
 
           <button
             onClick={() => logout()}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded hover:bg-muted transition font-medium"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-md hover:bg-muted transition font-medium"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Sign out</span>
@@ -167,7 +186,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
         </div>
       </header>
 
-      <main className="flex-1 p-8 max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-6 max-w-7xl mx-auto w-full">
         {children}
       </main>
 

@@ -659,6 +659,8 @@ export function startScheduler() {
     return;
   }
 
+  const TZ = { timezone: "Africa/Lagos" };
+
   // Every 15 minutes: appointment reminders + no-show detection + 1-hour follow-up email + queue long-wait check
   cron.schedule("*/15 * * * *", async () => {
     await runAppointmentReminders();
@@ -667,29 +669,28 @@ export function startScheduler() {
     await runQueueLongWaitCheck();
   });
 
-  // Daily at 7:00 AM: pipeline transitions + post-treatment check-ins + dormant + birthdays
+  // Daily at 7:00 AM WAT: pipeline transitions + post-treatment check-ins + dormant + birthdays
   cron.schedule("0 7 * * *", async () => {
     await runPostTreatmentTransitions();
     await runPostTreatmentCheckins();
     await runDormantDetection();
     await runBirthdayEmails();
-  });
+  }, TZ);
 
-  // Daily at 6:00 PM: post-care wellness emails
+  // Daily at 6:00 PM WAT: post-care wellness emails
   cron.schedule("0 18 * * *", async () => {
     await runPostCareEmails();
-  });
+  }, TZ);
 
-
-  // Daily at 12:00 PM: feedback emails (covers previous day's patients)
+  // Daily at 12:00 PM WAT: feedback emails (covers previous day's patients)
   cron.schedule("0 12 * * *", async () => {
     await runFeedbackEmails();
-  });
+  }, TZ);
 
-  // Daily at 11:00 PM: dismiss any no-shows from today
+  // Daily at 11:00 PM WAT: dismiss any no-shows from today
   cron.schedule("0 23 * * *", async () => {
     await runNoShowDismissal();
-  });
+  }, TZ);
 
   // Every 6 hours: subscription expiration check
   cron.schedule("0 */6 * * *", async () => {
@@ -706,10 +707,10 @@ export function startScheduler() {
     await runCarePlanEmailDelay();
   });
 
-  // Daily at 9:00 AM: Termii credit balance alert
+  // Daily at 9:00 AM WAT: Termii credit balance alert
   cron.schedule("0 9 * * *", async () => {
     await runTermiiBalanceCheck();
-  });
+  }, TZ);
 
   log("Scheduler started — queue messages via WhatsApp/SMS (per hospital config), scheduled automations via email");
 }

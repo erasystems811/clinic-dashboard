@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/auth";
 import {
   LogOut, ChevronRight, ShieldCheck, CheckCircle2,
   Loader2, BarChart2, Building2, Settings, Rocket, AlertCircle,
-  PanelLeftClose, PanelLeftOpen, Menu, X, FlaskConical,
+  PanelLeftClose, PanelLeftOpen, Menu, X, FlaskConical, TrendingUp,
 } from "lucide-react";
 import ChangePasswordModal from "@/components/change-password-modal";
 import { post } from "@/lib/api";
@@ -19,6 +19,7 @@ interface LayoutProps {
 const NAV = [
   { icon: BarChart2,     label: "Analytics",          href: "/",                 sub: "Platform command" },
   { icon: Building2,     label: "Hospitals",          href: "/hospitals",        sub: "Account registry" },
+  { icon: TrendingUp,    label: "Usage",              href: "/usage",            sub: "Hospital consumption" },
   { icon: FlaskConical,  label: "Automation Tests",   href: "/automation-tests", sub: "Verify email delivery" },
   { icon: Settings,      label: "Settings",           href: "/settings",         sub: "System config" },
 ];

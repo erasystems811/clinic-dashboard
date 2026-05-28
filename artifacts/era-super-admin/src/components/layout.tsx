@@ -17,9 +17,9 @@ interface LayoutProps {
 }
 
 const NAV = [
-  { icon: BarChart2,  label: "Analytics",   href: "/",          sub: "Platform command" },
-  { icon: Building2,  label: "Hospitals",   href: "/hospitals", sub: "Account registry" },
-  { icon: Settings,   label: "Settings",    href: "/settings",  sub: "System config" },
+  { icon: BarChart2,  label: "Analytics",   href: "/",          sub: "Overview & metrics" },
+  { icon: Building2,  label: "Hospitals",   href: "/hospitals", sub: "Registered accounts" },
+  { icon: Settings,   label: "Settings",    href: "/settings",  sub: "Configuration" },
 ];
 
 const SIDEBAR_KEY = "era_sa_sidebar";
@@ -229,7 +229,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
               ))}
             </>
           ) : (
-            <span className="text-[9px] text-muted-foreground/25 font-medium tracking-[0.3em] uppercase">Evaluate · Rebuild · Automate</span>
+            <span className="text-[9px] text-muted-foreground/25 font-medium tracking-[0.2em] uppercase">Era Systems · Hospital Management</span>
           )}
           <div className="ml-auto flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/70" />

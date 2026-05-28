@@ -17,8 +17,8 @@ interface LayoutProps {
 }
 
 const NAV = [
-  { icon: Building2,  label: "Hospitals",   href: "/",          sub: "Account registry" },
-  { icon: BarChart2,  label: "Overview",    href: "/overview",  sub: "System dashboard" },
+  { icon: BarChart2,  label: "Analytics",   href: "/",          sub: "Platform command" },
+  { icon: Building2,  label: "Hospitals",   href: "/hospitals", sub: "Account registry" },
   { icon: Settings,   label: "Settings",    href: "/settings",  sub: "System config" },
 ];
 

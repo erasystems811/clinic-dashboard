@@ -46,8 +46,13 @@ async function termiiSend(
     console.warn(detail);
     return { ok: false, detail };
   }
-  // senderId is optional — if absent Termii uses its pre-approved default numeric sender,
-  // which bypasses NCC alphanumeric sender ID registration requirements.
+  // WhatsApp requires a sender ID (the registered WhatsApp Business name/number).
+  // DND/generic SMS can work without one — Termii uses a default numeric sender.
+  if (channel === "whatsapp" && !senderId) {
+    const detail = `[messaging] WhatsApp requires a Sender ID — set TERMII_SENDER_ID env var or configure a per-hospital Termii Sender ID in hospital settings.`;
+    console.warn(detail);
+    throw new Error(detail);
+  }
   const payload: Record<string, string> = {
     api_key: apiKey,
     to,

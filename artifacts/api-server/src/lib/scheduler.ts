@@ -99,7 +99,9 @@ async function runPostTreatmentCheckins() {
 
         for (const day of [1, 4, 7] as const) {
           if (daysSinceEnd < day) continue; // not yet time
-          if (daysSinceEnd > day + 2) continue; // missed window — skip to avoid very delayed sends
+          // Allow a 30-day catch-up window so emails missed during hospital suspension
+          // are still delivered when the hospital is unsuspended, in the correct order.
+          if (daysSinceEnd > day + 30) continue; // too old — skip
 
           const automationType = `post_treatment_day${day}`;
           // Scope the sent-check to the current treatment cycle (gte treatment_end_date)
@@ -204,8 +206,15 @@ async function runDormantDetection() {
     for (const hs of hospitals ?? []) {
       const dormantDays = (hs.pipeline_dormant_days as number) ?? 30;
 
-      const { data: hospital } = await supabase.from("hospitals").select("hospital_code").eq("id", hs.hospital_id).single();
+      const { data: hospital } = await supabase
+        .from("hospitals")
+        .select("hospital_code, active")
+        .eq("id", hs.hospital_id)
+        .single();
       if (!hospital) continue;
+      // Never run dormant detection for suspended hospitals — patients retain their
+      // activity timestamps so counting resumes correctly after unsuspension.
+      if (hospital.active === false) continue;
 
       // Cutoff: patient must NOT have been queued (checked in) within the dormant window.
       const cutoff = new Date(now.getTime() - dormantDays * 24 * 60 * 60 * 1000).toISOString();

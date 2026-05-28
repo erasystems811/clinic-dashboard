@@ -167,7 +167,11 @@ async function runPostCareEmails() {
         .select("id, first_name, last_name, email, stage")
         .eq("hospital_id", hospital.hospital_code)
         .eq("stage", "Active")
-        .not("email", "is", null);
+        .not("email", "is", null)
+        // Exclude patients registered in the last 30 days — they haven't lapsed,
+        // they're just new. Without this, new patients receive a "thinking of you"
+        // email on the very first scheduler run after registration.
+        .lt("created_at", cutoff30);
 
       for (const p of patients ?? []) {
         if (!p.email) continue;

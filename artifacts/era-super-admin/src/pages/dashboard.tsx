@@ -99,10 +99,10 @@ export default function Hospitals() {
       <div className="border border-[hsl(0_0%_22%)] overflow-hidden">
 
         {/* Table header */}
-        <div className="border-b border-[hsl(0_0%_22%)] bg-[hsl(0_0%_8%)] grid grid-cols-[1fr_140px_120px_130px_110px_32px] gap-0">
-          {["Hospital Account", "Identifier", "Status", "Subscription Ends", "Registered", ""].map((h, i) => (
-            <div key={i} className="px-4 py-2.5">
-              <p className="text-[9px] font-bold text-muted-foreground/35 uppercase tracking-[0.25em]">{h}</p>
+        <div className="border-b border-[hsl(0_0%_14%)] bg-black grid grid-cols-[1fr_140px_120px_130px_110px_32px] gap-0">
+          {["Hospital Account", "Username", "Status", "Subscription Ends", "Registered", ""].map((h, i) => (
+            <div key={i} className="px-4 py-1.5">
+              <p className="text-[8px] font-bold text-muted-foreground/30 uppercase tracking-[0.25em]">{h}</p>
             </div>
           ))}
         </div>

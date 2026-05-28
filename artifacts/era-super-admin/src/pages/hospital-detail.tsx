@@ -697,7 +697,7 @@ export default function HospitalDetail({ id }: Props) {
           </div>
 
           {/* Pipeline */}
-          <div className="pt-2 border-t border-border grid grid-cols-2 gap-4">
+          <div className="pt-2 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Post-Treatment Days" hint="Days before moving to Post Care">
               <input type="number" value={postTreatmentDays} onChange={e => setPostTreatmentDays(e.target.value)} className={inputCls()} placeholder="14" min="1" />
             </Field>

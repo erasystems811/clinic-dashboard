@@ -221,7 +221,7 @@ export default function Analytics() {
       {/* ── Account metrics ── */}
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-muted-foreground mb-3">Account Registry</h2>
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           <StatCard label="Total"         value={stats.total}        icon={Building2}    color="text-primary"                              loading={hospitalsLoading} />
           <StatCard label="Active"        value={stats.active}       icon={CheckCircle2} color="text-emerald-400"                          loading={hospitalsLoading} sub="subscribed" />
           <StatCard label="Trial"         value={stats.trial}        icon={AlertCircle}  color="text-amber-400"                            loading={hospitalsLoading} sub="on trial" />

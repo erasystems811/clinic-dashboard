@@ -42,8 +42,8 @@ async function runAppointmentReminders() {
       const patient = (appt as Record<string, unknown>).patients as Record<string, unknown> | null;
       if (!patient || !patient.email) continue;
 
-      const hospitalUsername = patient.hospital_id as string;
-      const { data: hospital } = await supabase.from("hospitals").select("id").eq("username", hospitalUsername).single();
+      const hospitalCode = patient.hospital_id as string;
+      const { data: hospital } = await supabase.from("hospitals").select("id").eq("hospital_code", hospitalCode).single();
       if (!hospital) continue;
 
       const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
@@ -447,7 +447,7 @@ async function runNoShowFollowup() {
       if (patient && patient.email) {
         const patientName = `${patient.first_name} ${patient.last_name}`;
         const { data: hospital } = await supabase
-          .from("hospitals").select("id").eq("username", (patient.hospital_id as string).toLowerCase()).single();
+          .from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).single();
 
         if (hospital) {
           const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
@@ -739,7 +739,7 @@ async function runCarePlanRemindersHourly() {
           .from("patients")
           .select("id, first_name, last_name, email, stage, treatment_end_date")
           .eq("id", plan.patient_id)
-          .eq("hospital_id", h.id)
+          .eq("hospital_id", h.hospital_code)
           .single();
 
         if (!patient?.email) continue;
@@ -891,7 +891,7 @@ async function runCareVisitReminders() {
           .from("patients")
           .select("id, first_name, last_name, email")
           .eq("id", plan.patient_id)
-          .eq("hospital_id", h.id)
+          .eq("hospital_id", h.hospital_code)
           .single();
 
         if (!patient?.email) continue;

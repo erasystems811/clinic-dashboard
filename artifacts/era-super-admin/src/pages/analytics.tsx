@@ -168,7 +168,7 @@ export default function Analytics() {
 
   const overallStatus = !health ? "unknown" : !health.ok ? "degraded" : health.anyWarning ? "warning" : "operational";
   const statusCfg = {
-    operational: { label: "All Systems Operational", color: "text-emerald-400", dot: "bg-emerald-400 shadow-[0_0_8px_hsl(134_61%_51%/0.7)]", border: "border-emerald-500/15", bg: "bg-emerald-500/4" },
+    operational: { label: "All Systems Running", color: "text-emerald-400", dot: "bg-emerald-400 shadow-[0_0_8px_hsl(134_61%_51%/0.7)]", border: "border-emerald-500/15", bg: "bg-emerald-500/4" },
     warning:     { label: "Service Warning Detected", color: "text-amber-400",   dot: "bg-amber-400",   border: "border-amber-500/15",  bg: "bg-amber-500/4"  },
     degraded:    { label: "Service Disruption Active", color: "text-red-400",     dot: "bg-red-400",     border: "border-red-500/15",    bg: "bg-red-500/4"    },
     unknown:     { label: "Status Unknown",            color: "text-muted-foreground/60", dot: "bg-muted-foreground/30", border: "border-border", bg: "bg-muted/20" },
@@ -190,7 +190,7 @@ export default function Analytics() {
           <p className="text-[9px] font-bold text-primary/60 uppercase tracking-[0.3em] mb-2">Intelligence Dashboard</p>
           <h1 className="text-xl font-bold text-foreground tracking-tight">Platform Overview</h1>
           <p className="text-[11px] text-muted-foreground/40 mt-1 tracking-wide">
-            Live monitoring · account health · automation intelligence
+            Live monitoring · hospital accounts · automated workflows
           </p>
         </div>
         <div className="flex items-center gap-3 mt-1">
@@ -240,7 +240,7 @@ export default function Analytics() {
       {/* ── Infrastructure health (under account registry) ── */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[9px] font-bold text-muted-foreground/35 uppercase tracking-[0.3em]">Infrastructure Health</p>
+          <p className="text-[9px] font-bold text-muted-foreground/35 uppercase tracking-[0.3em]">System Status</p>
           <button onClick={fetchAll} className="flex items-center gap-1.5 text-[9px] text-muted-foreground/25 hover:text-muted-foreground/50 uppercase tracking-wider transition">
             <Wifi className="w-3 h-3" />Probe
           </button>

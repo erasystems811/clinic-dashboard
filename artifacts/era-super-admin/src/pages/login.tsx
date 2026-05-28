@@ -30,7 +30,7 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try { await login(username, password); }
-    catch (err: unknown) { setError(err instanceof Error ? err.message : "Authentication failed"); }
+    catch (err: unknown) { setError(err instanceof Error ? err.message : "Login failed"); }
     finally { setLoading(false); }
   };
 
@@ -103,7 +103,7 @@ export default function LoginPage() {
 
           <div className="text-center space-y-1">
             <p className="text-xs font-bold text-foreground tracking-[0.25em] uppercase">Era Systems</p>
-            <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-muted-foreground/60">Operational Intelligence Layer</p>
+            <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-muted-foreground/60">Hospital Management Platform</p>
           </div>
         </div>
 
@@ -114,11 +114,11 @@ export default function LoginPage() {
               style={{ boxShadow: "0 16px 40px rgba(0,0,0,0.6), 0 0 0 1px hsl(220 18% 28% / 0.6)" }}>
 
               <div className="border-b border-[hsl(0_0%_13%)] pb-3 mb-1">
-                <p className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-[0.25em]">System Authentication</p>
+                <p className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-[0.25em]">Admin Login</p>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">Identifier</label>
+                <label className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">Username</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
                   <input type="text" value={username} onChange={e => setUsername(e.target.value)}
@@ -127,7 +127,7 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">Passkey</label>
+                <label className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
                   <input type={showPassword ? "text" : "password"} value={password}
@@ -148,12 +148,12 @@ export default function LoginPage() {
             <button type="submit" disabled={loading}
               className="w-full py-2.5 bg-primary text-primary-foreground text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
               style={{ boxShadow: "0 4px 20px hsl(214 72% 56% / 0.2)" }}>
-              {loading ? "Authenticating…" : "Authenticate"}
+              {loading ? "Signing in…" : "Sign In"}
             </button>
 
             <button type="button" onClick={() => { setScreen("recover"); setError(""); }}
               className="w-full text-center text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition py-1 tracking-wider">
-              Use recovery key
+              Forgot password?
             </button>
           </form>
         )}
@@ -167,12 +167,12 @@ export default function LoginPage() {
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-foreground tracking-tight">Passkey Reset</p>
-                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">New passkey is active. Authenticate with it now.</p>
+                  <p className="text-sm font-bold text-foreground tracking-tight">Password Reset</p>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">New password is active. Sign in now.</p>
                 </div>
                 <button onClick={() => { setScreen("login"); setRecoveryDone(false); setRecoveryKey(""); setNewPassword(""); setConfirmPassword(""); setError(""); }}
                   className="px-4 py-2 bg-primary text-primary-foreground text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-primary/90 transition">
-                  Return to Login
+                  Back to Login
                 </button>
               </div>
             ) : (
@@ -181,13 +181,13 @@ export default function LoginPage() {
                   style={{ boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}>
 
                   <div className="border-b border-[hsl(0_0%_13%)] pb-3">
-                    <p className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-[0.25em]">Account Recovery</p>
+                    <p className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-[0.25em]">Password Recovery</p>
                   </div>
 
                   {[
-                    { label: "Recovery Token", value: recoveryKey, set: setRecoveryKey, show: showRecoveryKey, toggle: () => setShowRecoveryKey(v => !v), ph: "Your recovery key", Icon: KeyRound },
-                    { label: "New Passkey", value: newPassword, set: setNewPassword, show: showNewPassword, toggle: () => setShowNewPassword(v => !v), ph: "Min. 8 characters", Icon: Lock },
-                    { label: "Confirm Passkey", value: confirmPassword, set: setConfirmPassword, show: showConfirmPassword, toggle: () => setShowConfirmPassword(v => !v), ph: "Repeat passkey", Icon: Lock },
+                    { label: "Recovery Key", value: recoveryKey, set: setRecoveryKey, show: showRecoveryKey, toggle: () => setShowRecoveryKey(v => !v), ph: "Your recovery key", Icon: KeyRound },
+                    { label: "New Password", value: newPassword, set: setNewPassword, show: showNewPassword, toggle: () => setShowNewPassword(v => !v), ph: "Min. 8 characters", Icon: Lock },
+                    { label: "Confirm Password", value: confirmPassword, set: setConfirmPassword, show: showConfirmPassword, toggle: () => setShowConfirmPassword(v => !v), ph: "Repeat password", Icon: Lock },
                   ].map(({ label, value, set, show, toggle, ph, Icon }) => (
                     <div key={label} className="space-y-1">
                       <label className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">{label}</label>
@@ -210,12 +210,12 @@ export default function LoginPage() {
 
                 <button type="submit" disabled={loading}
                   className="w-full py-2.5 bg-primary text-primary-foreground text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-primary/90 disabled:opacity-50 transition">
-                  {loading ? "Processing…" : "Reset Passkey"}
+                  {loading ? "Resetting…" : "Reset Password"}
                 </button>
                 <button type="button" onClick={() => { setScreen("login"); setError(""); }}
                   className="w-full flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition py-1 tracking-wider">
                   <ArrowLeft className="w-3 h-3" />
-                  Return to Login
+                  Back to Login
                 </button>
               </form>
             )}
@@ -227,7 +227,7 @@ export default function LoginPage() {
           <p className="text-[9px] text-muted-foreground/30 uppercase tracking-[0.3em]">
             Evaluate · Rebuild · Automate
           </p>
-          <p className="text-[9px] text-muted-foreground/20 uppercase tracking-[0.2em]">Era Systems · Restricted Access</p>
+          <p className="text-[9px] text-muted-foreground/20 uppercase tracking-[0.2em]">Era Systems · Admin Access Only</p>
         </div>
       </div>
     </div>

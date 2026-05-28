@@ -89,7 +89,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
                 <img src={`${import.meta.env.BASE_URL}era-logo.png`} alt="Era Systems" className="w-8 h-8 shrink-0 object-contain" />
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold text-foreground tracking-[0.15em] uppercase leading-tight">Era Systems</p>
-                  <p className="text-[8px] font-medium text-muted-foreground/40 uppercase tracking-[0.2em] leading-tight">Control Room</p>
+                  <p className="text-[8px] font-medium text-muted-foreground/40 uppercase tracking-[0.2em] leading-tight">Admin Console</p>
                 </div>
               </button>
               <button onClick={toggleOpen} title="Collapse"
@@ -233,7 +233,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
           )}
           <div className="ml-auto flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/70" />
-            <span className="text-[9px] text-muted-foreground/30 uppercase tracking-widest">Operational</span>
+            <span className="text-[9px] text-muted-foreground/30 uppercase tracking-widest">Platform</span>
           </div>
         </header>
 

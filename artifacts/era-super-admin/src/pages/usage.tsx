@@ -115,9 +115,9 @@ export default function Usage() {
   const COLS_PER_PAGE = 6;
   const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
 
-  // windowOffset: default COLS_PER_PAGE so May 2026 (current month) is column 0.
-  // Negative = shift left into the past. Positive = shift right into the future.
-  const [windowOffset, setWindowOffset] = useState(COLS_PER_PAGE);
+  // windowOffset: default 0 so the rightmost visible column is the most recent completed month (April).
+  // Clicking "Older" decrements by COLS_PER_PAGE; "Newer" increments.
+  const [windowOffset, setWindowOffset] = useState(0);
 
   // Visible month labels: starts at (now - COLS_PER_PAGE + windowOffset)
   const visibleMonths: string[] = Array.from({ length: COLS_PER_PAGE }, (_, i) => {
@@ -413,7 +413,7 @@ export default function Usage() {
                 </thead>
                 <tbody>
                   {sorted.map((h, hi) => {
-                    const tier = getTier(h.currentMonth.avgPatientsDay);
+                    const tier = getTier(recentAvg(h.history));
                     const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
                     const snapByLabel = new Map((h.history ?? []).map(s => [s.label, s]));
                     const windowSnaps = visibleMonths.map(label => snapByLabel.get(label) ?? null);
@@ -477,7 +477,7 @@ export default function Usage() {
         <p className="text-[10px] text-muted-foreground/30 pb-2">
           {tab === "live"
             ? `Live tab resets on the 1st of each month · Avg/day = total so far ÷ days elapsed · Test automations excluded`
-            : `History = cumulative all-time avg/day as of each month's last day · A rising number = hospital is growing`}
+            : `History = avg/day during that specific month · Tier badge = previous completed month · A rising number = hospital is growing`}
         </p>
 
       </div>

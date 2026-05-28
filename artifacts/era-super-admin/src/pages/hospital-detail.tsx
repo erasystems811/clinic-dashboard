@@ -998,7 +998,7 @@ export default function HospitalDetail({ id }: Props) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-medium">{automationTypeName(log.automationType)}</span>
                         <span className={`text-xs px-1.5 py-0.5 rounded-full border font-medium ${statusBadge(log.status)}`}>
-                          {log.status}
+                          {log.status === "queued" ? "in progress" : log.status}
                         </span>
                         <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full text-muted-foreground flex items-center gap-1">
                           {log.channel === "email" ? <Mail className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
@@ -1046,7 +1046,7 @@ export default function HospitalDetail({ id }: Props) {
             <span className="flex items-center gap-1"><Filter className="w-3 h-3" />Showing {automations.length} records</span>
             <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-400" />Sent</span>
             <span className="flex items-center gap-1"><XCircle className="w-3 h-3 text-red-400" />Failed</span>
-            <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-amber-400" />Queued (WhatsApp ready)</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-amber-400" />In Progress</span>
           </div>
         </div>
       )}

@@ -115,9 +115,9 @@ export default function Usage() {
   const COLS_PER_PAGE = 6;
   const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
 
-  // windowOffset: default 0 so the rightmost visible column is the most recent completed month (April).
-  // Clicking "Older" decrements by COLS_PER_PAGE; "Newer" increments.
-  const [windowOffset, setWindowOffset] = useState(0);
+  // windowOffset: default COLS_PER_PAGE so May 2026 (current month) is the leftmost column.
+  // Click "Older" to scroll left into the past.
+  const [windowOffset, setWindowOffset] = useState(COLS_PER_PAGE);
 
   // Visible month labels: starts at (now - COLS_PER_PAGE + windowOffset)
   const visibleMonths: string[] = Array.from({ length: COLS_PER_PAGE }, (_, i) => {
@@ -416,6 +416,8 @@ export default function Usage() {
                     const tier = getTier(recentAvg(h.history));
                     const rowBg = hi % 2 === 0 ? "rgba(255,255,255,0)" : "rgba(255,255,255,0.02)";
                     const snapByLabel = new Map((h.history ?? []).map(s => [s.label, s]));
+                    // Also inject the current month's in-progress data so its column shows numbers
+                    if (h.currentMonth) snapByLabel.set(h.currentMonth.label, h.currentMonth);
                     const windowSnaps = visibleMonths.map(label => snapByLabel.get(label) ?? null);
 
                     return (

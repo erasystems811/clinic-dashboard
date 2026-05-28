@@ -105,7 +105,7 @@ function BookModal({
       data: {
         patientId: selectedPatient.id,
         title,
-        scheduledAt: `${date}T${time}:00`,
+        scheduledAt: `${date}T${time}:00+01:00`, // WAT (Africa/Lagos = UTC+1)
         duration: parseInt(duration) || 30,
       },
     });
@@ -507,7 +507,7 @@ export default function Appointments() {
     e.preventDefault();
     if (!rescheduleTarget || !newDate || !newTime) return;
     updateAppointment.mutate(
-      { id: rescheduleTarget.id, data: { status: "scheduled", scheduledAt: `${newDate}T${newTime}:00` } },
+      { id: rescheduleTarget.id, data: { status: "scheduled", scheduledAt: `${newDate}T${newTime}:00+01:00` } }, // WAT
       {
         onSuccess: () => {
           toast({ title: "Appointment rescheduled" });

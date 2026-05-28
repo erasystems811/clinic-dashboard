@@ -285,6 +285,14 @@ const AUTOMATION_GROUPS: AutomationGroup[] = [
         icon: BellRing,
       },
       {
+        id: "queue_long_wait_apology",
+        name: "Long Wait Apology",
+        purpose: "Proactively apologises to patients who have been waiting a long time, improving experience and reducing walk-outs during busy periods.",
+        trigger: "Patient has been in the queue for more than 45 minutes · checked every 15 minutes · sent at most once per hour per patient",
+        channel: "sms/whatsapp",
+        icon: Clock,
+      },
+      {
         id: "care_plan_notification",
         name: "Care Plan Ready",
         purpose: "Instantly tells the patient their care plan has been saved and directs them to check their email for the full details.",

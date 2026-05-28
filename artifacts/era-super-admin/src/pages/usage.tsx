@@ -190,7 +190,7 @@ export default function Usage() {
                 : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
             <History className="w-3.5 h-3.5" />
-            History — last 12 months
+            History
           </button>
         </div>
 

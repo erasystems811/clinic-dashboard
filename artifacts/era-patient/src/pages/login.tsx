@@ -147,8 +147,8 @@ export default function Login() {
 
         {/* Preloaded hospital */}
         {!preloadLoading && !preloadError && preloaded && (
-          <div className="rounded-2xl border border-border/50 bg-card/30 p-6 space-y-4">
-            <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3">
+          <>
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-muted/30 px-4 py-3 mb-6">
               <div className="w-9 h-9 rounded-lg bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center shrink-0">
                 <Building2 className="w-4 h-4 text-primary" />
               </div>
@@ -183,14 +183,14 @@ export default function Login() {
                 {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Signing in…</> : "Sign In as Admin"}
               </button>
             </form>
-          </div>
+          </>
         )}
 
         {/* Normal 3-tab login */}
         {!preloadLoading && !preloadError && !preloaded && (
-          <div className="rounded-2xl border border-border/50 bg-card/30 p-6 space-y-4">
+          <>
             {/* 3 role tabs */}
-            <div className="flex rounded-xl border border-border bg-muted/15 p-1 gap-1">
+            <div className="flex rounded-xl border border-border bg-muted/15 p-1 mb-6 gap-1">
               {MODES.map(m => {
                 const active = mode === m.id;
                 const s = MODE_STYLES[m.id];
@@ -245,7 +245,7 @@ export default function Login() {
                   : `Sign in as ${MODES.find(m => m.id === mode)?.label}`}
               </button>
             </form>
-          </div>
+          </>
         )}
 
         {/* Footer */}

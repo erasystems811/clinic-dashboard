@@ -226,7 +226,7 @@ export default function Analytics() {
       </div>
 
       {/* ── Account metrics ── */}
-      <div className="mb-5">
+      <div className="mb-3">
         <p className="text-[9px] font-bold text-muted-foreground/35 uppercase tracking-[0.3em] mb-3">Account Registry</p>
         <div className="grid grid-cols-5 gap-2">
           <StatCard label="Total"         value={stats.total}        icon={Building2}    color="text-primary/60"                              loading={hospitalsLoading} />
@@ -235,6 +235,30 @@ export default function Analytics() {
           <StatCard label="Suspended"     value={stats.suspended}    icon={XCircle}      color="text-red-400/60"                              loading={hospitalsLoading} />
           <StatCard label="Expiring ≤30d" value={stats.expiringSoon} icon={CalendarClock} color={stats.expiringSoon > 0 ? "text-[hsl(43_65%_58%)]" : "text-muted-foreground/25"} loading={hospitalsLoading} gold={stats.expiringSoon > 0} sub={stats.expiringSoon > 0 ? "needs action" : "all clear"} />
         </div>
+      </div>
+
+      {/* ── Infrastructure health (under account registry) ── */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[9px] font-bold text-muted-foreground/35 uppercase tracking-[0.3em]">Infrastructure Health</p>
+          <button onClick={fetchAll} className="flex items-center gap-1.5 text-[9px] text-muted-foreground/25 hover:text-muted-foreground/50 uppercase tracking-wider transition">
+            <Wifi className="w-3 h-3" />Probe
+          </button>
+        </div>
+        {healthLoading ? (
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {[1,2,3,4,5,6].map(i => <div key={i} className="h-20 border border-[hsl(220_12%_12%)] bg-[hsl(220_14%_7%)] animate-pulse" />)}
+          </div>
+        ) : health ? (
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {health.checks.map(c => <HealthCard key={c.name} check={c} />)}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 py-6 border border-[hsl(220_12%_12%)] px-4">
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/30" />
+            <span className="text-[11px] text-muted-foreground/30 uppercase tracking-wider">Health endpoint unavailable</span>
+          </div>
+        )}
       </div>
 
       {/* ── Two-column: Attention list + Automation feed ── */}
@@ -326,30 +350,6 @@ export default function Analytics() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* ── Infrastructure health ── */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-[9px] font-bold text-muted-foreground/35 uppercase tracking-[0.3em]">Infrastructure Health</p>
-          <button onClick={fetchAll} className="flex items-center gap-1.5 text-[9px] text-muted-foreground/25 hover:text-muted-foreground/50 uppercase tracking-wider transition">
-            <Wifi className="w-3 h-3" />Probe services
-          </button>
-        </div>
-        {healthLoading ? (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {[1,2,3,4,5,6].map(i => <div key={i} className="h-20 border border-[hsl(220_12%_12%)] bg-[hsl(220_14%_7%)] animate-pulse" />)}
-          </div>
-        ) : health ? (
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {health.checks.map(c => <HealthCard key={c.name} check={c} />)}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 py-6 border border-[hsl(220_12%_12%)] px-4">
-            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/30" />
-            <span className="text-[11px] text-muted-foreground/30 uppercase tracking-wider">Health endpoint unavailable</span>
-          </div>
-        )}
       </div>
 
       {/* Footer */}

@@ -1,9 +1,135 @@
 import { useState, FormEvent } from "react";
 import { useAuth } from "@/contexts/auth";
-import { Lock, User, AlertCircle, KeyRound, ArrowLeft, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { post } from "@/lib/api";
+import { Loader2, Eye, EyeOff, AlertCircle, KeyRound, Lock, ShieldCheck, ArrowLeft } from "lucide-react";
+import esLogo from "@assets/582A6E04-0A71-43CD-8F6D-573C4F2C242F_(1)_1779973822134.png";
 
 type Screen = "login" | "recover";
+
+const GOLD = "#c9a84c";
+const NAVY = "#0a0e1b";
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label style={{
+      display: "block",
+      color: "rgba(255,255,255,0.35)",
+      fontSize: 10,
+      fontWeight: 700,
+      letterSpacing: "0.14em",
+      textTransform: "uppercase",
+      marginBottom: 6,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+    }}>
+      {children}
+    </label>
+  );
+}
+
+function LineInput({
+  id, type = "text", value, onChange, placeholder,
+  autoComplete, autoFocus, required, rightSlot,
+}: {
+  id?: string;
+  type?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  autoComplete?: string;
+  autoFocus?: boolean;
+  required?: boolean;
+  rightSlot?: React.ReactNode;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+        required={required}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={{
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          borderBottom: `1.5px solid ${focused ? GOLD : "rgba(255,255,255,0.13)"}`,
+          outline: "none",
+          color: "rgba(255,255,255,0.92)",
+          padding: "10px 0",
+          paddingRight: rightSlot ? 36 : 0,
+          fontSize: 14,
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          transition: "border-color 0.2s",
+          letterSpacing: "0.01em",
+          boxSizing: "border-box",
+        }}
+        className="placeholder:text-white/20"
+      />
+      {rightSlot && (
+        <div style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)" }}>
+          {rightSlot}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EyeBtn({ show, onToggle }: { show: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      tabIndex={-1}
+      style={{
+        color: "rgba(255,255,255,0.25)",
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        padding: 0,
+        display: "flex",
+        alignItems: "center",
+      }}
+    >
+      {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+    </button>
+  );
+}
+
+function GoldButton({ disabled, children }: { disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="submit"
+      disabled={disabled}
+      style={{
+        width: "100%",
+        padding: "13px 0",
+        background: disabled ? "rgba(201,168,76,0.45)" : GOLD,
+        color: NAVY,
+        borderRadius: 8,
+        border: "none",
+        fontSize: 12,
+        fontWeight: 800,
+        fontFamily: "'Plus Jakarta Sans', sans-serif",
+        letterSpacing: "0.12em",
+        cursor: disabled ? "not-allowed" : "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        transition: "opacity 0.2s, background 0.2s",
+        marginTop: 8,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -22,8 +148,6 @@ export default function LoginPage() {
   const [showRecoveryKey, setShowRecoveryKey] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  const inputCls = "w-full pl-10 pr-10 py-2.5 bg-[hsl(0_0%_10%)] border border-[hsl(0_0%_14%)] text-foreground text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30 transition-all duration-150 font-medium tracking-wide";
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -47,188 +171,244 @@ export default function LoginPage() {
     finally { setLoading(false); }
   };
 
-  const EyeToggle = ({ show, onToggle }: { show: boolean; onToggle: () => void }) => (
-    <button type="button" onClick={onToggle} tabIndex={-1}
-      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-muted-foreground transition">
-      {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-    </button>
-  );
-
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-      style={{ background: "hsl(0 0% 2%)" }}>
+    <div style={{
+      minHeight: "100vh",
+      background: NAVY,
+      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "24px 16px",
+    }}>
+      <div style={{ width: "100%", maxWidth: 360 }}>
 
-      {/* Primary spotlight — visible blue burst from top */}
-      <div className="pointer-events-none absolute inset-0"
-        style={{ background: "radial-gradient(ellipse 90% 55% at 50% -5%, hsl(214 85% 62% / 0.18) 0%, hsl(220 70% 40% / 0.08) 45%, transparent 70%)" }} />
-
-      {/* Secondary warm accent — bottom center */}
-      <div className="pointer-events-none absolute inset-0"
-        style={{ background: "radial-gradient(ellipse 60% 35% at 50% 110%, hsl(43 70% 62% / 0.07) 0%, transparent 65%)" }} />
-
-      {/* Top horizontal border beam */}
-      <div className="pointer-events-none absolute top-0 left-0 right-0 h-px"
-        style={{ background: "linear-gradient(90deg, transparent 0%, hsl(214 85% 62% / 0.5) 30%, hsl(43 70% 62% / 0.4) 50%, hsl(214 85% 62% / 0.5) 70%, transparent 100%)" }} />
-
-      {/* Bottom horizontal border beam */}
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-px"
-        style={{ background: "linear-gradient(90deg, transparent 10%, hsl(214 85% 62% / 0.2) 50%, transparent 90%)" }} />
-
-      {/* Left edge glow */}
-      <div className="pointer-events-none absolute top-0 left-0 bottom-0 w-px"
-        style={{ background: "linear-gradient(180deg, transparent, hsl(214 85% 62% / 0.25) 40%, hsl(43 70% 62% / 0.15) 60%, transparent)" }} />
-      {/* Right edge glow */}
-      <div className="pointer-events-none absolute top-0 right-0 bottom-0 w-px"
-        style={{ background: "linear-gradient(180deg, transparent, hsl(214 85% 62% / 0.25) 40%, hsl(43 70% 62% / 0.15) 60%, transparent)" }} />
-
-      {/* Large background crosshair */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.025]">
-        <div className="absolute w-[600px] h-px" style={{ background: "hsl(214 85% 80%)" }} />
-        <div className="absolute w-px h-[600px]" style={{ background: "hsl(214 85% 80%)" }} />
-        <div className="absolute w-[400px] h-[400px] rounded-full border" style={{ borderColor: "hsl(214 85% 80%)" }} />
-        <div className="absolute w-[200px] h-[200px] rounded-full border" style={{ borderColor: "hsl(43 70% 62%)" }} />
-      </div>
-
-      {/* Scan line texture */}
-      <div className="pointer-events-none absolute inset-0 opacity-[0.015]"
-        style={{ backgroundImage: "repeating-linear-gradient(0deg, hsl(214 85% 80%), hsl(214 85% 80%) 1px, transparent 1px, transparent 4px)" }} />
-
-      <div className="w-full max-w-xs relative z-10">
-
-        {/* Brand mark */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="mb-2">
-            <img src={`${import.meta.env.BASE_URL}era-logo.png`} alt="Era Systems" className="w-24 h-24 object-contain" />
-          </div>
-
-          <div className="text-center space-y-1">
-            <p className="text-xs font-bold text-foreground tracking-[0.25em] uppercase">Era Systems</p>
-            <p className="text-[9px] font-medium uppercase tracking-[0.3em] text-muted-foreground/60">Hospital Management Platform</p>
+        {/* Logo + Wordmark */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 36 }}>
+          <img
+            src={esLogo}
+            alt="Era Systems"
+            style={{ width: 72, height: 72, borderRadius: 18, display: "block" }}
+          />
+          <div style={{ marginTop: 18, textAlign: "center" }}>
+            <p style={{
+              color: "rgba(255,255,255,0.92)",
+              fontSize: 13,
+              fontWeight: 800,
+              letterSpacing: "0.26em",
+              textTransform: "uppercase",
+              margin: 0,
+            }}>
+              ERA SYSTEMS
+            </p>
+            <p style={{
+              color: "rgba(255,255,255,0.25)",
+              fontSize: 9,
+              fontWeight: 600,
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              marginTop: 6,
+            }}>
+              HOSPITAL MANAGEMENT PLATFORM
+            </p>
           </div>
         </div>
 
-        {/* ── LOGIN ── */}
-        {screen === "login" && (
-          <form onSubmit={submit} className="space-y-4">
-            <div className="border border-[hsl(0_0%_13%)] bg-card space-y-3 p-4"
-              style={{ boxShadow: "0 16px 40px rgba(0,0,0,0.6), 0 0 0 1px hsl(220 18% 28% / 0.6)" }}>
+        {/* Card */}
+        <div style={{
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderRadius: 16,
+          padding: "32px 28px",
+          background: "rgba(255,255,255,0.02)",
+        }}>
 
-              <div className="border-b border-[hsl(0_0%_13%)] pb-3 mb-1">
-                <p className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-[0.25em]">Admin Login</p>
+          {/* ── LOGIN ── */}
+          {screen === "login" && (
+            <form onSubmit={submit}>
+              <div style={{ marginBottom: 22 }}>
+                <FieldLabel>Username</FieldLabel>
+                <LineInput
+                  id="username"
+                  autoComplete="username"
+                  autoFocus
+                  value={username}
+                  onChange={setUsername}
+                  placeholder="Enter your username"
+                  required
+                />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">Username</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
-                  <input type="text" value={username} onChange={e => setUsername(e.target.value)}
-                    required autoComplete="username" className={inputCls} placeholder="" />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
-                  <input type={showPassword ? "text" : "password"} value={password}
-                    onChange={e => setPassword(e.target.value)} required autoComplete="current-password"
-                    className={inputCls} placeholder="••••••••" />
-                  <EyeToggle show={showPassword} onToggle={() => setShowPassword(v => !v)} />
-                </div>
+              <div style={{ marginBottom: 8 }}>
+                <FieldLabel>Password</FieldLabel>
+                <LineInput
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={setPassword}
+                  placeholder="Enter your password"
+                  required
+                  rightSlot={<EyeBtn show={showPassword} onToggle={() => setShowPassword(v => !v)} />}
+                />
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 text-[11px] text-destructive bg-destructive/8 border border-destructive/15 px-3 py-2">
-                  <AlertCircle className="w-3 h-3 shrink-0" />
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  background: "rgba(239,68,68,0.07)",
+                  borderRadius: 7,
+                  padding: "10px 14px",
+                  color: "#f87171",
+                  fontSize: 12,
+                  marginTop: 16,
+                }}>
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   {error}
                 </div>
               )}
-            </div>
 
-            <button type="submit" disabled={loading}
-              className="w-full py-2.5 bg-primary text-primary-foreground text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
-              style={{ boxShadow: "0 4px 20px hsl(214 72% 56% / 0.2)" }}>
-              {loading ? "Signing in…" : "Sign In"}
-            </button>
+              <GoldButton disabled={loading}>
+                {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Signing in…</> : "SIGN IN"}
+              </GoldButton>
 
-            <button type="button" onClick={() => { setScreen("recover"); setError(""); }}
-              className="w-full text-center text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition py-1 tracking-wider">
-              Forgot password?
-            </button>
-          </form>
-        )}
+              <button
+                type="button"
+                onClick={() => { setScreen("recover"); setError(""); }}
+                style={{
+                  width: "100%",
+                  marginTop: 16,
+                  textAlign: "center",
+                  color: "rgba(255,255,255,0.25)",
+                  fontSize: 11,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  letterSpacing: "0.06em",
+                  padding: 0,
+                }}
+              >
+                Forgot password?
+              </button>
+            </form>
+          )}
 
-        {/* ── RECOVERY ── */}
-        {screen === "recover" && (
-          <div className="space-y-4">
-            {recoveryDone ? (
-              <div className="border border-[hsl(0_0%_13%)] bg-card p-6 flex flex-col items-center gap-4 text-center">
-                <div className="w-10 h-10 border border-emerald-500/20 bg-emerald-500/5 flex items-center justify-center">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          {/* ── RECOVERY ── */}
+          {screen === "recover" && (
+            <>
+              {recoveryDone ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, textAlign: "center", padding: "8px 0" }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 12,
+                    border: "1px solid rgba(52,211,153,0.25)",
+                    background: "rgba(52,211,153,0.07)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    <ShieldCheck className="w-5 h-5" style={{ color: "#34d399" }} />
+                  </div>
+                  <div>
+                    <p style={{ color: "white", fontSize: 14, fontWeight: 700, margin: 0 }}>Password Reset</p>
+                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
+                      Your new password is active. Sign in now.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { setScreen("login"); setRecoveryDone(false); setRecoveryKey(""); setNewPassword(""); setConfirmPassword(""); setError(""); }}
+                    style={{
+                      padding: "10px 24px",
+                      background: GOLD, color: NAVY,
+                      borderRadius: 8, border: "none",
+                      fontSize: 12, fontWeight: 800,
+                      fontFamily: "inherit", letterSpacing: "0.1em",
+                      cursor: "pointer",
+                    }}
+                  >
+                    BACK TO LOGIN
+                  </button>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-foreground tracking-tight">Password Reset</p>
-                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">New password is active. Sign in now.</p>
-                </div>
-                <button onClick={() => { setScreen("login"); setRecoveryDone(false); setRecoveryKey(""); setNewPassword(""); setConfirmPassword(""); setError(""); }}
-                  className="px-4 py-2 bg-primary text-primary-foreground text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-primary/90 transition">
-                  Back to Login
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={recover} className="space-y-4">
-                <div className="border border-[hsl(0_0%_13%)] bg-card space-y-3 p-4"
-                  style={{ boxShadow: "0 16px 40px rgba(0,0,0,0.5)" }}>
-
-                  <div className="border-b border-[hsl(0_0%_13%)] pb-3">
-                    <p className="text-[9px] font-bold text-muted-foreground/50 uppercase tracking-[0.25em]">Password Recovery</p>
+              ) : (
+                <form onSubmit={recover}>
+                  <div style={{ marginBottom: 6 }}>
+                    <p style={{
+                      color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 700,
+                      letterSpacing: "0.15em", textTransform: "uppercase", margin: "0 0 20px",
+                    }}>
+                      Password Recovery
+                    </p>
                   </div>
 
                   {[
-                    { label: "Recovery Key", value: recoveryKey, set: setRecoveryKey, show: showRecoveryKey, toggle: () => setShowRecoveryKey(v => !v), ph: "Your recovery key", Icon: KeyRound },
-                    { label: "New Password", value: newPassword, set: setNewPassword, show: showNewPassword, toggle: () => setShowNewPassword(v => !v), ph: "Min. 8 characters", Icon: Lock },
-                    { label: "Confirm Password", value: confirmPassword, set: setConfirmPassword, show: showConfirmPassword, toggle: () => setShowConfirmPassword(v => !v), ph: "Repeat password", Icon: Lock },
-                  ].map(({ label, value, set, show, toggle, ph, Icon }) => (
-                    <div key={label} className="space-y-1">
-                      <label className="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-[0.2em]">{label}</label>
-                      <div className="relative">
-                        <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
-                        <input type={show ? "text" : "password"} value={value} onChange={e => set(e.target.value)}
-                          required className={inputCls} placeholder={ph} />
-                        <EyeToggle show={show} onToggle={toggle} />
-                      </div>
+                    { label: "Recovery Key", value: recoveryKey, set: setRecoveryKey, show: showRecoveryKey, toggle: () => setShowRecoveryKey(v => !v), Icon: KeyRound },
+                    { label: "New Password", value: newPassword, set: setNewPassword, show: showNewPassword, toggle: () => setShowNewPassword(v => !v), Icon: Lock },
+                    { label: "Confirm Password", value: confirmPassword, set: setConfirmPassword, show: showConfirmPassword, toggle: () => setShowConfirmPassword(v => !v), Icon: Lock },
+                  ].map(({ label, value, set, show, toggle }) => (
+                    <div key={label} style={{ marginBottom: 20 }}>
+                      <FieldLabel>{label}</FieldLabel>
+                      <LineInput
+                        type={show ? "text" : "password"}
+                        value={value}
+                        onChange={set}
+                        required
+                        rightSlot={<EyeBtn show={show} onToggle={toggle} />}
+                      />
                     </div>
                   ))}
 
                   {error && (
-                    <div className="flex items-center gap-2 text-[11px] text-destructive bg-destructive/8 border border-destructive/15 px-3 py-2">
-                      <AlertCircle className="w-3 h-3 shrink-0" />
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      border: "1px solid rgba(239,68,68,0.25)",
+                      background: "rgba(239,68,68,0.07)",
+                      borderRadius: 7,
+                      padding: "10px 14px",
+                      color: "#f87171",
+                      fontSize: 12,
+                      marginBottom: 8,
+                    }}>
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       {error}
                     </div>
                   )}
-                </div>
 
-                <button type="submit" disabled={loading}
-                  className="w-full py-2.5 bg-primary text-primary-foreground text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-primary/90 disabled:opacity-50 transition">
-                  {loading ? "Resetting…" : "Reset Password"}
-                </button>
-                <button type="button" onClick={() => { setScreen("login"); setError(""); }}
-                  className="w-full flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition py-1 tracking-wider">
-                  <ArrowLeft className="w-3 h-3" />
-                  Back to Login
-                </button>
-              </form>
-            )}
-          </div>
-        )}
+                  <GoldButton disabled={loading}>
+                    {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Resetting…</> : "RESET PASSWORD"}
+                  </GoldButton>
 
-        {/* Footer tagline */}
-        <div className="mt-10 text-center space-y-1">
-          <p className="text-[9px] text-muted-foreground/30 uppercase tracking-[0.3em]">
-            Evaluate · Rebuild · Automate
-          </p>
-          <p className="text-[9px] text-muted-foreground/20 uppercase tracking-[0.2em]">Era Systems · Admin Access Only</p>
+                  <button
+                    type="button"
+                    onClick={() => { setScreen("login"); setError(""); }}
+                    style={{
+                      width: "100%",
+                      marginTop: 16,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      color: "rgba(255,255,255,0.25)",
+                      fontSize: 11, background: "none", border: "none",
+                      cursor: "pointer", fontFamily: "inherit", letterSpacing: "0.06em",
+                    }}
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Back to Login
+                  </button>
+                </form>
+              )}
+            </>
+          )}
         </div>
+
+        {/* Footer */}
+        <p style={{
+          textAlign: "center",
+          marginTop: 28,
+          color: "rgba(255,255,255,0.13)",
+          fontSize: 9,
+          fontWeight: 700,
+          letterSpacing: "0.22em",
+          textTransform: "uppercase",
+        }}>
+          EVALUATE&nbsp;&nbsp;·&nbsp;&nbsp;REBUILD&nbsp;&nbsp;·&nbsp;&nbsp;AUTOMATE
+        </p>
+
       </div>
     </div>
   );

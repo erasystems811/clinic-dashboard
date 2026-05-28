@@ -116,7 +116,10 @@ router.post("/appointments", async (req, res): Promise<void> => {
   });
 
   if (patient?.email) {
-    sendAppointmentConfirmation(hospital.intId, parsed.data.patientId, patientName, patient.email as string, appt.scheduled_at).catch(() => {});
+    sendAppointmentConfirmation(hospital.intId, parsed.data.patientId, patientName, patient.email as string, appt.scheduled_at)
+      .catch((err) => console.error("[appt-confirm-email] unhandled error:", err));
+  } else {
+    console.warn("[appt-confirm-email] skipped — patient", parsed.data.patientId, "has no email address");
   }
 
   res.status(201).json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled" });

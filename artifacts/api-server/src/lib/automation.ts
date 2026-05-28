@@ -383,6 +383,7 @@ export async function sendAppointmentConfirmationEmail(
     await updateAutomationLog(logId, "sent", `Appointment confirmation → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendAppointmentConfirmationEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }

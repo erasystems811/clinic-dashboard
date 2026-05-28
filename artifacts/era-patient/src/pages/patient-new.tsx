@@ -44,6 +44,16 @@ export default function NewPatient() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
       setForm(f => ({ ...f, [key]: e.target.value }));
 
+  function formatPhone(raw: string): string {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.startsWith("0")) return "234" + digits.slice(1);
+    return digits;
+  }
+
+  const phoneField = (key: "phone" | "whatsappNumber") =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm(f => ({ ...f, [key]: formatPhone(e.target.value) }));
+
   function onDobChange(e: React.ChangeEvent<HTMLInputElement>) {
     const dob = e.target.value;
     const age = calcAge(dob);
@@ -131,14 +141,14 @@ export default function NewPatient() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Phone *</label>
-                  <Input placeholder="+234 800 000 0000" value={form.phone} onChange={field("phone")} required />
+                  <Input placeholder="e.g. 08031234567" value={form.phone} onChange={phoneField("phone")} required />
                 </div>
               </div>
 
               <div className="grid md:grid-cols-2 gap-5">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">WhatsApp Number</label>
-                  <Input placeholder="If different from phone" value={form.whatsappNumber} onChange={field("whatsappNumber")} />
+                  <Input placeholder="If different from phone" value={form.whatsappNumber} onChange={phoneField("whatsappNumber")} />
                 </div>
               </div>
 

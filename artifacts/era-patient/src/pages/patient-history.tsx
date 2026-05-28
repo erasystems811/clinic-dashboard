@@ -176,6 +176,15 @@ export default function PatientHistory() {
   const field = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setEditForm(f => ({ ...f, [key]: e.target.value }));
 
+  function formatPhone(raw: string): string {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.startsWith("0")) return "234" + digits.slice(1);
+    return digits;
+  }
+
+  const phoneField = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setEditForm(f => ({ ...f, [key]: formatPhone(e.target.value) }));
+
   const checkinPatient = useCheckinPatient();
   const dequeuePatient = useDequeuePatient();
 
@@ -373,11 +382,11 @@ export default function PatientHistory() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Phone</Label>
-                    <Input value={editForm.phone} onChange={field("phone")} />
+                    <Input value={editForm.phone} onChange={phoneField("phone")} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">WhatsApp</Label>
-                    <Input value={editForm.whatsappNumber} onChange={field("whatsappNumber")} placeholder="+1234567890" />
+                    <Input value={editForm.whatsappNumber} onChange={phoneField("whatsappNumber")} placeholder="If different from phone" />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Email</Label>

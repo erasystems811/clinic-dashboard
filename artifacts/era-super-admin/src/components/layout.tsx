@@ -69,7 +69,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
   const isActive = (href: string) => href === "/" ? loc === "/" : loc.startsWith(href);
 
   /* ── sidebar bg ────────────────────────────────────────────────────────── */
-  const sbBg = "hsl(222 20% 6%)";
+  const sbBg = "hsl(0 0% 4%)";
   const sbBorder = "hsl(220 18% 22%)";
 
   return (
@@ -165,13 +165,13 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
               )}
             </button>
           ) : (
-            <div className="p-2.5 space-y-2 border border-[hsl(220_14%_26%)] bg-[hsl(220_14%_14%)]">
+            <div className="p-2.5 space-y-2 border border-[hsl(0_0%_14%)] bg-[hsl(0_0%_8%)]">
               <p className="text-[10px] text-muted-foreground leading-relaxed">Trigger Railway deploy?</p>
               <div className="flex gap-1.5">
                 <button onClick={handleDeploy} className="flex-1 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[hsl(43_70%_62%)] border border-[hsl(43_70%_62%/0.3)] hover:bg-[hsl(43_70%_62%/0.08)] transition">
                   Deploy
                 </button>
-                <button onClick={() => setConfirmDeploy(false)} className="flex-1 py-1.5 border border-[hsl(220_14%_26%)] text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition">
+                <button onClick={() => setConfirmDeploy(false)} className="flex-1 py-1.5 border border-[hsl(0_0%_14%)] text-[10px] text-muted-foreground/60 hover:text-muted-foreground transition">
                   Cancel
                 </button>
               </div>
@@ -215,7 +215,7 @@ export default function Layout({ children, breadcrumb }: LayoutProps) {
 
         {/* Top bar */}
         <header className="shrink-0 h-11 border-b flex items-center px-6 gap-2"
-          style={{ borderBottomColor: "hsl(220 18% 22%)", background: "hsl(224 22% 4%)" }}>
+          style={{ borderBottomColor: "hsl(220 18% 22%)", background: "hsl(0 0% 3%)" }}>
           {breadcrumb && breadcrumb.length > 0 ? (
             <>
               <span className="text-[10px] text-muted-foreground/30 font-medium tracking-wider uppercase">Era</span>

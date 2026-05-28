@@ -17,15 +17,19 @@ description: Complete list of all built automations, their channels, and AI mode
 
 ---
 
-## Reminder timing — General Outpatient only (hourly cron, nurse-set times)
-| Treatment type | When reminder fires |
-|---|---|
-| Medication only | AT the exact time the nurse set |
-| Come to hospital only | 3 hours before the nurse-set time |
-| Combination (both) | 2 hours before the nurse-set hospital time |
+## Reminder timing — ALL reminders are driven by the TIME the nurse entered per department
+**THERE ARE NO FIXED TIME-OF-DAY SLOTS (no "morning/afternoon/evening/night"). Do not describe them that way — ever.**
 
-All other departments get a plain templated email 4 hours before their scheduled visit time (no AI).
-The old fixed slots (8am/1pm/6pm/10pm) were removed. `runCarePlanRemindersHourly` fires every hour and checks against nurse-set times.
+Every reminder fires based on a specific time the nurse typed when creating the care plan, which differs per department and per patient.
+
+| Department | When reminder fires |
+|---|---|
+| General Outpatient — medication only | AT the exact time the nurse set |
+| General Outpatient — come to hospital only | 3 hours before the nurse-set time |
+| General Outpatient — combination (both) | 2 hours before the nurse-set hospital time |
+| All other departments | 4 hours before the nurse-set visit time (templated, no AI) |
+
+`runCarePlanRemindersHourly` fires every hour and compares now against nurse-set times using a ±7.5-minute window. Each combination of (plan, date, time) is deduped via automation_log so it fires exactly once.
 
 ---
 

@@ -8,6 +8,8 @@ import {
   sendQueueNextInLine,
   sendCarePlanNotification,
   sendCarePlanEmail,
+  generateCallTaskDraft,
+  sendCallTaskConfirmedMessage,
 } from "../lib/automation.js";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 
@@ -865,6 +867,37 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   }).select().single();
 
   if (taskErr || !task) { res.status(500).json({ error: taskErr?.message ?? "Failed to create task" }); return; }
+
+  // If the nurse chose "Automated Message" and the patient has an email, fire
+  // the AI-generated email immediately — don't wait for the receptionist to
+  // manually click Send on the call tasks page.
+  if (parsed.data.actionType === "automated_message" && patient.email && hospitalIntId) {
+    try {
+      const draft = await generateCallTaskDraft(
+        hospitalIntId,
+        patient.id as number,
+        `${patient.first_name} ${patient.last_name}`,
+        parsed.data.reason,
+      );
+      await sendCallTaskConfirmedMessage(
+        hospitalIntId,
+        patient.id as number,
+        `${patient.first_name} ${patient.last_name}`,
+        patient.email as string,
+        draft,
+      );
+      // Mark the task as completed so it doesn't linger in the receptionist queue
+      await supabase.from("call_tasks").update({
+        action_type: "automated_message",
+        outcome: `[Auto-sent] ${draft}`,
+        completed_at: new Date().toISOString(),
+      }).eq("id", task.id);
+    } catch (err) {
+      // Log but don't fail the request — the task was created successfully;
+      // the receptionist can follow up manually if the email couldn't send.
+      console.error("[flag-missed] auto-send failed:", err instanceof Error ? err.message : err);
+    }
+  }
 
   const activityDesc = taskType === "check_in"
     ? `${patient.first_name} ${patient.last_name} flagged for check-in (${parsed.data.checkInType ?? "General"}) — call task created`

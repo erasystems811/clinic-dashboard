@@ -9,101 +9,110 @@ interface Step {
   target?: string;
 }
 
+/* ── Admin tour ─────────────────────────────────────────────────────────────
+   Purpose: show the admin what Era does *for* the clinic, not what buttons do.
+*/
 const ADMIN_STEPS: Step[] = [
   {
-    title: "Welcome to Era Patient 👋",
-    body: "This quick tour walks you through every section of the system so your team can hit the ground running. It takes under 2 minutes.",
+    title: "Welcome to Era Patient",
+    body: "Era is built around one idea: no patient should fall through the cracks after leaving your clinic. Every section you're about to see exists to make sure they don't. This takes under 2 minutes.",
   },
   {
-    title: "Add a New Patient",
-    body: "Tap this button to register a new patient. You'll enter their name, contact info, treatment notes, and care plan — everything in one place.",
+    title: "Starting a patient's journey",
+    body: "Every patient in Era has a permanent profile — one place where their full history lives. Register them once and everything that follows — their care plan, treatment stages, and every message sent to them — is attached here forever.",
     target: '[data-tour="new-patient"]',
   },
   {
-    title: "Patient Records",
-    body: "Your full patient list lives here. Search by name or ID, open any profile to view their visit history, treatment notes, pipeline stage, and all messages sent to them.",
+    title: "Your complete patient roster",
+    body: "Every person your clinic has ever treated, in one place. Open any profile and you'll see the whole picture: where they are in their care journey, what was discussed during their visits, and every automated communication that went out on your behalf.",
     target: '[data-tour="nav-patients"]',
   },
   {
-    title: "Appointments",
-    body: "Book and manage appointments from this calendar view. Patients automatically receive a reminder before their visit — no manual follow-up needed.",
+    title: "Your scheduling engine",
+    body: "Appointments are booked here — and patients handle themselves from that point. They receive automatic confirmations and reminders before every visit, so your team spends less time chasing bookings and more time delivering care.",
     target: '[data-tour="nav-appointments"]',
   },
   {
-    title: "Automation Pipeline",
-    body: "This is Era's automation engine. After treatment, each patient moves through stages (In Care → Post Treatment → Active → Dormant) and the system sends WhatsApp messages or emails on your behalf at each stage — completely hands-free.",
+    title: "The care that happens after the visit",
+    body: "This is Era's patient retention engine. After treatment ends, every patient moves through a timed journey of check-ins, wellness nudges, and re-engagement messages — all sent automatically on your behalf. No one disappears. No one is forgotten.",
     target: '[data-tour="nav-pipeline"]',
   },
   {
-    title: "Activity Log",
-    body: "Every message, reminder, and automated action is recorded here with its delivery status. If anything failed to send, you can retry it directly from this screen.",
+    title: "Your audit trail",
+    body: "Everything Era sends is recorded here with a timestamp and delivery status. If a message ever fails to reach a patient, you'll see it immediately — and you can act on it before it becomes a problem.",
     target: '[data-tour="nav-activity"]',
   },
   {
-    title: "Patient Feedback",
-    body: "After each visit, patients receive a link to rate their experience. All their star ratings and comments appear here so you can monitor satisfaction and act on any issues.",
+    title: "A direct line to patient satisfaction",
+    body: "After every visit, patients receive a link to share how they felt. Their ratings and comments arrive here, giving you an honest, ongoing picture of your clinic's care quality — not once a year, but after every single visit.",
     target: '[data-tour="nav-feedback-admin"]',
   },
   {
-    title: "Wellness Newsletter",
-    body: "Compose and send health tips or seasonal wellness content to all your active patients at once. It keeps your clinic top-of-mind between visits.",
+    title: "Staying present between visits",
+    body: "Your active patients hear from you even when they're not in the clinic. Write a health tip or seasonal message here and send it to your entire active roster in one action — it keeps your clinic relevant and your patients engaged long-term.",
     target: '[data-tour="nav-wellness"]',
   },
   {
-    title: "Settings",
-    body: "Manage your clinic configuration here — update staff login passwords for your nurse and receptionist, and adjust system preferences.",
+    title: "Your clinic's control panel",
+    body: "Manage staff credentials for your nurse and receptionist, configure notification preferences, and adjust the settings that shape how Era behaves for your clinic.",
     target: '[data-tour="nav-settings"]',
   },
   {
-    title: "You're all set! 🎉",
-    body: "Your receptionist and nurse each have their own tour when they log in. You can restart this tour any time by tapping the ? icon at the bottom of the sidebar.",
+    title: "Era runs. Your team focuses on care.",
+    body: "From this point forward, Era handles follow-ups, reminders, check-ins, and newsletters — quietly, automatically, on your behalf. Your receptionist and nurse each get their own tour when they log in. Restart this tour any time with the ? button.",
   },
 ];
 
+/* ── Receptionist tour ──────────────────────────────────────────────────────
+   Purpose: show how their role connects to the rest of the clinic.
+*/
 const RECEPTIONIST_STEPS: Step[] = [
   {
-    title: "Welcome! 👋",
-    body: "You're logged in as the Receptionist. This quick tour covers the tools you'll use every day.",
+    title: "Welcome to Era Patient",
+    body: "You're the first point of contact — and the first link in a chain that makes sure every patient is cared for long after they leave. Here's your workspace.",
   },
   {
-    title: "Queue Management",
-    body: "When a patient arrives at reception, find them here and check them in. The queue updates in real time so the doctor and nurse always know who's waiting.",
+    title: "The pulse of your day",
+    body: "When a patient arrives, you check them in here and they appear instantly in the nurse's station. No delays, no calls across the office — the whole team moves in real time from the moment a patient walks through the door.",
     target: '[data-tour="nav-queue"]',
   },
   {
-    title: "Register a New Patient",
-    body: "First-time visitor? Use this button to register them before checking them into the queue. Takes about 60 seconds.",
+    title: "Registering a new patient",
+    body: "For anyone visiting for the first time. One short form puts them in the system permanently — every future visit builds on it, and their full history is always one tap away for the whole team.",
     target: '[data-tour="new-patient"]',
   },
   {
-    title: "Call Tasks",
-    body: "Patients flagged for a follow-up phone call show up here. Work through this list daily — each card tells you who to call and why.",
+    title: "Patients who need a personal call",
+    body: "Some patients need more than an automated message. These are the ones your team has flagged for a follow-up call — worked through daily, this list makes sure no patient ever wonders if anyone is thinking about them.",
     target: '[data-tour="nav-call-tasks"]',
   },
   {
-    title: "Appointments",
-    body: "Book and view upcoming appointments from here. You can also reschedule or cancel directly from the calendar.",
+    title: "Your scheduling front desk",
+    body: "Book, reschedule, and cancel appointments from here. Patients receive automatic confirmations and reminders for every booking — so your phone stops ringing with 'when is my appointment again?' questions.",
     target: '[data-tour="nav-appointments"]',
   },
   {
-    title: "You're ready! 🎉",
-    body: "That covers your workspace. Check in your first patient when you're ready. You can restart this tour any time using the ? icon at the bottom of the sidebar.",
+    title: "You keep the clinic moving.",
+    body: "You're the thread that connects patients to care. Era handles the behind-the-scenes admin so you can stay fully focused on the people in front of you. Restart this tour any time with the ? button.",
   },
 ];
 
+/* ── Nurse tour ─────────────────────────────────────────────────────────────
+   Purpose: show that Era is designed around the nurse's consultation flow.
+*/
 const NURSE_STEPS: Step[] = [
   {
-    title: "Welcome, Nurse! 👋",
-    body: "This short tour covers your workspace in Era Patient.",
+    title: "Welcome to Era Patient",
+    body: "Era is built around your workflow. Patients arrive at your station prepared — their history is already open, their previous care plans are visible, and you can focus entirely on the consultation.",
   },
   {
-    title: "Nurse Station",
-    body: "Once the receptionist checks a patient in from the queue, their card appears here. Review their visit history and existing notes, then record vitals and update their treatment plan after the consultation.",
+    title: "Your consultation workspace",
+    body: "The moment the receptionist checks a patient in, they appear here. Their full visit history and existing care notes are already loaded. After the consultation, you record what happened and update their care plan — and Era takes everything from there.",
     target: '[data-tour="nav-nurse-station"]',
   },
   {
-    title: "You're all set! 🎉",
-    body: "Patients appear in your station as soon as reception checks them in. You can restart this tour any time using the ? icon at the bottom of the sidebar.",
+    title: "Era takes the follow-through.",
+    body: "The moment you update a care plan, Era gets to work — sending the patient a warm, plain-English explanation of their plan, scheduling follow-up reminders, and making sure they stay informed and supported. You focus on the consultation. Era handles everything after. Restart this tour any time with the ? button.",
   },
 ];
 
@@ -190,7 +199,6 @@ function TooltipCard({
     }
   }
 
-  // Keep card within viewport horizontally
   if (transform === "none") {
     const leftNum = parseFloat(left);
     if (leftNum + CARD_W > window.innerWidth - 16) {
@@ -214,7 +222,6 @@ function TooltipCard({
         padding: "20px 20px 16px",
       }}
     >
-      {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           {isLast
@@ -232,10 +239,8 @@ function TooltipCard({
         </button>
       </div>
 
-      {/* Body */}
       <p className="text-xs text-muted-foreground leading-relaxed mb-4">{step.body}</p>
 
-      {/* Progress dots */}
       <div className="flex items-center gap-1.5 mb-4">
         {Array.from({ length: total }).map((_, i) => (
           <div
@@ -250,7 +255,6 @@ function TooltipCard({
         ))}
       </div>
 
-      {/* Buttons */}
       <div className="flex items-center gap-2">
         {!isFirst && (
           <button
@@ -291,12 +295,10 @@ export function TourGuide() {
   const [stepIndex, setStepIndex] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
 
-  // Auto-start on login (sessionStorage flag set by auth context after each login)
   useEffect(() => {
     if (!user || !hospital) return;
     if (sessionStorage.getItem("era_tour_pending") === "1") {
       sessionStorage.removeItem("era_tour_pending");
-      // Small delay so sidebar nav items are fully rendered
       const t = setTimeout(() => {
         setStepIndex(0);
         setActive(true);
@@ -305,7 +307,6 @@ export function TourGuide() {
     }
   }, [user, hospital]);
 
-  // Manual restart via ? button
   useEffect(() => {
     const handler = () => {
       setStepIndex(0);
@@ -335,7 +336,6 @@ export function TourGuide() {
       setActive(false);
       return;
     }
-    // Skip steps whose target element is absent (e.g. disabled module)
     let next = stepIndex + 1;
     while (next < steps.length - 1 && steps[next].target && !document.querySelector(steps[next].target!)) {
       next++;

@@ -5,6 +5,7 @@ import LoginPage from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import HospitalDetail from "@/pages/hospital-detail";
 import Analytics from "@/pages/analytics";
+import Settings from "@/pages/settings";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,7 @@ function AppRoutes() {
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/analytics" component={Analytics} />
+      <Route path="/settings" component={Settings} />
       <Route path="/hospitals/:id">
         {(params) => <HospitalDetail id={parseInt(params.id)} />}
       </Route>

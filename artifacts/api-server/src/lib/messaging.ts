@@ -110,7 +110,7 @@ export async function deliverWhatsApp(msg: MobileMessage, opts: MessagingOptions
 }
 
 export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
-  await termiiSend(msg, "generic", opts);
+  await termiiSend(msg, "dnd", opts);
 }
 
 export async function deliverMobileMessage(
@@ -133,7 +133,7 @@ export async function deliverMobileMessage(
 export async function testSmsDelivery(
   to: string,
   senderId?: string,
-  channel: "generic" | "dnd" = "generic",
+  channel: "generic" | "dnd" = "dnd",
 ): Promise<{ ok: boolean; detail: string }> {
   try {
     return await termiiSend(

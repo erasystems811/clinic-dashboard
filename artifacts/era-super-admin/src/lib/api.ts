@@ -71,6 +71,7 @@ export interface Hospital {
   settings: HospitalSettings | null;
   modules: HospitalModules | null;
   staffCredentials: StaffCredentials | null;
+  patientCount: number;
 }
 
 export interface HospitalSettings {

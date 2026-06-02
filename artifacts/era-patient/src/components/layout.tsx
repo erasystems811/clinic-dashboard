@@ -20,6 +20,7 @@ import {
   PanelLeftOpen,
   Menu,
   X,
+  FileUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,8 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
   }
   if (role === "nurse") {
     return [
-      { icon: Stethoscope, label: "Nurse Station", href: "/nurse-station" },
+      { icon: Stethoscope, label: "Medication View", href: "/nurse-station" },
+      { icon: Phone, label: "Call Tasks", href: "/call-tasks" },
     ];
   }
   const items: NavItem[] = [
@@ -72,6 +74,8 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
   items.push(
     { icon: GitBranch, label: "Pipeline", href: "/pipeline" },
     { icon: Activity, label: "Activity", href: "/activity" },
+    { icon: Phone, label: "Call Tasks", href: "/call-tasks" },
+    { icon: FileUp, label: "Import Patients", href: "/import" },
   );
   if (modules?.feedbackEnabled ?? true) {
     items.push({ icon: Star, label: "Feedback", href: "/feedback-admin" });
@@ -82,7 +86,7 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
 
 const ROLE_LABELS: Record<Role, string> = {
   receptionist: "Receptionist",
-  nurse: "Nurse",
+  nurse: "Medication View",
   admin: "Admin",
 };
 

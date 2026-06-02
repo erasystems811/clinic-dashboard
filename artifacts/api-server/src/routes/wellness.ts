@@ -3,7 +3,8 @@ import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
 import { verifyHospitalToken } from "./super-admin.js";
-import { generateWellnessNewsletter, sendWellnessNewsletterEmails } from "../lib/automation.js";
+import { generateWellnessNewsletter, sendWellnessNewsletterEmails, getHospitalContext } from "../lib/automation.js";
+import { sendEmail, wrapHtml } from "../lib/email.js";
 
 const router: IRouter = Router();
 
@@ -317,18 +318,18 @@ router.post("/wellness/generate", async (req, res): Promise<void> => {
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const WEEKLY_LIMIT = 5;
+  const WEEKLY_LIMIT = 10;
   const weekOf = weekOfDate(new Date());
 
   // Check weekly regeneration limit
-  const { data: weekRecord } = await supabase
+  const { data: dayRecord } = await supabase
     .from("wellness_newsletter")
     .select("id, generate_count")
     .eq("hospital_id", hospitalId)
     .eq("week_of", weekOf)
     .maybeSingle();
 
-  const currentCount = (weekRecord?.generate_count as number) ?? 0;
+  const currentCount = (dayRecord?.generate_count as number) ?? 0;
   if (currentCount >= WEEKLY_LIMIT) {
     res.status(429).json({
       error: `You have reached the maximum of ${WEEKLY_LIMIT} generations for this week. The limit resets next Monday.`,
@@ -354,10 +355,10 @@ router.post("/wellness/generate", async (req, res): Promise<void> => {
   try {
     // Increment count before generating (fail-safe against concurrent calls)
     const newCount = currentCount + 1;
-    if (weekRecord) {
+    if (dayRecord) {
       await supabase.from("wellness_newsletter")
         .update({ generate_count: newCount })
-        .eq("id", weekRecord.id);
+        .eq("id", dayRecord.id);
     } else {
       await supabase.from("wellness_newsletter").upsert({
         hospital_id: hospitalId,
@@ -455,6 +456,61 @@ router.get("/wellness/topics", async (req, res): Promise<void> => {
   const all = orderedByDept;
 
   res.json({ suggested, all, used: [...usedSet], departments });
+});
+
+// ── Bulk Email — custom message to all active patients ────────────────────────
+const BulkEmailBody = z.object({
+  subject: z.string().min(1),
+  message: z.string().min(1),
+});
+
+router.post("/wellness/bulk-email", async (req, res): Promise<void> => {
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const parsed = BulkEmailBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "subject and message are required" }); return; }
+
+  try {
+    const hCtx = await getHospitalContext(hospitalId);
+
+    const { data: patients } = await supabase
+      .from("patients")
+      .select("id, first_name, last_name, email")
+      .eq("hospital_id", hCtx.hospitalCode)
+      .in("stage", ["Active", "Post Treatment", "In Care", "Dormant"])
+      .not("email", "is", null);
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const patient of patients ?? []) {
+      if (!patient.email) continue;
+      try {
+        const html = wrapHtml(
+          `<p>${parsed.data.message.replace(/\n/g, "</p><p>")}</p>
+           <p style="font-size:12px;color:#8b949e;margin-top:24px;border-top:1px solid #30363d;padding-top:16px;">Please do not reply to this email directly.</p>`,
+          hCtx.hospitalName,
+        );
+        await sendEmail({
+          to: patient.email as string,
+          from: hCtx.fromAddress,
+          subject: parsed.data.subject,
+          html,
+          text: `${parsed.data.message}\n\nPlease do not reply to this email directly.\n\n${hCtx.hospitalName}`,
+        });
+        sent++;
+      } catch {
+        failed++;
+      }
+    }
+
+    res.json({ sent, failed, total: (patients ?? []).length });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: msg });
+  }
 });
 
 export default router;

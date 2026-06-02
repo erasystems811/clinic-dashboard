@@ -12,7 +12,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { format, parseISO, startOfWeek } from "date-fns";
 import {
   Send, Save, Newspaper, Edit3, CheckCircle, CheckCircle2, Loader2,
-  Sparkles, Youtube, Link, RefreshCw, ChevronDown, ChevronUp, History,
+  Sparkles, Youtube, Link, RefreshCw, ChevronDown, ChevronUp, History, Mail,
 } from "lucide-react";
 
 import { apiUrl } from "@/lib/api";
@@ -146,7 +146,11 @@ export default function WellnessAdmin() {
   const { data: newsletters = [], isLoading } = useListWellnessNewsletters({});
   const currentNewsletter = newsletters.find(n => n.weekOf === currentWeekOf);
 
-  const [activeTab, setActiveTab] = useState<"compose" | "history">("compose");
+  const [activeTab, setActiveTab] = useState<"compose" | "history" | "bulk">("compose");
+  const [bulkSubject, setBulkSubject] = useState("");
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [bulkSending, setBulkSending] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ sent: number; failed: number; total: number } | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState("");
@@ -306,6 +310,17 @@ export default function WellnessAdmin() {
             {!isSent && (
               <span className="ml-1 text-[10px] bg-primary/15 text-primary px-1.5 py-0.5 rounded-full font-semibold">Draft</span>
             )}
+          </button>
+          <button
+            onClick={() => setActiveTab("bulk")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === "bulk"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Mail className="w-3.5 h-3.5" />
+            Bulk Email
           </button>
           <button
             onClick={() => setActiveTab("history")}
@@ -544,6 +559,70 @@ export default function WellnessAdmin() {
         )}
 
         {/* ── History tab ── */}
+        {/* ── Bulk Email tab ── */}
+        {activeTab === "bulk" && (
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div>
+              <p className="text-sm font-semibold">Send a Custom Email to All Patients</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Sends to all Active, Post Treatment, In Care, and Dormant patients. Use for announcements, special notices, or any message outside the wellness newsletter.</p>
+            </div>
+
+            {bulkResult ? (
+              <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-2">
+                <p className="text-sm font-semibold text-green-400">Email sent successfully</p>
+                <p className="text-sm text-muted-foreground">{bulkResult.sent} of {bulkResult.total} patients received the email{bulkResult.failed > 0 ? ` · ${bulkResult.failed} failed` : ""}.</p>
+                <button onClick={() => { setBulkResult(null); setBulkSubject(""); setBulkMessage(""); }} className="text-xs text-primary hover:underline">Send another</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Subject</label>
+                  <input
+                    type="text"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="e.g. Important notice from our clinic"
+                    value={bulkSubject}
+                    onChange={e => setBulkSubject(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Message</label>
+                  <textarea
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[160px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Write your message here…"
+                    value={bulkMessage}
+                    onChange={e => setBulkMessage(e.target.value)}
+                  />
+                </div>
+                <button
+                  className="w-full py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                  disabled={bulkSending || !bulkSubject.trim() || !bulkMessage.trim()}
+                  onClick={async () => {
+                    if (!hospital?.token) return;
+                    setBulkSending(true);
+                    try {
+                      const res = await fetch(apiUrl("/api/wellness/bulk-email"), {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+                        body: JSON.stringify({ subject: bulkSubject.trim(), message: bulkMessage.trim() }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error ?? "Send failed");
+                      setBulkResult(data);
+                    } catch (err: unknown) {
+                      toast({ title: "Send failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+                    } finally {
+                      setBulkSending(false);
+                    }
+                  }}
+                >
+                  {bulkSending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send to All Patients</>}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === "history" && (
           <div className="rounded-xl border border-border bg-card">
             <div className="px-5 py-4 border-b border-border flex items-center gap-2">

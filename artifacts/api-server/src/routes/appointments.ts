@@ -95,6 +95,7 @@ router.post("/appointments", async (req, res): Promise<void> => {
     .from("patients")
     .select("first_name, last_name, email, phone, whatsapp_number, hospital_id")
     .eq("id", parsed.data.patientId)
+    .eq("hospital_id", hospital.code)
     .single();
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
 
@@ -129,6 +130,9 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const parsed = UpdateAppointmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -136,6 +140,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
     .from("appointments")
     .update(snakify(parsed.data as Record<string, unknown>))
     .eq("id", id)
+    .eq("hospital_id", hospital.intId)
     .select()
     .single();
 

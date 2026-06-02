@@ -1,10 +1,26 @@
-import { Resend } from "resend";
+/**
+ * Email delivery — supports Resend (default) and Amazon SES.
+ *
+ * Switch provider by setting:
+ *   EMAIL_PROVIDER=ses   → uses Amazon SES (much cheaper at volume)
+ *   EMAIL_PROVIDER=resend (or unset) → uses Resend (easier setup, good for early stage)
+ *
+ * Resend:  RESEND_API_KEY
+ * SES:     AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY + AWS_REGION (e.g. eu-west-1)
+ *
+ * When to switch to SES:
+ *   Resend free tier: 3,000 emails/month
+ *   Resend paid: ~$20/month for 50k emails
+ *   SES: $0.10 per 1,000 emails — 50k costs $5. Switch when you have many hospitals.
+ */
 
-function getResend(): Resend {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error("RESEND_API_KEY is not set");
-  return new Resend(key);
-}
+import { Resend } from "resend";
+import {
+  SESClient,
+  SendEmailCommand,
+  type SendEmailCommandInput,
+} from "@aws-sdk/client-ses";
+import { supabase } from "./supabase.js";
 
 export interface EmailPayload {
   to: string | string[];
@@ -14,7 +30,15 @@ export interface EmailPayload {
   text?: string;
 }
 
-export async function sendEmail(payload: EmailPayload): Promise<string> {
+// ── Resend ────────────────────────────────────────────────────────────────────
+
+function getResend(): Resend {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error("RESEND_API_KEY is not set");
+  return new Resend(key);
+}
+
+async function sendViaResend(payload: EmailPayload): Promise<string> {
   const resend = getResend();
   const { data, error } = await resend.emails.send({
     from: payload.from,
@@ -26,6 +50,126 @@ export async function sendEmail(payload: EmailPayload): Promise<string> {
   if (error) throw new Error(error.message);
   return data?.id ?? "sent";
 }
+
+// ── Amazon SES ────────────────────────────────────────────────────────────────
+
+let _sesClient: SESClient | null = null;
+
+function getSesClient(): SESClient {
+  if (!_sesClient) {
+    const region = process.env.AWS_REGION ?? "eu-west-1";
+    const accessKeyId     = process.env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+    if (!accessKeyId || !secretAccessKey) {
+      throw new Error("AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY must be set for SES");
+    }
+    _sesClient = new SESClient({
+      region,
+      credentials: { accessKeyId, secretAccessKey },
+    });
+  }
+  return _sesClient;
+}
+
+async function sendViaSes(payload: EmailPayload): Promise<string> {
+  const ses = getSesClient();
+  const toAddresses = Array.isArray(payload.to) ? payload.to : [payload.to];
+
+  // SES requires the from address to be a verified identity.
+  // The "Display Name <email@domain.com>" format is supported.
+  const params: SendEmailCommandInput = {
+    Source: payload.from,
+    Destination: { ToAddresses: toAddresses },
+    Message: {
+      Subject: { Data: payload.subject, Charset: "UTF-8" },
+      Body: {
+        Html: { Data: payload.html, Charset: "UTF-8" },
+        ...(payload.text ? { Text: { Data: payload.text, Charset: "UTF-8" } } : {}),
+      },
+    },
+  };
+
+  const result = await ses.send(new SendEmailCommand(params));
+  return result.MessageId ?? "sent";
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+// ── Monthly volume tracking for automatic Resend → SES switchover ─────────────
+// Resend's free tier is 3,000 emails/month. Once this month's email count crosses
+// the threshold, all further emails route through SES automatically — keeping you
+// inside the free tier without any manual change.
+//
+// The count is kept in a dedicated `email_counters` table that is ONLY ever
+// touched by this function — so every single email (including bulk sends) is
+// counted exactly, and the count survives server restarts.
+const RESEND_MONTHLY_THRESHOLD = 2900;
+
+function currentMonthKey(): string {
+  return new Date().toISOString().slice(0, 7); // YYYY-MM
+}
+
+// Read the current month's count from the exact counter table.
+async function getMonthCount(monthKey: string): Promise<number> {
+  try {
+    const { data } = await supabase
+      .from("email_counters")
+      .select("count")
+      .eq("month_key", monthKey)
+      .maybeSingle();
+    return (data?.count as number) ?? 0;
+  } catch {
+    return 0; // if read fails, assume under threshold — worst case we use Resend slightly longer
+  }
+}
+
+// Atomically add to the counter and return the new total.
+async function bumpMonthCount(monthKey: string, by: number): Promise<number> {
+  try {
+    const { data } = await supabase.rpc("increment_email_count", { p_month_key: monthKey, p_by: by });
+    return (data as number) ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function sendEmail(payload: EmailPayload): Promise<string> {
+  const explicitProvider = (process.env.EMAIL_PROVIDER ?? "").toLowerCase();
+
+  // If the operator has explicitly forced a provider, always honour it
+  // (no counting needed).
+  if (explicitProvider === "ses") {
+    return sendViaSes(payload);
+  }
+  if (explicitProvider === "resend") {
+    return sendViaResend(payload);
+  }
+
+  // Auto mode (no EMAIL_PROVIDER set): use Resend until the monthly threshold,
+  // then automatically switch to SES for the rest of the month.
+  const monthKey = currentMonthKey();
+  const recipients = Array.isArray(payload.to) ? payload.to.length : 1;
+
+  const countSoFar = await getMonthCount(monthKey);
+  const useSes = countSoFar >= RESEND_MONTHLY_THRESHOLD && !!process.env.AWS_ACCESS_KEY_ID;
+
+  const id = useSes ? await sendViaSes(payload) : await sendViaResend(payload);
+
+  // Record this send exactly (atomic increment) — only after a successful send
+  const newTotal = await bumpMonthCount(monthKey, recipients);
+
+  if (newTotal >= RESEND_MONTHLY_THRESHOLD && countSoFar < RESEND_MONTHLY_THRESHOLD) {
+    if (process.env.AWS_ACCESS_KEY_ID) {
+      console.log(`[email] Monthly Resend threshold (${RESEND_MONTHLY_THRESHOLD}) reached — routing further emails via SES for the rest of ${monthKey}`);
+    } else {
+      console.warn(`[email] Monthly Resend threshold (${RESEND_MONTHLY_THRESHOLD}) reached but AWS/SES is not configured — still using Resend. Set AWS keys to enable auto-switch.`);
+    }
+  }
+
+  return id;
+}
+
+// ── Email template ────────────────────────────────────────────────────────────
 
 export interface FeedbackEmailData {
   hospitalName: string;

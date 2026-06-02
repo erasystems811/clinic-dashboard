@@ -316,11 +316,12 @@ router.get("/patients/:id", async (req, res): Promise<void> => {
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { data, error } = await supabase.from("patients").select("*").eq("id", id).single();
+  const { data, error } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (error || !data) { res.status(404).json({ error: "Patient not found" }); return; }
 
-  const hospitalId = hospital?.code ?? (data.hospital_id as string);
+  const hospitalId = hospital.code;
   const nowIso = new Date().toISOString();
   const [{ data: plans }, { data: queueEntry }, { data: upcomingAppt }] = await Promise.all([
     supabase.from("care_plans").select("id").eq("patient_id", id).eq("hospital_id", hospitalId).limit(1),
@@ -338,7 +339,10 @@ router.get("/patients/:id/history", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { data: patient, error: pErr } = await supabase.from("patients").select("*").eq("id", id).single();
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: patient, error: pErr } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (pErr || !patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const nowIso = new Date().toISOString();
@@ -390,16 +394,18 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const parsed = UpdatePatientBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  // Fetch existing record so we can detect changes and propagate them
-  const { data: before, error: beforeErr } = await supabase.from("patients").select("*").eq("id", id).single();
+  // Fetch existing record — scoped to this hospital so cross-hospital updates are impossible
+  const { data: before, error: beforeErr } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (beforeErr || !before) { res.status(404).json({ error: "Patient not found" }); return; }
 
   // If patientId is being changed, enforce uniqueness within this hospital (case-insensitive)
   if (parsed.data.patientId && parsed.data.patientId !== before.patient_id?.toUpperCase()) {
-    const hospital = await getHospitalFromRequest(req);
     if (hospital) {
       const { data: conflict } = await supabase
         .from("patients")
@@ -528,8 +534,11 @@ router.delete("/patients/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  // Fetch first so we have the name for the log
-  const { data: existing, error: fetchErr } = await supabase.from("patients").select("*").eq("id", id).single();
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  // Fetch first so we have the name for the log — scoped to this hospital
+  const { data: existing, error: fetchErr } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (fetchErr || !existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const patientName = `${existing.first_name} ${existing.last_name}`;
@@ -562,7 +571,10 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { data: existing, error: fetchErr } = await supabase.from("patients").select("*").eq("id", id).single();
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: existing, error: fetchErr } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (fetchErr || !existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const now = new Date();
@@ -662,7 +674,10 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { data: existing } = await supabase.from("patients").select("*").eq("id", id).single();
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: existing } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
   // ── Automation: "Your Turn" message to the patient being called in ────────────
@@ -727,10 +742,13 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const parsed = TreatmentPlanBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { data: existing } = await supabase.from("patients").select("*").eq("id", id).single();
+  const { data: existing } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!existing) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const now = new Date();
@@ -805,7 +823,10 @@ router.post("/patients/:id/end-plan", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { data: patient, error } = await supabase.from("patients").select("*").eq("id", id).single();
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: patient, error } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (error || !patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   if (!patient.treatment_plan) { res.status(400).json({ error: "No active plan to end" }); return; }
@@ -838,10 +859,13 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const parsed = FlagMissedBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { data: patient } = await supabase.from("patients").select("*").eq("id", id).single();
+  const { data: patient } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const taskType = parsed.data.taskType ?? "follow_up";

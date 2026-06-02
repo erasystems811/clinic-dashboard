@@ -12,6 +12,8 @@ export const appointmentsTable = pgTable("appointments", {
   department: text("department"),
   status: text("status").notNull().default("scheduled"),
   notes: text("notes"),
+  reminder24hSentAt: timestamp("reminder_24h_sent_at", { withTimezone: true }),
+  reminder2hSentAt: timestamp("reminder_2h_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -151,6 +151,12 @@ export default function Hospitals() {
                   {/* Status badge */}
                   <StatusBadge status={h.subscriptionStatus} active={h.active} />
 
+                  {/* Patient count */}
+                  <div className="hidden sm:flex items-center gap-1 min-w-[70px] justify-end">
+                    <Users className="w-3 h-3 text-muted-foreground/50 shrink-0" />
+                    <span className="text-sm font-semibold tabular-nums text-foreground/80">{(h.patientCount ?? 0).toLocaleString()}</span>
+                  </div>
+
                   {/* Expiry */}
                   <div className="hidden sm:block text-right min-w-[110px]">
                     {expDate ? (

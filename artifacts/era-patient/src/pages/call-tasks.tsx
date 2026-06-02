@@ -43,7 +43,7 @@ const ACTION_TYPES = [
   },
 ] as const;
 
-const AI_DAILY_LIMIT = 5;
+const AI_DAILY_LIMIT = 20;
 
 /* ── Action Panel ── */
 function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedToday: number; onAiUsed: (newCount: number) => void }) {

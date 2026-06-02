@@ -16,6 +16,8 @@ const CarePlanBody = z.object({
   summary: z.string().min(1),
   department: z.string().min(1),
   templateData: z.any().optional(),
+  beneficiaryName: z.string().optional(),
+  beneficiaryEmail: z.string().email().optional().or(z.literal("")),
 });
 
 // ── List care plans for a patient ──────────────────────────────────────────────
@@ -40,7 +42,9 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
 
   // Lazy migration: old patients have treatment_plan on the patients row but no
   // care_plans rows yet. Create one now so the new UI works transparently.
-  if ((data ?? []).length === 0) {
+  // Only trigger if there are no ACTIVE plans (ended plans don't count).
+  const activePlans = (data ?? []).filter((p: Record<string, unknown>) => p.status !== "ended");
+  if (activePlans.length === 0 && (data ?? []).length === 0) {
     const { data: patient } = await supabase
       .from("patients")
       .select("treatment_plan, treatment_type, department, treatment_started_at, treatment_end_date, hospital_id, first_name, last_name")
@@ -51,15 +55,21 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
       const createdAt = patient.treatment_started_at ?? new Date().toISOString();
       const dept = (patient.department as string | null) || (patient.treatment_type as string | null) || "General";
       const summary = patient.treatment_plan as string;
+      const treatmentEndDate = patient.treatment_end_date as string | null;
+      const today = new Date().toISOString().split("T")[0];
+      // If treatment_end_date exists and has already passed, the plan is ended
+      const isEnded = !!treatmentEndDate && treatmentEndDate <= today;
 
       const { data: migrated, error: mErr } = await supabase.from("care_plans").insert({
         patient_id: patientId,
         hospital_id: hospital.code,
         summary,
         department: dept,
-        template_data: patient.treatment_end_date
-          ? { legacyEndDate: patient.treatment_end_date, migratedFromPatientRow: true }
+        template_data: treatmentEndDate
+          ? { legacyEndDate: treatmentEndDate, migratedFromPatientRow: true }
           : { migratedFromPatientRow: true },
+        status: isEnded ? "ended" : "active",
+        ended_at: isEnded ? treatmentEndDate : null,
         created_at: createdAt,
         updated_at: createdAt,
       }).select().single();
@@ -96,6 +106,9 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
     summary: parsed.data.summary,
     department: parsed.data.department,
     template_data: parsed.data.templateData,
+    beneficiary_name: parsed.data.beneficiaryName || null,
+    beneficiary_email: parsed.data.beneficiaryEmail || null,
+    status: "active",
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
   }).select().single();
@@ -198,7 +211,9 @@ router.patch("/care-plans/:id", async (req, res): Promise<void> => {
   res.json(camelize(updated));
 });
 
-// ── Delete a care plan ─────────────────────────────────────────────────────────
+// ── End (archive) a care plan — never physically deleted ──────────────────────
+// Care plans are permanently kept as a historical record. "Ending" a plan marks
+// it status='ended' so nurses can review past treatment and reactivate if needed.
 router.delete("/care-plans/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -209,49 +224,53 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
   const { data: existing } = await supabase.from("care_plans").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!existing) { res.status(404).json({ error: "Care plan not found" }); return; }
 
-  await supabase.from("care_plans").delete().eq("id", id);
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
 
-  // Check if this was the patient's last care plan
-  const { data: remaining } = await supabase
+  // Archive the plan — never delete
+  await supabase.from("care_plans").update({
+    status: "ended",
+    ended_at: now.toISOString(),
+    updated_at: now.toISOString(),
+  }).eq("id", id);
+
+  // Check if any ACTIVE plans remain for this patient
+  const { data: remainingActive } = await supabase
     .from("care_plans")
     .select("id")
     .eq("patient_id", existing.patient_id as number)
-    .eq("hospital_id", hospital.code);
+    .eq("hospital_id", hospital.code)
+    .eq("status", "active");
 
-  const { data: patient } = await supabase.from("patients").select("first_name, last_name, stage").eq("id", existing.patient_id as number).single();
+  const { data: patient } = await supabase.from("patients").select("first_name, last_name").eq("id", existing.patient_id as number).single();
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
 
-  if (!remaining || remaining.length === 0) {
-    // No more care plans — only General Outpatient completions trigger Post Treatment.
-    // All other departments return the patient to Active.
-    const isGeneralOutpatientEnd = (existing.department as string) === "General Outpatient";
-    const nextStage = isGeneralOutpatientEnd ? "Post Treatment" : "Active";
-    const today = new Date().toISOString().split("T")[0];
+  if (!remainingActive || remainingActive.length === 0) {
+    // No active plans left — move patient to Post Treatment
     await supabase.from("patients").update({
-      stage: nextStage,
-      // Only stamp treatment_end_date for GenOut — other departments never trigger
-      // post-treatment emails, so leave the field null to avoid false-positives.
-      treatment_end_date: isGeneralOutpatientEnd ? today : null,
-      updated_at: new Date().toISOString(),
+      stage: "Post Treatment",
+      treatment_end_date: today,
+      treatment_plan: null,
+      treatment_type: null,
+      medication_timing: null,
+      updated_at: now.toISOString(),
     }).eq("id", existing.patient_id as number);
 
     await supabase.from("activity").insert({
       type: "stage_changed",
-      description: `${patientName} moved to ${nextStage} (care plan removed)`,
+      description: `${patientName} moved to Post Treatment (${existing.department as string} care plan ended)`,
       patient_id: existing.patient_id as number,
       patient_name: patientName,
-      metadata: nextStage,
+      metadata: "Post Treatment",
     });
   }
 
-  if (patient) {
-    await supabase.from("activity").insert({
-      type: "care_plan_deleted",
-      description: `Care plan deleted for ${patientName} (${existing.department})`,
-      patient_id: existing.patient_id as number,
-      patient_name: patientName,
-    });
-  }
+  await supabase.from("activity").insert({
+    type: "care_plan_ended",
+    description: `${existing.department as string} care plan ended for ${patientName}`,
+    patient_id: existing.patient_id as number,
+    patient_name: patientName,
+  });
 
   res.sendStatus(204);
 });

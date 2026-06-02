@@ -253,7 +253,7 @@ export async function sendCarePlanEmail(
     const lang = hCtx.language ?? "English";
 
     const emailBody = await generateClaudeMessage(
-      `You are writing a care plan explanation email for a patient of ${hCtx.hospitalName}. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. NEVER express that you are glad, happy, pleased, or fortunate that the patient is unwell or receiving treatment — it is not appropriate to be glad someone is sick. Instead, thank the patient for choosing ${hCtx.hospitalName} and assure them they will receive the very best possible care. Never use clinical jargon. Never mention a diagnosis. Explain what the plan means in simple terms. Keep it under 200 words of body text. End with a closed statement — make clear the patient does not need to reply to this email and should ${contactLine(hCtx.phoneNumber)} if they have questions.`,
+      `You are writing a care plan explanation email for a patient of ${hCtx.hospitalName}. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. NEVER say you are happy, glad, pleased, or excited to see the patient or that they are visiting — focus on care and support instead. NEVER express that you are glad, happy, pleased, or fortunate that the patient is unwell or receiving treatment — it is not appropriate to be glad someone is sick. Instead, thank the patient for choosing ${hCtx.hospitalName} and assure them they will receive the very best possible care. Never use clinical jargon. Never mention a diagnosis. Explain what the plan means in simple terms. Keep it under 200 words of body text. End with a closed statement — make clear the patient does not need to reply to this email and should ${contactLine(hCtx.phoneNumber)} if they have questions.`,
       `Write a ${tone} email explaining ${firstName}'s care plan at ${hCtx.hospitalName}. Thank them for choosing ${hCtx.hospitalName} and assure them of the best possible care. Treatment type: ${treatmentType}. Duration: ${durationDays} days. Care plan details: ${treatmentPlan}. Explain what this means for the patient in plain, reassuring language — what they can expect, how the team will support them, and what they should do. End with: "If you have any questions please do not hesitate to ${contactLine(hCtx.phoneNumber)}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team."`,
       350,
     );
@@ -469,8 +469,8 @@ export async function sendAppointmentNoShowEmail(
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
-    const subject = `We missed you today — ${hCtx.hospitalName}`;
-    const body = `Hi ${patientName},\n\nWe noticed you were not able to make your appointment at ${hCtx.hospitalName} today. We hope you are good? We completely understand that life gets busy too sometimes.\n\nWhenever you are ready to rebook please do not hesitate to ${contact}. Please do not reply to this email directly. We are here for you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+    const subject = `We are worried about you — ${hCtx.hospitalName}`;
+    const body = `Hi ${patientName},\n\nWe noticed you were not able to make your appointment at ${hCtx.hospitalName} today and we just wanted to check in to make sure you are okay. Your health and wellbeing are always our priority and we care about you.\n\nWhenever you are ready to rebook or if you need anything at all please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
 
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
@@ -554,9 +554,16 @@ export async function sendBirthdayEmail(
   const logId = await logAutomation(ctx, "queued");
   try {
     const firstName = patientName.split(" ")[0];
-    const subject = `Happy Birthday from ${hCtx.hospitalName} 🎂`;
-    const body = `Happy Birthday ${firstName}!\n\nToday we pause to celebrate you. At ${hCtx.hospitalName}, you are never just a name in our system — you are someone we genuinely care about, and your birthday gives us a reason to say that out loud.\n\nWe hope today brings you warmth, laughter, and the company of people who love you. And in this new year of your life, we wish you the one thing that makes everything else possible — good health.\n\nFrom everyone at ${hCtx.hospitalName}, Happy Birthday. We are glad you are here.`;
+    const tone = buildToneDescription(hCtx.tone);
+    const lang = hCtx.language ?? "English";
 
+    const body = await generateClaudeMessage(
+      `You are writing a birthday email on behalf of ${hCtx.hospitalName} to a patient. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. Write a warm, genuine birthday message that feels personal and unique — never generic or copy-paste. Take your time with it — this should feel like a real, thoughtful message from people who care. STRICT RULES: (1) Never reference age, age milestones, getting older, or how many years have passed — age is sensitive. (2) Never reference religion, God, prayers, blessings, or any spiritual practice — patients have different beliefs. (3) Never reference tribe, ethnicity, culture, or traditions. (4) Never assume gender — use gender-neutral language throughout, never say he/she/his/her. (5) Never say you are happy or glad the patient is a patient — focus only on celebrating them as a person. Start with "Happy Birthday ${firstName}!" then write several warm paragraphs — celebrate the day, express how much the person means to the team, wish them joy and good health, and let them know they are valued. End with a warm, heartfelt closing from ${hCtx.hospitalName}. Do not add "please do not reply" or contact lines — this is purely a celebration message.`,
+      `Write a unique, warm birthday message for ${firstName} from ${hCtx.hospitalName}. Make it feel fresh, rich, and heartfelt — not like a standard template. Several paragraphs.`,
+      320,
+    );
+
+    const subject = `Happy Birthday from ${hCtx.hospitalName} 🎂`;
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
       to: patientEmail,
@@ -608,7 +615,7 @@ export async function sendCareVisitReminderEmail(
     const tone = buildToneDescription(hCtx.tone);
 
     const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a visit reminder email. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. NEVER express gladness or happiness that the patient is unwell — thank them for choosing ${hCtx.hospitalName} and assure them of the best possible care. Start with "Hi ${firstName},". Write 2–3 warm sentences reminding the patient about their upcoming ${department} appointment. Read and understand the care plan details before writing — then explain to the patient in very simple, clear words what they need to know for this visit. Mention the specific department (${department}). End with: "If you have any questions please ${contact}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team"`,
+      `You are a care team member at ${hCtx.hospitalName} sending a visit reminder email. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. NEVER say you are happy, glad, pleased, or excited to see the patient or that they are visiting — focus on care and support instead. NEVER express gladness or happiness that the patient is unwell — thank them for choosing ${hCtx.hospitalName} and assure them of the best possible care. Start with "Hi ${firstName},". Write 2–3 warm sentences reminding the patient about their upcoming ${department} appointment. Read and understand the care plan details before writing — then explain to the patient in very simple, clear words what they need to know for this visit. Mention the specific department (${department}). End with: "If you have any questions please ${contact}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team"`,
       `Department: ${department}\nAppointment: ${formatted}${timeStr}\nCare plan details (read and understand before writing): ${visitDescription.slice(0, 500)}`,
       280,
     );
@@ -892,6 +899,93 @@ export async function sendWellnessNewsletterEmails(
   return { sent, failed };
 }
 
+// ── Departmental Post-Treatment Follow-up — Claude — Email ────────────────────
+// Fired on nurse-scheduled follow-up days (e.g. Day 7, Day 14) after treatment ends.
+// Only for non-General Outpatient departments — GenOut uses the templated Day 1/4/7 path.
+
+export async function sendDepartmentalFollowupEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+  department: string,
+  dayNumber: number,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const automationType = `departmental_followup_day${dayNumber}`;
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType,
+    channel: "email",
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const firstName = patientName.split(" ")[0];
+    const tone = buildToneDescription(hCtx.tone);
+    const lang = hCtx.language ?? "English";
+    const contact = contactLine(hCtx.phoneNumber);
+
+    const body = await generateClaudeMessage(
+      `You are writing a post-treatment follow-up email on behalf of ${hCtx.hospitalName} to a patient who has recently completed their ${department} treatment. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. This is day ${dayNumber} after treatment ended. Write a warm, caring check-in that feels personal — ask how the patient is doing, acknowledge the stage of their recovery (early days vs. weeks in), and encourage them to stay well and reach out if anything feels off. NEVER say you are happy, glad, or pleased that they needed treatment. NEVER use clinical jargon. Keep it to 3–4 short paragraphs. Start with "Hi ${firstName},". End with: "If you need anything at all please do not hesitate to ${contact}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team"`,
+      `Department: ${department}. Days since treatment ended: ${dayNumber}. Write a warm follow-up for ${firstName}.`,
+      220,
+    );
+
+    const subject = `Checking in on you — ${hCtx.hospitalName}`;
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: body });
+    await updateAutomationLog(logId, "sent", `Departmental follow-up Day ${dayNumber} (${department}) → ${patientEmail}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendDepartmentalFollowupEmail] failed:", msg, { hospitalId, patientId, patientEmail, department, dayNumber });
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
+// ── Beneficiary Accountability Reminder — Email — Templated ───────────────────
+// Sent at the same time as the patient's care plan reminder.
+// Tells the named beneficiary to check on the patient and ensure they follow through.
+
+export async function sendBeneficiaryReminderEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  beneficiaryName: string,
+  beneficiaryEmail: string,
+  actionDescription: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "beneficiary_reminder",
+    channel: "email",
+  };
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const patientFirst = patientName.split(" ")[0];
+    const contact = contactLine(hCtx.phoneNumber);
+    const subject = `A gentle nudge about ${patientFirst} — ${hCtx.hospitalName}`;
+    const body = `Hi ${beneficiaryName},\n\nThis is just a little reminder from ${hCtx.hospitalName} — ${patientName} is due to ${actionDescription} right now. A quick check-in from you could make all the difference.\n\nYour care and support mean so much to ${patientFirst}'s recovery. Thank you for being there for them.\n\nIf you have any concerns please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: beneficiaryEmail,
+      from: hCtx.fromAddress,
+      subject,
+      html,
+      text: body,
+    });
+
+    await updateAutomationLog(logId, "sent", `Beneficiary reminder → ${beneficiaryEmail}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendBeneficiaryReminderEmail] failed:", msg, { hospitalId, patientId, beneficiaryEmail });
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
 // ── Continuous In-Care AI Reminders — OpenAI — Email ─────────────────────────
 // Runs 4 times daily (morning/afternoon/evening/night).
 // Only fires for patients who have that time slot checked in their treatment plan.
@@ -910,7 +1004,8 @@ export async function sendInCareAIReminder(
   department?: string,
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
-  const deptLabel = department ?? "General Outpatient";
+  const rawDept = department ?? "General Outpatient";
+  const deptLabel = rawDept === "General Outpatient" ? "Outpatient" : rawDept;
   const automationType = `in_care_reminder_${slot}_${deptLabel.replace(/\s+/g, "_").toLowerCase()}`;
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
@@ -947,9 +1042,9 @@ export async function sendInCareAIReminder(
     };
 
     const message = await generateOpenAIMessage(
-      `You are a care team member at ${hCtx.hospitalName} sending a care reminder email to a patient. Department: ${deptLabel}. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. NEVER express gladness, happiness, or pleasure that the patient is unwell or in treatment — it is inappropriate to be glad someone is sick. Thank them for choosing ${hCtx.hospitalName} and assure them they are receiving the best possible care. Start with "Hi ${firstName},". Read and understand the care plan details first, then write 2–3 warm, specific sentences about what the patient needs to do right now — in very simple, clear language anyone can understand. Always mention the department (${deptLabel}). Never use clinical jargon. End with: "If you have any concerns please ${contact}. Please do not reply to this email directly. — ${hCtx.hospitalName} Team"`,
-      `${slotContext[slot]}\n${typeContext}\n\nCare plan details (read and understand before writing): ${treatmentPlan.slice(0, 600)}\n\nWrite a short, warm care reminder email for ${firstName}.`,
-      230,
+      `You are a care team member at ${hCtx.hospitalName} sending a care reminder email to a patient. Department: ${deptLabel}. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. NEVER say you are happy, glad, pleased, or excited to see the patient or that they are visiting. NEVER express gladness or happiness that the patient is unwell. Start with "Hi ${firstName},". Write around 6 lines — warm and caring, not robotic. Clearly tell the patient what they need to do right now in simple language, reassure them the team is with them, and encourage them to stay consistent with their care. Never use clinical jargon. End with: "If you have any concerns please ${contact}. Please do not reply to this email directly. — ${hCtx.hospitalName} Team"`,
+      `${slotContext[slot]}\n${typeContext}\n\nCare plan details: ${treatmentPlan.slice(0, 400)}\n\nWrite a warm, caring reminder for ${firstName}. Around 6 lines.`,
+      170,
     );
 
     const html = wrapHtml(

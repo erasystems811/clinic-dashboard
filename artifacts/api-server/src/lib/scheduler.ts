@@ -13,6 +13,8 @@ import {
   sendCareVisitReminderEmail,
   sendCarePlanEmail,
   sendQueueLongWaitApology,
+  sendBeneficiaryReminderEmail,
+  sendDepartmentalFollowupEmail,
   type InCareTimeSlot,
 } from "./automation.js";
 
@@ -34,9 +36,9 @@ async function runAppointmentReminders() {
 
     // Helper: resolve hospital int id + module check for an appointment's patient
     async function resolveHospital(patient: Record<string, unknown>) {
-      const { data: hospital } = await supabase.from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).single();
+      const { data: hospital } = await supabase.from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).maybeSingle();
       if (!hospital) return null;
-      const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
+      const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).maybeSingle();
       if (!mods?.appointments_enabled) return null;
       return hospital;
     }
@@ -87,54 +89,58 @@ async function runAppointmentReminders() {
 }
 
 // ── Post-Treatment Check-ins — runs daily — Day 1, 4, 7 emails only ───────────
-// Reads from treatment_end_date directly — pipeline stage is a reflection, not a trigger.
-// Supports multi-cycle patients: automation_log check is scoped to the current treatment cycle.
+// Per-plan Day 1/4/7 check-ins for General Outpatient only.
+// Keyed on care_plans.ended_at so each plan triggers its own sequence independently —
+// a patient with multiple GenOut plans gets follow-ups for each one separately,
+// even if another plan is still active.
 async function runPostTreatmentCheckins() {
   try {
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
 
     const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
     for (const h of hospitals ?? []) {
-      // Source of truth: treatment_end_date — no stage filter needed
-      const { data: patients } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, email, treatment_end_date")
+      // Query ended GenOut care plans — patient stage is irrelevant here
+      const { data: plans } = await supabase
+        .from("care_plans")
+        .select("id, patient_id, ended_at")
         .eq("hospital_id", h.hospital_code)
-        .eq("stage", "Post Treatment")
-        .not("treatment_end_date", "is", null)
-        .not("email", "is", null)
-        .lte("treatment_end_date", today);
+        .eq("department", "General Outpatient")
+        .eq("status", "ended")
+        .not("ended_at", "is", null);
 
-      for (const p of patients ?? []) {
-        if (!p.email || !p.treatment_end_date) continue;
+      for (const plan of plans ?? []) {
+        if (!plan.ended_at) continue;
 
-        const endDate = new Date(p.treatment_end_date as string);
+        const endDate = new Date(plan.ended_at as string);
         const daysSinceEnd = Math.floor((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
-        const patientName = `${p.first_name} ${p.last_name}`;
+
+        const { data: patient } = await supabase
+          .from("patients")
+          .select("id, first_name, last_name, email")
+          .eq("id", plan.patient_id as number)
+          .maybeSingle();
+
+        if (!patient?.email) continue;
+        const patientName = `${patient.first_name} ${patient.last_name}`;
 
         for (const day of [1, 4, 7] as const) {
-          if (daysSinceEnd < day) continue; // not yet time
-          // Allow a 30-day catch-up window so emails missed during hospital suspension
-          // are still delivered when the hospital is unsuspended, in the correct order.
-          if (daysSinceEnd > day + 30) continue; // too old — skip
+          if (daysSinceEnd < day) continue;
+          if (daysSinceEnd > day + 30) continue; // 30-day catch-up window
 
-          const automationType = `post_treatment_day${day}`;
-          // Scope the sent-check to the current treatment cycle (gte treatment_end_date)
-          // so a patient who re-enrolls and finishes again receives these emails again
+          // Dedup key scoped to this plan so a second GenOut plan fires its own Day 1/4/7
+          const automationType = `post_treatment_plan${plan.id}_day${day}`;
           const { data: alreadySent } = await supabase
             .from("automation_log")
             .select("id")
-            .eq("patient_id", p.id)
+            .eq("patient_id", patient.id)
             .eq("automation_type", automationType)
             .eq("status", "sent")
-            .gte("created_at", p.treatment_end_date as string)
             .maybeSingle();
 
           if (alreadySent) continue;
 
-          await sendPostTreatmentCheckinEmail(h.id, p.id as number, patientName, p.email as string, day);
-          log(`Post-treatment Day ${day} email → patient ${p.id} (${daysSinceEnd} days since treatment end)`);
+          await sendPostTreatmentCheckinEmail(h.id, patient.id as number, patientName, patient.email as string, day);
+          log(`Post-treatment Day ${day} email → patient ${patient.id} (GenOut plan ${plan.id}, ${daysSinceEnd}d since ended)`);
         }
       }
     }
@@ -159,7 +165,7 @@ async function runPostCareEmails() {
 
     for (const mod of enabledModules ?? []) {
       const { data: hospital } = await supabase
-        .from("hospitals").select("id, hospital_code").eq("id", mod.hospital_id).single();
+        .from("hospitals").select("id, hospital_code").eq("id", mod.hospital_id).maybeSingle();
       if (!hospital) continue;
 
       const { data: patients } = await supabase
@@ -231,7 +237,7 @@ async function runDormantDetection() {
         .from("hospitals")
         .select("hospital_code, active")
         .eq("id", hs.hospital_id)
-        .single();
+        .maybeSingle();
       if (!hospital) continue;
       // Never run dormant detection for suspended hospitals — patients retain their
       // activity timestamps so counting resumes correctly after unsuspension.
@@ -287,26 +293,57 @@ async function runPostTreatmentTransitions() {
 
     const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
     for (const h of hospitals ?? []) {
-      // In Care → Post Treatment when treatment_end_date has passed
-      const { data: patients } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, treatment_end_date")
-        .eq("stage", "In Care")
+      // Auto-end GenOut care plans when their treatment_end_date has passed.
+      // "In Care" is a derived display badge — never stored in patients.stage.
+      // Source of truth: active GenOut care plans + patients.treatment_end_date.
+      const { data: activeGenOutPlans } = await supabase
+        .from("care_plans")
+        .select("id, patient_id")
         .eq("hospital_id", h.hospital_code)
-        .lte("treatment_end_date", today);
+        .eq("department", "General Outpatient")
+        .eq("status", "active");
 
-      for (const p of patients ?? []) {
-        await supabase.from("patients")
-          .update({ stage: "Post Treatment", updated_at: new Date().toISOString() })
-          .eq("id", p.id);
-        await supabase.from("activity").insert({
-          type: "stage_changed",
-          description: `${p.first_name} ${p.last_name} moved to Post Treatment (treatment ended)`,
-          patient_id: p.id,
-          patient_name: `${p.first_name} ${p.last_name}`,
-          metadata: "Post Treatment",
-        });
-        log(`Patient ${p.id} moved to Post Treatment`);
+      for (const cp of activeGenOutPlans ?? []) {
+        const { data: patient } = await supabase
+          .from("patients")
+          .select("id, first_name, last_name, treatment_end_date")
+          .eq("id", cp.patient_id as number)
+          .not("treatment_end_date", "is", null)
+          .lte("treatment_end_date", today)
+          .maybeSingle();
+
+        if (!patient) continue; // treatment_end_date hasn't passed or is null
+
+        const now = new Date().toISOString();
+        const patientName = `${patient.first_name} ${patient.last_name}`;
+
+        // Archive this care plan
+        await supabase.from("care_plans")
+          .update({ status: "ended", ended_at: now, updated_at: now })
+          .eq("id", cp.id);
+
+        // Only transition patient stage if no other active plans remain
+        const { data: remainingActive } = await supabase
+          .from("care_plans")
+          .select("id")
+          .eq("patient_id", patient.id)
+          .eq("hospital_id", h.hospital_code)
+          .eq("status", "active");
+
+        if (!remainingActive || remainingActive.length === 0) {
+          await supabase.from("patients")
+            .update({ stage: "Post Treatment", treatment_plan: null, treatment_type: null, medication_timing: null, updated_at: now })
+            .eq("id", patient.id);
+
+          await supabase.from("activity").insert({
+            type: "stage_changed",
+            description: `${patientName} moved to Post Treatment (General Outpatient treatment duration complete)`,
+            patient_id: patient.id,
+            patient_name: patientName,
+            metadata: "Post Treatment",
+          });
+          log(`Patient ${patient.id} moved to Post Treatment (GenOut treatment_end_date passed)`);
+        }
       }
     }
 
@@ -319,7 +356,7 @@ async function runPostTreatmentTransitions() {
       const postTreatDays = (hs.pipeline_post_treatment_days as number) ?? 14;
       const cutoff = new Date(Date.now() - postTreatDays * 24 * 60 * 60 * 1000).toISOString();
 
-      const { data: hospital } = await supabase.from("hospitals").select("hospital_code").eq("id", hs.hospital_id).single();
+      const { data: hospital } = await supabase.from("hospitals").select("hospital_code").eq("id", hs.hospital_id).maybeSingle();
       if (!hospital) continue;
 
       const { data: patients } = await supabase
@@ -367,7 +404,7 @@ async function runFeedbackEmails() {
         .from("hospitals")
         .select("hospital_code, feedback_slug")
         .eq("id", hm.hospital_id)
-        .single();
+        .maybeSingle();
       if (!hospital || !hospital.feedback_slug) continue;
 
       // Build the hospital's permanent general feedback link
@@ -393,7 +430,7 @@ async function runFeedbackEmails() {
           .select("id, first_name, last_name, email")
           .eq("id", patientId)
           .eq("hospital_id", hospital.hospital_code)
-          .single();
+          .maybeSingle();
 
         if (!patient || !patient.email) continue;
 
@@ -438,7 +475,7 @@ async function runNoShowDetection() {
         .from("patients")
         .select("id, first_name, last_name, hospital_id")
         .eq("id", appt.patient_id)
-        .single();
+        .maybeSingle();
 
       if (patient) {
         const patientName = `${patient.first_name} ${patient.last_name}`;
@@ -478,15 +515,15 @@ async function runNoShowFollowup() {
         .from("patients")
         .select("id, first_name, last_name, email, hospital_id")
         .eq("id", appt.patient_id)
-        .single();
+        .maybeSingle();
 
       if (patient && patient.email) {
         const patientName = `${patient.first_name} ${patient.last_name}`;
         const { data: hospital } = await supabase
-          .from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).single();
+          .from("hospitals").select("id").eq("hospital_code", patient.hospital_id as string).maybeSingle();
 
         if (hospital) {
-          const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).single();
+          const { data: mods } = await supabase.from("hospital_modules").select("appointments_enabled").eq("hospital_id", hospital.id).maybeSingle();
           if (!mods?.appointments_enabled) continue;
 
           // Dedup: only one follow-up per appointment (window is 30 min wide across two cron runs)
@@ -638,7 +675,7 @@ async function runQueueLongWaitCheck() {
         .from("hospitals")
         .select("id")
         .eq("hospital_code", hospitalCode)
-        .single();
+        .maybeSingle();
       if (!hospital) continue;
 
       const hospitalIntId = hospital.id as number;
@@ -675,6 +712,152 @@ async function runQueueLongWaitCheck() {
   }
 }
 
+// ── Auto-end non-GenOut care plans after last scheduled date passes ────────────
+// Runs daily. For each active non-General Outpatient care plan, checks whether the
+// last visit date in the department template has passed. If so, archives the plan
+// and transitions the patient to Post Treatment exactly as "End Early" would.
+async function runCarePlanCompletionDetection() {
+  try {
+    const WAT_MS = 60 * 60 * 1000;
+    const nowWAT = new Date(Date.now() + WAT_MS);
+    const todayWAT = nowWAT.toISOString().slice(0, 10); // WAT date
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
+    for (const h of hospitals ?? []) {
+      const { data: plans } = await supabase
+        .from("care_plans")
+        .select("id, patient_id, department, template_data")
+        .eq("hospital_id", h.hospital_code)
+        .eq("status", "active")
+        .neq("department", "General Outpatient");
+
+      for (const plan of plans ?? []) {
+        const dept = plan.department as string;
+        const td = (plan.template_data ?? {}) as Record<string, unknown>;
+        const entries = extractVisitEntries(dept, td, todayWAT);
+        if (!entries.length) continue;
+
+        // Find the last scheduled date across all entries
+        const allDates = entries.map(e => e.date).filter(Boolean).sort();
+        const lastDate = allDates[allDates.length - 1];
+        if (!lastDate || lastDate >= todayWAT) continue; // last date hasn't passed yet
+
+        // Archive the plan
+        const now = new Date().toISOString();
+        await supabase.from("care_plans").update({
+          status: "ended",
+          ended_at: now,
+          updated_at: now,
+        }).eq("id", plan.id);
+
+        // Check if any active plans remain
+        const { data: remainingActive } = await supabase
+          .from("care_plans")
+          .select("id")
+          .eq("patient_id", plan.patient_id as number)
+          .eq("hospital_id", h.hospital_code)
+          .eq("status", "active");
+
+        if (!remainingActive || remainingActive.length === 0) {
+          const { data: patient } = await supabase.from("patients").select("first_name, last_name").eq("id", plan.patient_id as number).maybeSingle();
+          const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
+
+          await supabase.from("patients").update({
+            stage: "Post Treatment",
+            treatment_end_date: lastDate,
+            treatment_plan: null,
+            treatment_type: null,
+            medication_timing: null,
+            updated_at: now,
+          }).eq("id", plan.patient_id as number);
+
+          await supabase.from("activity").insert({
+            type: "stage_changed",
+            description: `${patientName} moved to Post Treatment (${dept} care plan completed — last visit ${lastDate})`,
+            patient_id: plan.patient_id as number,
+            patient_name: patientName,
+            metadata: "Post Treatment",
+          });
+          log(`Auto-ended ${dept} plan ${plan.id} for patient ${plan.patient_id as number} (last date ${lastDate})`);
+        }
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Care plan completion detection error: ${err}`);
+  }
+}
+
+// ── Departmental Post-Treatment Follow-ups — runs daily ───────────────────────
+// Fires Claude-generated check-in emails on nurse-configured day offsets after
+// treatment_end_date. Only for departments that have a post_treatment_followup_plan.
+// Per-plan departmental follow-ups, keyed on care_plans.ended_at.
+// Fires independently per plan — a patient with multiple ended plans gets
+// follow-ups for each one, even if another plan is still active (patient still In Care).
+async function runDepartmentalFollowups() {
+  try {
+    const now = new Date();
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
+    for (const h of hospitals ?? []) {
+      // Query all follow-up plans whose care plan has ended — patient stage is irrelevant
+      const { data: followupPlans } = await supabase
+        .from("post_treatment_followup_plans")
+        .select("care_plan_id, patient_id, department, followup_days")
+        .eq("hospital_id", h.hospital_code);
+
+      for (const fp of followupPlans ?? []) {
+        const days = (fp.followup_days as number[]) ?? [];
+        if (!days.length) continue;
+
+        // Only fire for ended care plans — get the plan's ended_at timestamp
+        const { data: plan } = await supabase
+          .from("care_plans")
+          .select("id, ended_at, status")
+          .eq("id", fp.care_plan_id as number)
+          .maybeSingle();
+
+        if (!plan?.ended_at || plan.status !== "ended") continue;
+
+        const endDate = new Date(plan.ended_at as string);
+        const daysSinceEnd = Math.floor((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        const { data: patient } = await supabase
+          .from("patients")
+          .select("id, first_name, last_name, email")
+          .eq("id", fp.patient_id as number)
+          .maybeSingle();
+
+        if (!patient?.email) continue;
+        const patientName = `${patient.first_name} ${patient.last_name}`;
+        const dept = fp.department as string;
+
+        for (const day of days) {
+          if (daysSinceEnd < day) continue;
+          if (daysSinceEnd > day + 30) continue;
+
+          const automationType = `dept_followup_plan${fp.care_plan_id}_day${day}`;
+          const { data: alreadySent } = await supabase
+            .from("automation_log")
+            .select("id")
+            .eq("patient_id", patient.id)
+            .eq("automation_type", automationType)
+            .eq("status", "sent")
+            .maybeSingle();
+
+          if (alreadySent) continue;
+
+          await sendDepartmentalFollowupEmail(h.id, patient.id as number, patientName, patient.email as string, dept, day);
+          log(`Departmental follow-up Day ${day} (${dept}, plan ${fp.care_plan_id as number}) → patient ${patient.id} (${daysSinceEnd}d since ended)`);
+        }
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Departmental follow-ups error: ${err}`);
+  }
+}
+
 export function startScheduler() {
   if (process.env.ENABLE_SCHEDULER !== "true") {
     log("Scheduler disabled — set ENABLE_SCHEDULER=true to enable (production only)");
@@ -691,10 +874,12 @@ export function startScheduler() {
     await runQueueLongWaitCheck();
   });
 
-  // Daily at 7:00 AM WAT: pipeline transitions + post-treatment check-ins + dormant + birthdays
+  // Daily at 7:00 AM WAT: pipeline transitions + post-treatment check-ins + dormant + birthdays + departmental follow-ups
   cron.schedule("0 7 * * *", async () => {
+    await runCarePlanCompletionDetection();
     await runPostTreatmentTransitions();
     await runPostTreatmentCheckins();
+    await runDepartmentalFollowups();
     await runDormantDetection();
     await runBirthdayEmails();
   }, TZ);
@@ -762,7 +947,7 @@ async function runCarePlanEmailDelay() {
         .from("hospitals")
         .select("id")
         .eq("hospital_code", plan.hospital_id as string)
-        .single();
+        .maybeSingle();
       if (!hosp) continue;
 
       if (await checkSentLog(hosp.id, key)) continue;
@@ -771,7 +956,7 @@ async function runCarePlanEmailDelay() {
         .from("patients")
         .select("id, first_name, last_name, email")
         .eq("id", plan.patient_id as number)
-        .single();
+        .maybeSingle();
       if (!patient?.email) continue;
 
       const patientName = `${patient.first_name} ${patient.last_name}`;
@@ -845,7 +1030,7 @@ async function runCarePlanRemindersHourly() {
     for (const h of hospitals) {
       const { data: plans } = await supabase
         .from("care_plans")
-        .select("id, patient_id, department, summary, template_data")
+        .select("id, patient_id, department, summary, template_data, beneficiary_name, beneficiary_email")
         .eq("hospital_id", h.hospital_code);
 
       if (!plans?.length) continue;
@@ -853,13 +1038,15 @@ async function runCarePlanRemindersHourly() {
       for (const plan of plans) {
         const dept = plan.department as string;
         const td = (plan.template_data ?? {}) as Record<string, unknown>;
+        const beneficiaryName = plan.beneficiary_name as string | null;
+        const beneficiaryEmail = plan.beneficiary_email as string | null;
 
         const { data: patient } = await supabase
           .from("patients")
           .select("id, first_name, last_name, email, stage, treatment_end_date")
           .eq("id", plan.patient_id)
           .eq("hospital_id", h.hospital_code)
-          .single();
+          .maybeSingle();
 
         if (!patient?.email) continue;
 
@@ -887,6 +1074,9 @@ async function runCarePlanRemindersHourly() {
               const key = `genout_med_${plan.id}_${slot}_${today}`;
               if (await checkSentLog(h.id, key)) continue;
               await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"], dept);
+              if (beneficiaryName && beneficiaryEmail) {
+                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication");
+              }
               log(`General Outpatient med reminder (at ${timeStr}) → patient ${patient.id} slot=${slot}`);
             }
 
@@ -902,6 +1092,9 @@ async function runCarePlanRemindersHourly() {
               const key = `genout_hosp_${plan.id}_${slot}_${today}`;
               if (await checkSentLog(h.id, key)) continue;
               await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["hosp"], dept);
+              if (beneficiaryName && beneficiaryEmail) {
+                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "attend their hospital visit");
+              }
               log(`General Outpatient hospital reminder (3h before ${timeStr}) → patient ${patient.id} slot=${slot}`);
             }
 
@@ -919,6 +1112,9 @@ async function runCarePlanRemindersHourly() {
               const key = `genout_combo_${plan.id}_${slot}_${today}`;
               if (await checkSentLog(h.id, key)) continue;
               await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med", "hosp"], dept);
+              if (beneficiaryName && beneficiaryEmail) {
+                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication and attend their hospital visit");
+              }
               log(`General Outpatient combination reminder (2h before ${refTime}) → patient ${patient.id} slot=${slot}`);
             }
           }
@@ -937,6 +1133,9 @@ async function runCarePlanRemindersHourly() {
               h.id, patient.id as number, patientName, patient.email as string,
               dept, plan.summary as string, entry.date, plan.id as number, entry.time,
             );
+            if (beneficiaryName && beneficiaryEmail) {
+              await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, `attend their ${dept} visit`);
+            }
             log(`${dept} visit reminder (4h before ${entry.time}) → patient ${patient.id} on ${entry.date}`);
           }
         }
@@ -1012,7 +1211,7 @@ async function runCareVisitReminders() {
           .select("id, first_name, last_name, email")
           .eq("id", plan.patient_id)
           .eq("hospital_id", h.hospital_code)
-          .single();
+          .maybeSingle();
 
         if (!patient?.email) continue;
 

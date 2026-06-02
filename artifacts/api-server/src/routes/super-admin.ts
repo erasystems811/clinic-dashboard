@@ -228,11 +228,12 @@ router.get("/super-admin/hospitals", requireSuperAdmin, async (_req, res): Promi
 
   const withModules = await Promise.all(
     (hospitals ?? []).map(async (h: Record<string, unknown>) => {
-      const [{ data: settings }, { data: modules }] = await Promise.all([
+      const [{ data: settings }, { data: modules }, { count: patientCount }] = await Promise.all([
         supabase.from("hospital_settings").select("*").eq("hospital_id", h.id).single(),
         supabase.from("hospital_modules").select("*").eq("hospital_id", h.id).single(),
+        supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", h.hospital_code as string),
       ]);
-      return { ...camelize(h), settings: settings ? camelize(settings) : null, modules: modules ? camelize(modules) : null };
+      return { ...camelize(h), settings: settings ? camelize(settings) : null, modules: modules ? camelize(modules) : null, patientCount: patientCount ?? 0 };
     })
   );
 

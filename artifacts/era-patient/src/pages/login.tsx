@@ -13,7 +13,7 @@ interface PreloadedHospital {
 }
 
 const MODES: { id: Mode; label: string; description: string }[] = [
-  { id: "nurse",        label: "Nurse",        description: "Clinical care" },
+  { id: "nurse",        label: "Medication View", description: "Clinical care" },
   { id: "receptionist", label: "Receptionist",  description: "Front desk" },
   { id: "admin",        label: "Admin",         description: "Hospital admin" },
 ];

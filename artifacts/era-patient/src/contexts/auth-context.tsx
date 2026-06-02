@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     setHospital({ id: data.hospital.id, name: data.hospital.name, username: data.hospital.username, token: data.token ?? "", loginAt: Date.now() });
     setHospitalConfig({ departments: data.departments, modules: data.modules });
-    const displayName = data.role === "nurse" ? "Nurse" : "Receptionist";
+    const displayName = data.role === "nurse" ? "Medication View" : "Receptionist";
     setUser({ username: data.role, role: data.role, displayName });
     sessionStorage.setItem("era_tour_pending", "1");
   };

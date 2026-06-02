@@ -84,6 +84,9 @@ router.patch("/call-tasks/:id/outcome", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const parsed = CallOutcomeBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -91,6 +94,7 @@ router.patch("/call-tasks/:id/outcome", async (req, res): Promise<void> => {
     .from("call_tasks")
     .update({ outcome: parsed.data.outcome, completed_at: new Date().toISOString() })
     .eq("id", id)
+    .eq("hospital_id", hospital.intId)
     .select()
     .single();
 
@@ -111,6 +115,9 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const parsed = UpdateActionTypeBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -118,6 +125,7 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
     .from("call_tasks")
     .update({ action_type: parsed.data.actionType })
     .eq("id", id)
+    .eq("hospital_id", hospital.intId)
     .select()
     .single();
 
@@ -134,7 +142,7 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   res.json(camelize(task));
 });
 
-const AI_DRAFT_DAILY_LIMIT = 5;
+const AI_DRAFT_DAILY_LIMIT = 20;
 
 async function getDailyDraftCount(hospitalId: number): Promise<number> {
   const today = new Date().toISOString().split("T")[0];
@@ -167,6 +175,7 @@ router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> =>
     .from("call_tasks")
     .select("*")
     .eq("id", id)
+    .eq("hospital_id", hospitalId)
     .single();
 
   if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
@@ -209,6 +218,7 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
     .from("call_tasks")
     .select("*")
     .eq("id", id)
+    .eq("hospital_id", hospitalId)
     .single();
 
   if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
@@ -263,6 +273,7 @@ router.post("/call-tasks/:id/send-manual-email", async (req, res): Promise<void>
     .from("call_tasks")
     .select("*")
     .eq("id", id)
+    .eq("hospital_id", hospitalId)
     .single();
 
   if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }

@@ -14,6 +14,8 @@ import messagesRouter from "./messages";
 import superAdminRouter from "./super-admin";
 import carePlansRouter from "./care-plans";
 import automationTestsRouter from "./automation-tests";
+import importRouter from "./import";
+import followupPlansRouter from "./followup-plans";
 
 const router: IRouter = Router();
 
@@ -32,5 +34,7 @@ router.use(messagesRouter);
 router.use(superAdminRouter);
 router.use(carePlansRouter);
 router.use(automationTestsRouter);
+router.use(importRouter);
+router.use(followupPlansRouter);
 
 export default router;

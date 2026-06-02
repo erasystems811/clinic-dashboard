@@ -3,17 +3,18 @@ name: Automation inventory
 description: Complete list of all built automations, their channels, and AI models used — never get this wrong
 ---
 
-## CRITICAL: Only 4 automations use AI — everything else is hard-coded template
+## CRITICAL: Only 5 automations use AI — everything else is hard-coded template
 
-### AI-powered (these 4 only)
+### AI-powered (these 5 only)
 | Automation | Trigger | Model | Detail |
 |---|---|---|---|
 | Care plan explanation email | Nurse creates care plan | **Claude** | Full explanation of what nurse logged; warm, patient-friendly; patient understands their care plan |
 | General Outpatient care plan reminders | Hourly cron, time-based | **OpenAI** | Timing depends on treatment type — see "Reminder timing" section below |
 | Flagged task draft (call task) | Admin OR nurse flags patient | **OpenAI** | Writes draft based on reason entered; explicitly says "I do not understand" if reason is unclear; staff reviews/edits before it sends |
 | Wellness newsletter | Admin manually triggers | **Claude** | 5 generations/week limit; admin picks topic, Claude generates; admin sends to all active patients |
+| Birthday email | Patient's birthday (7 AM daily) | **Claude** | AI-generated so each hospital sends a unique message; strict rules: no age refs, no religion, no tribe/ethnicity, no gender assumptions |
 
-**Why:** User confirmed this exact list multiple times. Do not add AI to any other automation. Do not change any other template to AI.
+**Why:** Birthday switched from template to AI (2026-06-02) — patients registered at multiple hospitals were receiving identical templated messages from each. Do not add AI to any other automation.
 
 ---
 

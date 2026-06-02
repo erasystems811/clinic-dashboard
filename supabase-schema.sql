@@ -143,6 +143,8 @@ CREATE TABLE IF NOT EXISTS appointments (
   department   TEXT,
   status       TEXT NOT NULL DEFAULT 'scheduled',
   notes        TEXT,
+  reminder_24h_sent_at TIMESTAMPTZ,
+  reminder_2h_sent_at  TIMESTAMPTZ,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -277,6 +279,10 @@ ALTER TABLE call_tasks ADD COLUMN IF NOT EXISTS hospital_id TEXT;
 -- appointments hospital scoping
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS hospital_id TEXT;
 
+-- appointments reminder dedup columns (24h + 2h reminders) — required by runAppointmentReminders
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_24h_sent_at TIMESTAMPTZ;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_2h_sent_at  TIMESTAMPTZ;
+
 -- activity hospital scoping
 ALTER TABLE activity ADD COLUMN IF NOT EXISTS hospital_id TEXT;
 
@@ -290,3 +296,26 @@ ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS topic TEXT;
 ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS youtube_link TEXT;
 ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS tiktok_link TEXT;
 ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft';
+
+-- Post-treatment follow-up plans for departmental (non-General Outpatient) patients
+CREATE TABLE IF NOT EXISTS post_treatment_followup_plans (
+  id           SERIAL PRIMARY KEY,
+  care_plan_id INTEGER NOT NULL REFERENCES care_plans(id) ON DELETE CASCADE,
+  patient_id   INTEGER NOT NULL,
+  hospital_id  TEXT NOT NULL,
+  department   TEXT NOT NULL,
+  followup_days JSONB NOT NULL DEFAULT '[]',
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ptfp_care_plan_id_idx ON post_treatment_followup_plans(care_plan_id);
+CREATE INDEX IF NOT EXISTS ptfp_patient_id_idx   ON post_treatment_followup_plans(patient_id);
+CREATE INDEX IF NOT EXISTS ptfp_hospital_id_idx  ON post_treatment_followup_plans(hospital_id);
+
+-- Care plan beneficiary columns (accountability contact for treatment reminders)
+ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS beneficiary_name  TEXT;
+ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS beneficiary_email TEXT;
+
+-- Care plan archive columns — plans are never deleted, only marked ended
+ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
+ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS ended_at  TIMESTAMPTZ;

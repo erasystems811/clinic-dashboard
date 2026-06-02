@@ -167,18 +167,24 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
     : 0;
 
   // ── No-show rate (overall, all-time) ─────────────────────────────────────────
+  // Only past appointments count — future scheduled ones have no outcome yet.
+  // Cancelled appointments are excluded (cancellation ≠ no-show).
+  // Both "no_show" and "dismissed" count as no-shows: the nightly job converts
+  // no_show → dismissed at 11pm, so counting only no_show would miss all of them.
   const aptList = allAppointments ?? [];
-  const totalAppts = aptList.length;
-  const noShows = aptList.filter(a => a.status === "no_show").length;
+  const nowISO = utcNow.toISOString();
+  const concludedAppts = aptList.filter(a => a.scheduled_at < nowISO && a.status !== "cancelled");
+  const totalAppts = concludedAppts.length;
+  const noShows = concludedAppts.filter(a => a.status === "no_show" || a.status === "dismissed").length;
   const noShowRate = totalAppts > 0 ? Math.round((noShows / totalAppts) * 1000) / 10 : 0;
 
   // Trend: compare this month vs last month
   const startOfMonthISO = startOfMonth.toISOString();
   const startOfLastMonthISO = startOfLastMonth.toISOString();
-  const thisMonthAppts = aptList.filter(a => a.scheduled_at >= startOfMonthISO);
-  const lastMonthAppts = aptList.filter(a => a.scheduled_at >= startOfLastMonthISO && a.scheduled_at < startOfMonthISO);
-  const thisMonthNoShowRate = thisMonthAppts.length > 0 ? thisMonthAppts.filter(a => a.status === "no_show").length / thisMonthAppts.length : null;
-  const lastMonthNoShowRate = lastMonthAppts.length > 0 ? lastMonthAppts.filter(a => a.status === "no_show").length / lastMonthAppts.length : null;
+  const thisMonthAppts = concludedAppts.filter(a => a.scheduled_at >= startOfMonthISO);
+  const lastMonthAppts = concludedAppts.filter(a => a.scheduled_at >= startOfLastMonthISO && a.scheduled_at < startOfMonthISO);
+  const thisMonthNoShowRate = thisMonthAppts.length > 0 ? thisMonthAppts.filter(a => a.status === "no_show" || a.status === "dismissed").length / thisMonthAppts.length : null;
+  const lastMonthNoShowRate = lastMonthAppts.length > 0 ? lastMonthAppts.filter(a => a.status === "no_show" || a.status === "dismissed").length / lastMonthAppts.length : null;
   let noShowTrend: "up" | "down" | "stable" = "stable";
   if (thisMonthNoShowRate !== null && lastMonthNoShowRate !== null) {
     if (thisMonthNoShowRate > lastMonthNoShowRate + 0.01) noShowTrend = "up";

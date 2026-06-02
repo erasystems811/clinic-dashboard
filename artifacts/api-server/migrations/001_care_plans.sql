@@ -8,9 +8,15 @@ CREATE TABLE IF NOT EXISTS care_plans (
   summary TEXT NOT NULL,
   department VARCHAR NOT NULL,
   template_data JSONB DEFAULT '{}',
+  beneficiary_name TEXT,
+  beneficiary_email TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS care_plans_patient_id_idx ON care_plans(patient_id);
 CREATE INDEX IF NOT EXISTS care_plans_hospital_id_idx ON care_plans(hospital_id);
+
+-- Beneficiary columns for existing databases (run if upgrading)
+ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS beneficiary_name TEXT;
+ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS beneficiary_email TEXT;

@@ -120,6 +120,14 @@ export default function NurseStation() {
   const [planDepartment, setPlanDepartment] = useState("");
   const [planSummary, setPlanSummary] = useState("");
   const [planTemplateData, setPlanTemplateData] = useState<Record<string, unknown>>({});
+  const [planBeneficiaryName, setPlanBeneficiaryName] = useState("");
+  const [planBeneficiaryEmail, setPlanBeneficiaryEmail] = useState("");
+
+  // Follow-up plans: keyed by care plan id → array of day numbers
+  const [followupPlans, setFollowupPlans] = useState<Record<number, number[]>>({});
+  const [editingFollowupId, setEditingFollowupId] = useState<number | null>(null);
+  const [followupDraft, setFollowupDraft] = useState<number[]>([]);
+  const [savingFollowup, setSavingFollowup] = useState(false);
 
   // Flag section
   const [flagSearch, setFlagSearch] = useState("");
@@ -162,6 +170,20 @@ export default function NurseStation() {
       if (!res.ok) throw new Error("Failed to load care plans");
       const data = await res.json() as CarePlan[];
       setCarePlans(data);
+
+      // Fetch follow-up plans for all non-GenOut care plans
+      const nonGenOut = data.filter((p: CarePlan) => p.department !== "General Outpatient");
+      if (nonGenOut.length > 0) {
+        const entries = await Promise.all(
+          nonGenOut.map(async (p: CarePlan) => {
+            const r = await fetch(apiUrl(`/api/care-plans/${p.id}/followup-plan`), { headers: authHeader() });
+            if (!r.ok) return [p.id, []] as [number, number[]];
+            const d = await r.json() as { days: number[] };
+            return [p.id, d.days ?? []] as [number, number[]];
+          })
+        );
+        setFollowupPlans(Object.fromEntries(entries));
+      }
     } catch {
       setCarePlans([]);
     } finally {
@@ -185,6 +207,8 @@ export default function NurseStation() {
     setPlanDepartment(defaultDept);
     setPlanSummary("");
     setPlanTemplateData(emptyTemplateData(defaultDept));
+    setPlanBeneficiaryName("");
+    setPlanBeneficiaryEmail("");
     setEditingPlan(null);
     setPlanMode("new");
   };
@@ -193,6 +217,8 @@ export default function NurseStation() {
     setPlanDepartment(plan.department);
     setPlanSummary(plan.summary);
     setPlanTemplateData({ ...plan.templateData });
+    setPlanBeneficiaryName((plan as Record<string, unknown>).beneficiaryName as string ?? "");
+    setPlanBeneficiaryEmail((plan as Record<string, unknown>).beneficiaryEmail as string ?? "");
     setEditingPlan(plan);
     setPlanMode("edit");
   };
@@ -213,7 +239,13 @@ export default function NurseStation() {
     if (!selectedPatient) return;
     setSavingPlan(true);
     try {
-      const body = { department: planDepartment, summary: planSummary, templateData: planTemplateData };
+      const body = {
+        department: planDepartment,
+        summary: planSummary,
+        templateData: planTemplateData,
+        beneficiaryName: planBeneficiaryName.trim() || undefined,
+        beneficiaryEmail: planBeneficiaryEmail.trim() || undefined,
+      };
       const url = planMode === "edit" && editingPlan
         ? apiUrl(`/api/care-plans/${editingPlan.id}`)
         : apiUrl(`/api/patients/${selectedPatient.id}/care-plans`);
@@ -260,6 +292,26 @@ export default function NurseStation() {
     }
   };
 
+  const handleSaveFollowup = async (planId: number) => {
+    setSavingFollowup(true);
+    try {
+      const days = followupDraft.filter(d => d > 0).slice(0, 3);
+      const res = await fetch(apiUrl(`/api/care-plans/${planId}/followup-plan`), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({ days }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setFollowupPlans(prev => ({ ...prev, [planId]: days }));
+      setEditingFollowupId(null);
+      toast({ title: "Follow-up plan saved" });
+    } catch {
+      toast({ title: "Failed to save follow-up plan", variant: "destructive" });
+    } finally {
+      setSavingFollowup(false);
+    }
+  };
+
   const handleFlag = (e: React.FormEvent) => {
     e.preventDefault();
     if (!flaggedPatient) return;
@@ -272,7 +324,7 @@ export default function NurseStation() {
     <Layout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Nurse Station</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Medication View</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Log care plans for patients and flag anyone needing follow-up.</p>
         </div>
 
@@ -348,13 +400,13 @@ export default function NurseStation() {
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                   </div>
-                ) : carePlans.length === 0 ? (
+                ) : carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status !== "ended").length === 0 && carePlans.length === 0 ? (
                   <div className="text-center py-6 space-y-2">
                     <p className="text-sm text-muted-foreground">No care plans on file for this patient.</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {carePlans.map(plan => (
+                    {carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status !== "ended").map(plan => (
                       <div key={plan.id} className="rounded-lg border border-border overflow-hidden">
                         <div
                           className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition"
@@ -412,6 +464,93 @@ export default function NurseStation() {
                           <div className="px-4 py-3 bg-muted/20 border-t border-border space-y-3">
                             <p className="text-sm text-foreground">{plan.summary}</p>
                             <PlanTemplateDetails dept={plan.department} data={plan.templateData} />
+
+                            {/* Post-Treatment Follow-up Plan — only for non-GenOut departments */}
+                            {plan.department !== "General Outpatient" && (
+                              <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Post-Treatment Follow-up Plan</p>
+                                  {editingFollowupId !== plan.id && (
+                                    <button
+                                      type="button"
+                                      className="text-xs text-primary hover:underline"
+                                      onClick={() => {
+                                        setEditingFollowupId(plan.id);
+                                        setFollowupDraft(followupPlans[plan.id]?.length ? [...followupPlans[plan.id]] : [7]);
+                                      }}
+                                    >
+                                      {(followupPlans[plan.id]?.length ?? 0) > 0 ? "Edit" : "Set up"}
+                                    </button>
+                                  )}
+                                </div>
+
+                                {editingFollowupId !== plan.id ? (
+                                  (followupPlans[plan.id]?.length ?? 0) > 0 ? (
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {followupPlans[plan.id].map(d => (
+                                        <span key={d} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                          Day {d}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">No follow-up days scheduled. AI will send check-in emails on the days you configure.</p>
+                                  )
+                                ) : (
+                                  <div className="space-y-2">
+                                    <p className="text-xs text-muted-foreground">Set up to 5 days after treatment ends (e.g. Day 7 = one week after). AI will email the patient on each day.</p>
+                                    <div className="space-y-1.5">
+                                      {followupDraft.map((day, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <span className="text-xs text-muted-foreground w-16 shrink-0">Follow-up {idx + 1}</span>
+                                          <div className="flex items-center gap-1">
+                                            <span className="text-xs text-muted-foreground">Day</span>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              max={365}
+                                              className="w-16 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                              value={day}
+                                              onChange={e => {
+                                                const v = parseInt(e.target.value, 10);
+                                                setFollowupDraft(prev => prev.map((d, i) => i === idx ? (isNaN(v) ? 0 : v) : d));
+                                              }}
+                                            />
+                                          </div>
+                                          <button
+                                            type="button"
+                                            className="text-muted-foreground hover:text-destructive transition-colors"
+                                            onClick={() => setFollowupDraft(prev => prev.filter((_, i) => i !== idx))}
+                                          >
+                                            <X className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    {followupDraft.length < 3 && (
+                                      <button
+                                        type="button"
+                                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                                        onClick={() => setFollowupDraft(prev => [...prev, (prev[prev.length - 1] ?? 0) + 7])}
+                                      >
+                                        <Plus className="w-3 h-3" />Add follow-up day
+                                      </button>
+                                    )}
+                                    <div className="flex gap-2 pt-1">
+                                      <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setEditingFollowupId(null)}>Cancel</Button>
+                                      <Button
+                                        type="button" size="sm" className="flex-1 text-xs"
+                                        disabled={savingFollowup}
+                                        onClick={() => handleSaveFollowup(plan.id)}
+                                      >
+                                        {savingFollowup ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save Plan"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
                             <Button
                               type="button"
                               size="sm"
@@ -427,6 +566,56 @@ export default function NurseStation() {
                       </div>
                     ))}
                   </div>
+                )}
+
+                {/* Past / ended care plans */}
+                {carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status === "ended").length > 0 && (
+                  <details className="group">
+                    <summary className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-muted-foreground uppercase tracking-wide py-1 select-none list-none">
+                      <ChevronDown className="w-3.5 h-3.5 group-open:rotate-180 transition-transform" />
+                      Past Care Plans ({carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status === "ended").length})
+                    </summary>
+                    <div className="space-y-2 mt-2">
+                      {carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status === "ended").map(plan => {
+                        const endedAt = (plan as unknown as Record<string,unknown>).endedAt as string | null;
+                        return (
+                          <div key={plan.id} className="rounded-lg border border-border/50 bg-muted/10 overflow-hidden opacity-80">
+                            <div className="flex items-center gap-3 px-4 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{plan.department}</span>
+                                  {endedAt && (
+                                    <span className="text-xs text-muted-foreground/70">
+                                      · ended {new Date(endedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{plan.summary}</p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="text-xs shrink-0 h-7 px-2.5"
+                                title="Start a new care plan using this as a template"
+                                onClick={() => {
+                                  setPlanDepartment(plan.department);
+                                  setPlanSummary(plan.summary);
+                                  setPlanTemplateData({ ...plan.templateData });
+                                  setPlanBeneficiaryName((plan as unknown as Record<string,unknown>).beneficiaryName as string ?? "");
+                                  setPlanBeneficiaryEmail((plan as unknown as Record<string,unknown>).beneficiaryEmail as string ?? "");
+                                  setEditingPlan(null);
+                                  setPlanMode("new");
+                                }}
+                              >
+                                Use as Template
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
                 )}
 
                 <div className="flex gap-2">
@@ -494,6 +683,36 @@ export default function NurseStation() {
                     onChange={e => setPlanSummary(e.target.value)}
                     required
                   />
+                </div>
+
+                {/* Beneficiary (accountability contact) — optional */}
+                <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Accountability Contact <span className="text-muted-foreground font-normal">(optional)</span></p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Someone who will receive reminders to check on the patient and ensure they follow their treatment.</p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Beneficiary Name</label>
+                      <input
+                        type="text"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="e.g. John Doe"
+                        value={planBeneficiaryName}
+                        onChange={e => setPlanBeneficiaryName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">Beneficiary Email</label>
+                      <input
+                        type="email"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="e.g. john@email.com"
+                        value={planBeneficiaryEmail}
+                        onChange={e => setPlanBeneficiaryEmail(e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 justify-end pt-1">

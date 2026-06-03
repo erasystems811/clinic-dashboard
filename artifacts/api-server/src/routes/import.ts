@@ -30,15 +30,13 @@ router.post("/patients/import", async (req, res): Promise<void> => {
 
   const rows = parsed.data.patients;
 
-  // Fetch existing emails + patient IDs for this hospital to detect duplicates
+  // Duplicate check: patient ID (MRN) only — email is intentionally excluded
+  // because family members (e.g. children) may share the same email address.
   const { data: existing } = await supabase
     .from("patients")
-    .select("email, patient_id")
+    .select("patient_id")
     .eq("hospital_id", hospital.code);
 
-  const existingEmails = new Set(
-    (existing ?? []).map(p => (p.email as string | null)?.toLowerCase()).filter(Boolean)
-  );
   const existingPatientIds = new Set(
     (existing ?? []).map(p => (p.patient_id as string | null)?.toUpperCase()).filter(Boolean)
   );
@@ -54,12 +52,6 @@ router.post("/patients/import", async (req, res): Promise<void> => {
 
     const emailNorm = row.email?.trim().toLowerCase();
     const pidNorm   = row.patientId?.trim().toUpperCase();
-
-    if (emailNorm && existingEmails.has(emailNorm)) {
-      skipped++;
-      errors.push({ row: rowNum, reason: `Email "${row.email}" already exists in this hospital` });
-      continue;
-    }
 
     if (pidNorm && existingPatientIds.has(pidNorm)) {
       skipped++;
@@ -90,8 +82,7 @@ router.post("/patients/import", async (req, res): Promise<void> => {
       skipped++;
     } else {
       imported++;
-      if (emailNorm) existingEmails.add(emailNorm);
-      if (pidNorm)   existingPatientIds.add(pidNorm);
+      if (pidNorm) existingPatientIds.add(pidNorm);
     }
   }
 

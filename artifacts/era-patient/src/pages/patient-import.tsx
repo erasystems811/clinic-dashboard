@@ -427,7 +427,7 @@ export default function PatientImport() {
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <span>Patients already in the system (matched by email or patient ID) are skipped — no duplicates will be created.</span>
+                    <span>Patients already in the system (matched by <strong className="text-foreground">Hospital Patient ID / MRN</strong> only) are skipped. The same email can appear on multiple patients — e.g. a parent registering several children.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />

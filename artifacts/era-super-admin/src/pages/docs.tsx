@@ -165,16 +165,16 @@ function AboutTab() {
       />
 
       <SectionTitle icon={Users} text="Patient Journey & Stages" />
-      <P>Every patient moves through four stages. The system transitions them automatically based on their care activity.</P>
+      <P>There are three actual stages a patient can be in, plus one display badge. The system transitions patients automatically based on their queue activity and care plans.</P>
       <Table
         headers={["Stage", "Meaning", "Who is here"]}
         rows={[
-          ["Active", "Registered, not yet in treatment", "New patients waiting to begin care"],
-          ["In Care", "Currently receiving treatment", "Patients with an active care plan"],
-          ["Post Treatment", "Treatment ended, in follow-up", "Patients getting Day 1/4/7 check-in emails"],
-          ["Dormant", "No engagement in 90+ days", "Patients who have gone quiet — get a re-engagement email"],
+          ["Active", "The default working stage", "New patients AND returning patients — anyone currently engaged who isn't in follow-up or dormant"],
+          ["Post Treatment", "Treatment ended, in follow-up", "Patients getting Day 1/4/7 check-in emails after a care plan ends"],
+          ["Dormant", "No queue check-in for the configured number of days (default 30)", "Patients who have gone quiet — a check-in re-activates them back to Active"],
         ]}
       />
+      <Note type="info"><strong>"In Care"</strong> is not a separate stage — it is a display badge shown on top of a patient's real stage whenever they have an active care plan. A patient can be "Active" AND show the "In Care" badge at the same time.</Note>
 
       <SectionTitle icon={Zap} text="All Features" />
 
@@ -187,7 +187,7 @@ function AboutTab() {
       </Accordion>
 
       <Accordion title="Care Plans">
-        <P>Nurses create care plans with a full treatment schedule — which medications to take at which times of day, and which clinic visits are required. The system sends the patient an email with their full care plan details 20 minutes after the nurse creates it (giving the nurse time to make last-minute edits). Daily reminder emails fire at the right time slots (morning, afternoon, evening, night). If a family member/beneficiary is listed, they get reminders too.</P>
+        <P>Nurses create care plans with a full treatment schedule — which medications to take at which times of day, and which clinic visits are required. The system sends the patient an email with their full care plan details 20 minutes after the nurse creates it (giving the nurse time to make last-minute edits). Daily reminder emails fire at the right time slots (morning, afternoon, evening, night). If a family member/beneficiary is listed (with their relationship to the patient, e.g. wife, son, friend), they get their own reminders to check on the patient.</P>
       </Accordion>
 
       <Accordion title="Post-Treatment Check-ins">
@@ -212,7 +212,7 @@ function AboutTab() {
       </Accordion>
 
       <Accordion title="Patient Import (CSV)">
-        <P>Admins can upload a spreadsheet of patients all at once. The system maps the CSV columns to the right fields (First Name, Last Name, Email, Phone, etc.) and imports them. Duplicates — same email or patient ID — are automatically skipped. Imported patients go straight into the Patients list and pipeline.</P>
+        <P>Admins can upload a CSV or Excel (.xlsx/.xls) file of patients all at once. The system maps the columns to the right fields (First Name, Last Name, Email, Phone, etc.) and imports them. Duplicates are skipped only when the <strong>Hospital Patient ID / MRN</strong> already exists — email is NOT used for duplicate checking, so a parent can share one email across several children. Imported patients go straight into the Patients list and pipeline.</P>
       </Accordion>
 
       <SectionTitle icon={Clock} text="The Scheduler — When Automations Fire" />
@@ -225,7 +225,7 @@ function AboutTab() {
           ["Daily 7 AM WAT", "Stage transitions, post-treatment check-ins, departmental follow-ups, dormant detection, birthday emails"],
           ["Daily 9 AM WAT", "Termii SMS credit balance alert (emails you if balance is low)"],
           ["Daily noon WAT", "Feedback request emails (for previous day's patients)"],
-          ["Daily 6 PM WAT", "Post-care wellness emails for dormant patients"],
+          ["Daily 6 PM WAT", "Post-care wellness email to Active patients who haven't checked in for 30+ days (one per patient per 30 days)"],
           ["Daily 11 PM WAT", "Clear no-show flags from today"],
           ["Every 6 hours", "Subscription expiry check"],
         ]}
@@ -248,7 +248,7 @@ function AboutTab() {
       />
 
       <SectionTitle icon={CheckCircle2} text="Hospital Suspension Behaviour" />
-      <P>When you suspend a hospital, their staff can still log in but NO emails or messages are actually sent to patients. However the system still processes all scheduled events internally and creates log entries. This means when you re-activate them, there is no catch-up flood — the system continues from the current date as if nothing was paused.</P>
+      <P>When you suspend a hospital, any staff currently logged in are automatically logged out within 30 seconds (the app polls the server every 30 seconds and gets kicked on suspension). New logins are blocked immediately. Automated messages are still processed internally and log entries are created, but nothing is actually delivered to patients. This means when you re-activate them, there is no catch-up flood — the system continues from the current date as if nothing was paused.</P>
       <Note type="tip">This is intentional design. Suspending a hospital does not create a backlog of old messages waiting to send when they come back.</Note>
     </div>
   );
@@ -301,14 +301,17 @@ function ManualTab() {
         </ul>
       </Accordion>
 
-      <Accordion title="Responding to Support Tickets">
+      <Accordion title="How Support Works (AI + You)">
+        <P>When a hospital sends a support message from the help button in their app, an AI assistant reads it first and tries to answer common questions automatically (login help, why a patient didn't get an email, how-to questions, etc.). The hospital sees the AI reply in a live conversation thread and can keep chatting.</P>
+        <P>If the AI can't confidently solve it — or the question is about billing, account changes, data, security, or anything sensitive — it <strong>escalates</strong> the ticket to you instead of guessing. The AI never reveals confidential or internal information.</P>
+        <H3>Your part — replying to escalated tickets</H3>
         <ol className="list-decimal pl-5 space-y-1.5">
-          <Li>Click <strong>Support</strong> in the sidebar</Li>
-          <Li>Click any ticket to expand it and read the hospital's message</Li>
-          <Li>Type your reply and click <strong>Send Reply</strong></Li>
-          <Li>The system emails your reply to the hospital's contact email. The ticket closes automatically.</Li>
+          <Li>Click <strong>Support</strong> in the sidebar. It opens on the "Needs me" filter showing escalated tickets.</Li>
+          <Li>Click a ticket to see the full conversation — including what the AI already said.</Li>
+          <Li>Type your reply and send. It emails the hospital and they can continue the thread.</Li>
+          <Li>You can step into any conversation at any time, even ones the AI is still handling.</Li>
         </ol>
-        <Note type="tip">Add your email as <strong>SUPPORT_EMAIL</strong> in Railway so you get an instant email ping whenever a hospital submits a new ticket.</Note>
+        <Note type="tip">Add your email as <strong>SUPPORT_EMAIL</strong> in Railway so you get an instant email ping whenever a ticket is escalated to you.</Note>
       </Accordion>
 
       <Accordion title="Checking Platform Health">
@@ -393,10 +396,10 @@ function ManualTab() {
         <P>Super admin → hospital detail → Modules section → toggle Feedback or Appointments back on.</P>
       </Accordion>
 
-      <Accordion title="CSV patient import did not work">
+      <Accordion title="CSV / Excel patient import did not work">
         <ul className="list-disc pl-5 space-y-1.5">
-          <Li>The import page shows a results summary after uploading — it says how many were imported and how many skipped. Skipped = duplicates (same email already exists).</Li>
-          <Li>The CSV must have at least a First Name and Last Name column. Other columns are optional.</Li>
+          <Li>The import page shows a results summary after uploading — how many were imported and how many skipped. Skipped = a patient with that same Hospital Patient ID / MRN already exists (email is never used for duplicate detection).</Li>
+          <Li>The file (CSV, .xlsx or .xls) must have at least a First Name and Last Name column. Other columns are optional.</Li>
           <Li>Supabase → patients table → filter hospital_id = their hospital code → check if rows are there</Li>
         </ul>
       </Accordion>
@@ -409,7 +412,7 @@ function ManualTab() {
       <Accordion title="Wellness newsletter sent but patients not receiving it">
         <ul className="list-disc pl-5 space-y-1.5">
           <Li>Only patients with an email address receive newsletters.</Li>
-          <Li>Only patients in: Active, In Care, Post Treatment, or Dormant stages get them.</Li>
+          <Li>Only patients in Active, Post Treatment, or Dormant stages (or showing the In Care badge) get them.</Li>
           <Li>Supabase → automation_log → filter automation_type = wellness_newsletter → check for failed rows</Li>
         </ul>
       </Accordion>
@@ -444,8 +447,8 @@ WHERE status = 'failed'
 AND created_at > now() - interval '7 days'
 ORDER BY created_at DESC;`}</Code>
 
-        <H3>All open support tickets</H3>
-        <Code>{`SELECT * FROM support_tickets WHERE status = 'open' ORDER BY created_at DESC;`}</Code>
+        <H3>All tickets escalated to you (need a human reply)</H3>
+        <Code>{`SELECT * FROM support_tickets WHERE status = 'escalated' ORDER BY created_at DESC;`}</Code>
 
         <H3>Find a patient by email</H3>
         <Code>{`SELECT * FROM patients WHERE email = 'patient@email.com';`}</Code>

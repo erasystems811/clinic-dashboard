@@ -42,7 +42,7 @@ const AUTOMATIONS: AutomationTest[] = [
   { type: "queue_join",                label: "Queue Join",                            description: "Sent when a patient is checked into the queue",     category: "SMS / WhatsApp",  channel: "sms" },
   { type: "queue_next_in_line",        label: "Queue — Next in Line",                  description: "Sent when patient moves to position 1 in queue",    category: "SMS / WhatsApp",  channel: "sms" },
   { type: "queue_your_turn",           label: "Queue — Your Turn",                     description: "Sent when it is the patient's turn to be seen",     category: "SMS / WhatsApp",  channel: "sms" },
-  { type: "queue_long_wait",           label: "Queue — Long Wait Apology",             description: "Sent after a patient has waited more than 30 min",  category: "SMS / WhatsApp",  channel: "sms" },
+  { type: "queue_long_wait",           label: "Queue — Long Wait Apology",             description: "Sent after a patient has waited more than 45 min",  category: "SMS / WhatsApp",  channel: "sms" },
   { type: "care_plan_notification",    label: "Care Plan Created",                     description: "Sent when a nurse creates a new care plan",         category: "SMS / WhatsApp",  channel: "sms" },
 ];
 

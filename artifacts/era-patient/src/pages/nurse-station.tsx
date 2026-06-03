@@ -664,26 +664,21 @@ export default function NurseStation() {
                       />
                     </div>
                   </div>
-                  {planBeneficiaryName.trim() && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        Relationship to patient <span className="font-normal">(optional — helps personalise the reminder)</span>
-                      </label>
-                      <input
-                        type="text"
-                        list="relationship-suggestions"
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                        placeholder="e.g. wife, husband, mother, friend…"
-                        value={planBeneficiaryRelationship}
-                        onChange={e => setPlanBeneficiaryRelationship(e.target.value)}
-                      />
-                      <datalist id="relationship-suggestions">
-                        {["wife","husband","partner","mother","father","sister","brother","daughter","son","grandmother","grandfather","aunt","uncle","friend","carer","guardian"].map(r => (
-                          <option key={r} value={r} />
-                        ))}
-                      </datalist>
-                    </div>
-                  )}
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Relationship to patient <span className="font-normal">(optional)</span>
+                    </label>
+                    <select
+                      className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      value={planBeneficiaryRelationship}
+                      onChange={e => setPlanBeneficiaryRelationship(e.target.value)}
+                    >
+                      <option value="">Select relationship…</option>
+                      {["Wife","Husband","Partner","Mother","Father","Sister","Brother","Daughter","Son","Grandmother","Grandfather","Aunt","Uncle","Friend","Carer","Guardian"].map(r => (
+                        <option key={r} value={r.toLowerCase()}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex gap-2 justify-end pt-1">

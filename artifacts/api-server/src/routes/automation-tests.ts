@@ -15,6 +15,9 @@ import {
   sendInCareAIReminder,
   sendCareVisitReminderEmail,
   sendCallTaskManualEmail,
+  sendCallTaskConfirmedMessage,
+  sendDepartmentalFollowupEmail,
+  sendBeneficiaryReminderEmail,
   sendQueueJoinMessage,
   sendQueueNextInLine,
   sendQueueYourTurn,
@@ -143,6 +146,18 @@ router.post("/super-admin/automation-test", auth, async (req: Request, res: Resp
       case "call_task_manual":
         if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
         await sendCallTaskManualEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail, "This is a test message from the Era automation system. Your care team is thinking of you and wants to remind you to stay consistent with your prescribed routine. Please do not hesitate to reach out if you have any questions.");
+        break;
+      case "call_task_automated":
+        if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
+        await sendCallTaskConfirmedMessage(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail, "This is a test AI-drafted follow-up message. Your care team reviewed your recent visit and wanted to check in to make sure you are feeling well. Please reach out if you have any concerns.");
+        break;
+      case "departmental_followup":
+        if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
+        await sendDepartmentalFollowupEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail, "Cardiology", 7);
+        break;
+      case "beneficiary_reminder":
+        if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
+        await sendBeneficiaryReminderEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, "Test Family Member", toEmail, "take their 9am medication");
         break;
 
       // ── SMS / WhatsApp automations ─────────────────────────────────────

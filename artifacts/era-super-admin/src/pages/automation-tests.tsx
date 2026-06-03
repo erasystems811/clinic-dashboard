@@ -33,8 +33,11 @@ const AUTOMATIONS: AutomationTest[] = [
   { type: "care_plan_email",           label: "Care Plan Summary (AI — Claude)",       description: "Claude-written care plan, sent 20 min after creation", category: "AI Emails",   channel: "email" },
   { type: "in_care_reminder_morning",  label: "In-Care Morning Reminder (AI — OpenAI)", description: "OpenAI-written morning care reminder for in-care patients", category: "AI Emails", channel: "email" },
   { type: "care_visit_reminder",       label: "Care Visit Reminder (AI — OpenAI)",     description: "OpenAI-written reminder for specialist department visits", category: "AI Emails", channel: "email" },
-  // Manual email
-  { type: "call_task_manual",          label: "Manual Patient Message",                description: "Custom message typed by a nurse or receptionist",   category: "Manual",          channel: "email" },
+  // Manual / AI-drafted emails
+  { type: "call_task_manual",          label: "Manual Patient Message",                description: "Custom message typed by a nurse or receptionist",          category: "Manual",  channel: "email" },
+  { type: "call_task_automated",       label: "AI-Drafted Follow-up (reviewed)",       description: "AI-written message reviewed and confirmed by receptionist", category: "Manual",  channel: "email" },
+  { type: "departmental_followup",     label: "Departmental Follow-up (AI — Claude)",  description: "Claude-written post-treatment follow-up for specialist depts (e.g. Cardiology Day 7)", category: "AI Emails", channel: "email" },
+  { type: "beneficiary_reminder",      label: "Beneficiary / Family Reminder",         description: "Sent to a named family contact when patient has a care plan action due", category: "Patient Care", channel: "email" },
   // SMS / WhatsApp
   { type: "queue_join",                label: "Queue Join",                            description: "Sent when a patient is checked into the queue",     category: "SMS / WhatsApp",  channel: "sms" },
   { type: "queue_next_in_line",        label: "Queue — Next in Line",                  description: "Sent when patient moves to position 1 in queue",    category: "SMS / WhatsApp",  channel: "sms" },
@@ -44,6 +47,7 @@ const AUTOMATIONS: AutomationTest[] = [
 ];
 
 const CATEGORIES = ["Appointments", "Post-Treatment", "Patient Care", "AI Emails", "Manual", "SMS / WhatsApp"];
+// Note: "departmental_followup" is in AI Emails, "beneficiary_reminder" in Patient Care, "call_task_automated" in Manual
 
 interface TestResult {
   ok: boolean;

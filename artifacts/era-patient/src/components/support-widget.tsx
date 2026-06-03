@@ -50,7 +50,7 @@ function timeAgo(iso: string) {
 
 // ── Sub-views ─────────────────────────────────────────────────────────────────
 
-function NewTicketForm({ onCreated, onBack }: { onCreated: () => void; onBack: () => void }) {
+function NewTicketForm({ onCreated, onBack }: { onCreated: (ticketId: number) => void; onBack: () => void }) {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -70,7 +70,8 @@ function NewTicketForm({ onCreated, onBack }: { onCreated: () => void; onBack: (
         const d = await res.json().catch(() => ({}));
         throw new Error((d as { error?: string }).error ?? "Failed to send");
       }
-      onCreated();
+      const d = await res.json();
+      onCreated(d.ticketId);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Please try again");
     } finally {
@@ -387,8 +388,9 @@ export function SupportWidget() {
     setView("thread");
   };
 
-  const handleTicketCreated = () => {
-    setView("list");
+  const handleTicketCreated = (ticketId: number) => {
+    setSelectedTicketId(ticketId);
+    setView("thread");
     fetchTickets();
   };
 
@@ -399,7 +401,10 @@ export function SupportWidget() {
   return (
     <>
       {open && (
-        <div className="fixed bottom-20 right-4 z-50 w-96 max-h-[560px] rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
+        <div
+          className="fixed bottom-20 right-4 z-50 w-96 max-h-[560px] rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden"
+          style={{ animation: "supportSlideDown 0.2s ease-out", transformOrigin: "top right" }}
+        >
           {view === "list" && (
             <TicketList
               tickets={tickets}

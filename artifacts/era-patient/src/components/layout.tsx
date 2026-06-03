@@ -72,16 +72,16 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
     { icon: Users, label: "Patients", href: "/patients" },
   ];
   if (appt) items.push({ icon: Calendar, label: "Appointments", href: "/appointments" });
-  items.push(
-    { icon: GitBranch, label: "Pipeline", href: "/pipeline" },
-    { icon: Activity, label: "Activity", href: "/activity" },
-    { icon: Phone, label: "Call Tasks", href: "/call-tasks" },
-    { icon: FileUp, label: "Import Patients", href: "/import" },
-  );
+  items.push({ icon: Phone, label: "Call Tasks", href: "/call-tasks" });
   if (modules?.feedbackEnabled ?? true) {
     items.push({ icon: Star, label: "Feedback", href: "/feedback-admin" });
   }
-  items.push({ icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" });
+  items.push(
+    { icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" },
+    { icon: FileUp, label: "Import Patients", href: "/import" },
+    { icon: GitBranch, label: "Pipeline", href: "/pipeline" },
+    { icon: Activity, label: "Activity", href: "/activity" },
+  );
   return items;
 }
 

@@ -140,10 +140,16 @@ export async function runSupportAI(
 ): Promise<AIDecision> {
   const openai = getOpenAI();
 
+  const hospitalMessages = history.filter(m => m.sender === "hospital").length;
+  // On the first message, NEVER escalate — always engage and try to help.
+  const escalationRule = hospitalMessages <= 1
+    ? `IMPORTANT: This is the FIRST message from this hospital. You MUST reply (canAnswer: true). Do not escalate on a first message under any circumstances — even if you need more information, ask for it warmly. Only set canAnswer: false after you have genuinely tried to help across multiple exchanges.`
+    : `You may escalate (canAnswer: false) if you have already attempted to help and the issue is clearly beyond the knowledge base.`;
+
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     {
       role: "system",
-      content: `${KNOWLEDGE_BASE}\n\nYou are currently helping: ${hospitalName}.\n\nRespond with a JSON object ONLY — no extra text, no markdown:\n{"canAnswer": true, "reply": "..."}\nor\n{"canAnswer": false, "escalationReason": "one sentence explaining why"}`,
+      content: `${KNOWLEDGE_BASE}\n\nYou are currently helping: ${hospitalName}.\n\n${escalationRule}\n\nRespond with a JSON object ONLY — no extra text, no markdown:\n{"canAnswer": true, "reply": "..."}\nor\n{"canAnswer": false, "escalationReason": "one sentence explaining why"}`,
     },
     ...history.map(m => ({
       role: (m.sender === "hospital" ? "user" : "assistant") as "user" | "assistant",

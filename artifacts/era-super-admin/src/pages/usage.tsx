@@ -115,9 +115,14 @@ export default function Usage() {
   const COLS_PER_PAGE = 6;
   const currentMonthLabel = `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
 
-  // windowOffset: default COLS_PER_PAGE so May 2026 (current month) is the leftmost column.
-  // Click "Older" to scroll left into the past.
-  const [windowOffset, setWindowOffset] = useState(1);
+  // System was created May 2026 — never show months before this
+  const SYSTEM_START = new Date(2026, 4, 1);
+  const monthsSinceStart = (now.getFullYear() - SYSTEM_START.getFullYear()) * 12 + (now.getMonth() - SYSTEM_START.getMonth());
+  // MIN_WINDOW_OFFSET: the offset where leftmost visible column = system start month
+  const MIN_WINDOW_OFFSET = COLS_PER_PAGE - monthsSinceStart;
+
+  // Default: show from system start (or last 6 months if system has been running long enough)
+  const [windowOffset, setWindowOffset] = useState(() => Math.max(1, MIN_WINDOW_OFFSET));
 
   // Visible month labels: starts at (now - COLS_PER_PAGE + windowOffset)
   const visibleMonths: string[] = Array.from({ length: COLS_PER_PAGE }, (_, i) => {
@@ -355,8 +360,8 @@ export default function Usage() {
               <span className="text-[11px] text-muted-foreground/40">Avg/day that month</span>
               <div className="ml-auto flex items-center gap-1">
                 <button
-                  onClick={() => setWindowOffset(o => o - COLS_PER_PAGE)}
-                  disabled={windowOffset <= -42}
+                  onClick={() => setWindowOffset(o => Math.max(MIN_WINDOW_OFFSET, o - COLS_PER_PAGE))}
+                  disabled={windowOffset <= MIN_WINDOW_OFFSET}
                   className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-25 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Back

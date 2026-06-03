@@ -221,6 +221,7 @@ export default function PatientHistory() {
       toast({ title: "Care plan ended", description: "The treatment plan has been closed early." });
       setConfirmEndPlanId(null);
       refetch();
+      queryClient.invalidateQueries();
     } catch {
       toast({ title: "Failed to end care plan", variant: "destructive" });
     } finally {
@@ -462,9 +463,10 @@ export default function PatientHistory() {
                 const createdAt = plan.createdAt as string | null;
                 const summary = plan.summary as string | null;
                 const department = plan.department as string | null;
-                const isLatest = idx === 0;
+                const isEnded = plan.status === "ended";
+                const isLatest = idx === 0 && !isEnded;
                 return (
-                  <div key={planId} className="px-5 py-4 space-y-2">
+                  <div key={planId} className={`px-5 py-4 space-y-2 ${isEnded ? "opacity-60" : ""}`}>
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs text-muted-foreground">{fmt(createdAt)}</span>
@@ -474,13 +476,17 @@ export default function PatientHistory() {
                             {department}
                           </span>
                         )}
-                        {isLatest && (
+                        {isEnded ? (
+                          <span className="text-xs px-2 py-0.5 rounded-full border bg-muted text-muted-foreground border-border font-medium">
+                            Ended
+                          </span>
+                        ) : isLatest && (
                           <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 font-medium">
-                            Latest
+                            Active
                           </span>
                         )}
                       </div>
-                      {isAdmin && confirmEndPlanId !== planId && (
+                      {isAdmin && !isEnded && confirmEndPlanId !== planId && (
                         <Button
                           size="sm" variant="outline"
                           className="shrink-0 text-xs text-amber-400 border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
@@ -494,7 +500,7 @@ export default function PatientHistory() {
                     <div className="bg-muted/30 border border-border rounded-lg px-4 py-3">
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{summary}</p>
                     </div>
-                    {isAdmin && confirmEndPlanId === planId && (
+                    {isAdmin && !isEnded && confirmEndPlanId === planId && (
                       <div className="px-4 py-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2">
                         <p className="text-xs text-amber-300">End this {department} care plan early? This cannot be undone.</p>
                         <div className="flex gap-2">

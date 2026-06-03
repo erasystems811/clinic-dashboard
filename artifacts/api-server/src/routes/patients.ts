@@ -125,7 +125,7 @@ router.get("/patients", async (req, res): Promise<void> => {
     if (patients.length > 0) {
       const pids = patients.map(p => p.id as number);
       const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
-        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", pids),
+        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", pids).neq("status", "ended"),
         supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code).in("patient_id", pids),
         supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
       ]);
@@ -161,7 +161,7 @@ router.get("/patients", async (req, res): Promise<void> => {
     if (patients.length > 0) {
       const pids = patients.map(p => p.id as number);
       const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
-        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", pids),
+        supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", pids).neq("status", "ended"),
         supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code).in("patient_id", pids),
         supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
       ]);
@@ -187,7 +187,7 @@ router.get("/patients", async (req, res): Promise<void> => {
     // "In Care" can come from patients.stage OR from having an active care plan — include both
     if (query.data.stage === "In Care") {
       const { data: planRows } = await supabase
-        .from("care_plans").select("patient_id").eq("hospital_id", hospital.code);
+        .from("care_plans").select("patient_id").eq("hospital_id", hospital.code).neq("status", "ended");
       const carePlanPatientIds = [...new Set((planRows ?? []).map(r => r.patient_id as number))];
       if (carePlanPatientIds.length > 0) {
         q = q.or(`stage.eq.In Care,id.in.(${carePlanPatientIds.join(",")})`);
@@ -216,7 +216,7 @@ router.get("/patients", async (req, res): Promise<void> => {
     const ids = patients.map(p => p.id as number);
     const nowIso = new Date().toISOString();
     const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
-      supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", ids),
+      supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", ids).neq("status", "ended"),
       supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code).in("patient_id", ids),
       supabase.from("appointments").select("patient_id").in("patient_id", ids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
     ]);
@@ -324,7 +324,7 @@ router.get("/patients/:id", async (req, res): Promise<void> => {
   const hospitalId = hospital.code;
   const nowIso = new Date().toISOString();
   const [{ data: plans }, { data: queueEntry }, { data: upcomingAppt }] = await Promise.all([
-    supabase.from("care_plans").select("id").eq("patient_id", id).eq("hospital_id", hospitalId).limit(1),
+    supabase.from("care_plans").select("id").eq("patient_id", id).eq("hospital_id", hospitalId).neq("status", "ended").limit(1),
     supabase.from("queue").select("id").eq("patient_id", id).maybeSingle(),
     supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")').limit(1).maybeSingle(),
   ]);
@@ -382,7 +382,7 @@ router.get("/patients/:id/history", async (req, res): Promise<void> => {
   }
 
   res.json({
-    patient: serializePatient({ ...patient, has_care_plan: carePlans.length > 0, is_in_queue: !!queueRes.data, is_booked: !!bookedRes.data }),
+    patient: serializePatient({ ...patient, has_care_plan: carePlans.filter(p => p.status !== "ended").length > 0, is_in_queue: !!queueRes.data, is_booked: !!bookedRes.data }),
     activity: camelizeArr(activityRes.data ?? []),
     appointments: (appointmentsRes.data ?? []).map(a => ({ ...camelize(a), duration: a.duration ?? 30 })),
     callTasks: camelizeArr(callTasksRes.data ?? []),

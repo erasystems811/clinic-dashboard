@@ -17,7 +17,7 @@ import { getPatientStages } from "@/lib/utils";
 import {
   Search, Stethoscope, Flag, Loader2, Plus,
   Pencil, MessageSquare, PhoneCall, ChevronDown,
-  ChevronUp, X, Calendar, CheckCircle2,
+  ChevronUp, X, Calendar, CheckCircle2, Clock, RefreshCw,
 } from "lucide-react";
 
 const STANDARD_DEPARTMENTS = [
@@ -45,6 +45,14 @@ interface CarePlan {
 }
 
 interface ScheduleRow { date: string; [key: string]: string; }
+
+interface PostTreatmentQueueItem {
+  id: number;
+  department: string;
+  summary: string;
+  endedAt: string;
+  patient: { id: number; firstName: string; lastName: string; patientId: string | null } | null;
+}
 
 // ── Constants ───────────────────────────────────────────────────────────────────
 
@@ -124,11 +132,13 @@ export default function NurseStation() {
   const [planBeneficiaryEmail, setPlanBeneficiaryEmail] = useState("");
   const [planBeneficiaryRelationship, setPlanBeneficiaryRelationship] = useState("");
 
-  // Follow-up plans: keyed by care plan id → array of day numbers
-  const [followupPlans, setFollowupPlans] = useState<Record<number, number[]>>({});
-  const [editingFollowupId, setEditingFollowupId] = useState<number | null>(null);
-  const [followupDraft, setFollowupDraft] = useState<number[]>([]);
-  const [savingFollowup, setSavingFollowup] = useState(false);
+  // Post-treatment follow-up queue (recently ended non-GenOut plans, all patients)
+  const [postTreatmentQueue, setPostTreatmentQueue] = useState<PostTreatmentQueueItem[]>([]);
+  const [queueLoading, setQueueLoading] = useState(false);
+  const [editingQueueId, setEditingQueueId] = useState<number | null>(null);
+  const [queueFollowupDraft, setQueueFollowupDraft] = useState<number[]>([]);
+  const [savingQueueFollowup, setSavingQueueFollowup] = useState(false);
+  const [dismissingQueueId, setDismissingQueueId] = useState<number | null>(null);
 
   // Flag section
   const [flagSearch, setFlagSearch] = useState("");
@@ -172,19 +182,6 @@ export default function NurseStation() {
       const data = await res.json() as CarePlan[];
       setCarePlans(data);
 
-      // Fetch follow-up plans for all non-GenOut care plans
-      const nonGenOut = data.filter((p: CarePlan) => p.department !== "General Outpatient");
-      if (nonGenOut.length > 0) {
-        const entries = await Promise.all(
-          nonGenOut.map(async (p: CarePlan) => {
-            const r = await fetch(apiUrl(`/api/care-plans/${p.id}/followup-plan`), { headers: authHeader() });
-            if (!r.ok) return [p.id, []] as [number, number[]];
-            const d = await r.json() as { days: number[] };
-            return [p.id, d.days ?? []] as [number, number[]];
-          })
-        );
-        setFollowupPlans(Object.fromEntries(entries));
-      }
     } catch {
       setCarePlans([]);
     } finally {
@@ -202,6 +199,22 @@ export default function NurseStation() {
       setPlanMode("list");
     }
   }, [selectedPatient, fetchCarePlans]);
+
+  const fetchPostTreatmentQueue = useCallback(async () => {
+    setQueueLoading(true);
+    try {
+      const res = await fetch(apiUrl("/api/nurse/post-treatment-queue"), { headers: authHeader() });
+      if (!res.ok) throw new Error("Failed");
+      setPostTreatmentQueue(await res.json());
+    } catch {
+      setPostTreatmentQueue([]);
+    } finally {
+      setQueueLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hospital?.token]);
+
+  useEffect(() => { fetchPostTreatmentQueue(); }, [fetchPostTreatmentQueue]);
 
   const openNewPlan = () => {
     const defaultDept = departments[0] ?? "";
@@ -289,6 +302,8 @@ export default function NurseStation() {
       toast({ title: "Care plan ended", description: "The treatment plan has been closed early." });
       await fetchCarePlans(selectedPatient.id);
       setConfirmEndPlanId(null);
+      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
     } catch {
       toast({ title: "Failed to end care plan", variant: "destructive" });
     } finally {
@@ -296,23 +311,40 @@ export default function NurseStation() {
     }
   };
 
-  const handleSaveFollowup = async (planId: number) => {
-    setSavingFollowup(true);
+  const handleSaveQueueFollowup = async (planId: number) => {
+    setSavingQueueFollowup(true);
     try {
-      const days = followupDraft.filter(d => d > 0).slice(0, 3);
+      const days = queueFollowupDraft.filter(d => d > 0).slice(0, 3);
       const res = await fetch(apiUrl(`/api/care-plans/${planId}/followup-plan`), {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({ days }),
       });
       if (!res.ok) throw new Error("Save failed");
-      setFollowupPlans(prev => ({ ...prev, [planId]: days }));
-      setEditingFollowupId(null);
-      toast({ title: "Follow-up plan saved" });
+      setPostTreatmentQueue(prev => prev.filter(item => item.id !== planId));
+      setEditingQueueId(null);
+      toast({ title: "Follow-up plan saved", description: "AI will email the patient on the scheduled days." });
     } catch {
       toast({ title: "Failed to save follow-up plan", variant: "destructive" });
     } finally {
-      setSavingFollowup(false);
+      setSavingQueueFollowup(false);
+    }
+  };
+
+  const handleDismissQueueItem = async (planId: number) => {
+    setDismissingQueueId(planId);
+    try {
+      const res = await fetch(apiUrl(`/api/care-plans/${planId}/dismiss-followup`), {
+        method: "POST",
+        headers: authHeader(),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setPostTreatmentQueue(prev => prev.filter(item => item.id !== planId));
+      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+    } catch {
+      toast({ title: "Failed to dismiss", variant: "destructive" });
+    } finally {
+      setDismissingQueueId(null);
     }
   };
 
@@ -468,92 +500,6 @@ export default function NurseStation() {
                           <div className="px-4 py-3 bg-muted/20 border-t border-border space-y-3">
                             <p className="text-sm text-foreground">{plan.summary}</p>
                             <PlanTemplateDetails dept={plan.department} data={plan.templateData} />
-
-                            {/* Post-Treatment Follow-up Plan — only for non-GenOut departments */}
-                            {plan.department !== "General Outpatient" && (
-                              <div className="rounded-lg border border-dashed border-border p-3 space-y-2">
-                                <div className="flex items-center justify-between">
-                                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Post-Treatment Follow-up Plan</p>
-                                  {editingFollowupId !== plan.id && (
-                                    <button
-                                      type="button"
-                                      className="text-xs text-primary hover:underline"
-                                      onClick={() => {
-                                        setEditingFollowupId(plan.id);
-                                        setFollowupDraft(followupPlans[plan.id]?.length ? [...followupPlans[plan.id]] : [7]);
-                                      }}
-                                    >
-                                      {(followupPlans[plan.id]?.length ?? 0) > 0 ? "Edit" : "Set up"}
-                                    </button>
-                                  )}
-                                </div>
-
-                                {editingFollowupId !== plan.id ? (
-                                  (followupPlans[plan.id]?.length ?? 0) > 0 ? (
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {followupPlans[plan.id].map(d => (
-                                        <span key={d} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                                          Day {d}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground">No follow-up days scheduled. AI will send check-in emails on the days you configure.</p>
-                                  )
-                                ) : (
-                                  <div className="space-y-2">
-                                    <p className="text-xs text-muted-foreground">Set up to 5 days after treatment ends (e.g. Day 7 = one week after). AI will email the patient on each day.</p>
-                                    <div className="space-y-1.5">
-                                      {followupDraft.map((day, idx) => (
-                                        <div key={idx} className="flex items-center gap-2">
-                                          <span className="text-xs text-muted-foreground w-16 shrink-0">Follow-up {idx + 1}</span>
-                                          <div className="flex items-center gap-1">
-                                            <span className="text-xs text-muted-foreground">Day</span>
-                                            <input
-                                              type="number"
-                                              min={1}
-                                              max={365}
-                                              className="w-16 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                                              value={day}
-                                              onChange={e => {
-                                                const v = parseInt(e.target.value, 10);
-                                                setFollowupDraft(prev => prev.map((d, i) => i === idx ? (isNaN(v) ? 0 : v) : d));
-                                              }}
-                                            />
-                                          </div>
-                                          <button
-                                            type="button"
-                                            className="text-muted-foreground hover:text-destructive transition-colors"
-                                            onClick={() => setFollowupDraft(prev => prev.filter((_, i) => i !== idx))}
-                                          >
-                                            <X className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-                                      ))}
-                                    </div>
-                                    {followupDraft.length < 3 && (
-                                      <button
-                                        type="button"
-                                        className="text-xs text-primary hover:underline flex items-center gap-1"
-                                        onClick={() => setFollowupDraft(prev => [...prev, (prev[prev.length - 1] ?? 0) + 7])}
-                                      >
-                                        <Plus className="w-3 h-3" />Add follow-up day
-                                      </button>
-                                    )}
-                                    <div className="flex gap-2 pt-1">
-                                      <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setEditingFollowupId(null)}>Cancel</Button>
-                                      <Button
-                                        type="button" size="sm" className="flex-1 text-xs"
-                                        disabled={savingFollowup}
-                                        onClick={() => handleSaveFollowup(plan.id)}
-                                      >
-                                        {savingFollowup ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save Plan"}
-                                      </Button>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
 
                             <Button
                               type="button"
@@ -747,6 +693,156 @@ export default function NurseStation() {
                   </Button>
                 </div>
               </form>
+            )}
+          </div>
+        </div>
+
+        {/* ── POST-TREATMENT FOLLOW-UP QUEUE (non-GenOut plans ended in last 48h) ── */}
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between gap-3 px-5 py-3.5 border-b border-border bg-muted/10">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary/70" />
+              <span className="font-semibold text-sm">Post-Treatment Follow-up</span>
+              {postTreatmentQueue.length > 0 && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  {postTreatmentQueue.length}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={fetchPostTreatmentQueue}
+              disabled={queueLoading}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition disabled:opacity-40"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${queueLoading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+          <div className="p-5 space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Specialist care plans that ended in the last 48 hours. Decide whether to schedule AI check-in emails for each patient (max 3 follow-ups).
+              <span className="text-muted-foreground/50"> · General Outpatient follow-ups are automatic.</span>
+            </p>
+
+            {queueLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : postTreatmentQueue.length === 0 ? (
+              <p className="text-sm text-muted-foreground/60 text-center py-6">
+                No specialist care plans have ended in the last 48 hours.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {postTreatmentQueue.map(item => {
+                  const diffMs = Date.now() - new Date(item.endedAt).getTime();
+                  const diffH = Math.floor(diffMs / (1000 * 60 * 60));
+                  const timeAgoStr = diffH < 1 ? "less than 1 hour ago" : diffH < 24 ? `${diffH}h ago` : `${Math.floor(diffH / 24)}d ago`;
+                  const isEditing = editingQueueId === item.id;
+
+                  return (
+                    <div key={item.id} className="rounded-lg border border-border bg-muted/5 overflow-hidden">
+                      {/* Header row */}
+                      <div className="flex items-start justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm text-foreground">
+                              {item.patient ? `${item.patient.firstName} ${item.patient.lastName}` : "Unknown"}
+                            </span>
+                            {item.patient?.patientId && (
+                              <span className="text-[10px] font-mono text-muted-foreground/60">#{item.patient.patientId}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-xs font-semibold text-primary/80">{item.department}</span>
+                            <span className="text-xs text-muted-foreground/50">· ended {timeAgoStr}</span>
+                          </div>
+                        </div>
+                        {!isEditing && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              className="text-xs text-primary hover:underline"
+                              onClick={() => {
+                                setEditingQueueId(item.id);
+                                setQueueFollowupDraft([7]);
+                              }}
+                            >
+                              Set up
+                            </button>
+                            <span className="text-muted-foreground/30">|</span>
+                            <button
+                              type="button"
+                              disabled={dismissingQueueId === item.id}
+                              className="text-xs text-muted-foreground hover:text-foreground transition disabled:opacity-40"
+                              onClick={() => handleDismissQueueItem(item.id)}
+                            >
+                              {dismissingQueueId === item.id ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "No follow-up"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Prompt text (view mode) */}
+                      {!isEditing && (
+                        <div className="px-4 pb-3">
+                          <p className="text-xs text-muted-foreground/50">Click "Set up" to schedule AI email check-ins, or "No follow-up" to dismiss.</p>
+                        </div>
+                      )}
+
+                      {/* Edit mode */}
+                      {isEditing && (
+                        <div className="px-4 pb-4 space-y-2 border-t border-border bg-muted/10 pt-3">
+                          <p className="text-xs text-muted-foreground">Choose up to 3 days after treatment ended. AI will email the patient on each day.</p>
+                          <div className="space-y-1.5">
+                            {queueFollowupDraft.map((day, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground w-16 shrink-0">Follow-up {idx + 1}</span>
+                                <span className="text-xs text-muted-foreground">Day</span>
+                                <input
+                                  type="number" min={1} max={365}
+                                  className="w-16 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                                  value={day}
+                                  onChange={e => {
+                                    const v = parseInt(e.target.value, 10);
+                                    setQueueFollowupDraft(prev => prev.map((d, i) => i === idx ? (isNaN(v) ? 0 : v) : d));
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className="text-muted-foreground hover:text-destructive transition-colors"
+                                  onClick={() => setQueueFollowupDraft(prev => prev.filter((_, i) => i !== idx))}
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          {queueFollowupDraft.length < 3 && (
+                            <button
+                              type="button"
+                              className="text-xs text-primary hover:underline flex items-center gap-1"
+                              onClick={() => setQueueFollowupDraft(prev => [...prev, (prev[prev.length - 1] ?? 0) + 7])}
+                            >
+                              <Plus className="w-3 h-3" /> Add follow-up day
+                            </button>
+                          )}
+                          <div className="flex gap-2 pt-1">
+                            <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setEditingQueueId(null)}>Cancel</Button>
+                            <Button
+                              type="button" size="sm" className="flex-1 text-xs"
+                              disabled={savingQueueFollowup}
+                              onClick={() => handleSaveQueueFollowup(item.id)}
+                            >
+                              {savingQueueFollowup ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>

@@ -25,7 +25,11 @@ function log(msg: string) {
 }
 
 // ── Appointment Reminders — runs every 15 minutes ─────────────────────────────
-// All reminders now go to the patient's email address.
+// All reminders go to the patient's email address.
+// Each reminder uses a TWO-PART query:
+//   1. Normal window  — appointments exactly N hours away (±15 min)
+//   2. Catch-up window — appointments already past the normal window but still in the future
+//      and not yet reminded (handles server downtime / scheduler gaps).
 async function runAppointmentReminders() {
   try {
     const now = new Date();
@@ -33,6 +37,8 @@ async function runAppointmentReminders() {
     const in24hPlus15  = new Date(in24h.getTime() + 15 * 60 * 1000);
     const in2h         = new Date(now.getTime() +  2 * 60 * 60 * 1000);
     const in2hPlus15   = new Date(in2h.getTime()  + 15 * 60 * 1000);
+    // Catch-up floor: at least 15 min in the future (no point reminding < 15 min out)
+    const in15min      = new Date(now.getTime() + 15 * 60 * 1000);
 
     // Helper: resolve hospital int id + module check for an appointment's patient
     async function resolveHospital(patient: Record<string, unknown>) {
@@ -44,16 +50,22 @@ async function runAppointmentReminders() {
     }
 
     // ── 24-hour reminder ────────────────────────────────────────────────────────
-    // Only fetch appointments that haven't received the 24h reminder yet.
-    const { data: appts24 } = await supabase
-      .from("appointments")
-      .select("*, patients(id, first_name, last_name, email, hospital_id)")
-      .eq("status", "scheduled")
-      .is("reminder_24h_sent_at", null)
-      .gte("scheduled_at", in24h.toISOString())
-      .lt("scheduled_at", in24hPlus15.toISOString());
+    // Normal window + catch-up for missed windows (appointment still ≥ 15 min away).
+    const [{ data: appts24Normal }, { data: appts24CatchUp }] = await Promise.all([
+      supabase.from("appointments")
+        .select("*, patients(id, first_name, last_name, email, hospital_id)")
+        .eq("status", "scheduled").is("reminder_24h_sent_at", null)
+        .gte("scheduled_at", in24h.toISOString()).lt("scheduled_at", in24hPlus15.toISOString()),
+      supabase.from("appointments")
+        .select("*, patients(id, first_name, last_name, email, hospital_id)")
+        .eq("status", "scheduled").is("reminder_24h_sent_at", null)
+        .gte("scheduled_at", in15min.toISOString()).lt("scheduled_at", in24h.toISOString()),
+    ]);
 
-    for (const appt of appts24 ?? []) {
+    const seen24 = new Set<number>();
+    for (const appt of [...(appts24Normal ?? []), ...(appts24CatchUp ?? [])]) {
+      if (seen24.has(appt.id as number)) continue;
+      seen24.add(appt.id as number);
       const patient = (appt as Record<string, unknown>).patients as Record<string, unknown> | null;
       if (!patient?.email) continue;
       const hospital = await resolveHospital(patient);
@@ -64,16 +76,22 @@ async function runAppointmentReminders() {
     }
 
     // ── 2-hour reminder ─────────────────────────────────────────────────────────
-    // Fetched independently — must run even after the 24h reminder was already sent.
-    const { data: appts2 } = await supabase
-      .from("appointments")
-      .select("*, patients(id, first_name, last_name, email, hospital_id)")
-      .eq("status", "scheduled")
-      .is("reminder_2h_sent_at", null)
-      .gte("scheduled_at", in2h.toISOString())
-      .lt("scheduled_at", in2hPlus15.toISOString());
+    // Normal window + catch-up for missed windows (appointment still ≥ 15 min away).
+    const [{ data: appts2Normal }, { data: appts2CatchUp }] = await Promise.all([
+      supabase.from("appointments")
+        .select("*, patients(id, first_name, last_name, email, hospital_id)")
+        .eq("status", "scheduled").is("reminder_2h_sent_at", null)
+        .gte("scheduled_at", in2h.toISOString()).lt("scheduled_at", in2hPlus15.toISOString()),
+      supabase.from("appointments")
+        .select("*, patients(id, first_name, last_name, email, hospital_id)")
+        .eq("status", "scheduled").is("reminder_2h_sent_at", null)
+        .gte("scheduled_at", in15min.toISOString()).lt("scheduled_at", in2h.toISOString()),
+    ]);
 
-    for (const appt of appts2 ?? []) {
+    const seen2 = new Set<number>();
+    for (const appt of [...(appts2Normal ?? []), ...(appts2CatchUp ?? [])]) {
+      if (seen2.has(appt.id as number)) continue;
+      seen2.add(appt.id as number);
       const patient = (appt as Record<string, unknown>).patients as Record<string, unknown> | null;
       if (!patient?.email) continue;
       const hospital = await resolveHospital(patient);

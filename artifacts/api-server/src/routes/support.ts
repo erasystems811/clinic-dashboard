@@ -5,6 +5,7 @@ import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 import { requireSuperAdmin } from "./super-admin.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
 import { runSupportAI, type SupportMessage } from "../lib/support-ai.js";
+import { runTicketAnalysis } from "../lib/support-ai.js";
 
 const router: IRouter = Router();
 
@@ -338,6 +339,34 @@ router.patch("/super-admin/support/tickets/:id/reply", requireSuperAdmin, async 
   );
 
   res.json({ ok: true });
+});
+
+// GET /super-admin/support/tickets/:id/analysis — AI diagnosis for super admin
+router.get("/super-admin/support/tickets/:id/analysis", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ticket ID" }); return; }
+
+  const { data: ticket } = await supabase
+    .from("support_tickets")
+    .select("subject, hospital_name, status")
+    .eq("id", id)
+    .single();
+
+  if (!ticket) { res.status(404).json({ error: "Not found" }); return; }
+
+  const { data: messages } = await supabase
+    .from("support_messages")
+    .select("sender, message")
+    .eq("ticket_id", id)
+    .order("created_at", { ascending: true });
+
+  const analysis = await runTicketAnalysis(
+    ticket.subject as string,
+    ticket.hospital_name as string,
+    (messages ?? []) as SupportMessage[],
+  );
+
+  res.json(analysis);
 });
 
 // PATCH /super-admin/support/tickets/:id/resolve — admin marks ticket as resolved

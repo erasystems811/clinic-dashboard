@@ -4,6 +4,7 @@ import { get, patch } from "@/lib/api";
 import {
   MessageCircle, Loader2, CheckCircle2, Clock,
   Send, RefreshCw, AlertCircle, Bot, User, ChevronLeft,
+  Lightbulb, ChevronDown, ChevronUp, Copy,
 } from "lucide-react";
 import { formatDistanceToNow, parseISO } from "date-fns";
 
@@ -29,6 +30,12 @@ interface Thread {
   messages: Message[];
 }
 
+interface TicketAnalysis {
+  diagnosis: string;
+  steps: string[];
+  suggestedReply: string;
+}
+
 function StatusBadge({ status }: { status: string }) {
   if (status === "closed")    return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/12 text-emerald-400">Resolved</span>;
   if (status === "escalated") return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/12 text-amber-400 flex items-center gap-1"><AlertCircle className="w-3 h-3" />Needs you</span>;
@@ -52,6 +59,9 @@ export default function SupportInbox() {
   const [sending, setSending] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [error, setError] = useState("");
+  const [analysis, setAnalysis] = useState<TicketAnalysis | null>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+  const [analysisOpen, setAnalysisOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const fetchTickets = useCallback(async () => {
@@ -69,11 +79,20 @@ export default function SupportInbox() {
 
   const openThread = async (ticketId: number) => {
     setLoadingThread(true);
+    setAnalysis(null);
     try {
       const data = await get<Thread>(`/super-admin/support/tickets/${ticketId}/messages`);
       setSelected(data);
       setReply("");
       setError("");
+      // Fetch AI analysis in parallel (non-blocking)
+      if (data.ticket.status !== "closed") {
+        setLoadingAnalysis(true);
+        get<TicketAnalysis>(`/super-admin/support/tickets/${ticketId}/analysis`)
+          .then(a => setAnalysis(a))
+          .catch(() => {})
+          .finally(() => setLoadingAnalysis(false));
+      }
     } finally {
       setLoadingThread(false);
     }
@@ -205,6 +224,65 @@ export default function SupportInbox() {
                 </div>
                 <StatusBadge status={selected.ticket.status} />
               </div>
+
+              {/* AI Analysis panel — private, only visible to super admin */}
+              {(loadingAnalysis || analysis) && selected.ticket.status !== "closed" && (
+                <div className="mx-5 mt-4 rounded-xl border border-primary/20 bg-primary/5 overflow-hidden">
+                  <button
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-left"
+                    onClick={() => setAnalysisOpen(o => !o)}
+                  >
+                    <span className="flex items-center gap-2 text-xs font-semibold text-primary">
+                      <Lightbulb className="w-3.5 h-3.5" />
+                      AI Recommendations (private)
+                    </span>
+                    {analysisOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                  </button>
+                  {analysisOpen && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-primary/10">
+                      {loadingAnalysis ? (
+                        <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Analysing…
+                        </div>
+                      ) : analysis && (
+                        <>
+                          <div className="pt-3">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1">Diagnosis</p>
+                            <p className="text-sm text-foreground">{analysis.diagnosis}</p>
+                          </div>
+                          {analysis.steps.length > 0 && (
+                            <div>
+                              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Steps to fix</p>
+                              <ol className="space-y-1">
+                                {analysis.steps.map((step, i) => (
+                                  <li key={i} className="flex items-start gap-2 text-sm">
+                                    <span className="shrink-0 w-4 h-4 rounded-full bg-primary/20 text-primary text-[10px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                                    <span className="text-muted-foreground">{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+                          )}
+                          {analysis.suggestedReply && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Suggested reply</p>
+                                <button
+                                  className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+                                  onClick={() => setReply(analysis.suggestedReply)}
+                                >
+                                  <Copy className="w-3 h-3" /> Use this
+                                </button>
+                              </div>
+                              <p className="text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 leading-relaxed">{analysis.suggestedReply}</p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">

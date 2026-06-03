@@ -133,10 +133,79 @@ RESPONSE RULES
 - Sign off as "Era Systems Support"
 `.trim();
 
+const ADMIN_ANALYSIS_PROMPT = `
+You are an internal assistant for Era Systems, a clinic management SaaS. Your job is to analyse a hospital support ticket and give the Era Systems super admin a private briefing — what the hospital is experiencing and exactly what steps to take to resolve it.
+
+You have full knowledge of the internal platform:
+- Database: Supabase. Key tables: patients, appointments, care_plans, automation_log, hospitals, hospital_modules, support_tickets.
+- Emails: sent via Resend. Logs in automation_log (status, error_message columns).
+- SMS/WhatsApp: sent via Termii. Balance checked in the scheduler. Notification channel set per hospital in hospital_modules.
+- Scheduler: runs on the API server. Appointment reminders every 15 min, daily automations at 7am/12pm/6pm WAT.
+- Roles: admin (full access), receptionist (queue + appointments), nurse (medication view + call tasks).
+- Features enabled/disabled per hospital in hospital_modules table (appointments_enabled, feedback_enabled, etc).
+
+Give the super admin:
+1. A one-line diagnosis of what is likely causing the issue.
+2. Up to 4 specific, actionable steps they should check or do to fix it (check a Supabase table, verify a setting, resend something, etc).
+3. A suggested reply message they can send to the hospital — short, friendly, professional.
+
+Respond with a JSON object only:
+{
+  "diagnosis": "one sentence",
+  "steps": ["step 1", "step 2", ...],
+  "suggestedReply": "the message to send"
+}
+`.trim();
+
 function getOpenAI(): OpenAI {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY is not set");
   return new OpenAI({ apiKey: key });
+}
+
+export interface TicketAnalysis {
+  diagnosis: string;
+  steps: string[];
+  suggestedReply: string;
+}
+
+export async function runTicketAnalysis(
+  subject: string,
+  hospitalName: string,
+  messages: SupportMessage[],
+): Promise<TicketAnalysis> {
+  const openai = getOpenAI();
+
+  const conversation = messages
+    .map(m => `${m.sender === "hospital" ? "Hospital" : m.sender === "ai" ? "AI Support" : "Admin"}: ${m.message}`)
+    .join("\n");
+
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: ADMIN_ANALYSIS_PROMPT },
+        { role: "user", content: `Hospital: ${hospitalName}\nSubject: ${subject}\n\nConversation:\n${conversation}` },
+      ],
+      max_tokens: 500,
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+    });
+
+    const raw = resp.choices[0]?.message?.content?.trim() ?? "{}";
+    const parsed = JSON.parse(raw) as Partial<TicketAnalysis>;
+    return {
+      diagnosis: parsed.diagnosis ?? "Unable to determine — review the conversation manually.",
+      steps: Array.isArray(parsed.steps) ? parsed.steps : [],
+      suggestedReply: parsed.suggestedReply ?? "",
+    };
+  } catch {
+    return {
+      diagnosis: "AI analysis unavailable.",
+      steps: [],
+      suggestedReply: "",
+    };
+  }
 }
 
 export async function runSupportAI(

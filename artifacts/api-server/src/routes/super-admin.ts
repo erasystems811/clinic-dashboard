@@ -681,6 +681,12 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
   const hospitalId = token ? _verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
+  const { data: hospitalCheck } = await supabase.from("hospitals").select("active").eq("id", hospitalId).single();
+  if (!hospitalCheck || hospitalCheck.active === false) {
+    res.status(403).json({ error: "Account suspended" });
+    return;
+  }
+
   const [{ data: settings }, { data: modules }] = await Promise.all([
     supabase.from("hospital_settings").select("*").eq("hospital_id", hospitalId).single(),
     supabase.from("hospital_modules").select("*").eq("hospital_id", hospitalId).single(),

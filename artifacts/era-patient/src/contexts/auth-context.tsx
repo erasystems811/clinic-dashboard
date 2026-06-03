@@ -80,7 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const check = () => {
       const loginAt = hospital?.loginAt ?? 0;
       fetch(apiUrl("/api/hospital/config"), { headers: { "x-hospital-token": token } })
-        .then(r => r.ok ? r.json() : null)
+        .then(r => {
+          // 401 = token invalid, 403 = account suspended — force logout immediately
+          if (r.status === 401 || r.status === 403) { logout(); return null; }
+          return r.ok ? r.json() : null;
+        })
         .then(cfg => {
           if (!cfg) return;
           if (cfg.sessionInvalidatedAt && cfg.sessionInvalidatedAt > loginAt) {

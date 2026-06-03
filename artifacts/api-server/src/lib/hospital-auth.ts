@@ -47,6 +47,9 @@ export async function getHospitalFromRequest(req: Request): Promise<HospitalCont
   if (!hospitalIntId) return null;
   const { data } = await supabase.from("hospitals").select("*").eq("id", hospitalIntId).single();
   if (!data) return null;
+  // Suspended hospitals are treated as unauthenticated — their token is technically
+  // valid but the account is inactive. All routes return 401, forcing logout.
+  if (data.active === false) return null;
   // Fall back to username if hospital_code column doesn't exist yet or is null.
   // The startup migration will backfill the UUID; until then username keeps data visible.
   const code = (data.hospital_code as string | null) ?? (data.username as string);

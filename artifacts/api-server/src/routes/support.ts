@@ -324,9 +324,10 @@ router.patch("/super-admin/support/tickets/:id/reply", requireSuperAdmin, async 
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
 
   await appendMessage(id, "admin", parsed.data.message);
+  // Keep ticket open (active) — admin must explicitly press Resolved to close it
   await supabase
     .from("support_tickets")
-    .update({ status: "closed", reply: parsed.data.message, replied_at: new Date().toISOString() })
+    .update({ status: "active", reply: parsed.data.message, replied_at: new Date().toISOString() })
     .eq("id", id);
 
   await notifyHospitalReply(
@@ -335,6 +336,19 @@ router.patch("/super-admin/support/tickets/:id/reply", requireSuperAdmin, async 
     parsed.data.message,
     ticket.hospital_name as string,
   );
+
+  res.json({ ok: true });
+});
+
+// PATCH /super-admin/support/tickets/:id/resolve — admin marks ticket as resolved
+router.patch("/super-admin/support/tickets/:id/resolve", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ticket ID" }); return; }
+
+  await supabase
+    .from("support_tickets")
+    .update({ status: "closed" })
+    .eq("id", id);
 
   res.json({ ok: true });
 });

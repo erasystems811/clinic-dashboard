@@ -50,6 +50,7 @@ export default function SupportInbox() {
   const [loadingThread, setLoadingThread] = useState(false);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +93,17 @@ export default function SupportInbox() {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleResolve = async () => {
+    if (!selected || resolving) return;
+    setResolving(true);
+    try {
+      await patch(`/super-admin/support/tickets/${selected.ticket.id}/resolve`, {});
+      await openThread(selected.ticket.id);
+      fetchTickets();
+    } catch { /* ignore */ }
+    finally { setResolving(false); }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -216,19 +228,13 @@ export default function SupportInbox() {
                 <div ref={bottomRef} />
               </div>
 
-              {/* Reply box */}
-              {selected.ticket.status !== "closed" && (
+              {/* Reply box — always visible unless closed */}
+              {selected.ticket.status !== "closed" ? (
                 <div className="px-5 py-4 border-t border-border shrink-0 space-y-2">
                   {selected.ticket.status === "escalated" && (
                     <p className="text-xs text-amber-400 flex items-center gap-1.5">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       This ticket needs your attention — the AI couldn't resolve it
-                    </p>
-                  )}
-                  {selected.ticket.status === "active" && (
-                    <p className="text-xs text-blue-400 flex items-center gap-1.5">
-                      <Bot className="w-3.5 h-3.5 shrink-0" />
-                      AI is handling this — you can still step in and reply
                     </p>
                   )}
                   {error && <p className="text-xs text-destructive">{error}</p>}
@@ -250,10 +256,18 @@ export default function SupportInbox() {
                       {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </button>
                   </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleResolve}
+                      disabled={resolving}
+                      className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 transition disabled:opacity-40"
+                    >
+                      {resolving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                      Mark as Resolved
+                    </button>
+                  </div>
                 </div>
-              )}
-
-              {selected.ticket.status === "closed" && (
+              ) : (
                 <div className="px-5 py-3 border-t border-border text-center">
                   <span className="text-xs text-emerald-400 flex items-center justify-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Ticket resolved

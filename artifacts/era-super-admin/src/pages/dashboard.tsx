@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import Layout from "@/components/layout";
 import { api, Hospital } from "@/lib/api";
 import {
-  Building2, Plus, Search, CheckCircle2, XCircle,
+  Building2, Plus, Search, Users,
   AlertCircle, Loader2, ChevronRight, RefreshCw, Filter
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";

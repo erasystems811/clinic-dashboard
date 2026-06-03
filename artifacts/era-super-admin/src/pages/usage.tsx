@@ -117,7 +117,7 @@ export default function Usage() {
 
   // windowOffset: default COLS_PER_PAGE so May 2026 (current month) is the leftmost column.
   // Click "Older" to scroll left into the past.
-  const [windowOffset, setWindowOffset] = useState(COLS_PER_PAGE);
+  const [windowOffset, setWindowOffset] = useState(1);
 
   // Visible month labels: starts at (now - COLS_PER_PAGE + windowOffset)
   const visibleMonths: string[] = Array.from({ length: COLS_PER_PAGE }, (_, i) => {
@@ -356,7 +356,7 @@ export default function Usage() {
               <div className="ml-auto flex items-center gap-1">
                 <button
                   onClick={() => setWindowOffset(o => o - COLS_PER_PAGE)}
-                  disabled={windowOffset <= COLS_PER_PAGE}
+                  disabled={windowOffset <= -42}
                   className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-25 disabled:cursor-not-allowed"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Back
@@ -366,7 +366,8 @@ export default function Usage() {
                 </span>
                 <button
                   onClick={() => setWindowOffset(o => o + COLS_PER_PAGE)}
-                  className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition"
+                  disabled={windowOffset >= 1}
+                  className="flex items-center gap-1 px-2 h-7 rounded text-[11px] font-medium text-muted-foreground border border-border hover:text-foreground hover:bg-white/5 transition disabled:opacity-25 disabled:cursor-not-allowed"
                 >
                   Next <ChevronRight className="w-3.5 h-3.5" />
                 </button>

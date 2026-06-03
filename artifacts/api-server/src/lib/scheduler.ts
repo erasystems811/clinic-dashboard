@@ -1030,7 +1030,7 @@ async function runCarePlanRemindersHourly() {
     for (const h of hospitals) {
       const { data: plans } = await supabase
         .from("care_plans")
-        .select("id, patient_id, department, summary, template_data, beneficiary_name, beneficiary_email")
+        .select("id, patient_id, department, summary, template_data, beneficiary_name, beneficiary_email, beneficiary_relationship")
         .eq("hospital_id", h.hospital_code)
         .eq("status", "active");
 
@@ -1041,6 +1041,7 @@ async function runCarePlanRemindersHourly() {
         const td = (plan.template_data ?? {}) as Record<string, unknown>;
         const beneficiaryName = plan.beneficiary_name as string | null;
         const beneficiaryEmail = plan.beneficiary_email as string | null;
+        const beneficiaryRelationship = plan.beneficiary_relationship as string | null;
 
         const { data: patient } = await supabase
           .from("patients")
@@ -1076,7 +1077,7 @@ async function runCarePlanRemindersHourly() {
               if (await checkSentLog(h.id, key)) continue;
               await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"], dept);
               if (beneficiaryName && beneficiaryEmail) {
-                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication");
+                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication", beneficiaryRelationship);
               }
               log(`General Outpatient med reminder (at ${timeStr}) → patient ${patient.id} slot=${slot}`);
             }
@@ -1094,7 +1095,7 @@ async function runCarePlanRemindersHourly() {
               if (await checkSentLog(h.id, key)) continue;
               await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["hosp"], dept);
               if (beneficiaryName && beneficiaryEmail) {
-                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "attend their hospital visit");
+                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "attend their hospital visit", beneficiaryRelationship);
               }
               log(`General Outpatient hospital reminder (3h before ${timeStr}) → patient ${patient.id} slot=${slot}`);
             }
@@ -1114,7 +1115,7 @@ async function runCarePlanRemindersHourly() {
               if (await checkSentLog(h.id, key)) continue;
               await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med", "hosp"], dept);
               if (beneficiaryName && beneficiaryEmail) {
-                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication and attend their hospital visit");
+                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication and attend their hospital visit", beneficiaryRelationship);
               }
               log(`General Outpatient combination reminder (2h before ${refTime}) → patient ${patient.id} slot=${slot}`);
             }
@@ -1135,7 +1136,7 @@ async function runCarePlanRemindersHourly() {
               dept, plan.summary as string, entry.date, plan.id as number, entry.time,
             );
             if (beneficiaryName && beneficiaryEmail) {
-              await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, `attend their ${dept} visit`);
+              await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, `attend their ${dept} visit`, beneficiaryRelationship);
             }
             log(`${dept} visit reminder (4h before ${entry.time}) → patient ${patient.id} on ${entry.date}`);
           }

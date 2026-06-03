@@ -985,6 +985,7 @@ export async function sendBeneficiaryReminderEmail(
   beneficiaryName: string,
   beneficiaryEmail: string,
   actionDescription: string,
+  relationship?: string | null,
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
   const ctx: AutomationContext = {
@@ -997,8 +998,11 @@ export async function sendBeneficiaryReminderEmail(
   try {
     const patientFirst = patientName.split(" ")[0];
     const contact = contactLine(hCtx.phoneNumber);
+    const patientRef = relationship?.trim()
+      ? `${patientName}, your ${relationship.trim()},`
+      : `${patientName}`;
     const subject = `A gentle nudge about ${patientFirst} — ${hCtx.hospitalName}`;
-    const body = `Hi ${beneficiaryName},\n\nThis is just a little reminder from ${hCtx.hospitalName} — ${patientName} is due to ${actionDescription} right now. A quick check-in from you could make all the difference.\n\nYour care and support mean so much to ${patientFirst}'s recovery. Thank you for being there for them.\n\nIf you have any concerns please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+    const body = `Hi ${beneficiaryName},\n\nThis is just a little reminder from ${hCtx.hospitalName} — ${patientRef} is due to ${actionDescription} right now. A quick check-in from you could make all the difference.\n\nYour care and support mean so much to ${patientFirst}'s recovery. Thank you for being there for them.\n\nIf you have any concerns please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
 
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({

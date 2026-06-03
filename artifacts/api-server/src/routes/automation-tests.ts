@@ -157,7 +157,7 @@ router.post("/super-admin/automation-test", auth, async (req: Request, res: Resp
         break;
       case "beneficiary_reminder":
         if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
-        await sendBeneficiaryReminderEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, "Test Family Member", toEmail, "take their 9am medication");
+        await sendBeneficiaryReminderEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, "Test Family Member", toEmail, "take their 9am medication", "wife");
         break;
 
       // ── SMS / WhatsApp automations ─────────────────────────────────────

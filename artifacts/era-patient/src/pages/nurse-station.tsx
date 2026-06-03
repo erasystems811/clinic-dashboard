@@ -122,6 +122,7 @@ export default function NurseStation() {
   const [planTemplateData, setPlanTemplateData] = useState<Record<string, unknown>>({});
   const [planBeneficiaryName, setPlanBeneficiaryName] = useState("");
   const [planBeneficiaryEmail, setPlanBeneficiaryEmail] = useState("");
+  const [planBeneficiaryRelationship, setPlanBeneficiaryRelationship] = useState("");
 
   // Follow-up plans: keyed by care plan id → array of day numbers
   const [followupPlans, setFollowupPlans] = useState<Record<number, number[]>>({});
@@ -209,6 +210,7 @@ export default function NurseStation() {
     setPlanTemplateData(emptyTemplateData(defaultDept));
     setPlanBeneficiaryName("");
     setPlanBeneficiaryEmail("");
+    setPlanBeneficiaryRelationship("");
     setEditingPlan(null);
     setPlanMode("new");
   };
@@ -219,6 +221,7 @@ export default function NurseStation() {
     setPlanTemplateData({ ...plan.templateData });
     setPlanBeneficiaryName((plan as Record<string, unknown>).beneficiaryName as string ?? "");
     setPlanBeneficiaryEmail((plan as Record<string, unknown>).beneficiaryEmail as string ?? "");
+    setPlanBeneficiaryRelationship((plan as Record<string, unknown>).beneficiaryRelationship as string ?? "");
     setEditingPlan(plan);
     setPlanMode("edit");
   };
@@ -245,6 +248,7 @@ export default function NurseStation() {
         templateData: planTemplateData,
         beneficiaryName: planBeneficiaryName.trim() || undefined,
         beneficiaryEmail: planBeneficiaryEmail.trim() || undefined,
+        beneficiaryRelationship: planBeneficiaryRelationship.trim() || undefined,
       };
       const url = planMode === "edit" && editingPlan
         ? apiUrl(`/api/care-plans/${editingPlan.id}`)
@@ -604,6 +608,7 @@ export default function NurseStation() {
                                   setPlanTemplateData({ ...plan.templateData });
                                   setPlanBeneficiaryName((plan as unknown as Record<string,unknown>).beneficiaryName as string ?? "");
                                   setPlanBeneficiaryEmail((plan as unknown as Record<string,unknown>).beneficiaryEmail as string ?? "");
+                                  setPlanBeneficiaryRelationship((plan as unknown as Record<string,unknown>).beneficiaryRelationship as string ?? "");
                                   setEditingPlan(null);
                                   setPlanMode("new");
                                 }}
@@ -713,6 +718,26 @@ export default function NurseStation() {
                       />
                     </div>
                   </div>
+                  {planBeneficiaryName.trim() && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Relationship to patient <span className="font-normal">(optional — helps personalise the reminder)</span>
+                      </label>
+                      <input
+                        type="text"
+                        list="relationship-suggestions"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="e.g. wife, husband, mother, friend…"
+                        value={planBeneficiaryRelationship}
+                        onChange={e => setPlanBeneficiaryRelationship(e.target.value)}
+                      />
+                      <datalist id="relationship-suggestions">
+                        {["wife","husband","partner","mother","father","sister","brother","daughter","son","grandmother","grandfather","aunt","uncle","friend","carer","guardian"].map(r => (
+                          <option key={r} value={r} />
+                        ))}
+                      </datalist>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-2 justify-end pt-1">

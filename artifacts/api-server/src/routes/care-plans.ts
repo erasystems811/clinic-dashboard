@@ -18,6 +18,7 @@ const CarePlanBody = z.object({
   templateData: z.any().optional(),
   beneficiaryName: z.string().optional(),
   beneficiaryEmail: z.string().email().optional().or(z.literal("")),
+  beneficiaryRelationship: z.string().optional(),
 });
 
 // ── List care plans for a patient ──────────────────────────────────────────────
@@ -108,6 +109,7 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
     template_data: parsed.data.templateData,
     beneficiary_name: parsed.data.beneficiaryName || null,
     beneficiary_email: parsed.data.beneficiaryEmail || null,
+    beneficiary_relationship: parsed.data.beneficiaryRelationship?.trim() || null,
     status: "active",
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
@@ -196,6 +198,9 @@ router.patch("/care-plans/:id", async (req, res): Promise<void> => {
     summary: parsed.data.summary,
     department: parsed.data.department,
     template_data: parsed.data.templateData,
+    beneficiary_name: parsed.data.beneficiaryName ?? (existing.beneficiary_name as string | null),
+    beneficiary_email: parsed.data.beneficiaryEmail ?? (existing.beneficiary_email as string | null),
+    beneficiary_relationship: parsed.data.beneficiaryRelationship?.trim() ?? (existing.beneficiary_relationship as string | null),
     updated_at: new Date().toISOString(),
   }).eq("id", id).select().single();
 

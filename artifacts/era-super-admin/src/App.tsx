@@ -8,6 +8,8 @@ import HospitalDetail from "@/pages/hospital-detail";
 import Settings from "@/pages/settings";
 import AutomationTests from "@/pages/automation-tests";
 import Usage from "@/pages/usage";
+import SupportInbox from "@/pages/support";
+import DocsPage from "@/pages/docs";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +30,8 @@ function AppRoutes() {
       <Route path="/settings" component={Settings} />
       <Route path="/automation-tests" component={AutomationTests} />
       <Route path="/usage" component={Usage} />
+      <Route path="/support" component={SupportInbox} />
+      <Route path="/docs" component={DocsPage} />
       <Route>
         <div className="flex items-center justify-center min-h-screen text-muted-foreground text-sm">
           404 — Page not found

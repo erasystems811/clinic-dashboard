@@ -63,6 +63,8 @@ export interface HospitalContext {
   language: string | null;
   /** Communication tone tags — e.g. ["Warm", "Empathetic"]. Empty array = default warm/professional. */
   tone: string[];
+  /** True when the hospital is suspended. Send functions must log as "sent" (dedup) but not deliver. */
+  suspended: boolean;
 }
 
 export async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
@@ -70,18 +72,18 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
     supabase.from("hospitals").select("id, name, username, hospital_code, active").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
       .select("sender_name, notification_channel, phone_number, tone, termii_sender_id, language")
-      .eq("hospital_id", hospitalId).single(),
+      .eq("hospital_id", hospitalId).maybeSingle(),
   ]);
-  if (hospital?.active === false) {
-    throw new Error(`[automation] Hospital ${hospitalId} is suspended — automation skipped.`);
-  }
+  const suspended = hospital?.active === false;
   const hospitalName = hospital?.name ?? "The Hospital";
   const displayName = (settings?.sender_name as string | null)?.trim() || hospitalName;
   const rawEmail = process.env.PLATFORM_FROM_EMAIL || "onboarding@resend.dev";
   const fromAddress = `${displayName} <${rawEmail}>`;
   const rawTone = settings?.tone;
   const tone: string[] = rawTone
-    ? (Array.isArray(rawTone) ? rawTone : JSON.parse(rawTone as string)) as string[]
+    ? (Array.isArray(rawTone)
+        ? rawTone as string[]
+        : (() => { try { return JSON.parse(rawTone as string) as string[]; } catch { return [String(rawTone)]; } })())
     : [];
   return {
     hospitalName,
@@ -93,7 +95,18 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
     termiiSenderId: (settings?.termii_sender_id as string) ?? null,
     language: (settings?.language as string | null) ?? null,
     tone,
+    suspended,
   };
+}
+
+/**
+ * When a hospital is suspended, log the automation as "sent" (so dedup fires on re-activation)
+ * without delivering anything. Returns true if the caller should return early.
+ */
+async function skipIfSuspended(hCtx: HospitalContext, ctx: AutomationContext): Promise<boolean> {
+  if (!hCtx.suspended) return false;
+  await logAutomation(ctx, "sent", "[hospital suspended — not delivered]");
+  return true;
 }
 
 export function contactLine(phoneNumber: string | null): string {
@@ -116,6 +129,7 @@ export async function sendQueueJoinMessage(
     automationType: "queue_join",
     channel: hCtx.notificationChannel,
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, welcome to ${hCtx.hospitalName}. You've been checked in and you're currently number ${position} in the queue. Our team is working as quickly as possible and we'll keep you updated every step of the way. Please relax and make yourself comfortable. Thank you for trusting us with your care.`;
@@ -141,6 +155,7 @@ export async function sendQueueNextInLine(
     automationType: "queue_next_in_line",
     channel: hCtx.notificationChannel,
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, you are next in line at ${hCtx.hospitalName}. Please be ready — you will be called in shortly. Thank you for your patience.`;
@@ -166,6 +181,7 @@ export async function sendQueueYourTurn(
     automationType: "queue_your_turn",
     channel: hCtx.notificationChannel,
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, it is your turn now at ${hCtx.hospitalName}. Please proceed, we are ready for you.`;
@@ -191,6 +207,7 @@ export async function sendQueueLongWaitApology(
     automationType: "queue_long_wait_apology",
     channel: hCtx.notificationChannel,
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, we sincerely apologise for the longer than usual wait today at ${hCtx.hospitalName}. We are doing our best to attend to everyone as quickly as possible and we truly appreciate your patience. Thank you for being with us.`;
@@ -218,6 +235,7 @@ export async function sendCarePlanNotification(
     automationType: "care_plan_notification",
     channel: hCtx.notificationChannel,
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, your care plan at ${hCtx.hospitalName} has been set up. Please check your email continuously for your full care plan details and follow up. We are with you every step of the way.`;
@@ -246,6 +264,7 @@ export async function sendCarePlanEmail(
     automationType: "care_plan_email",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const firstName = patientName.split(" ")[0];
@@ -296,6 +315,7 @@ export async function sendPostTreatmentCheckinEmail(
     automationType,
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
@@ -345,6 +365,7 @@ export async function sendPostCareEmail(
     automationType: "post_care_email",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
@@ -384,6 +405,7 @@ export async function sendAppointmentConfirmationEmail(
     automationType: "appointment_confirmation",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
@@ -424,6 +446,7 @@ export async function sendAppointmentReminderEmail(
     automationType,
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
@@ -466,6 +489,7 @@ export async function sendAppointmentNoShowEmail(
     automationType: "appointment_no_show",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
@@ -505,6 +529,7 @@ export async function sendFeedbackEmail(
     automationType: "feedback_email",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
@@ -551,6 +576,7 @@ export async function sendBirthdayEmail(
     automationType: "birthday_email",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const firstName = patientName.split(" ")[0];
@@ -602,6 +628,7 @@ export async function sendCareVisitReminderEmail(
     automationType: "care_plan_visit_reminder",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued", dedupeKey);
   try {
     const firstName = patientName.split(" ")[0];
@@ -669,6 +696,7 @@ export async function sendCallTaskConfirmedMessage(
     automationType: "call_task_automated",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const subject = `IMPORTANT - ${hCtx.hospitalName}`;
@@ -707,6 +735,7 @@ export async function sendCallTaskManualEmail(
     automationType: "call_task_manual_email",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
@@ -840,6 +869,7 @@ export async function sendWellnessNewsletterEmails(
   tiktokLink: string | null,
 ): Promise<{ sent: number; failed: number }> {
   const hCtx = await getHospitalContext(hospitalId);
+  if (hCtx.suspended) return { sent: 0, failed: 0 };
 
   const { data: patients } = await supabase
     .from("patients")
@@ -918,6 +948,7 @@ export async function sendDepartmentalFollowupEmail(
     automationType,
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const firstName = patientName.split(" ")[0];
@@ -961,6 +992,7 @@ export async function sendBeneficiaryReminderEmail(
     automationType: "beneficiary_reminder",
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const patientFirst = patientName.split(" ")[0];
@@ -1012,6 +1044,7 @@ export async function sendInCareAIReminder(
     automationType,
     channel: "email",
   };
+  if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const firstName = patientName.split(" ")[0];

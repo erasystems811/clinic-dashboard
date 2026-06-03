@@ -65,7 +65,7 @@ function parseToneJson(raw: string | null): string[] {
   try { return JSON.parse(raw); } catch { return raw ? [raw] : []; }
 }
 
-function requireSuperAdmin(req: any, res: any, next: any) {
+export function requireSuperAdmin(req: any, res: any, next: any) {
   const token = req.headers["x-super-admin-token"] as string;
   if (!token || !verifyToken(token)) {
     res.status(401).json({ error: "Unauthorized" });
@@ -89,11 +89,17 @@ async function verifyAdminPassword(input: string): Promise<boolean> {
   const stored = await getStoredCredential();
   if (stored) {
     const hash = hashPassword(input, stored.salt);
-    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(stored.passwordHash));
+    const a = Buffer.from(hash);
+    const b = Buffer.from(stored.passwordHash);
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
   }
   // Fall back to env var
   const adminPass = process.env.SUPER_ADMIN_PASSWORD ?? "EraAdmin2024!";
-  return crypto.timingSafeEqual(Buffer.from(input), Buffer.from(adminPass));
+  const a = Buffer.from(input);
+  const b = Buffer.from(adminPass);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -175,7 +181,9 @@ router.post("/super-admin/auth/recover", async (req, res): Promise<void> => {
     res.status(400).json({ error: "New password must be at least 8 characters" });
     return;
   }
-  if (!crypto.timingSafeEqual(Buffer.from(recoveryKey), Buffer.from(configuredKey))) {
+  const rk = Buffer.from(recoveryKey as string);
+  const ck = Buffer.from(configuredKey);
+  if (rk.length !== ck.length || !crypto.timingSafeEqual(rk, ck)) {
     res.status(401).json({ error: "Invalid recovery key" });
     return;
   }

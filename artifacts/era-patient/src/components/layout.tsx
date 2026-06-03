@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth, type Role, type HospitalConfig } from "@/contexts/auth-context";
 import { TourGuide } from "@/components/tour-guide";
+import { SupportWidget } from "@/components/support-widget";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface LayoutProps {
@@ -404,6 +405,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </main>
 
+      <SupportWidget />
       <TourGuide />
 
       <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>

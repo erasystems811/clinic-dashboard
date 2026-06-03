@@ -97,7 +97,7 @@ async function runPostTreatmentCheckins() {
   try {
     const now = new Date();
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code, active");
     for (const h of hospitals ?? []) {
       // Query ended GenOut care plans — patient stage is irrelevant here
       const { data: plans } = await supabase
@@ -125,7 +125,7 @@ async function runPostTreatmentCheckins() {
 
         for (const day of [1, 4, 7] as const) {
           if (daysSinceEnd < day) continue;
-          if (daysSinceEnd > day + 30) continue; // 30-day catch-up window
+          if (daysSinceEnd > day + 30) continue; // 30-day catch-up window for patients queued late
 
           // Dedup key scoped to this plan so a second GenOut plan fires its own Day 1/4/7
           const automationType = `post_treatment_plan${plan.id}_day${day}`;
@@ -291,7 +291,7 @@ async function runPostTreatmentTransitions() {
   try {
     const today = new Date().toISOString().split("T")[0];
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code, active");
     for (const h of hospitals ?? []) {
       // Auto-end GenOut care plans when their treatment_end_date has passed.
       // "In Care" is a derived display badge — never stored in patients.stage.
@@ -583,7 +583,7 @@ async function runBirthdayEmails() {
     const todayMMDD = now.toISOString().slice(5, 10); // "MM-DD"
     const yearStart = `${now.getFullYear()}-01-01`;
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code, active");
     for (const h of hospitals ?? []) {
       const { data: patients } = await supabase
         .from("patients")
@@ -722,7 +722,7 @@ async function runCarePlanCompletionDetection() {
     const nowWAT = new Date(Date.now() + WAT_MS);
     const todayWAT = nowWAT.toISOString().slice(0, 10); // WAT date
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code, active");
     for (const h of hospitals ?? []) {
       const { data: plans } = await supabase
         .from("care_plans")
@@ -798,7 +798,7 @@ async function runDepartmentalFollowups() {
   try {
     const now = new Date();
 
-    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code, active");
     for (const h of hospitals ?? []) {
       // Query all follow-up plans whose care plan has ended — patient stage is irrelevant
       const { data: followupPlans } = await supabase
@@ -1024,14 +1024,15 @@ async function runCarePlanRemindersHourly() {
       new Date(new Date(nowWAT.getFullYear(), nowWAT.getMonth(), nowWAT.getDate(), hh, mm).getTime() - WAT_MS);
 
     // care_plans.hospital_id stores hospital_code UUID (post-migration), not the integer id
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code, active");
     if (!hospitals?.length) return;
 
     for (const h of hospitals) {
       const { data: plans } = await supabase
         .from("care_plans")
         .select("id, patient_id, department, summary, template_data, beneficiary_name, beneficiary_email")
-        .eq("hospital_id", h.hospital_code);
+        .eq("hospital_id", h.hospital_code)
+        .eq("status", "active");
 
       if (!plans?.length) continue;
 
@@ -1184,14 +1185,15 @@ async function runCareVisitReminders() {
     const tomorrowDate = tomorrowRef.toISOString().slice(0, 10);
 
     // care_plans.hospital_id stores hospital_code UUID (post-migration), not the integer id
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code").eq("active", true);
+    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code, active");
     if (!hospitals?.length) return;
 
     for (const h of hospitals) {
       const { data: plans } = await supabase
         .from("care_plans")
         .select("id, patient_id, department, summary, template_data")
-        .eq("hospital_id", h.hospital_code);
+        .eq("hospital_id", h.hospital_code)
+        .eq("status", "active");
 
       if (!plans?.length) continue;
 

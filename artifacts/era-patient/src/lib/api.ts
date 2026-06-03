@@ -8,3 +8,14 @@ export const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/,
 export function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
+
+export function authHeader(): Record<string, string> {
+  try {
+    const stored = localStorage.getItem("era_hospital_session");
+    const session = stored ? JSON.parse(stored) : null;
+    const token = session?.token as string | undefined;
+    return token ? { "x-hospital-token": token } : {};
+  } catch {
+    return {};
+  }
+}

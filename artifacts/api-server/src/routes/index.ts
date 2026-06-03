@@ -16,6 +16,7 @@ import carePlansRouter from "./care-plans";
 import automationTestsRouter from "./automation-tests";
 import importRouter from "./import";
 import followupPlansRouter from "./followup-plans";
+import supportRouter from "./support";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(carePlansRouter);
 router.use(automationTestsRouter);
 router.use(importRouter);
 router.use(followupPlansRouter);
+router.use(supportRouter);
 
 export default router;

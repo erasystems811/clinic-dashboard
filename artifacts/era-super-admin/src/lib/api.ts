@@ -182,6 +182,12 @@ export const api = {
   getConfig: () =>
     get<{ eraPatientUrl: string }>("/super-admin/config"),
 
+  listSupportTickets: () =>
+    get<{ id: number; hospital_id: number; hospital_name: string; subject: string; message: string; status: string; reply: string | null; replied_at: string | null; created_at: string }[]>("/super-admin/support/tickets"),
+
+  replyToTicket: (id: number, reply: string) =>
+    patch<{ ok: boolean }>(`/super-admin/support/tickets/${id}/reply`, { reply }),
+
   testSms: (to: string, senderId?: string) =>
     post<{ ok: boolean; detail: string }>("/super-admin/test-sms", { to, senderId }),
 

@@ -127,7 +127,7 @@ router.get("/patients", async (req, res): Promise<void> => {
       const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
         supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", pids).neq("status", "ended"),
         supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code).in("patient_id", pids),
-        supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
+        supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show","completed")'),
       ]);
       const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
       const inQueue = new Set((queueEntries ?? []).map(q => q.patient_id as number));
@@ -148,7 +148,7 @@ router.get("/patients", async (req, res): Promise<void> => {
   if (query.data.stage === "Booked") {
     const { data: apptRows } = await supabase
       .from("appointments").select("patient_id").in("patient_id", (await supabase.from("patients").select("id").eq("hospital_id", hospital.code)).data?.map(p => p.id as number) ?? [])
-      .gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")');
+      .gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show","completed")');
     const ids = [...new Set((apptRows ?? []).map(r => r.patient_id as number))];
     if (ids.length === 0) { res.json([]); return; }
     const { data, error } = await supabase
@@ -163,7 +163,7 @@ router.get("/patients", async (req, res): Promise<void> => {
       const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
         supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", pids).neq("status", "ended"),
         supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code).in("patient_id", pids),
-        supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
+        supabase.from("appointments").select("patient_id").in("patient_id", pids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show","completed")'),
       ]);
       const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
       const inQueue = new Set((queueEntries ?? []).map(q => q.patient_id as number));
@@ -218,7 +218,7 @@ router.get("/patients", async (req, res): Promise<void> => {
     const [{ data: plans }, { data: queueEntries }, { data: upcomingAppts }] = await Promise.all([
       supabase.from("care_plans").select("patient_id, department").eq("hospital_id", hospital.code).in("patient_id", ids).neq("status", "ended"),
       supabase.from("queue").select("patient_id").eq("hospital_id", hospital.code).in("patient_id", ids),
-      supabase.from("appointments").select("patient_id").in("patient_id", ids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")'),
+      supabase.from("appointments").select("patient_id").in("patient_id", ids).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show","completed")'),
     ]);
 
     const withPlans = new Set((plans ?? []).map(p => p.patient_id as number));
@@ -326,7 +326,7 @@ router.get("/patients/:id", async (req, res): Promise<void> => {
   const [{ data: plans }, { data: queueEntry }, { data: upcomingAppt }] = await Promise.all([
     supabase.from("care_plans").select("id").eq("patient_id", id).eq("hospital_id", hospitalId).neq("status", "ended").limit(1),
     supabase.from("queue").select("id").eq("patient_id", id).maybeSingle(),
-    supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")').limit(1).maybeSingle(),
+    supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show","completed")').limit(1).maybeSingle(),
   ]);
   const hasCarePlan = (plans ?? []).length > 0;
   const isInQueue = !!queueEntry;
@@ -352,7 +352,7 @@ router.get("/patients/:id/history", async (req, res): Promise<void> => {
     supabase.from("call_tasks").select("*").eq("patient_id", id).order("flagged_at", { ascending: true }),
     supabase.from("care_plans").select("*").eq("patient_id", id).order("created_at", { ascending: false }),
     supabase.from("queue").select("id").eq("patient_id", id).maybeSingle(),
-    supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show")').limit(1).maybeSingle(),
+    supabase.from("appointments").select("id").eq("patient_id", id).gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show","completed")').limit(1).maybeSingle(),
   ]);
 
   if (allPlansRes.error) {
@@ -615,12 +615,21 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
   let matchedAppointmentId: number | null = null;
   let hasTimedAppointment = false;
 
+  // WAT = UTC+1; compare appointment date against today's date in WAT
+  const todayWAT = new Date(now.getTime() + 60 * 60 * 1000).toISOString().split("T")[0];
+
   for (const appt of scheduledAppts ?? []) {
     const apptTime = new Date(appt.scheduled_at);
-    const diffMins = (apptTime.getTime() - now.getTime()) / 60000;
-    await supabase.from("appointments").update({ status: "completed" }).eq("id", appt.id);
-    matchedAppointmentId = appt.id;
-    if (Math.abs(diffMins) <= 60) hasTimedAppointment = true;
+    const apptDateWAT = new Date(apptTime.getTime() + 60 * 60 * 1000).toISOString().split("T")[0];
+    const isToday = apptDateWAT === todayWAT;
+
+    // Only complete appointments scheduled for today — future appointments stay scheduled
+    if (isToday) {
+      await supabase.from("appointments").update({ status: "completed" }).eq("id", appt.id);
+      matchedAppointmentId = appt.id;
+      const diffMins = (apptTime.getTime() - now.getTime()) / 60000;
+      if (Math.abs(diffMins) <= 60) hasTimedAppointment = true;
+    }
   }
 
   const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true }).eq("hospital_id", existing.hospital_id);

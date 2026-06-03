@@ -183,10 +183,16 @@ export const api = {
     get<{ eraPatientUrl: string }>("/super-admin/config"),
 
   listSupportTickets: () =>
-    get<{ id: number; hospital_id: number; hospital_name: string; subject: string; message: string; status: string; reply: string | null; replied_at: string | null; created_at: string }[]>("/super-admin/support/tickets"),
+    get<{ id: number; hospital_id: number; hospital_name: string; subject: string; status: string; created_at: string; last_message: { sender: string; preview: string; created_at: string } | null }[]>("/super-admin/support/tickets"),
 
-  replyToTicket: (id: number, reply: string) =>
-    patch<{ ok: boolean }>(`/super-admin/support/tickets/${id}/reply`, { reply }),
+  getSupportThread: (id: number) =>
+    get<{ ticket: object; messages: { id: number; sender: string; message: string; created_at: string }[] }>(`/super-admin/support/tickets/${id}/messages`),
+
+  replyToTicket: (id: number, message: string) =>
+    patch<{ ok: boolean }>(`/super-admin/support/tickets/${id}/reply`, { message }),
+
+  reopenTicket: (id: number) =>
+    patch<{ ok: boolean }>(`/super-admin/support/tickets/${id}/reopen`, {}),
 
   testSms: (to: string, senderId?: string) =>
     post<{ ok: boolean; detail: string }>("/super-admin/test-sms", { to, senderId }),

@@ -63,6 +63,8 @@ export interface HospitalContext {
   language: string | null;
   /** Communication tone tags — e.g. ["Warm", "Empathetic"]. Empty array = default warm/professional. */
   tone: string[];
+  /** Short description of the clinic — used to personalise AI-generated messages. Null if not set. */
+  clinicDescription: string | null;
   /** True when the hospital is suspended. Send functions must log as "sent" (dedup) but not deliver. */
   suspended: boolean;
 }
@@ -71,7 +73,7 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
   const [{ data: hospital }, { data: settings }] = await Promise.all([
     supabase.from("hospitals").select("id, name, username, hospital_code, active").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
-      .select("sender_name, notification_channel, phone_number, tone, termii_sender_id, language")
+      .select("sender_name, notification_channel, phone_number, tone, termii_sender_id, language, clinic_description")
       .eq("hospital_id", hospitalId).maybeSingle(),
   ]);
   const suspended = hospital?.active === false;
@@ -95,6 +97,7 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
     termiiSenderId: (settings?.termii_sender_id as string) ?? null,
     language: (settings?.language as string | null) ?? null,
     tone,
+    clinicDescription: (settings?.clinic_description as string | null) ?? null,
     suspended,
   };
 }
@@ -583,9 +586,12 @@ export async function sendBirthdayEmail(
     const tone = buildToneDescription(hCtx.tone);
     const lang = hCtx.language ?? "English";
 
+    const clinicContext = hCtx.clinicDescription
+      ? `About ${hCtx.hospitalName}: ${hCtx.clinicDescription}. Let this shape the personality and voice of the email — a cardiology clinic writes differently from a dental practice or a general hospital.`
+      : "";
     const body = await generateClaudeMessage(
-      `You are writing a birthday email on behalf of ${hCtx.hospitalName} to a patient. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. Write something genuinely warm, memorable, and a little creative — this is someone's birthday and you want them to smile when they read it and remember that ${hCtx.hospitalName} truly cares about them. STRICT RULES: (1) Never reference age, milestones, getting older, or how many years have passed. (2) Never reference religion, God, prayers, or any spiritual practice. (3) Never reference tribe, ethnicity, culture, or traditions. (4) Never assume gender — use gender-neutral language throughout, never say he/she/his/her. (5) Do NOT highlight or invent personal traits about the person — the hospital does not know them personally. (6) Never say you are happy or glad the patient is a patient. STRUCTURE — exactly 3 to 4 paragraphs: (1) A warm, enthusiastic birthday opening that makes ${firstName} feel genuinely celebrated and special to the ${hCtx.hospitalName} team — express that they matter and that the whole team is thinking of them today. (2) A heartfelt paragraph about how ${hCtx.hospitalName} is committed to always being there for them, always giving their best, and how the biggest wish for ${firstName} today is truly good health — write this with genuine warmth, not like a sales pitch. (3) One lighthearted, slightly funny health-related birthday tip — keep it playful and gentle, like "our official medical advice for today is to take one slice of cake every few hours" or something creative and fun — make it feel like a joke from a caring friend, not a lecture. (4) A warm, genuine closing that feels personal and sends them off with a smile. End with a sign-off from the ${hCtx.hospitalName} Team. Do not add contact lines or "please do not reply".`,
-      `Write a warm, creative, memorable birthday email for ${firstName} from ${hCtx.hospitalName}. 3-4 paragraphs. Celebrate them, express genuine care, wish them good health, include one light funny health tip. Make it feel real and human.`,
+      `You are writing a birthday email on behalf of ${hCtx.hospitalName} to a patient. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. ${clinicContext} Write something genuinely warm, memorable, and a little creative — this is someone's birthday and you want them to smile when they read it and remember that ${hCtx.hospitalName} truly cares about them. Every hospital's email should have its own distinct personality shaped by its tone and type of clinic. STRICT RULES: (1) Never reference age, milestones, getting older, or how many years have passed. (2) Never reference religion, God, prayers, or any spiritual practice. (3) Never reference tribe, ethnicity, culture, or traditions. (4) Never assume gender — use gender-neutral language throughout, never say he/she/his/her. (5) Do NOT highlight or invent personal traits about the person — the hospital does not know them personally. (6) Never say you are happy or glad the patient is a patient. STRUCTURE — exactly 3 to 4 paragraphs: (1) A warm, enthusiastic birthday opening that makes ${firstName} feel genuinely celebrated and special to the ${hCtx.hospitalName} team — express that they matter and that the whole team is thinking of them today. (2) A heartfelt paragraph about how ${hCtx.hospitalName} is committed to always being there for them, always giving their best, and how the biggest wish for ${firstName} today is truly good health — write this with genuine warmth, not like a sales pitch. (3) One lighthearted, slightly funny health-related birthday tip — keep it playful and gentle, something creative and fun that fits the personality of ${hCtx.hospitalName} — make it feel like a joke from a caring friend, not a lecture. (4) A warm, genuine closing that feels personal and sends them off with a smile. End with a sign-off from the ${hCtx.hospitalName} Team. Do not add contact lines or "please do not reply".`,
+      `Write a warm, creative, memorable birthday email for ${firstName} from ${hCtx.hospitalName}. 3-4 paragraphs. Celebrate them, express genuine care, wish them good health, include one light funny health tip that matches this clinic's personality. Make it feel real, human, and unique to ${hCtx.hospitalName}.`,
       420,
     );
 

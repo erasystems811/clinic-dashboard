@@ -226,28 +226,29 @@ async function runDormantDetection() {
   try {
     const now = new Date();
 
+    // Start from ALL hospitals — not just those with a settings row.
+    // A hospital with no settings row uses the default of 30 days.
     const { data: hospitals } = await supabase
-      .from("hospital_settings")
-      .select("hospital_id, pipeline_dormant_days");
+      .from("hospitals")
+      .select("id, hospital_code, active");
 
-    for (const hs of hospitals ?? []) {
-      const dormantDays = (hs.pipeline_dormant_days as number) ?? 30;
-
-      const { data: hospital } = await supabase
-        .from("hospitals")
-        .select("hospital_code, active")
-        .eq("id", hs.hospital_id)
-        .maybeSingle();
-      if (!hospital) continue;
-      // Never run dormant detection for suspended hospitals — patients retain their
-      // activity timestamps so counting resumes correctly after unsuspension.
+    for (const hospital of hospitals ?? []) {
+      // Skip suspended hospitals — patients retain their activity timestamps
+      // so counting resumes correctly after unsuspension.
       if (hospital.active === false) continue;
+      if (!hospital.hospital_code) continue;
 
-      // Cutoff: patient must NOT have been queued (checked in) within the dormant window.
+      // Look up dormant days config — default 30 if no settings row exists yet.
+      const { data: settings } = await supabase
+        .from("hospital_settings")
+        .select("pipeline_dormant_days")
+        .eq("hospital_id", hospital.id)
+        .maybeSingle();
+
+      const dormantDays = (settings?.pipeline_dormant_days as number | null) ?? 30;
       const cutoff = new Date(now.getTime() - dormantDays * 24 * 60 * 60 * 1000).toISOString();
 
-      // Only target "Active" (and its DB alias "Post Care") — never overwrite Post Treatment,
-      // In Care, or already-Dormant patients.
+      // Only target Active patients — never overwrite Post Treatment, In Care, or already-Dormant.
       const { data: patients } = await supabase
         .from("patients")
         .select("id, first_name, last_name")
@@ -255,7 +256,7 @@ async function runDormantDetection() {
         .eq("stage", "Active");
 
       for (const p of patients ?? []) {
-        // Skip if the patient had a check-in (was queued) within the dormant window
+        // Skip if the patient had any queue check-in within the dormant window.
         const { data: recentCheckin } = await supabase
           .from("activity")
           .select("id")
@@ -276,7 +277,7 @@ async function runDormantDetection() {
           patient_name: `${p.first_name} ${p.last_name}`,
           metadata: "Dormant",
         });
-        log(`Patient ${p.id} moved to Dormant (${dormantDays}d inactivity)`);
+        log(`Patient ${p.id} → Dormant (${dormantDays}d without queue check-in)`);
       }
     }
   } catch (err) {

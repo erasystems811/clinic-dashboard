@@ -144,10 +144,12 @@ You have full knowledge of the internal platform:
 - Roles: admin (full access), receptionist (queue + appointments), nurse (medication view + call tasks).
 - Features enabled/disabled per hospital in hospital_modules table (appointments_enabled, feedback_enabled, etc).
 
+You will be given REAL LIVE DATA from this hospital's account. Use it directly in your diagnosis and steps — reference specific errors, timestamps, and values you can see. Do not give generic advice when real data is available.
+
 Give the super admin:
-1. A one-line diagnosis of what is likely causing the issue.
-2. Up to 4 specific, actionable steps they should check or do to fix it (check a Supabase table, verify a setting, resend something, etc).
-3. A suggested reply message they can send to the hospital — short, friendly, professional.
+1. A one-line diagnosis based on the real data and the complaint.
+2. Up to 4 specific, actionable steps — reference actual error messages or table values where visible.
+3. A suggested reply to send the hospital — short, friendly, professional, based on what you actually found.
 
 Respond with a JSON object only:
 {
@@ -169,10 +171,18 @@ export interface TicketAnalysis {
   suggestedReply: string;
 }
 
+export interface AccountContext {
+  modules: Record<string, unknown> | null;
+  recentAutomationLogs: Array<{ automation_type: string; status: string; error_message: string | null; created_at: string }>;
+  recentFailures: Array<{ automation_type: string; error_message: string | null; created_at: string }>;
+  patientCount: number | null;
+}
+
 export async function runTicketAnalysis(
   subject: string,
   hospitalName: string,
   messages: SupportMessage[],
+  context: AccountContext,
 ): Promise<TicketAnalysis> {
   const openai = getOpenAI();
 
@@ -180,14 +190,27 @@ export async function runTicketAnalysis(
     .map(m => `${m.sender === "hospital" ? "Hospital" : m.sender === "ai" ? "AI Support" : "Admin"}: ${m.message}`)
     .join("\n");
 
+  const contextBlock = [
+    `=== LIVE ACCOUNT DATA FOR ${hospitalName} ===`,
+    `Patient count: ${context.patientCount ?? "unknown"}`,
+    `Modules: ${context.modules ? JSON.stringify(context.modules) : "not found"}`,
+    context.recentFailures.length > 0
+      ? `Recent automation FAILURES (last 48h):\n${context.recentFailures.map(f => `  - [${f.automation_type}] ${f.created_at}: ${f.error_message ?? "no error message"}`).join("\n")}`
+      : "No recent automation failures found.",
+    context.recentAutomationLogs.length > 0
+      ? `Last 10 automation log entries:\n${context.recentAutomationLogs.map(l => `  - [${l.automation_type}] status=${l.status} at ${l.created_at}`).join("\n")}`
+      : "No recent automation log entries.",
+    `=== END LIVE DATA ===`,
+  ].join("\n");
+
   try {
     const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: ADMIN_ANALYSIS_PROMPT },
-        { role: "user", content: `Hospital: ${hospitalName}\nSubject: ${subject}\n\nConversation:\n${conversation}` },
+        { role: "user", content: `Hospital: ${hospitalName}\nSubject: ${subject}\n\n${contextBlock}\n\nConversation:\n${conversation}` },
       ],
-      max_tokens: 500,
+      max_tokens: 600,
       temperature: 0.2,
       response_format: { type: "json_object" },
     });

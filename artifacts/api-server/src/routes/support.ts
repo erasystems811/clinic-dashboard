@@ -4,8 +4,7 @@ import { z } from "zod/v4";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 import { requireSuperAdmin } from "./super-admin.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
-import { runSupportAI, type SupportMessage } from "../lib/support-ai.js";
-import { runTicketAnalysis } from "../lib/support-ai.js";
+import { runSupportAI, runTicketAnalysis, type SupportMessage, type AccountContext } from "../lib/support-ai.js";
 
 const router: IRouter = Router();
 
@@ -360,10 +359,36 @@ router.get("/super-admin/support/tickets/:id/analysis", requireSuperAdmin, async
     .eq("ticket_id", id)
     .order("created_at", { ascending: true });
 
+  const hospitalIntId = ticket.hospital_id as number;
+  const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
+  // Resolve hospital code first, then gather live data in parallel
+  const { data: hospitalRow } = await supabase
+    .from("hospitals").select("hospital_code").eq("id", hospitalIntId).single();
+  const hospitalCode = (hospitalRow?.hospital_code as string) ?? "";
+
+  const [modulesRes, logsRes, failuresRes, patientCountRes] = await Promise.all([
+    supabase.from("hospital_modules").select("*").eq("hospital_id", hospitalIntId).maybeSingle(),
+    supabase.from("automation_log").select("automation_type, status, error_message, created_at")
+      .eq("hospital_id", hospitalIntId).order("created_at", { ascending: false }).limit(10),
+    supabase.from("automation_log").select("automation_type, error_message, created_at")
+      .eq("hospital_id", hospitalIntId).eq("status", "failed").gte("created_at", since48h)
+      .order("created_at", { ascending: false }).limit(20),
+    supabase.from("patients").select("id", { count: "exact", head: true }).eq("hospital_id", hospitalCode),
+  ]);
+
+  const context: AccountContext = {
+    modules: modulesRes.data as Record<string, unknown> | null,
+    recentAutomationLogs: (logsRes.data ?? []) as AccountContext["recentAutomationLogs"],
+    recentFailures: (failuresRes.data ?? []) as AccountContext["recentFailures"],
+    patientCount: patientCountRes.count,
+  };
+
   const analysis = await runTicketAnalysis(
     ticket.subject as string,
     ticket.hospital_name as string,
     (messages ?? []) as SupportMessage[],
+    context,
   );
 
   res.json(analysis);

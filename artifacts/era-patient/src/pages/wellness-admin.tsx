@@ -139,7 +139,20 @@ const FALLBACK_TOPIC_SUGGESTIONS = [
 
 export default function WellnessAdmin() {
   const { toast } = useToast();
-  const { hospital } = useAuth();
+  const { hospital, hospitalConfig } = useAuth();
+  const wellnessEnabled = hospitalConfig?.modules?.wellnessNewsletterEnabled ?? true;
+
+  if (!wellnessEnabled) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+          <Newspaper className="w-10 h-10 text-muted-foreground/30" />
+          <p className="text-sm font-medium">Wellness Newsletter is not available</p>
+          <p className="text-xs text-muted-foreground">This feature is not enabled for your clinic.</p>
+        </div>
+      </Layout>
+    );
+  }
   const queryClient = useQueryClient();
   const currentWeekOf = weekOfDate(new Date());
 

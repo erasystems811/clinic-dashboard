@@ -81,20 +81,22 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-amber-400">{summary.criticalAlerts}</div>
-                  <p className="text-xs text-muted-foreground mt-1">In queue or active care</p>
+                  <p className="text-xs text-muted-foreground mt-1">{feedbackEnabled ? "In queue or active care" : "In active care"}</p>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Avg Wait Time</CardTitle>
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{summary.avgWaitMinutes ?? 0}<span className="text-sm font-normal ml-1">min</span></div>
-                  <div className="mt-1"><TrendBadge trend={summary.avgWaitTrend} goodDirection="down" /></div>
-                </CardContent>
-              </Card>
+              {feedbackEnabled && (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Avg Wait Time</CardTitle>
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{summary.avgWaitMinutes ?? 0}<span className="text-sm font-normal ml-1">min</span></div>
+                    <div className="mt-1"><TrendBadge trend={summary.avgWaitTrend} goodDirection="down" /></div>
+                  </CardContent>
+                </Card>
+              )}
 
               {apptEnabled && (
                 <Card>

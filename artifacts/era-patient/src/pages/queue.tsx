@@ -29,6 +29,19 @@ function waitTime(addedAt: string) {
 export default function QueueManagement() {
   const { hospitalConfig } = useAuth();
   const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
+  const queueEnabled = hospitalConfig?.modules?.feedbackEnabled ?? true;
+
+  if (!queueEnabled) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+          <Users className="w-10 h-10 text-muted-foreground/30" />
+          <p className="text-sm font-medium">Queue Management is not available</p>
+          <p className="text-xs text-muted-foreground">This feature is not enabled for your clinic.</p>
+        </div>
+      </Layout>
+    );
+  }
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();

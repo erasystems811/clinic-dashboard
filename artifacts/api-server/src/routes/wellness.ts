@@ -249,6 +249,30 @@ async function markTopicUsed(hospitalId: number, topic: string): Promise<void> {
 
 // ── Routes ──────────────────────────────────────────────────────────────────────
 
+// Returns current usage counts so the UI can show limits proactively
+router.get("/wellness/limits", async (req, res): Promise<void> => {
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const weekOf = weekOfDate(new Date());
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [{ data: weekRecord }, { count: bulkCount }] = await Promise.all([
+    supabase.from("wellness_newsletter").select("generate_count").eq("hospital_id", hospitalId).eq("week_of", weekOf).maybeSingle(),
+    supabase.from("automation_log").select("id", { count: "exact", head: true }).eq("hospital_id", hospitalId).eq("automation_type", "bulk_email_blast").eq("status", "sent").gte("created_at", monthStart.toISOString()),
+  ]);
+
+  res.json({
+    generateCount: (weekRecord?.generate_count as number) ?? 0,
+    weeklyLimit: 5,
+    bulkSentThisMonth: bulkCount ?? 0,
+    monthlyLimit: 2,
+  });
+});
+
 router.get("/wellness", async (req, res): Promise<void> => {
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;

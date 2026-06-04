@@ -164,6 +164,10 @@ export default function WellnessAdmin() {
   const [showTopicSuggestions, setShowTopicSuggestions] = useState(false);
   const [sendResult, setSendResult] = useState<{ sent: number; failed: number } | null>(null);
   const [topicSuggestions, setTopicSuggestions] = useState<string[]>(FALLBACK_TOPIC_SUGGESTIONS);
+  const [generateCount, setGenerateCount] = useState<number>(0);
+  const [bulkSentThisMonth, setBulkSentThisMonth] = useState<number>(0);
+  const WEEKLY_LIMIT = 5;
+  const MONTHLY_BULK_LIMIT = 2;
 
   useEffect(() => {
     if (!hospital?.token) return;
@@ -173,6 +177,18 @@ export default function WellnessAdmin() {
       .then(r => r.ok ? r.json() : null)
       .then((data: { suggested: string[] } | null) => {
         if (data?.suggested?.length) setTopicSuggestions(data.suggested);
+      })
+      .catch(() => {});
+
+    fetch(apiUrl(`/api/wellness/limits`), {
+      headers: { "x-hospital-token": hospital.token },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { generateCount: number; bulkSentThisMonth: number } | null) => {
+        if (data) {
+          setGenerateCount(data.generateCount);
+          setBulkSentThisMonth(data.bulkSentThisMonth);
+        }
       })
       .catch(() => {});
   }, [hospital?.token]);
@@ -217,6 +233,7 @@ export default function WellnessAdmin() {
       setSubtopic(data.subtopic ?? "");
       setAngle(data.angle ?? "");
       setEditing(true);
+      if (typeof data.generateCount === "number") setGenerateCount(data.generateCount);
       const desc = data.angle ? `${data.subtopic} → ${data.angle}` : (data.subtopic ?? data.topic);
       toast({ title: "Newsletter generated", description: desc });
     } catch (err: unknown) {
@@ -437,15 +454,18 @@ export default function WellnessAdmin() {
 
             {/* Generate with AI */}
             <div className="space-y-2">
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap">
                 <Button
                   variant="outline"
                   className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
                   onClick={() => handleGenerate("fresh")}
-                  disabled={generating}
+                  disabled={generating || generateCount >= WEEKLY_LIMIT}
                 >
                   {generating ? <><Loader2 className="w-4 h-4 animate-spin" />Generating…</> : <><Sparkles className="w-4 h-4" />Generate with AI</>}
                 </Button>
+                <span className={`text-xs ${generateCount >= WEEKLY_LIMIT ? "text-destructive" : "text-muted-foreground"}`}>
+                  {generateCount} of {WEEKLY_LIMIT} used this week
+                </span>
               </div>
 
               {/* Subtopic + Angle Claude chose — with per-level regenerate controls */}
@@ -562,9 +582,14 @@ export default function WellnessAdmin() {
         {/* ── Bulk Email tab ── */}
         {activeTab === "bulk" && (
           <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-            <div>
-              <p className="text-sm font-semibold">Send a Custom Email to All Patients</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Sends to all Active, Post Treatment, In Care, and Dormant patients. Use for announcements, special notices, or any message outside the wellness newsletter.</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold">Send a Custom Email to All Patients</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Sends to all Active, Post Treatment, In Care, and Dormant patients. Use for announcements, special notices, or any message outside the wellness newsletter.</p>
+              </div>
+              <span className={`text-xs shrink-0 font-medium px-2.5 py-1 rounded-full border ${bulkSentThisMonth >= MONTHLY_BULK_LIMIT ? "border-destructive/40 text-destructive bg-destructive/5" : "border-border text-muted-foreground"}`}>
+                {bulkSentThisMonth} / {MONTHLY_BULK_LIMIT} this month
+              </span>
             </div>
 
             {bulkResult ? (
@@ -596,7 +621,7 @@ export default function WellnessAdmin() {
                 </div>
                 <button
                   className="w-full py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
-                  disabled={bulkSending || !bulkSubject.trim() || !bulkMessage.trim()}
+                  disabled={bulkSending || !bulkSubject.trim() || !bulkMessage.trim() || bulkSentThisMonth >= MONTHLY_BULK_LIMIT}
                   onClick={async () => {
                     if (!hospital?.token) return;
                     setBulkSending(true);
@@ -609,6 +634,7 @@ export default function WellnessAdmin() {
                       const data = await res.json();
                       if (!res.ok) throw new Error(data.error ?? "Send failed");
                       setBulkResult(data);
+                      if (typeof data.bulkSentThisMonth === "number") setBulkSentThisMonth(data.bulkSentThisMonth);
                     } catch (err: unknown) {
                       toast({ title: "Send failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
                     } finally {

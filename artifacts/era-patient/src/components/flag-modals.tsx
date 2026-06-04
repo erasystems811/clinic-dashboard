@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
-import { Flag, MessageSquare, PhoneCall, X, User, Users, Send, Loader2, CheckCircle2 } from "lucide-react";
+import { Flag, MessageSquare, PhoneCall, X, User, Users, Send, Loader2, CheckCircle2, Sparkles } from "lucide-react";
 
 interface ModalProps {
   patientName: string;
@@ -42,31 +42,62 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   });
 
   // ── Handle Myself state ─────────────────────────────────────────────────────
+  const [selfMethod, setSelfMethod] = useState<"text" | "call">("text");
   const [selfReason, setSelfReason] = useState("");
   const [message, setMessage] = useState("");
+  const [draftIsAi, setDraftIsAi] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [callOutcome, setCallOutcome] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [aiCount, setAiCount] = useState<{ used: number; limit: number } | null>(null);
+
+  const handleGenerateDraft = async () => {
+    if (!hospital?.token || !selfReason.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await fetch(apiUrl(`/api/patients/${patientId}/ai-draft-message`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        body: JSON.stringify({ reason: selfReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Generation failed");
+      setMessage(data.draft ?? "");
+      setDraftIsAi(true);
+      if (data.dailyCount !== undefined) setAiCount({ used: data.dailyCount, limit: data.dailyLimit });
+    } catch (err: unknown) {
+      toast({ title: "AI draft failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSendSelf = async () => {
-    if (!message.trim() && !selfReason.trim()) return;
     if (!hospital?.token) return;
+    const isText = selfMethod === "text";
+    if (isText && !message.trim()) return;
+    if (!isText && !callOutcome.trim()) return;
     setSending(true);
     try {
+      const body = isText
+        ? { message: message.trim(), reason: selfReason.trim() }
+        : { logOnly: true, reason: selfReason.trim(), callOutcome: callOutcome.trim() };
       const res = await fetch(apiUrl(`/api/patients/${patientId}/direct-message`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
-        body: JSON.stringify({ message: message.trim() || selfReason.trim(), reason: selfReason.trim() }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Send failed");
+      if (!res.ok) throw new Error(data.error ?? "Failed");
       setSent(true);
       toast({
-        title: data.sent ? "Message sent" : "Logged (no phone number)",
-        description: data.sent ? `Message delivered to ${patientName}.` : `No phone on record — activity logged.`,
+        title: isText ? (data.sent ? "Message sent" : "Logged — no phone number on file") : "Call logged",
+        description: isText && data.sent ? `Message delivered to ${patientName}.` : undefined,
       });
       setTimeout(onClose, 1500);
     } catch (err: unknown) {
-      toast({ title: "Failed to send", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+      toast({ title: "Failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
     } finally {
       setSending(false);
     }
@@ -133,41 +164,90 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
               </div>
               <div>
                 <p className="font-semibold text-sm">{patientName}</p>
-                <p className="text-xs text-muted-foreground">Message will be sent via WhatsApp / SMS</p>
+                <p className="text-xs text-muted-foreground">You are handling this follow-up directly</p>
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Reason <span className="text-muted-foreground font-normal">(optional — for your records)</span></label>
-              <Input
-                value={selfReason}
-                onChange={e => setSelfReason(e.target.value)}
-                placeholder="e.g. Missed last appointment, checking in…"
-              />
+            {/* Method picker */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { value: "text" as const, label: "Text / WhatsApp", icon: MessageSquare, cls: "border-blue-500 bg-blue-500/10 text-blue-400" },
+                { value: "call" as const, label: "Phone Call", icon: PhoneCall, cls: "border-primary bg-primary/10 text-primary" },
+              ].map(opt => {
+                const Icon = opt.icon;
+                const sel = selfMethod === opt.value;
+                return (
+                  <button key={opt.value} type="button" onClick={() => setSelfMethod(opt.value)}
+                    className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium transition-colors ${sel ? opt.cls : "border-border text-muted-foreground hover:border-border/60"}`}>
+                    <Icon className="w-4 h-4 shrink-0" />{opt.label}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Message to patient *</label>
-              <textarea
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                placeholder="Type your message here…"
-              />
+              <label className="text-sm font-medium">Reason <span className="text-muted-foreground font-normal">(for your records)</span></label>
+              <Input value={selfReason} onChange={e => setSelfReason(e.target.value)}
+                placeholder="e.g. Missed last appointment, checking in…" />
             </div>
 
-            <div className="flex gap-2 pt-1">
-              <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={sending}>Cancel</Button>
-              <Button
-                className="flex-1 gap-2"
-                onClick={handleSendSelf}
-                disabled={!message.trim() || sending || sent}
-              >
-                {sent ? <><CheckCircle2 className="w-4 h-4" />Sent</> :
-                 sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> :
-                 <><Send className="w-4 h-4" />Send Message</>}
+            {selfMethod === "text" ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Message to patient *</label>
+                  {aiCount && (
+                    <span className="text-[10px] text-muted-foreground">{aiCount.limit - aiCount.used}/{aiCount.limit} AI drafts left today</span>
+                  )}
+                </div>
+                <textarea
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[90px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={message}
+                  onChange={e => { setMessage(e.target.value); setDraftIsAi(false); }}
+                  placeholder="Type your message, or use AI to generate one…"
+                />
+                {draftIsAi && message && (
+                  <p className="text-[10px] text-violet-400">✦ AI-generated — review and edit before sending</p>
+                )}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm"
+                    className="gap-1.5 text-violet-400 border-violet-500/40 hover:bg-violet-500/10 shrink-0"
+                    onClick={handleGenerateDraft}
+                    disabled={generating || !selfReason.trim()}
+                    title={!selfReason.trim() ? "Enter a reason first" : "Generate AI draft"}>
+                    {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    AI Draft
+                  </Button>
+                  <Button className="flex-1 gap-2" onClick={handleSendSelf}
+                    disabled={!message.trim() || sending || sent}>
+                    {sent ? <><CheckCircle2 className="w-4 h-4" />Sent</> :
+                     sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> :
+                     <><Send className="w-4 h-4" />Send Message</>}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Call outcome *</label>
+                <textarea
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={callOutcome}
+                  onChange={e => setCallOutcome(e.target.value)}
+                  placeholder="What happened on the call? Patient's response, next steps…"
+                />
+                <Button className="w-full gap-2" onClick={handleSendSelf}
+                  disabled={!callOutcome.trim() || sending || sent}>
+                  {sent ? <><CheckCircle2 className="w-4 h-4" />Logged</> :
+                   sending ? <><Loader2 className="w-4 h-4 animate-spin" />Logging…</> :
+                   <><CheckCircle2 className="w-4 h-4" />Log Call</>}
+                </Button>
+              </div>
+            )}
+
+            {step === "self" && !sent && (
+              <Button type="button" variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={onClose} disabled={sending}>
+                Cancel
               </Button>
-            </div>
+            )}
           </div>
         )}
 

@@ -922,6 +922,51 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   res.json(camelize(task));
 });
 
+// ── AI draft for direct message (no call task required) ───────────────────────
+router.post("/patients/:id/ai-draft-message", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { reason } = req.body ?? {};
+  if (!reason?.trim()) { res.status(400).json({ error: "reason is required" }); return; }
+
+  const { data: patient } = await supabase.from("patients").select("first_name, last_name").eq("id", id).eq("hospital_id", hospital.code).single();
+  if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+
+  // Reuse the daily limit from call_task_draft_generated
+  const today = new Date().toISOString().split("T")[0];
+  const { count: usedToday } = await supabase.from("automation_log").select("*", { count: "exact", head: true })
+    .eq("hospital_id", hospital.intId).eq("automation_type", "call_task_draft_generated")
+    .gte("created_at", `${today}T00:00:00Z`).lte("created_at", `${today}T23:59:59Z`);
+
+  const { data: settings } = await supabase.from("hospital_settings").select("call_task_ai_daily_limit").eq("hospital_id", hospital.intId).maybeSingle();
+  const dailyLimit = (settings?.call_task_ai_daily_limit as number | null) ?? 20;
+
+  if ((usedToday ?? 0) >= dailyLimit) {
+    res.status(429).json({ error: `Daily AI draft limit reached (${dailyLimit}/day)`, dailyCount: usedToday, dailyLimit });
+    return;
+  }
+
+  try {
+    const { generateCallTaskDraft } = await import("../lib/automation.js");
+    const patientName = `${patient.first_name} ${patient.last_name}`;
+    const draft = await generateCallTaskDraft(hospital.intId, id, patientName, reason.trim());
+
+    await supabase.from("automation_log").insert({
+      hospital_id: hospital.intId,
+      automation_type: "call_task_draft_generated",
+      status: "sent",
+    });
+
+    res.json({ draft, dailyCount: (usedToday ?? 0) + 1, dailyLimit });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Generation failed" });
+  }
+});
+
 // ── Direct message — nurse/admin handles follow-up themselves ─────────────────
 router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
@@ -930,8 +975,8 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { message, reason } = req.body ?? {};
-  if (!message?.trim()) { res.status(400).json({ error: "message is required" }); return; }
+  const { message, reason, logOnly, callOutcome } = req.body ?? {};
+  if (!logOnly && !message?.trim()) { res.status(400).json({ error: "message is required" }); return; }
 
   const { data: patient } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
@@ -940,26 +985,39 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   const phone = (patient.whatsapp_number as string) || (patient.phone as string);
   const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
 
-  // Send via WhatsApp/SMS
   let sent = false;
-  if (phone) {
-    try {
-      const { deliverMobileMessage } = await import("../lib/messaging.js");
-      await deliverMobileMessage(hospital.intId, phone, message.trim());
-      sent = true;
-    } catch (err) {
-      console.error("[direct-message] send failed:", err);
-    }
-  }
 
-  await supabase.from("activity").insert({
-    type: "manual_text",
-    description: `Direct message sent to ${patientName}${reason ? ` — ${reason}` : ""}`,
-    patient_id: id,
-    patient_name: patientName,
-    metadata: message.trim().slice(0, 200),
-    performed_by: performedBy,
-  });
+  if (logOnly) {
+    // Phone call — just log the outcome, no message sent
+    await supabase.from("activity").insert({
+      type: "manual_call",
+      description: `Phone call made to ${patientName}${reason ? ` — ${reason}` : ""}${callOutcome ? `: ${callOutcome}` : ""}`,
+      patient_id: id,
+      patient_name: patientName,
+      metadata: callOutcome ?? reason ?? null,
+      performed_by: performedBy,
+    });
+  } else {
+    // Text/WhatsApp — send the message
+    if (phone) {
+      try {
+        const { deliverMobileMessage } = await import("../lib/messaging.js");
+        await deliverMobileMessage(hospital.intId, phone, message.trim());
+        sent = true;
+      } catch (err) {
+        console.error("[direct-message] send failed:", err);
+      }
+    }
+
+    await supabase.from("activity").insert({
+      type: "manual_text",
+      description: `Direct message sent to ${patientName}${reason ? ` — ${reason}` : ""}`,
+      patient_id: id,
+      patient_name: patientName,
+      metadata: message.trim().slice(0, 200),
+      performed_by: performedBy,
+    });
+  }
 
   res.json({ ok: true, sent, phone: phone || null });
 });

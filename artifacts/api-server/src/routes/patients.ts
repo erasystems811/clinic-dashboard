@@ -550,11 +550,14 @@ router.delete("/patients/:id", async (req, res): Promise<void> => {
   // Null out patient_id on activity so history is preserved as an audit trail after deletion
   await supabase.from("activity").update({ patient_id: null }).eq("patient_id", id);
 
-  // Remove child records that would block the patient row deletion
+  // Remove all child records that reference this patient before deleting the row
   await Promise.all([
     supabase.from("appointments").delete().eq("patient_id", id),
     supabase.from("call_tasks").delete().eq("patient_id", id),
     supabase.from("queue").delete().eq("patient_id", id),
+    supabase.from("care_plans").delete().eq("patient_id", id),
+    supabase.from("feedback").delete().eq("patient_id", id),
+    supabase.from("automation_log").update({ patient_id: null }).eq("patient_id", id),
   ]);
 
   const { error: deleteErr } = await supabase.from("patients").delete().eq("id", id);

@@ -43,10 +43,8 @@ const ACTION_TYPES = [
   },
 ] as const;
 
-const AI_DAILY_LIMIT = 20;
-
 /* ── Action Panel ── */
-function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedToday: number; onAiUsed: (newCount: number) => void }) {
+function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed }: { task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (newCount: number) => void }) {
   const { toast } = useToast();
   const { hospital } = useAuth();
   const queryClient = useQueryClient();
@@ -123,12 +121,12 @@ function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedTo
   }
 
   /* ── Text panel ── */
-  const aiRemaining = Math.max(0, AI_DAILY_LIMIT - aiUsedToday);
+  const aiRemaining = Math.max(0, aiDailyLimit - aiUsedToday);
 
   const handleGenerateDraft = async () => {
     if (!hospital?.token) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
     if (aiRemaining === 0) {
-      toast({ title: "Daily AI limit reached", description: `Max ${AI_DAILY_LIMIT} AI drafts per day across all flags.`, variant: "destructive" });
+      toast({ title: "Daily AI limit reached", description: `Max ${aiDailyLimit} AI drafts per day across all flags.`, variant: "destructive" });
       return;
     }
     setGenerating(true);
@@ -193,12 +191,12 @@ function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedTo
           className="gap-1.5 text-violet-400 border-violet-500/40 hover:bg-violet-500/10 shrink-0"
           onClick={handleGenerateDraft}
           disabled={generating || aiRemaining === 0}
-          title={aiRemaining === 0 ? `Daily AI limit reached (${AI_DAILY_LIMIT}/${AI_DAILY_LIMIT})` : `${aiRemaining} AI generations left today`}
+          title={aiRemaining === 0 ? `Daily AI limit reached (${aiDailyLimit}/${aiDailyLimit})` : `${aiRemaining} AI generations left today`}
         >
           {generating
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
             : <Sparkles className="w-3.5 h-3.5" />}
-          AI Draft ({aiRemaining}/{AI_DAILY_LIMIT})
+          AI Draft ({aiRemaining}/{aiDailyLimit})
         </Button>
         <Button
           size="sm"
@@ -217,7 +215,7 @@ function ActionPanel({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedTo
 }
 
 /* ── Task Card ── */
-function TaskCard({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedToday: number; onAiUsed: (n: number) => void }) {
+function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed }: { task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (n: number) => void }) {
   const queryClient = useQueryClient();
   const [showMethodPicker, setShowMethodPicker] = useState(false);
 
@@ -326,7 +324,7 @@ function TaskCard({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedToday
             </div>
           )}
 
-          <ActionPanel task={task} aiUsedToday={aiUsedToday} onAiUsed={onAiUsed} />
+          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} />
         </div>
       )}
 
@@ -353,6 +351,7 @@ function TaskCard({ task, aiUsedToday, onAiUsed }: { task: CallTask; aiUsedToday
 export default function CallTasks() {
   const { hospital } = useAuth();
   const [aiUsedToday, setAiUsedToday] = useState(0);
+  const [aiDailyLimit, setAiDailyLimit] = useState(20);
 
   const { data: tasks = [], isLoading } = useListCallTasks(
     {},
@@ -371,6 +370,7 @@ export default function CallTasks() {
       if (res.ok) {
         const data = await res.json();
         setAiUsedToday(data.dailyCount ?? 0);
+        if (data.dailyLimit) setAiDailyLimit(data.dailyLimit);
       }
     } catch { /* silent */ }
   }, [hospital?.token]);
@@ -409,6 +409,7 @@ export default function CallTasks() {
                     key={task.id}
                     task={task}
                     aiUsedToday={aiUsedToday}
+                    aiDailyLimit={aiDailyLimit}
                     onAiUsed={setAiUsedToday}
                   />
                 ))}
@@ -430,6 +431,7 @@ export default function CallTasks() {
                     key={task.id}
                     task={task}
                     aiUsedToday={aiUsedToday}
+                    aiDailyLimit={aiDailyLimit}
                     onAiUsed={setAiUsedToday}
                   />
                 ))}

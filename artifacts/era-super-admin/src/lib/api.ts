@@ -91,6 +91,7 @@ export interface HospitalSettings {
   phoneNumber: string | null;
   termiiSenderId: string | null;
   callTaskAiDailyLimit: number | null;
+  callTaskAiUsedToday: number;
 }
 
 export interface HospitalModules {

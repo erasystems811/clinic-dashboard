@@ -419,7 +419,15 @@ router.get("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { data: settings } = await supabase.from("hospital_settings").select("*").eq("hospital_id", id).single();
+  const today = new Date().toISOString().split("T")[0];
+  const [{ data: settings }, { count: callTaskAiUsedToday }] = await Promise.all([
+    supabase.from("hospital_settings").select("*").eq("hospital_id", id).single(),
+    supabase.from("automation_log").select("id", { count: "exact", head: true })
+      .eq("hospital_id", id)
+      .eq("automation_type", "call_task_draft_generated")
+      .gte("created_at", `${today}T00:00:00Z`)
+      .lte("created_at", `${today}T23:59:59Z`),
+  ]);
   if (!settings) { res.status(404).json({ error: "Not found" }); return; }
 
   const s = camelize<Record<string, unknown>>(settings);
@@ -427,6 +435,7 @@ router.get("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
     ...s,
     departments: JSON.parse((settings.departments as string) ?? "[]"),
     tone: parseToneJson(settings.tone as string),
+    callTaskAiUsedToday: callTaskAiUsedToday ?? 0,
   });
 });
 

@@ -133,6 +133,7 @@ export default function HospitalDetail({ id }: Props) {
   const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
   const [termiiSenderId, setTermiiSenderId] = useState("");
   const [callTaskAiDailyLimit, setCallTaskAiDailyLimit] = useState("");
+  const [callTaskAiUsedToday, setCallTaskAiUsedToday] = useState(0);
 
   // Test SMS
   const [testSmsTo, setTestSmsTo] = useState("");
@@ -184,6 +185,7 @@ export default function HospitalDetail({ id }: Props) {
       setNotificationChannel((s.notificationChannel as "whatsapp" | "sms") ?? "whatsapp");
       setTermiiSenderId(s.termiiSenderId ?? "");
       setCallTaskAiDailyLimit(s.callTaskAiDailyLimit?.toString() ?? "");
+      setCallTaskAiUsedToday(s.callTaskAiUsedToday ?? 0);
       setContactEmail(h.contactEmail ?? "");
       setContactPhone(h.contactPhone ?? "");
       setApptEnabled(m.appointmentsEnabled);
@@ -711,8 +713,13 @@ export default function HospitalDetail({ id }: Props) {
 
           {/* Call Task AI Limit */}
           <div className="pt-2 border-t border-border">
-            <Field label="Call Task AI Generation Limit (per day)" hint={`Max AI drafts a receptionist can generate per day. Default is 20 if left blank.`}>
-              <input type="number" value={callTaskAiDailyLimit} onChange={e => setCallTaskAiDailyLimit(e.target.value)} className={inputCls()} placeholder="20" min="1" max="200" />
+            <Field label="Call Task AI Generation Limit (per day)" hint="Max AI drafts a receptionist can generate per day. Default is 20 if left blank.">
+              <div className="flex items-center gap-3">
+                <input type="number" value={callTaskAiDailyLimit} onChange={e => setCallTaskAiDailyLimit(e.target.value)} className={inputCls()} placeholder="20" min="1" max="200" />
+                <span className={`text-xs font-medium shrink-0 px-2.5 py-1.5 rounded-lg border ${callTaskAiUsedToday >= (callTaskAiDailyLimit ? parseInt(callTaskAiDailyLimit) : 20) ? "border-destructive/40 text-destructive bg-destructive/5" : "border-border text-muted-foreground bg-muted"}`}>
+                  {callTaskAiUsedToday} / {callTaskAiDailyLimit || 20} today
+                </span>
+              </div>
             </Field>
           </div>
 

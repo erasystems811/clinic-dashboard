@@ -318,7 +318,7 @@ router.post("/wellness/generate", async (req, res): Promise<void> => {
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const WEEKLY_LIMIT = 10;
+  const WEEKLY_LIMIT = 5;
   const weekOf = weekOfDate(new Date());
 
   // Check weekly regeneration limit
@@ -472,6 +472,29 @@ router.post("/wellness/bulk-email", async (req, res): Promise<void> => {
   const parsed = BulkEmailBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "subject and message are required" }); return; }
 
+  // Limit bulk email sends to 2 per calendar month per hospital
+  const MONTHLY_BULK_LIMIT = 2;
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const { count: bulkSentThisMonth } = await supabase
+    .from("automation_log")
+    .select("id", { count: "exact", head: true })
+    .eq("hospital_id", hospitalId)
+    .eq("automation_type", "bulk_email_blast")
+    .eq("status", "sent")
+    .gte("created_at", monthStart.toISOString());
+
+  if ((bulkSentThisMonth ?? 0) >= MONTHLY_BULK_LIMIT) {
+    res.status(429).json({
+      error: `You have reached the maximum of ${MONTHLY_BULK_LIMIT} bulk email sends for this month. The limit resets on the 1st of next month.`,
+      bulkSentThisMonth: bulkSentThisMonth ?? 0,
+      monthlyLimit: MONTHLY_BULK_LIMIT,
+    });
+    return;
+  }
+
   try {
     const hCtx = await getHospitalContext(hospitalId);
 
@@ -506,7 +529,17 @@ router.post("/wellness/bulk-email", async (req, res): Promise<void> => {
       }
     }
 
-    res.json({ sent, failed, total: (patients ?? []).length });
+    // Log this bulk send event so the monthly limit check can count it
+    await supabase.from("automation_log").insert({
+      hospital_id: hospitalId,
+      automation_type: "bulk_email_blast",
+      channel: "email",
+      status: "sent",
+      message_preview: `Bulk email: "${parsed.data.subject}" — ${sent} sent, ${failed} failed`,
+      created_at: new Date().toISOString(),
+    });
+
+    res.json({ sent, failed, total: (patients ?? []).length, bulkSentThisMonth: (bulkSentThisMonth ?? 0) + 1, monthlyLimit: MONTHLY_BULK_LIMIT });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: msg });

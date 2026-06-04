@@ -690,7 +690,7 @@ export default function PatientHistory() {
           <div className="pt-2">
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <button className="text-[11px] text-muted-foreground/30 hover:text-destructive/60 transition-colors flex items-center gap-1 opacity-0 hover:opacity-100 focus:opacity-100" disabled={deletePatient.isPending}>
+                <button className="text-[11px] text-muted-foreground/40 hover:text-destructive transition-colors flex items-center gap-1" disabled={deletePatient.isPending}>
                   {deletePatient.isPending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Trash2 className="w-2.5 h-2.5" />}
                   Delete record
                 </button>

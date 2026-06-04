@@ -10,6 +10,7 @@ import AutomationTests from "@/pages/automation-tests";
 import Usage from "@/pages/usage";
 import SupportInbox from "@/pages/support";
 import DocsPage from "@/pages/docs";
+import Announcements from "@/pages/announcements";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ function AppRoutes() {
         {(params) => <HospitalDetail id={parseInt(params.id)} />}
       </Route>
       <Route path="/settings" component={Settings} />
+      <Route path="/announcements" component={Announcements} />
       <Route path="/automation-tests" component={AutomationTests} />
       <Route path="/usage" component={Usage} />
       <Route path="/support" component={SupportInbox} />

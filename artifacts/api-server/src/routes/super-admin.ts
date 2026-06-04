@@ -1588,4 +1588,96 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   res.json({ stats });
 });
 
+// ── Hospital announcements — super admin pushes notices to hospital dashboards ──
+router.get("/super-admin/announcements", requireSuperAdmin, async (_req, res): Promise<void> => {
+  const { data } = await supabase
+    .from("hospital_announcements")
+    .select("*, hospitals(name)")
+    .order("created_at", { ascending: false });
+  res.json((data ?? []).map(a => ({
+    id: a.id,
+    hospitalId: a.hospital_id,
+    hospitalName: (a as Record<string, unknown>).hospitals ? ((a as Record<string, unknown>).hospitals as Record<string, unknown>).name : null,
+    title: a.title,
+    message: a.message,
+    type: a.type,
+    createdAt: a.created_at,
+    expiresAt: a.expires_at,
+  })));
+});
+
+router.post("/super-admin/announcements", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { hospitalId, title, message, type, expiresAt } = req.body ?? {};
+  if (!title?.trim() || !message?.trim()) {
+    res.status(400).json({ error: "title and message are required" }); return;
+  }
+  const { data, error } = await supabase.from("hospital_announcements").insert({
+    hospital_id: hospitalId ?? null,
+    title: title.trim(),
+    message: message.trim(),
+    type: type ?? "info",
+    expires_at: expiresAt ?? null,
+  }).select().single();
+  if (error || !data) { res.status(500).json({ error: error?.message ?? "Failed" }); return; }
+  res.status(201).json(data);
+});
+
+router.delete("/super-admin/announcements/:id", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  await supabase.from("hospital_announcements").delete().eq("id", id);
+  res.sendStatus(204);
+});
+
+// ── Hospital-facing announcement routes ──────────────────────────────────────
+router.get("/hospital/announcements", async (req, res): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? _verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const now = new Date().toISOString();
+
+  // Fetch announcements for this hospital OR broadcast (hospital_id IS NULL)
+  const { data: all } = await supabase
+    .from("hospital_announcements")
+    .select("*")
+    .or(`hospital_id.eq.${hospitalId},hospital_id.is.null`)
+    .or(`expires_at.is.null,expires_at.gt.${now}`)
+    .order("created_at", { ascending: false });
+
+  if (!all?.length) { res.json([]); return; }
+
+  // Filter out ones this hospital has already dismissed
+  const ids = all.map(a => a.id as number);
+  const { data: reads } = await supabase
+    .from("hospital_announcement_reads")
+    .select("announcement_id")
+    .eq("hospital_id", hospitalId)
+    .in("announcement_id", ids);
+
+  const readSet = new Set((reads ?? []).map(r => r.announcement_id as number));
+  const unread = all.filter(a => !readSet.has(a.id as number));
+
+  res.json(unread.map(a => ({
+    id: a.id,
+    title: a.title,
+    message: a.message,
+    type: a.type,
+    createdAt: a.created_at,
+  })));
+});
+
+router.post("/hospital/announcements/:id/dismiss", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? _verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  await supabase.from("hospital_announcement_reads").upsert({
+    hospital_id: hospitalId,
+    announcement_id: id,
+  }, { onConflict: "hospital_id,announcement_id" });
+
+  res.sendStatus(204);
+});
+
 export default router;

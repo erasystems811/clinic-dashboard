@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase.js";
 import { camelize, camelizeArr } from "../lib/camel.js";
 import { z } from "zod/v4";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
-import { sendCarePlanEmail, sendCarePlanNotification } from "../lib/automation.js";
+import { sendCarePlanEmail, sendCarePlanNotification, generateCarePlanMessages } from "../lib/automation.js";
 
 const router: IRouter = Router();
 
@@ -175,6 +175,16 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
     if (phone) {
       sendCarePlanNotification(hospitalIntId, patientId, patientName, phone).catch(() => {});
     }
+    // GP only: pre-generate reminder messages for all slots once — scheduler reads these instead of calling AI daily
+    if (isGeneralOutpatient) {
+      generateCarePlanMessages(
+        (plan as Record<string, unknown>).id as number,
+        hospitalIntId,
+        patientName,
+        parsed.data.summary,
+        (parsed.data.templateData as Record<string, unknown>) ?? {},
+      ).catch(() => {});
+    }
   }
 
   res.status(201).json(camelize(plan));
@@ -212,6 +222,22 @@ router.patch("/care-plans/:id", async (req, res): Promise<void> => {
     department: parsed.data.department,
     updated_at: new Date().toISOString(),
   }).eq("id", existing.patient_id as number);
+
+  // GP only: regenerate pre-stored reminder messages to reflect the edited plan
+  if (parsed.data.department === "General Outpatient") {
+    const hospitalIntIdForRegen = await resolveHospitalIntId(hospital.code);
+    if (hospitalIntIdForRegen) {
+      const { data: patientForRegen } = await supabase.from("patients").select("first_name, last_name").eq("id", existing.patient_id as number).maybeSingle();
+      const patientNameForRegen = patientForRegen ? `${patientForRegen.first_name} ${patientForRegen.last_name}` : "Patient";
+      generateCarePlanMessages(
+        id,
+        hospitalIntIdForRegen,
+        patientNameForRegen,
+        parsed.data.summary,
+        (parsed.data.templateData as Record<string, unknown>) ?? {},
+      ).catch(() => {});
+    }
+  }
 
   res.json(camelize(updated));
 });

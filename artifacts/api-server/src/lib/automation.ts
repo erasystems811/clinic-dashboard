@@ -1028,12 +1028,135 @@ export async function sendBeneficiaryReminderEmail(
   }
 }
 
+// ── Pre-generated In-Care Messages — generated once at plan creation ──────────
+
+export type InCareTimeSlot = "morning" | "afternoon" | "evening" | "night";
+
+export interface PregeneratedMessages {
+  type: "uniform" | "varied";
+  messages: Record<string, unknown>;
+}
+
+/**
+ * Called once when a GP care plan is created or edited.
+ * Makes a single AI call, reads the plan summary, decides whether all days are
+ * the same (uniform → 3 messages) or vary (varied → one message per day per slot),
+ * and stores the result in care_plans.pregenerated_messages.
+ * Fire-and-forget — never throws.
+ */
+export async function generateCarePlanMessages(
+  planId: number,
+  hospitalIntId: number,
+  patientName: string,
+  summary: string,
+  templateData: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const hCtx = await getHospitalContext(hospitalIntId);
+    const firstName = patientName.split(" ")[0];
+    const tone = buildToneDescription(hCtx.tone);
+    const lang = hCtx.language ?? "English";
+    const contact = contactLine(hCtx.phoneNumber);
+
+    const treatmentType = (templateData.treatmentType as string) ?? "";
+    const medTiming = (templateData.medicationTiming as string[]) ?? [];
+    const medTimingTimes = (templateData.medicationTimingTimes as Record<string, string>) ?? {};
+    const hospTiming = (templateData.hospitalTiming as string[]) ?? [];
+    const hospTimingTimes = (templateData.hospitalTimingTimes as Record<string, string>) ?? {};
+    const durationDays = Math.max(1, (templateData.durationDays as number) ?? 7);
+
+    // Determine which slots are active for this plan
+    let activeSlots: string[] = [];
+    if (treatmentType === "medication_only") {
+      activeSlots = medTiming.filter(s => medTimingTimes[s]);
+    } else if (treatmentType === "come_to_hospital") {
+      activeSlots = hospTiming.filter(s => hospTimingTimes[s]);
+    } else if (treatmentType === "combination") {
+      const base = medTiming.length > 0 ? medTiming : hospTiming;
+      activeSlots = base.filter(s => medTimingTimes[s] || hospTimingTimes[s]);
+    }
+
+    if (!activeSlots.length) {
+      console.warn(`[generateCarePlanMessages] No active slots found for plan ${planId}, treatmentType=${treatmentType}`);
+      return;
+    }
+
+    // Build timing context so AI knows when messages fire and what to tell the patient
+    let timingContext = "";
+    if (treatmentType === "medication_only") {
+      const lines = activeSlots.map(s => `  - ${s}: ${medTimingTimes[s]} — message arrives at this exact time, patient takes medication NOW`).join("\n");
+      timingContext = `Treatment type: MEDICATION ONLY — patient takes medication at home, they do NOT come to hospital.\nMessage delivery: AT the exact medication time.\nSlots and times:\n${lines}`;
+    } else if (treatmentType === "come_to_hospital") {
+      const lines = activeSlots.map(s => `  - ${s}: visit at ${hospTimingTimes[s]} — message arrives 3 hours before, tell patient their visit is in 3 hours`).join("\n");
+      timingContext = `Treatment type: COME TO HOSPITAL — patient must physically attend their hospital visit.\nMessage delivery: 3 HOURS BEFORE the visit time.\nSlots and times:\n${lines}`;
+    } else if (treatmentType === "combination") {
+      const lines = activeSlots.map(s => {
+        const medTime = medTimingTimes[s] ?? "";
+        const visitTime = hospTimingTimes[s] ?? medTimingTimes[s] ?? "";
+        return `  - ${s}: medication at ${medTime || "same time"}, hospital visit at ${visitTime} — message arrives 2 hours before the visit, address BOTH: medication due now and visit coming in 2 hours`;
+      }).join("\n");
+      timingContext = `Treatment type: COMBINATION — patient takes medication at home AND comes to hospital.\nMessage delivery: 2 HOURS BEFORE the hospital visit time.\nSlots and times:\n${lines}`;
+    }
+
+    // Cap per-day generation at 14 days to stay within token limits
+    const generateDays = Math.min(durationDays, 14);
+
+    const systemPrompt = `You are generating pre-stored patient care reminder emails for a General Outpatient care plan at ${hCtx.hospitalName}. Tone: ${tone}. Write ALL messages in ${lang}.
+
+Rules:
+1. Start each message with the appropriate time-of-day greeting and patient first name (e.g. "Good morning ${firstName},").
+2. Keep each message to 4-5 lines — warm, caring, and personal. Not robotic.
+3. Never mention diagnoses or use clinical jargon.
+4. Never say you are happy, glad, or pleased the patient is unwell.
+5. Every message must end with exactly: "If you have any concerns please ${contact}. Please do not reply to this email directly. — ${hCtx.hospitalName} Team"
+6. Return ONLY valid JSON — no markdown, no code fences, no explanation outside the JSON.`;
+
+    const uniformExample = `{"type":"uniform","messages":{"morning":"Good morning ${firstName}, ...","evening":"Good evening ${firstName}, ..."}}`;
+    const variedExample = `{"type":"varied","messages":{"1":{"morning":"Good morning ${firstName}, it's day 1 of your care plan...","evening":"Good evening ${firstName}..."},"2":{"morning":"Good morning ${firstName}, day 2...","evening":"..."}}}`;
+
+    const userPrompt = `Patient first name: ${firstName}
+${timingContext}
+
+Care plan summary (read carefully before writing):
+${summary.slice(0, 700)}
+
+Duration: ${durationDays} days
+Active slots to generate: ${activeSlots.join(", ")}
+
+DECISION RULE — read the plan summary carefully:
+- If every day has the SAME medication and instructions throughout the plan → set type = "uniform", generate ONE message per slot (this same message will be sent every day).
+- If different days have DIFFERENT medications or instructions (e.g. "Day 1-3: Drug A, Day 4-7: Drug A + Drug B") → set type = "varied", generate a unique message for each day (day 1 through ${generateDays}).
+
+For uniform, return:
+${uniformExample}
+
+For varied, return (one entry per day, 1 through ${generateDays}):
+${variedExample}
+
+Generate messages for all ${generateDays} days if varied. Return ONLY the JSON object.`;
+
+    const raw = await generateOpenAIMessage(systemPrompt, userPrompt, 4000);
+
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+    const parsed = JSON.parse(cleaned) as PregeneratedMessages;
+
+    if (!parsed.type || !parsed.messages) throw new Error("Invalid pregenerated_messages structure");
+
+    await supabase.from("care_plans").update({
+      pregenerated_messages: parsed,
+    }).eq("id", planId);
+
+    console.log(`[generateCarePlanMessages] Stored ${parsed.type} messages for plan ${planId}`);
+  } catch (err) {
+    console.error("[generateCarePlanMessages] failed:", err instanceof Error ? err.message : err);
+    Sentry.captureException(err);
+  }
+}
+
 // ── Continuous In-Care AI Reminders — OpenAI — Email ─────────────────────────
 // Runs 4 times daily (morning/afternoon/evening/night).
 // Only fires for patients who have that time slot checked in their treatment plan.
 // timingTypes: which types apply at this slot — e.g. ["med"] or ["hosp"] or ["med","hosp"]
-
-export type InCareTimeSlot = "morning" | "afternoon" | "evening" | "night";
 
 export async function sendInCareAIReminder(
   hospitalId: number,
@@ -1107,6 +1230,50 @@ export async function sendInCareAIReminder(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendInCareAIReminder] failed:", msg, { hospitalId, patientId, patientEmail, slot, deptLabel });
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
+// ── Send a pre-generated in-care reminder — no AI call ────────────────────────
+// Used by the scheduler when pregenerated_messages exist on the care plan.
+// Identical delivery path to sendInCareAIReminder but skips AI generation.
+
+export async function sendStoredCarePlanReminder(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+  message: string,
+  slot: InCareTimeSlot,
+  department: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const deptLabel = department === "General Outpatient" ? "Outpatient" : department;
+  const automationType = `in_care_reminder_${slot}_${deptLabel.replace(/\s+/g, "_").toLowerCase()}`;
+  const ctx: AutomationContext = { hospitalId, patientId, patientName, automationType, channel: "email" };
+  if (await skipIfSuspended(hCtx, ctx)) return;
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const firstName = patientName.split(" ")[0];
+    const greetings: Record<InCareTimeSlot, string> = {
+      morning: "Good morning",
+      afternoon: "Good afternoon",
+      evening: "Good evening",
+      night: "Good evening",
+    };
+    const html = wrapHtml(`<p>${message.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.fromAddress,
+      subject: `${greetings[slot]}, ${firstName} — ${deptLabel} reminder — ${hCtx.hospitalName}`,
+      html,
+      text: message,
+    });
+    await updateAutomationLog(logId, "sent", `In-care ${slot} reminder (pre-generated, ${deptLabel}) → ${patientEmail}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendStoredCarePlanReminder] failed:", msg, { hospitalId, patientId, patientEmail, slot, deptLabel });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }

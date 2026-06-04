@@ -9,6 +9,7 @@ import {
   sendAppointmentNoShowEmail,
   sendFeedbackEmail,
   sendInCareAIReminder,
+  sendStoredCarePlanReminder,
   sendBirthdayEmail,
   sendCareVisitReminderEmail,
   sendCarePlanEmail,
@@ -16,6 +17,7 @@ import {
   sendBeneficiaryReminderEmail,
   sendDepartmentalFollowupEmail,
   type InCareTimeSlot,
+  type PregeneratedMessages,
 } from "./automation.js";
 
 const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng";
@@ -1049,7 +1051,7 @@ async function runCarePlanRemindersHourly() {
     for (const h of hospitals) {
       const { data: plans } = await supabase
         .from("care_plans")
-        .select("id, patient_id, department, summary, template_data, beneficiary_name, beneficiary_email, beneficiary_relationship")
+        .select("id, patient_id, department, summary, template_data, beneficiary_name, beneficiary_email, beneficiary_relationship, pregenerated_messages, created_at")
         .eq("hospital_id", h.hospital_code)
         .eq("status", "active");
 
@@ -1084,6 +1086,24 @@ async function runCarePlanRemindersHourly() {
           const hospTiming = (td.hospitalTiming as string[]) ?? [];
           const hospTimingTimes = (td.hospitalTimingTimes as Record<string, string>) ?? {};
 
+          // Pre-generated message lookup — avoids calling AI at send time.
+          // Day 1 = plan creation date. Used for "varied" plans where each day has unique messages.
+          const pregeneratedMessages = (plan.pregenerated_messages as PregeneratedMessages | null) ?? null;
+          const planCreatedAt = new Date(plan.created_at as string);
+          const dayNumber = Math.floor((now.getTime() - planCreatedAt.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+          const getStoredMessage = (slot: string): string | null => {
+            if (!pregeneratedMessages?.messages) return null;
+            if (pregeneratedMessages.type === "uniform") {
+              return (pregeneratedMessages.messages as Record<string, string>)[slot] ?? null;
+            }
+            // varied — try exact day, fallback to last generated day
+            const dayMsgs = (pregeneratedMessages.messages as Record<string, Record<string, string>>)[String(dayNumber)];
+            if (dayMsgs?.[slot]) return dayMsgs[slot];
+            const days = Object.keys(pregeneratedMessages.messages).map(Number).filter(n => !isNaN(n)).sort((a, b) => b - a);
+            return (pregeneratedMessages.messages as Record<string, Record<string, string>>)[String(days[0])]?.[slot] ?? null;
+          };
+
           if (treatmentType === "medication_only") {
             // Medication only — fire AT the exact time (0h lead)
             for (const slot of medTiming) {
@@ -1094,11 +1114,16 @@ async function runCarePlanRemindersHourly() {
               if (Math.abs(visitAt.getTime() - now.getTime()) > WINDOW_MS) continue;
               const key = `genout_med_${plan.id}_${slot}_${today}`;
               if (await checkSentLog(h.id, key)) continue;
-              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"], dept);
+              const stored = getStoredMessage(slot);
+              if (stored) {
+                await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, stored, slot as InCareTimeSlot, dept);
+              } else {
+                await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"], dept);
+              }
               if (beneficiaryName && beneficiaryEmail) {
                 await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication", beneficiaryRelationship);
               }
-              log(`General Outpatient med reminder (at ${timeStr}) → patient ${patient.id} slot=${slot}`);
+              log(`General Outpatient med reminder (at ${timeStr}) → patient ${patient.id} slot=${slot} source=${stored ? "stored" : "live-ai"}`);
             }
 
           } else if (treatmentType === "come_to_hospital") {
@@ -1112,19 +1137,24 @@ async function runCarePlanRemindersHourly() {
               if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
               const key = `genout_hosp_${plan.id}_${slot}_${today}`;
               if (await checkSentLog(h.id, key)) continue;
-              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["hosp"], dept);
+              const stored = getStoredMessage(slot);
+              if (stored) {
+                await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, stored, slot as InCareTimeSlot, dept);
+              } else {
+                await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["hosp"], dept);
+              }
               if (beneficiaryName && beneficiaryEmail) {
                 await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "attend their hospital visit", beneficiaryRelationship);
               }
-              log(`General Outpatient hospital reminder (3h before ${timeStr}) → patient ${patient.id} slot=${slot}`);
+              log(`General Outpatient hospital reminder (3h before ${timeStr}) → patient ${patient.id} slot=${slot} source=${stored ? "stored" : "live-ai"}`);
             }
 
           } else if (treatmentType === "combination") {
-            // Combination — ONE combined message 2h before the single appointment time
-            // (stored under medicationTiming/medicationTimingTimes; hospTiming kept for legacy compat)
+            // Combination — ONE combined message 2h before the visit time
             const comboSlots = medTiming.length > 0 ? medTiming : [...new Set([...medTiming, ...hospTiming])];
             for (const slot of comboSlots) {
-              const refTime = medTimingTimes[slot] || hospTimingTimes[slot];
+              // Use visit time (hospTimingTimes) as the 2h-before reference; fall back to med time
+              const refTime = hospTimingTimes[slot] || medTimingTimes[slot];
               if (!refTime) continue;
               const [hh, mm] = refTime.split(":").map(Number);
               const visitAt = watToUTC(hh, mm);
@@ -1132,11 +1162,16 @@ async function runCarePlanRemindersHourly() {
               if (Math.abs(reminderAt.getTime() - now.getTime()) > WINDOW_MS) continue;
               const key = `genout_combo_${plan.id}_${slot}_${today}`;
               if (await checkSentLog(h.id, key)) continue;
-              await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med", "hosp"], dept);
+              const stored = getStoredMessage(slot);
+              if (stored) {
+                await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, stored, slot as InCareTimeSlot, dept);
+              } else {
+                await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med", "hosp"], dept);
+              }
               if (beneficiaryName && beneficiaryEmail) {
                 await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication and attend their hospital visit", beneficiaryRelationship);
               }
-              log(`General Outpatient combination reminder (2h before ${refTime}) → patient ${patient.id} slot=${slot}`);
+              log(`General Outpatient combination reminder (2h before visit at ${refTime}) → patient ${patient.id} slot=${slot} source=${stored ? "stored" : "live-ai"}`);
             }
           }
         } else {

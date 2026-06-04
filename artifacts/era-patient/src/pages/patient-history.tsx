@@ -318,12 +318,10 @@ export default function PatientHistory() {
                           <Pencil className="w-3.5 h-3.5" />
                           Edit
                         </Button>
-                        {isAdmin && (
-                          <Button size="sm" variant="outline" className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setShowFollowUp(true)}>
-                            <Flag className="w-3.5 h-3.5" />
-                            Flag Follow-Up
-                          </Button>
-                        )}
+                        <Button size="sm" variant="outline" className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setShowFollowUp(true)}>
+                          <Flag className="w-3.5 h-3.5" />
+                          Flag Follow-Up
+                        </Button>
                       </>
                     )}
                   </div>

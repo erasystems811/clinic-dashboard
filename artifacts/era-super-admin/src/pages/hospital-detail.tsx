@@ -132,6 +132,7 @@ export default function HospitalDetail({ id }: Props) {
   const [hospitalPhoneNumber, setHospitalPhoneNumber] = useState("");
   const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
   const [termiiSenderId, setTermiiSenderId] = useState("");
+  const [callTaskAiDailyLimit, setCallTaskAiDailyLimit] = useState("");
 
   // Test SMS
   const [testSmsTo, setTestSmsTo] = useState("");
@@ -182,6 +183,7 @@ export default function HospitalDetail({ id }: Props) {
       setHospitalPhoneNumber(s.phoneNumber ?? "");
       setNotificationChannel((s.notificationChannel as "whatsapp" | "sms") ?? "whatsapp");
       setTermiiSenderId(s.termiiSenderId ?? "");
+      setCallTaskAiDailyLimit(s.callTaskAiDailyLimit?.toString() ?? "");
       setContactEmail(h.contactEmail ?? "");
       setContactPhone(h.contactPhone ?? "");
       setApptEnabled(m.appointmentsEnabled);
@@ -261,6 +263,7 @@ export default function HospitalDetail({ id }: Props) {
         departments,
         pipelinePostTreatmentDays: postTreatmentDays ? parseInt(postTreatmentDays) : null,
         pipelineDormantDays: dormantDays ? parseInt(dormantDays) : null,
+        callTaskAiDailyLimit: callTaskAiDailyLimit ? parseInt(callTaskAiDailyLimit) : null,
         language: language || null,
         tone: tones.length > 0 ? tones : null,
         clinicDescription: clinicDescription || null,
@@ -703,6 +706,13 @@ export default function HospitalDetail({ id }: Props) {
             </Field>
             <Field label="Dormant Days" hint="Days before patient becomes dormant">
               <input type="number" value={dormantDays} onChange={e => setDormantDays(e.target.value)} className={inputCls()} placeholder="90" min="1" />
+            </Field>
+          </div>
+
+          {/* Call Task AI Limit */}
+          <div className="pt-2 border-t border-border">
+            <Field label="Call Task AI Generation Limit (per day)" hint={`Max AI drafts a receptionist can generate per day. Default is 20 if left blank.`}>
+              <input type="number" value={callTaskAiDailyLimit} onChange={e => setCallTaskAiDailyLimit(e.target.value)} className={inputCls()} placeholder="20" min="1" max="200" />
             </Field>
           </div>
 

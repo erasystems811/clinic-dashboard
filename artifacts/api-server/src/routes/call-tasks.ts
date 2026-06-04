@@ -58,10 +58,13 @@ router.get("/call-tasks/ai-draft-count", async (req, res): Promise<void> => {
     return data?.id ?? null;
   })();
 
-  if (!hospitalIntId) { res.json({ dailyCount: 0, dailyLimit: AI_DRAFT_DAILY_LIMIT }); return; }
+  if (!hospitalIntId) { res.json({ dailyCount: 0, dailyLimit: DEFAULT_AI_DRAFT_DAILY_LIMIT }); return; }
 
-  const count = await getDailyDraftCount(hospitalIntId);
-  res.json({ dailyCount: count, dailyLimit: AI_DRAFT_DAILY_LIMIT });
+  const [count, dailyLimit] = await Promise.all([
+    getDailyDraftCount(hospitalIntId),
+    getAiDraftDailyLimit(hospitalIntId),
+  ]);
+  res.json({ dailyCount: count, dailyLimit });
 });
 
 router.get("/call-tasks", async (req, res): Promise<void> => {
@@ -142,7 +145,7 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   res.json(camelize(task));
 });
 
-const AI_DRAFT_DAILY_LIMIT = 20;
+const DEFAULT_AI_DRAFT_DAILY_LIMIT = 20;
 
 async function getDailyDraftCount(hospitalId: number): Promise<number> {
   const today = new Date().toISOString().split("T")[0];
@@ -156,6 +159,15 @@ async function getDailyDraftCount(hospitalId: number): Promise<number> {
   return count ?? 0;
 }
 
+async function getAiDraftDailyLimit(hospitalId: number): Promise<number> {
+  const { data } = await supabase
+    .from("hospital_settings")
+    .select("call_task_ai_daily_limit")
+    .eq("hospital_id", hospitalId)
+    .maybeSingle();
+  return (data?.call_task_ai_daily_limit as number | null) ?? DEFAULT_AI_DRAFT_DAILY_LIMIT;
+}
+
 // ── Generate AI draft — does NOT send, returns draft for receptionist to review ─
 router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
@@ -165,9 +177,12 @@ router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> =>
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const currentCount = await getDailyDraftCount(hospitalId);
-  if (currentCount >= AI_DRAFT_DAILY_LIMIT) {
-    res.status(429).json({ error: `Daily AI generation limit reached (${AI_DRAFT_DAILY_LIMIT}/day)`, dailyCount: currentCount, dailyLimit: AI_DRAFT_DAILY_LIMIT });
+  const [currentCount, dailyLimit] = await Promise.all([
+    getDailyDraftCount(hospitalId),
+    getAiDraftDailyLimit(hospitalId),
+  ]);
+  if (currentCount >= dailyLimit) {
+    res.status(429).json({ error: `Daily AI generation limit reached (${dailyLimit}/day)`, dailyCount: currentCount, dailyLimit });
     return;
   }
 
@@ -195,7 +210,7 @@ router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> =>
     });
 
     const newCount = currentCount + 1;
-    res.json({ draft, dailyCount: newCount, dailyLimit: AI_DRAFT_DAILY_LIMIT });
+    res.json({ draft, dailyCount: newCount, dailyLimit });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Generation failed";
     res.status(500).json({ error: msg });

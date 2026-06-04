@@ -949,8 +949,8 @@ export default function HospitalDetail({ id }: Props) {
           {(
             [
               { key: "appointments", label: "Appointments", desc: "Calendar scheduling and appointment management", value: apptEnabled, set: setApptEnabled },
-              { key: "feedback", label: "Patient Feedback", desc: "Post-visit feedback collection and analytics", value: feedbackEnabled, set: setFeedbackEnabled },
-              { key: "wellness", label: "Wellness Newsletter", desc: "Weekly AI-generated wellness emails to patients", value: wellnessEnabled, set: setWellnessEnabled },
+              { key: "feedback", label: "Queue + Feedback", desc: "Queue management automations and post-visit feedback collection", value: feedbackEnabled, set: setFeedbackEnabled },
+              { key: "wellness", label: "Wellness Newsletter + Bulk Email", desc: "Weekly AI wellness newsletters and bulk email campaigns to patients", value: wellnessEnabled, set: setWellnessEnabled },
             ] as { key: string; label: string; desc: string; value: boolean; set: (v: boolean) => void }[]
           ).map(mod => (
             <div key={mod.key} className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted border border-border">

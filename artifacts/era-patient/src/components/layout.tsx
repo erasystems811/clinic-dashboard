@@ -54,10 +54,10 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
   const appt = modules?.appointmentsEnabled ?? true;
 
   if (role === "receptionist") {
-    const items: NavItem[] = [
-      { icon: ClipboardList, label: "Queue Management", href: "/queue" },
-      { icon: Phone, label: "Call Tasks", href: "/call-tasks" },
-    ];
+    const queueFeedback = modules?.feedbackEnabled ?? true;
+    const items: NavItem[] = [];
+    if (queueFeedback) items.push({ icon: ClipboardList, label: "Queue Management", href: "/queue" });
+    items.push({ icon: Phone, label: "Call Tasks", href: "/call-tasks" });
     if (appt) items.push({ icon: Calendar, label: "Appointments", href: "/appointments" });
     return items;
   }
@@ -76,8 +76,8 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
   if (modules?.feedbackEnabled ?? true) {
     items.push({ icon: Star, label: "Feedback", href: "/feedback-admin" });
   }
+  if (modules?.wellnessNewsletterEnabled ?? true) items.push({ icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" });
   items.push(
-    { icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" },
     { icon: FileUp, label: "Import Patients", href: "/import" },
     { icon: GitBranch, label: "Pipeline", href: "/pipeline" },
     { icon: Activity, label: "Activity", href: "/activity" },

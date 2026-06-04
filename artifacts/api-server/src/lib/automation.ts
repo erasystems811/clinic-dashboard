@@ -67,14 +67,17 @@ export interface HospitalContext {
   clinicDescription: string | null;
   /** True when the hospital is suspended. Send functions must log as "sent" (dedup) but not deliver. */
   suspended: boolean;
+  /** True when the Queue + Feedback module is enabled for this hospital. */
+  feedbackEnabled: boolean;
 }
 
 export async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
-  const [{ data: hospital }, { data: settings }] = await Promise.all([
+  const [{ data: hospital }, { data: settings }, { data: mods }] = await Promise.all([
     supabase.from("hospitals").select("id, name, username, hospital_code, active").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
       .select("sender_name, notification_channel, phone_number, tone, termii_sender_id, language, clinic_description")
       .eq("hospital_id", hospitalId).maybeSingle(),
+    supabase.from("hospital_modules").select("feedback_enabled, wellness_newsletter_enabled").eq("hospital_id", hospitalId).maybeSingle(),
   ]);
   const suspended = hospital?.active === false;
   const hospitalName = hospital?.name ?? "The Hospital";
@@ -99,6 +102,7 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
     tone,
     clinicDescription: (settings?.clinic_description as string | null) ?? null,
     suspended,
+    feedbackEnabled: mods?.feedback_enabled !== false,
   };
 }
 
@@ -109,6 +113,12 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
 async function skipIfSuspended(hCtx: HospitalContext, ctx: AutomationContext): Promise<boolean> {
   if (!hCtx.suspended) return false;
   await logAutomation(ctx, "sent", "[hospital suspended — not delivered]");
+  return true;
+}
+
+async function skipIfQueueModuleDisabled(hCtx: HospitalContext, ctx: AutomationContext): Promise<boolean> {
+  if (hCtx.feedbackEnabled) return false;
+  await logAutomation(ctx, "sent", "[queue+feedback module disabled — not delivered]");
   return true;
 }
 
@@ -133,6 +143,7 @@ export async function sendQueueJoinMessage(
     channel: hCtx.notificationChannel,
   };
   if (await skipIfSuspended(hCtx, ctx)) return;
+  if (await skipIfQueueModuleDisabled(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, welcome to ${hCtx.hospitalName}. You've been checked in and you're currently number ${position} in the queue. Our team is working as quickly as possible and we'll keep you updated every step of the way. Please relax and make yourself comfortable. Thank you for trusting us with your care.`;
@@ -159,6 +170,7 @@ export async function sendQueueNextInLine(
     channel: hCtx.notificationChannel,
   };
   if (await skipIfSuspended(hCtx, ctx)) return;
+  if (await skipIfQueueModuleDisabled(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, you are next in line at ${hCtx.hospitalName}. Please be ready — you will be called in shortly. Thank you for your patience.`;
@@ -185,6 +197,7 @@ export async function sendQueueYourTurn(
     channel: hCtx.notificationChannel,
   };
   if (await skipIfSuspended(hCtx, ctx)) return;
+  if (await skipIfQueueModuleDisabled(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, it is your turn now at ${hCtx.hospitalName}. Please proceed, we are ready for you.`;
@@ -211,6 +224,7 @@ export async function sendQueueLongWaitApology(
     channel: hCtx.notificationChannel,
   };
   if (await skipIfSuspended(hCtx, ctx)) return;
+  if (await skipIfQueueModuleDisabled(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, we sincerely apologise for the longer than usual wait today at ${hCtx.hospitalName}. We are doing our best to attend to everyone as quickly as possible and we truly appreciate your patience. Thank you for being with us.`;

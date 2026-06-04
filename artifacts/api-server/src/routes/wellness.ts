@@ -496,6 +496,13 @@ router.post("/wellness/bulk-email", async (req, res): Promise<void> => {
   const parsed = BulkEmailBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "subject and message are required" }); return; }
 
+  // Check wellness + bulk email module is enabled
+  const { data: bulkMods } = await supabase.from("hospital_modules").select("wellness_newsletter_enabled").eq("hospital_id", hospitalId).maybeSingle();
+  if (!bulkMods?.wellness_newsletter_enabled) {
+    res.status(403).json({ error: "Wellness Newsletter + Bulk Email module is disabled for this hospital." });
+    return;
+  }
+
   // Limit bulk email sends to 2 per calendar month per hospital
   const MONTHLY_BULK_LIMIT = 2;
   const monthStart = new Date();

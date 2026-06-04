@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { apiUrl } from "@/lib/api";
-import { setHospitalTokenGetter } from "@workspace/api-client-react";
+import { setHospitalTokenGetter, setPerformedByGetter } from "@workspace/api-client-react";
 
 export type Role = "receptionist" | "nurse" | "admin";
 
@@ -27,6 +27,7 @@ interface User {
   username: string;
   role: Role;
   displayName: string;
+  staffName?: string | null; // individual named account full name
 }
 
 interface AuthContextValue {
@@ -65,6 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = hospital?.token || null;
     setHospitalTokenGetter(token ? () => token : null);
   }, [hospital]);
+
+  useEffect(() => {
+    const name = user?.staffName || null;
+    setPerformedByGetter(name ? () => name : null);
+  }, [user?.staffName]);
 
   useEffect(() => {
     hospital ? localStorage.setItem(HOSPITAL_KEY, JSON.stringify(hospital)) : localStorage.removeItem(HOSPITAL_KEY);
@@ -147,8 +153,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     setHospital({ id: data.hospital.id, name: data.hospital.name, username: data.hospital.username, token: data.token ?? "", loginAt: Date.now() });
     setHospitalConfig({ departments: data.departments, modules: data.modules });
-    const displayName = data.role === "nurse" ? "Medication View" : "Receptionist";
-    setUser({ username: data.role, role: data.role, displayName });
+    const displayName = data.staffName ?? (data.role === "nurse" ? "Medication View" : "Receptionist");
+    setUser({ username: data.staffUsername ?? data.role, role: data.role, displayName, staffName: data.staffName ?? null });
     sessionStorage.setItem("era_tour_pending", "1");
   };
 

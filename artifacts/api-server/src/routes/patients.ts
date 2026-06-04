@@ -300,12 +300,14 @@ router.post("/patients", async (req, res): Promise<void> => {
     position,
   });
 
+  const createdBy = (req.headers["x-performed-by"] as string | undefined) || null;
   await supabase.from("activity").insert({
     type: "patient_created",
     description: `New patient registered: ${patientName} — added to queue at position ${position}`,
     patient_id: patient.id,
     patient_name: patientName,
     hospital_id: hospital.intId,
+    performed_by: createdBy,
   });
 
   res.status(201).json({ ...p, checkedInAt: nowIso });
@@ -512,6 +514,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
     }
 
     // Log activity entry for the edit
+    const editedBy = (req.headers["x-performed-by"] as string | undefined) || null;
     if (changes.length > 0) {
       propagations.push(
         supabase.from("activity").insert({
@@ -520,6 +523,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
           patient_id: id,
           patient_name: newName,
           hospital_id: before.hospital_id ? (await resolveHospitalIntId(before.hospital_id as string)) : null,
+          performed_by: editedBy,
         })
       );
     }
@@ -905,15 +909,59 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
     ? `${patient.first_name} ${patient.last_name} flagged for check-in (${parsed.data.checkInType ?? "General"}) — call task created`
     : `${patient.first_name} ${patient.last_name} flagged for follow-up — call task created`;
 
+  const flaggedBy = (req.headers["x-performed-by"] as string | undefined) || null;
   await supabase.from("activity").insert({
     type: taskType === "check_in" ? "check_in_flagged" : "missed_treatment_flagged",
     description: activityDesc,
     patient_id: id,
     patient_name: `${patient.first_name} ${patient.last_name}`,
     metadata: parsed.data.reason,
+    performed_by: flaggedBy,
   });
 
   res.json(camelize(task));
+});
+
+// ── Direct message — nurse/admin handles follow-up themselves ─────────────────
+router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { message, reason } = req.body ?? {};
+  if (!message?.trim()) { res.status(400).json({ error: "message is required" }); return; }
+
+  const { data: patient } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
+  if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+
+  const patientName = `${patient.first_name} ${patient.last_name}`;
+  const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+  const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
+
+  // Send via WhatsApp/SMS
+  let sent = false;
+  if (phone) {
+    try {
+      const { deliverMobileMessage } = await import("../lib/messaging.js");
+      await deliverMobileMessage(hospital.intId, phone, message.trim());
+      sent = true;
+    } catch (err) {
+      console.error("[direct-message] send failed:", err);
+    }
+  }
+
+  await supabase.from("activity").insert({
+    type: "manual_text",
+    description: `Direct message sent to ${patientName}${reason ? ` — ${reason}` : ""}`,
+    patient_id: id,
+    patient_name: patientName,
+    metadata: message.trim().slice(0, 200),
+    performed_by: performedBy,
+  });
+
+  res.json({ ok: true, sent, phone: phone || null });
 });
 
 export default router;

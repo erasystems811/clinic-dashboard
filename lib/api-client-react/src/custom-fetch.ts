@@ -18,6 +18,7 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
 let _hospitalTokenGetter: AuthTokenGetter | null = null;
+let _performedByGetter: AuthTokenGetter | null = null;
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -55,6 +56,14 @@ export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
  */
 export function setHospitalTokenGetter(getter: AuthTokenGetter | null): void {
   _hospitalTokenGetter = getter;
+}
+
+/**
+ * Register a getter that supplies the name of the staff member performing actions.
+ * Attached as `x-performed-by` header so the backend can log who did what.
+ */
+export function setPerformedByGetter(getter: AuthTokenGetter | null): void {
+  _performedByGetter = getter;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -376,6 +385,14 @@ export async function customFetch<T = unknown>(
     const token = await _hospitalTokenGetter();
     if (token) {
       headers.set("x-hospital-token", token);
+    }
+  }
+
+  // Attach staff name for accountability logging.
+  if (_performedByGetter && !headers.has("x-performed-by")) {
+    const name = await _performedByGetter();
+    if (name) {
+      headers.set("x-performed-by", name);
     }
   }
 

@@ -17,4 +17,6 @@ export interface ActivityItem {
   createdAt: string;
   /** @nullable */
   metadata?: string | null;
+  /** @nullable */
+  performedBy?: string | null;
 }

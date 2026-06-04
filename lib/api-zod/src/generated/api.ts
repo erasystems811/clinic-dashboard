@@ -447,7 +447,9 @@ export const GetDashboardSummaryResponse = zod.object({
 
 
 export const ListActivityQueryParams = zod.object({
-  "limit": zod.coerce.number().optional()
+  "limit": zod.coerce.number().optional(),
+  "from": zod.coerce.string().optional(),
+  "to": zod.coerce.string().optional()
 })
 
 export const ListActivityResponseItem = zod.object({
@@ -457,7 +459,8 @@ export const ListActivityResponseItem = zod.object({
   "patientId": zod.number().nullish(),
   "patientName": zod.string().nullish(),
   "createdAt": zod.string(),
-  "metadata": zod.string().nullish()
+  "metadata": zod.string().nullish(),
+  "performedBy": zod.string().nullish()
 })
 export const ListActivityResponse = zod.array(ListActivityResponseItem)
 

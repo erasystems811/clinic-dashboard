@@ -7,36 +7,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { Flag, Bot, MessageSquare, PhoneCall, X } from "lucide-react";
-
-const FOLLOWUP_TYPES = [
-  {
-    value: "automated_message" as const,
-    label: "Automated Message",
-    sub: "AI generates a follow-up message",
-    icon: Bot,
-    active: "border-violet-500 bg-violet-500/10 text-violet-400",
-    color: "text-violet-400",
-  },
-  {
-    value: "manual_text" as const,
-    label: "Manual Text",
-    sub: "Staff composes a personal text",
-    icon: MessageSquare,
-    active: "border-blue-500 bg-blue-500/10 text-blue-400",
-    color: "text-blue-400",
-  },
-  {
-    value: "manual_call" as const,
-    label: "Manual Call",
-    sub: "Staff makes a direct phone call",
-    icon: PhoneCall,
-    active: "border-primary bg-primary/10 text-primary",
-    color: "text-primary",
-  },
-];
-
-type FollowupType = typeof FOLLOWUP_TYPES[number]["value"];
+import { useAuth } from "@/contexts/auth-context";
+import { apiUrl } from "@/lib/api";
+import { Flag, MessageSquare, PhoneCall, X, User, Users, Send, Loader2, CheckCircle2 } from "lucide-react";
 
 interface ModalProps {
   patientName: string;
@@ -44,105 +17,224 @@ interface ModalProps {
   onClose: () => void;
 }
 
-function MethodPicker({ value, onChange }: { value: FollowupType; onChange: (v: FollowupType) => void }) {
-  return (
-    <div className="space-y-2">
-      <label className="text-sm font-medium">Contact Method *</label>
-      <div className="grid grid-cols-3 gap-2">
-        {FOLLOWUP_TYPES.map(ft => {
-          const Icon = ft.icon;
-          const isSelected = value === ft.value;
-          return (
-            <button
-              key={ft.value}
-              type="button"
-              onClick={() => onChange(ft.value)}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center text-xs transition-colors ${
-                isSelected ? ft.active : "border-border hover:border-border/60 text-muted-foreground"
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isSelected ? "" : ft.color}`} />
-              <span className="font-semibold">{ft.label}</span>
-              <span className="leading-snug opacity-80">{ft.sub}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+type Step = "choose" | "self" | "receptionist";
+type ActionType = "manual_text" | "manual_call" | "automated_message";
 
 export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProps) {
   const { toast } = useToast();
+  const { hospital } = useAuth();
   const queryClient = useQueryClient();
+  const [step, setStep] = useState<Step>("choose");
+
+  // ── Send to Receptionist state ──────────────────────────────────────────────
   const [reason, setReason] = useState("");
-  const [actionType, setActionType] = useState<FollowupType>("manual_call");
+  const [actionType, setActionType] = useState<ActionType>("manual_call");
 
   const flagMissed = useFlagMissedTreatment({
     mutation: {
       onSuccess: () => {
-        toast({
-          title: "Follow-up task created",
-          description: `${patientName} has been flagged. The task will appear in the receptionist's call list.`,
-        });
+        toast({ title: "Task sent to receptionist", description: `${patientName} added to call list.` });
         queryClient.invalidateQueries({ queryKey: getListCallTasksQueryKey() });
         onClose();
       },
-      onError: () => toast({ title: "Failed to flag patient", variant: "destructive" }),
+      onError: () => toast({ title: "Failed to create task", variant: "destructive" }),
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reason.trim()) return;
-    flagMissed.mutate({ id: patientId, data: { reason, actionType } });
+  // ── Handle Myself state ─────────────────────────────────────────────────────
+  const [selfReason, setSelfReason] = useState("");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  const handleSendSelf = async () => {
+    if (!message.trim() && !selfReason.trim()) return;
+    if (!hospital?.token) return;
+    setSending(true);
+    try {
+      const res = await fetch(apiUrl(`/api/patients/${patientId}/direct-message`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        body: JSON.stringify({ message: message.trim() || selfReason.trim(), reason: selfReason.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Send failed");
+      setSent(true);
+      toast({
+        title: data.sent ? "Message sent" : "Logged (no phone number)",
+        description: data.sent ? `Message delivered to ${patientName}.` : `No phone on record — activity logged.`,
+      });
+      setTimeout(onClose, 1500);
+    } catch (err: unknown) {
+      toast({ title: "Failed to send", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
   };
+
+  const initials = patientName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="w-full max-w-md bg-card rounded-2xl border border-border shadow-2xl">
+
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Flag className="w-4 h-4 text-destructive" />
-            <h2 className="font-semibold">Flag for Follow-up</h2>
+            <h2 className="font-semibold">Follow-up for {patientName}</h2>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="px-5 pt-4">
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
-            <div className="w-9 h-9 rounded-full bg-destructive/20 text-destructive font-bold text-sm flex items-center justify-center shrink-0">
-              {patientName.split(" ").map(n => n[0]).join("").slice(0, 2)}
+        {/* ── Step 1: Choose who handles it ── */}
+        {step === "choose" && (
+          <div className="p-5 space-y-3">
+            <p className="text-sm text-muted-foreground">Who will handle this follow-up?</p>
+            <button
+              onClick={() => setStep("self")}
+              className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors text-left group"
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">I'll handle it myself</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Compose and send a message directly to the patient now</p>
+              </div>
+            </button>
+            <button
+              onClick={() => setStep("receptionist")}
+              className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:border-amber-500/50 hover:bg-amber-500/5 transition-colors text-left group"
+            >
+              <div className="w-10 h-10 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Send to receptionist</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Add to the receptionist's call task list to action</p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* ── Step 2a: Handle Myself ── */}
+        {step === "self" && (
+          <div className="p-5 space-y-4">
+            <button onClick={() => setStep("choose")} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+              ← Back
+            </button>
+
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/20 bg-primary/5">
+              <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center shrink-0">
+                {initials}
+              </div>
+              <div>
+                <p className="font-semibold text-sm">{patientName}</p>
+                <p className="text-xs text-muted-foreground">Message will be sent via WhatsApp / SMS</p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-sm">{patientName}</p>
-              <p className="text-xs text-muted-foreground">Will be added to receptionist call tasks</p>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Reason <span className="text-muted-foreground font-normal">(optional — for your records)</span></label>
+              <Input
+                value={selfReason}
+                onChange={e => setSelfReason(e.target.value)}
+                placeholder="e.g. Missed last appointment, checking in…"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Message to patient *</label>
+              <textarea
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                placeholder="Type your message here…"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={sending}>Cancel</Button>
+              <Button
+                className="flex-1 gap-2"
+                onClick={handleSendSelf}
+                disabled={!message.trim() || sending || sent}
+              >
+                {sent ? <><CheckCircle2 className="w-4 h-4" />Sent</> :
+                 sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> :
+                 <><Send className="w-4 h-4" />Send Message</>}
+              </Button>
             </div>
           </div>
-        </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Reason for follow-up *</label>
-            <Input
-              value={reason}
-              onChange={e => setReason(e.target.value)}
-              placeholder="e.g. Missed appointment, needs check-up reminder…"
-              required
-            />
+        {/* ── Step 2b: Send to Receptionist ── */}
+        {step === "receptionist" && (
+          <div className="p-5 space-y-4">
+            <button onClick={() => setStep("choose")} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+              ← Back
+            </button>
+
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5">
+              <div className="w-9 h-9 rounded-full bg-amber-500/20 text-amber-400 font-bold text-sm flex items-center justify-center shrink-0">
+                {initials}
+              </div>
+              <div>
+                <p className="font-semibold text-sm">{patientName}</p>
+                <p className="text-xs text-muted-foreground">Will be added to the receptionist's call list</p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Reason for follow-up *</label>
+              <Input
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder="e.g. Missed appointment, needs check-up reminder…"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Contact method</label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: "manual_call" as ActionType, label: "Phone Call", icon: PhoneCall, cls: "border-primary bg-primary/10 text-primary" },
+                  { value: "manual_text" as ActionType, label: "Text / WhatsApp", icon: MessageSquare, cls: "border-blue-500 bg-blue-500/10 text-blue-400" },
+                ].map(opt => {
+                  const Icon = opt.icon;
+                  const sel = actionType === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setActionType(opt.value)}
+                      className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium transition-colors ${sel ? opt.cls : "border-border text-muted-foreground hover:border-border/60"}`}
+                    >
+                      <Icon className="w-4 h-4 shrink-0" />
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                disabled={!reason.trim() || flagMissed.isPending}
+                onClick={() => flagMissed.mutate({ id: patientId, data: { reason, actionType } })}
+              >
+                {flagMissed.isPending ? "Creating…" : "Create Task"}
+              </Button>
+            </div>
           </div>
-
-          <MethodPicker value={actionType} onChange={setActionType} />
-
-          <div className="flex gap-2 pt-1">
-            <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-            <Button type="submit" variant="destructive" className="flex-1" disabled={!reason.trim() || flagMissed.isPending}>
-              {flagMissed.isPending ? "Flagging…" : "Flag & Create Task"}
-            </Button>
-          </div>
-        </form>
+        )}
       </div>
     </div>
   );

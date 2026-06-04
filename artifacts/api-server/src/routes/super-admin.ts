@@ -545,12 +545,54 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
 });
 
 // ── Staff login ──────────────────────────────────────────────────────────────
+// Checks individual named accounts (hospital_staff) first, falls back to shared
+// credentials (hospital_staff_credentials) for hospitals that haven't set up
+// individual accounts yet.
 router.post("/staff/login", async (req, res): Promise<void> => {
   const { username, password } = req.body ?? {};
   if (!username || !password) { res.status(400).json({ error: "Missing credentials" }); return; }
 
-  const usernameUpper = username.trim().toUpperCase();
+  const usernameUpper = (username as string).trim().toUpperCase();
 
+  // ── Try individual named account first ──────────────────────────────────────
+  const { data: namedAccount } = await supabase
+    .from("hospital_staff")
+    .select("*, hospitals(id, name, username, active)")
+    .ilike("username", usernameUpper)
+    .eq("active", true)
+    .maybeSingle();
+
+  if (namedAccount) {
+    const [salt, storedHash] = (namedAccount.password_hash as string).split(":");
+    if (hashPassword(password, salt) !== storedHash) {
+      res.status(401).json({ error: "Invalid credentials" }); return;
+    }
+    const hospital = (namedAccount as Record<string, unknown>).hospitals as Record<string, unknown>;
+    if (!hospital || !hospital.active) { res.status(403).json({ error: "Account inactive" }); return; }
+
+    const hospitalId = hospital.id as number;
+    const [{ data: settings }, { data: modules }] = await Promise.all([
+      supabase.from("hospital_settings").select("*").eq("hospital_id", hospitalId).single(),
+      supabase.from("hospital_modules").select("*").eq("hospital_id", hospitalId).single(),
+    ]);
+
+    res.json({
+      role: namedAccount.role as string,
+      staffName: namedAccount.full_name as string,
+      staffUsername: namedAccount.username as string,
+      token: signHospitalToken(hospitalId),
+      hospital: { id: hospital.id, name: hospital.name, username: hospital.username },
+      departments: JSON.parse((settings?.departments as string) ?? "[]"),
+      modules: {
+        appointmentsEnabled: modules?.appointments_enabled ?? true,
+        feedbackEnabled: modules?.feedback_enabled ?? true,
+        messagesEnabled: modules?.messages_enabled ?? false,
+      },
+    });
+    return;
+  }
+
+  // ── Fall back to shared legacy credentials ──────────────────────────────────
   const { data: allCreds } = await supabase.from("hospital_staff_credentials").select("*");
   let matchedCreds: Record<string, unknown> | null = null;
   let matchedRole: "nurse" | "receptionist" | null = null;
@@ -582,6 +624,8 @@ router.post("/staff/login", async (req, res): Promise<void> => {
 
   res.json({
     role: matchedRole,
+    staffName: null,
+    staffUsername: null,
     token: signHospitalToken(hospital.id),
     hospital: { id: hospital.id, name: hospital.name, username: hospital.username },
     departments: JSON.parse((settings?.departments as string) ?? "[]"),
@@ -591,6 +635,91 @@ router.post("/staff/login", async (req, res): Promise<void> => {
       messagesEnabled: modules?.messages_enabled ?? false,
     },
   });
+});
+
+// ── Individual staff accounts (admin manages, named per person) ───────────────
+router.get("/hospital/staff", async (req, res): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? _verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data } = await supabase
+    .from("hospital_staff")
+    .select("id, full_name, username, role, active, created_at")
+    .eq("hospital_id", hospitalId)
+    .order("created_at", { ascending: true });
+
+  res.json(data ?? []);
+});
+
+router.post("/hospital/staff", async (req, res): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? _verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { fullName, username, password, role } = req.body ?? {};
+  if (!fullName || !username || !password || !role) {
+    res.status(400).json({ error: "fullName, username, password, and role are required" }); return;
+  }
+  if (!["nurse", "receptionist"].includes(role)) {
+    res.status(400).json({ error: "role must be nurse or receptionist" }); return;
+  }
+
+  const salt = crypto.randomBytes(16).toString("hex");
+  const passwordHash = `${salt}:${hashPassword(password, salt)}`;
+
+  const { data, error } = await supabase
+    .from("hospital_staff")
+    .insert({ hospital_id: hospitalId, full_name: fullName, username: (username as string).trim().toUpperCase(), password_hash: passwordHash, role })
+    .select("id, full_name, username, role, active, created_at")
+    .single();
+
+  if (error) {
+    const isDup = error.code === "23505";
+    res.status(isDup ? 409 : 500).json({ error: isDup ? "A staff member with that username already exists." : error.message });
+    return;
+  }
+  res.status(201).json(data);
+});
+
+router.patch("/hospital/staff/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? _verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const updates: Record<string, unknown> = {};
+  const { fullName, password, role, active } = req.body ?? {};
+  if (fullName)           updates.full_name = fullName;
+  if (role)               updates.role = role;
+  if (active !== undefined) updates.active = active;
+  if (password) {
+    const salt = crypto.randomBytes(16).toString("hex");
+    updates.password_hash = `${salt}:${hashPassword(password, salt)}`;
+  }
+
+  if (!Object.keys(updates).length) { res.status(400).json({ error: "Nothing to update" }); return; }
+
+  const { data, error } = await supabase
+    .from("hospital_staff")
+    .update(updates)
+    .eq("id", id)
+    .eq("hospital_id", hospitalId)
+    .select("id, full_name, username, role, active, created_at")
+    .single();
+
+  if (error || !data) { res.status(404).json({ error: "Staff member not found" }); return; }
+  res.json(data);
+});
+
+router.delete("/hospital/staff/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? _verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  await supabase.from("hospital_staff").update({ active: false }).eq("id", id).eq("hospital_id", hospitalId);
+  res.sendStatus(204);
 });
 
 // ── Staff credentials ──────────────────────────────────────────────────────────

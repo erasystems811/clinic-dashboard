@@ -158,12 +158,14 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
 
   // Log activity
   const patientName = `${patient.first_name} ${patient.last_name}`;
+  const createdBy = (req.headers["x-performed-by"] as string | undefined) || null;
   await supabase.from("activity").insert({
     type: "care_plan_added",
     description: `Care plan added for ${patientName} (${parsed.data.department})`,
     patient_id: patientId,
     patient_name: patientName,
     metadata: parsed.data.summary.slice(0, 200),
+    performed_by: createdBy,
   });
 
   // Fire automations: WhatsApp notification fires immediately;

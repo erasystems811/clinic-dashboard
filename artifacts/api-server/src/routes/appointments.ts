@@ -108,12 +108,14 @@ router.post("/appointments", async (req, res): Promise<void> => {
 
   if (error || !appt) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
 
+  const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
   await supabase.from("activity").insert({
     type: "appointment_scheduled",
     description: `Appointment scheduled for ${patientName}: ${appt.title}`,
     patient_id: appt.patient_id,
     patient_name: patientName,
     metadata: appt.scheduled_at,
+    performed_by: performedBy,
   });
 
   if (patient?.email) {
@@ -178,12 +180,25 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
   }
 
   if (parsed.data.status === "rescheduled" || (parsed.data.scheduledAt && !parsed.data.status)) {
+    const pBy = (req.headers["x-performed-by"] as string | undefined) || null;
     await supabase.from("activity").insert({
       type: "appointment_rescheduled",
       description: `Appointment rescheduled for ${appt.patient_name}: ${appt.title}`,
       patient_id: appt.patient_id,
       patient_name: appt.patient_name,
       metadata: parsed.data.scheduledAt ?? appt.scheduled_at,
+      performed_by: pBy,
+    });
+  }
+
+  if (parsed.data.status === "cancelled") {
+    const pBy = (req.headers["x-performed-by"] as string | undefined) || null;
+    await supabase.from("activity").insert({
+      type: "appointment_cancelled",
+      description: `Appointment cancelled for ${appt.patient_name}: ${appt.title}`,
+      patient_id: appt.patient_id,
+      patient_name: appt.patient_name,
+      performed_by: pBy,
     });
   }
 

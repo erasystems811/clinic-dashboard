@@ -44,7 +44,6 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   // ── Handle Myself state ─────────────────────────────────────────────────────
   const [selfMethod, setSelfMethod] = useState<"email" | "call">("email");
   const [selfReason, setSelfReason] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
   const [callOutcome, setCallOutcome] = useState("");
   const [sending, setSending] = useState(false);
@@ -61,7 +60,6 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
-      setEmailSubject("Follow-up from " + (hospital?.name ?? "clinic"));
       setEmailBody(data.draft ?? "");
     } catch (err: unknown) {
       toast({ title: "AI draft failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
@@ -73,12 +71,12 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   const handleSendSelf = async () => {
     if (!hospital?.token) return;
     const isEmail = selfMethod === "email";
-    if (isEmail && (!emailSubject.trim() || !emailBody.trim())) return;
+    if (isEmail && !emailBody.trim()) return;
     if (!isEmail && !callOutcome.trim()) return;
     setSending(true);
     try {
       const body = isEmail
-        ? { sendEmail: true, subject: emailSubject.trim(), message: emailBody.trim(), reason: selfReason.trim() }
+        ? { sendEmail: true, message: emailBody.trim(), reason: selfReason.trim() }
         : { logOnly: true, reason: selfReason.trim(), callOutcome: callOutcome.trim() };
       const res = await fetch(apiUrl(`/api/patients/${patientId}/direct-message`), {
         method: "POST",
@@ -190,12 +188,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
 
             {selfMethod === "email" ? (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Email subject *</label>
-                <input type="text" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={emailSubject} onChange={e => setEmailSubject(e.target.value)}
-                  placeholder="e.g. Follow-up from your clinic…" />
-
-                <label className="text-sm font-medium mt-3 block">Email body *</label>
+                <label className="text-sm font-medium">Email message *</label>
                 <textarea
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[90px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                   value={emailBody}
@@ -212,7 +205,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
                     AI Draft
                   </Button>
                   <Button className="flex-1 gap-2" onClick={handleSendSelf}
-                    disabled={!emailSubject.trim() || !emailBody.trim() || sending || sent}>
+                    disabled={!emailBody.trim() || sending || sent}>
                     {sent ? <><CheckCircle2 className="w-4 h-4" />Sent</> :
                      sending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> :
                      <><Send className="w-4 h-4" />Send Email</>}

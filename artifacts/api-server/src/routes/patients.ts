@@ -978,9 +978,9 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { sendEmail, subject, message, reason, logOnly, callOutcome } = req.body ?? {};
+  const { sendEmail, message, reason, logOnly, callOutcome } = req.body ?? {};
   if (!logOnly && !sendEmail && !message?.trim()) { res.status(400).json({ error: "message or email required" }); return; }
-  if (sendEmail && (!subject?.trim() || !message?.trim())) { res.status(400).json({ error: "subject and message required for email" }); return; }
+  if (sendEmail && !message?.trim()) { res.status(400).json({ error: "message required for email" }); return; }
 
   const { data: patient } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
@@ -1003,16 +1003,17 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
       performed_by: performedBy,
     });
   } else if (sendEmail) {
-    // Email — send via platform email
+    // Email — send via platform email with templated subject
     if (email) {
       try {
         const { sendEmail: sendEmailFunc, wrapHtml } = await import("../lib/email.js");
         const from = process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev";
+        const subject = `Important message from ${hospital.name}`;
         const htmlBody = message.trim().replace(/\n/g, "<br>");
         sendEmailFunc({
           to: email,
           from,
-          subject: subject.trim(),
+          subject,
           html: wrapHtml(htmlBody, patientName),
           text: message.trim(),
         }).catch(err => console.error("[direct-message] email failed:", err));
@@ -1024,10 +1025,10 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
 
     await supabase.from("activity").insert({
       type: "manual_email",
-      description: `Email sent to ${patientName}${reason ? ` — ${reason}` : ""}: ${subject.trim()}`,
+      description: `Email sent to ${patientName}${reason ? ` — ${reason}` : ""}`,
       patient_id: id,
       patient_name: patientName,
-      metadata: { subject: subject.trim(), body: message.trim().slice(0, 200) },
+      metadata: { body: message.trim().slice(0, 200) },
       performed_by: performedBy,
     });
   } else {

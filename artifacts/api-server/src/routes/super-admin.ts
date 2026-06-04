@@ -1709,4 +1709,65 @@ router.post("/hospital/announcements/:id/dismiss", async (req, res): Promise<voi
   res.sendStatus(204);
 });
 
+// ── Knowledge Base & Deployments ─────────────────────────────────────────────
+router.get("/super-admin/knowledge-base", requireSuperAdmin, async (_req, res): Promise<void> => {
+  const { data } = await supabase.from("platform_knowledge_base").select("*").order("section").order("title");
+  res.json((data ?? []).map(kb => ({
+    id: kb.id,
+    section: kb.section,
+    title: kb.title,
+    content: kb.content,
+    updatedAt: kb.updated_at,
+  })));
+});
+
+router.post("/super-admin/knowledge-base", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { section, title, content } = req.body ?? {};
+  if (!section?.trim() || !title?.trim() || !content?.trim()) {
+    res.status(400).json({ error: "section, title, content required" }); return;
+  }
+  const { data, error } = await supabase.from("platform_knowledge_base").upsert({
+    section: section.trim(),
+    title: title.trim(),
+    content: content.trim(),
+  }, { onConflict: "section,title" }).select().single();
+  if (error || !data) { res.status(500).json({ error: error?.message ?? "Failed" }); return; }
+  res.status(201).json(data);
+});
+
+router.delete("/super-admin/knowledge-base/:id", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  await supabase.from("platform_knowledge_base").delete().eq("id", id);
+  res.sendStatus(204);
+});
+
+router.get("/super-admin/deployments", requireSuperAdmin, async (_req, res): Promise<void> => {
+  const { data } = await supabase.from("platform_deployments").select("*").order("deployed_at", { ascending: false }).limit(50);
+  res.json(data ?? []);
+});
+
+router.post("/super-admin/deployments", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { version, title, description } = req.body ?? {};
+  if (!title?.trim()) { res.status(400).json({ error: "title required" }); return; }
+  const { data, error } = await supabase.from("platform_deployments").insert({
+    version: version?.trim() || null,
+    title: title.trim(),
+    description: description?.trim() || null,
+  }).select().single();
+  if (error || !data) { res.status(500).json({ error: error?.message ?? "Failed" }); return; }
+  res.status(201).json(data);
+});
+
+// For support AI to fetch current KB + recent deployments
+router.get("/support-ai/context", async (_req, res): Promise<void> => {
+  const [{ data: kb }, { data: deployments }] = await Promise.all([
+    supabase.from("platform_knowledge_base").select("section, title, content").order("section").order("title"),
+    supabase.from("platform_deployments").select("title, description, deployed_at").order("deployed_at", { ascending: false }).limit(20),
+  ]);
+  res.json({
+    knowledgeBase: kb ?? [],
+    recentDeployments: deployments ?? [],
+  });
+});
+
 export default router;

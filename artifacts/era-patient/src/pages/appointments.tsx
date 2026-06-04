@@ -466,8 +466,21 @@ function CalendarView({
 export default function Appointments() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, hospitalConfig } = useAuth();
+  const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
   const isReceptionist = user?.role === "receptionist" || user?.role === "admin";
+
+  if (!apptEnabled) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+          <Calendar className="w-10 h-10 text-muted-foreground/30" />
+          <p className="text-sm font-medium">Appointments is not available</p>
+          <p className="text-xs text-muted-foreground">This feature is not enabled for your clinic.</p>
+        </div>
+      </Layout>
+    );
+  }
 
   const [tab, setTab] = useState<"list" | "calendar">("list");
   const [showBook, setShowBook] = useState(false);

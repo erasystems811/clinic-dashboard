@@ -82,7 +82,20 @@ function DistributionBar({ star, count, max }: { star: number; count: number; ma
 type Tab = "dashboard" | "editor";
 
 export default function FeedbackAdmin() {
-  const { hospital } = useAuth();
+  const { hospital, hospitalConfig } = useAuth();
+  const feedbackEnabled = hospitalConfig?.modules?.feedbackEnabled ?? true;
+
+  if (!feedbackEnabled) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+          <Star className="w-10 h-10 text-muted-foreground/30" />
+          <p className="text-sm font-medium">Feedback is not available</p>
+          <p className="text-xs text-muted-foreground">This feature is not enabled for your clinic.</p>
+        </div>
+      </Layout>
+    );
+  }
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);

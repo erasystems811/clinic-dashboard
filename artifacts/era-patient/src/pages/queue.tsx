@@ -10,14 +10,140 @@ import {
   useListPatients,
   useCheckinPatient,
   useDequeuePatient,
+  useUpdatePatient,
   getListQueueQueryKey,
   getListPatientsQueryKey,
   getListAppointmentsQueryKey,
 } from "@workspace/api-client-react";
 
-import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star } from "lucide-react";
+import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star, Pencil, X } from "lucide-react";
 import { getPatientStages } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+
+interface EditPatient {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  whatsappNumber: string;
+  dateOfBirth: string;
+  gender: string;
+  patientId: string;
+  notes: string;
+}
+
+function EditPatientModal({ patient, onClose, onSaved }: { patient: EditPatient; onClose: () => void; onSaved: () => void }) {
+  const { toast } = useToast();
+  const update = useUpdatePatient();
+  const [form, setForm] = useState({ ...patient });
+
+  const field = (key: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm(f => ({ ...f, [key]: e.target.value }));
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    update.mutate(
+      { id: patient.id, data: {
+        firstName: form.firstName || undefined,
+        lastName: form.lastName || undefined,
+        phone: form.phone || undefined,
+        email: form.email || undefined,
+        whatsappNumber: form.whatsappNumber || undefined,
+        dateOfBirth: form.dateOfBirth || undefined,
+        gender: form.gender || undefined,
+        patientId: form.patientId || undefined,
+        notes: form.notes || undefined,
+      }},
+      {
+        onSuccess: () => {
+          toast({ title: "Patient info updated" });
+          onSaved();
+          onClose();
+        },
+        onError: (err: unknown) => {
+          const msg = (err as { data?: { error?: string } })?.data?.error ?? "Update failed";
+          toast({ title: "Could not update patient", description: msg, variant: "destructive" });
+        },
+      }
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-card border border-border rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <p className="font-semibold text-sm">Edit Patient Info</p>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">First Name</label>
+              <Input value={form.firstName} onChange={field("firstName")} placeholder="First name" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Last Name</label>
+              <Input value={form.lastName} onChange={field("lastName")} placeholder="Last name" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Phone</label>
+              <Input value={form.phone} onChange={field("phone")} placeholder="Phone number" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">WhatsApp</label>
+              <Input value={form.whatsappNumber} onChange={field("whatsappNumber")} placeholder="If different" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Email</label>
+            <Input type="email" value={form.email} onChange={field("email")} placeholder="Email address" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Date of Birth</label>
+              <Input type="date" value={form.dateOfBirth} onChange={field("dateOfBirth")} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Gender</label>
+              <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" value={form.gender} onChange={field("gender")}>
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Patient ID / MRN</label>
+            <Input value={form.patientId} onChange={field("patientId")} placeholder="e.g. PT-00123" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Notes</label>
+            <textarea
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px] resize-y"
+              value={form.notes}
+              onChange={field("notes")}
+              placeholder="Any additional notes..."
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+            <Button type="submit" size="sm" disabled={update.isPending}>
+              {update.isPending && <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />}
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 function waitTime(addedAt: string) {
   const diff = Math.floor((Date.now() - new Date(addedAt).getTime()) / 60000);
@@ -46,6 +172,7 @@ export default function QueueManagement() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
+  const [editPatient, setEditPatient] = useState<EditPatient | null>(null);
 
   const { data: queue = [], refetch: refetchQueue, isLoading: queueLoading, isFetching: queueFetching } = useListQueue({
     query: { refetchInterval: 5000 },
@@ -81,8 +208,20 @@ export default function QueueManagement() {
 
   const filteredPatients = search.trim().length >= 2 ? searchResults : [];
 
+  function handlePatientSaved() {
+    queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
+  }
+
   return (
     <Layout>
+      {editPatient && (
+        <EditPatientModal
+          patient={editPatient}
+          onClose={() => setEditPatient(null)}
+          onSaved={handlePatientSaved}
+        />
+      )}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -146,6 +285,24 @@ export default function QueueManagement() {
                     <Clock className="w-3 h-3" />
                     {waitTime(entry.addedAt)}
                   </div>
+                  <button
+                    onClick={() => setEditPatient({
+                      id: entry.patientId,
+                      firstName: (entry.patientName ?? "").split(" ")[0] ?? "",
+                      lastName: (entry.patientName ?? "").split(" ").slice(1).join(" ") ?? "",
+                      phone: entry.phone ?? "",
+                      email: entry.email ?? "",
+                      whatsappNumber: entry.whatsappNumber ?? "",
+                      dateOfBirth: "",
+                      gender: "",
+                      patientId: entry.patientCode ?? "",
+                      notes: "",
+                    })}
+                    className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                    title="Edit patient info"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
                   <label className="flex items-center gap-2 cursor-pointer shrink-0" title="Tick when patient is called in">
                     <input
                       type="checkbox"
@@ -204,19 +361,41 @@ export default function QueueManagement() {
                             {patient.whatsappNumber && <span>WA: {patient.whatsappNumber}</span>}
                           </div>
                         </div>
-                        {alreadyQueued ? (
-                          <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2.5 py-1 rounded-full whitespace-nowrap">
-                            Already in queue
-                          </span>
-                        ) : (
+                        <div className="flex items-center gap-2 shrink-0">
                           <Button
                             size="sm"
-                            onClick={() => checkin.mutate({ id: patient.id })}
-                            disabled={checkin.isPending}
+                            variant="outline"
+                            onClick={() => setEditPatient({
+                              id: patient.id,
+                              firstName: patient.firstName ?? "",
+                              lastName: patient.lastName ?? "",
+                              phone: (patient as never as { phone?: string }).phone ?? "",
+                              email: patient.email ?? "",
+                              whatsappNumber: patient.whatsappNumber ?? "",
+                              dateOfBirth: (patient as never as { dateOfBirth?: string }).dateOfBirth ?? "",
+                              gender: (patient as never as { gender?: string }).gender ?? "",
+                              patientId: patient.patientId ?? "",
+                              notes: (patient as never as { notes?: string }).notes ?? "",
+                            })}
+                            className="gap-1.5"
                           >
-                            Add to Queue
+                            <Pencil className="w-3 h-3" />
+                            Edit
                           </Button>
-                        )}
+                          {alreadyQueued ? (
+                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2.5 py-1 rounded-full whitespace-nowrap">
+                              Already in queue
+                            </span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={() => checkin.mutate({ id: patient.id })}
+                              disabled={checkin.isPending}
+                            >
+                              Add to Queue
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     );
                   })

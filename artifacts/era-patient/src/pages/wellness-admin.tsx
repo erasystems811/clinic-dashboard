@@ -163,6 +163,7 @@ export default function WellnessAdmin() {
   const [bulkSubject, setBulkSubject] = useState("");
   const [bulkMessage, setBulkMessage] = useState("");
   const [bulkSending, setBulkSending] = useState(false);
+  const [bulkIncludeDormant, setBulkIncludeDormant] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ sent: number; failed: number; total: number } | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
@@ -598,7 +599,7 @@ export default function WellnessAdmin() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold">Send a Custom Email to All Patients</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Sends to all Active, Post Treatment, In Care, and Dormant patients. Use for announcements, special notices, or any message outside the wellness newsletter.</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Sends to all Active, Post Treatment, and In Care patients. Use for announcements, special notices, or any message outside the wellness newsletter.</p>
               </div>
               <span className={`text-xs shrink-0 font-medium px-2.5 py-1 rounded-full border ${bulkSentThisMonth >= MONTHLY_BULK_LIMIT ? "border-destructive/40 text-destructive bg-destructive/5" : "border-border text-muted-foreground"}`}>
                 {bulkSentThisMonth} / {MONTHLY_BULK_LIMIT} this month
@@ -609,7 +610,7 @@ export default function WellnessAdmin() {
               <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-2">
                 <p className="text-sm font-semibold text-green-400">Email sent successfully</p>
                 <p className="text-sm text-muted-foreground">{bulkResult.sent} of {bulkResult.total} patients received the email{bulkResult.failed > 0 ? ` · ${bulkResult.failed} failed` : ""}.</p>
-                <button onClick={() => { setBulkResult(null); setBulkSubject(""); setBulkMessage(""); }} className="text-xs text-primary hover:underline">Send another</button>
+                <button onClick={() => { setBulkResult(null); setBulkSubject(""); setBulkMessage(""); setBulkIncludeDormant(false); }} className="text-xs text-primary hover:underline">Send another</button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -632,6 +633,15 @@ export default function WellnessAdmin() {
                     onChange={e => setBulkMessage(e.target.value)}
                   />
                 </div>
+                <label className="flex items-center gap-2.5 cursor-pointer select-none py-1">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-primary cursor-pointer"
+                    checked={bulkIncludeDormant}
+                    onChange={e => setBulkIncludeDormant(e.target.checked)}
+                  />
+                  <span className="text-sm text-muted-foreground">Also send to <strong className="text-foreground">Dormant</strong> patients</span>
+                </label>
                 <button
                   className="w-full py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
                   disabled={bulkSending || !bulkSubject.trim() || !bulkMessage.trim() || bulkSentThisMonth >= MONTHLY_BULK_LIMIT}
@@ -642,7 +652,7 @@ export default function WellnessAdmin() {
                       const res = await fetch(apiUrl("/api/wellness/bulk-email"), {
                         method: "POST",
                         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
-                        body: JSON.stringify({ subject: bulkSubject.trim(), message: bulkMessage.trim() }),
+                        body: JSON.stringify({ subject: bulkSubject.trim(), message: bulkMessage.trim(), includeDormant: bulkIncludeDormant }),
                       });
                       const data = await res.json();
                       if (!res.ok) throw new Error(data.error ?? "Send failed");

@@ -20,7 +20,7 @@ import {
   type PregeneratedMessages,
 } from "./automation.js";
 
-const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng";
+const APP_BASE_URL = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
 
 function log(msg: string) {
   console.log(`[scheduler] ${new Date().toISOString()} ${msg}`);
@@ -239,15 +239,16 @@ async function runPostCareEmails() {
 
 // ── Dormant Detection — runs daily ────────────────────────────────────────────
 // A patient becomes Dormant when they have been in "Active" stage for more than
-// pipeline_dormant_days without any clinical activity (check-in, new care plan, etc.).
-// "Activity" is proxied by patients.updated_at — every check-in and patient edit updates it.
-// Post Treatment, In Care, and Dormant patients are excluded (only Active→Dormant transition).
+// pipeline_dormant_days without any queue check-in.
+// The clock resets whenever checked_in_at is updated — on every queue check-in,
+// on every transition back into Active (Post Treatment→Active, manual stage set),
+// and on initial patient creation/import.
 async function runDormantDetection() {
   try {
     const now = new Date();
 
     // Start from ALL hospitals — not just those with a settings row.
-    // A hospital with no settings row uses the default of 30 days.
+    // A hospital with no settings row uses the default of 90 days.
     const { data: hospitals } = await supabase
       .from("hospitals")
       .select("id, hospital_code, active");
@@ -258,46 +259,84 @@ async function runDormantDetection() {
       if (hospital.active === false) continue;
       if (!hospital.hospital_code) continue;
 
-      // Look up dormant days config — default 30 if no settings row exists yet.
+      // Look up dormant days config — default 90 if no settings row exists yet.
       const { data: settings } = await supabase
         .from("hospital_settings")
         .select("pipeline_dormant_days")
         .eq("hospital_id", hospital.id)
         .maybeSingle();
 
-      const dormantDays = (settings?.pipeline_dormant_days as number | null) ?? 30;
+      const dormantDays = (settings?.pipeline_dormant_days as number | null) ?? 90;
       const cutoff = new Date(now.getTime() - dormantDays * 24 * 60 * 60 * 1000).toISOString();
 
-      // Only target Active patients — never overwrite Post Treatment, In Care, or already-Dormant.
-      const { data: patients } = await supabase
+      // ── Step 1: Active patients old enough to qualify ─────────────────────────
+      const { data: candidates } = await supabase
         .from("patients")
         .select("id, first_name, last_name")
         .eq("hospital_id", hospital.hospital_code)
-        .eq("stage", "Active");
+        .eq("stage", "Active")
+        .lt("created_at", cutoff);
 
-      for (const p of patients ?? []) {
-        // Skip if the patient had any queue check-in within the dormant window.
-        const { data: recentCheckin } = await supabase
-          .from("activity")
-          .select("id")
-          .eq("patient_id", p.id)
-          .eq("type", "checkin")
-          .gte("created_at", cutoff)
-          .maybeSingle();
+      if (!candidates?.length) continue;
+      const candidateIds = candidates.map(p => p.id as number);
 
-        if (recentCheckin) continue;
+      // ── Step 2: Clock is PAUSED for patients with any current second stage ────
+      // Queued — currently in the reception queue
+      const { data: queuedRows } = await supabase
+        .from("queue")
+        .select("patient_id")
+        .eq("hospital_id", hospital.hospital_code);
+      const currentlyQueuedIds = new Set((queuedRows ?? []).map(r => r.patient_id as number));
+
+      // In Care — has an active care plan (non-GenOut keeps stage="Active" in DB)
+      const { data: activePlanRows } = await supabase
+        .from("care_plans")
+        .select("patient_id")
+        .eq("hospital_id", hospital.hospital_code)
+        .eq("status", "active");
+      const activePlanIds = new Set((activePlanRows ?? []).map(r => r.patient_id as number));
+
+      // Booked — has an upcoming appointment
+      const { data: bookedRows } = await supabase
+        .from("appointments")
+        .select("patient_id")
+        .in("patient_id", candidateIds)
+        .gte("scheduled_at", now.toISOString())
+        .not("status", "in", '("cancelled","no_show","completed","dismissed")');
+      const bookedIds = new Set((bookedRows ?? []).map(r => r.patient_id as number));
+
+      // ── Step 3: Clock RESTARTED recently for patients who had clinical activity ─
+      // Any event that is not a pure admin/automated action counts — it means the
+      // patient entered another stage and returned to Active within the window,
+      // so their solo-Active clock is younger than dormantDays.
+      const NON_INTERACTION = ["patient_created", "patient_info_updated", "treatment_reminder", "automated_message", "no_show"];
+      const { data: recentActivityRows } = await supabase
+        .from("activity")
+        .select("patient_id")
+        .eq("hospital_id", hospital.id)
+        .not("type", "in", `(${NON_INTERACTION.map(t => `"${t}"`).join(",")})`)
+        .gte("created_at", cutoff)
+        .not("patient_id", "is", null);
+      const recentlyActiveIds = new Set((recentActivityRows ?? []).map(r => r.patient_id as number));
+
+      // ── Step 4: Mark dormant — only pure-Active patients with no recent activity ─
+      for (const p of candidates) {
+        if (currentlyQueuedIds.has(p.id as number)) continue; // clock paused — in queue
+        if (activePlanIds.has(p.id as number))      continue; // clock paused — in care
+        if (bookedIds.has(p.id as number))          continue; // clock paused — booked
+        if (recentlyActiveIds.has(p.id as number))  continue; // clock restarted within window
 
         await supabase.from("patients")
           .update({ stage: "Dormant", updated_at: now.toISOString() })
           .eq("id", p.id);
         await supabase.from("activity").insert({
           type: "stage_changed",
-          description: `${p.first_name} ${p.last_name} moved to Dormant (${dormantDays} days without activity)`,
+          description: `${p.first_name} ${p.last_name} moved to Dormant (only Active for ${dormantDays}+ days with no other stage)`,
           patient_id: p.id,
           patient_name: `${p.first_name} ${p.last_name}`,
           metadata: "Dormant",
         });
-        log(`Patient ${p.id} → Dormant (${dormantDays}d without queue check-in)`);
+        log(`Patient ${p.id} → Dormant (pure Active for ${dormantDays}d)`);
       }
     }
   } catch (err) {
@@ -388,8 +427,9 @@ async function runPostTreatmentTransitions() {
         .lt("updated_at", cutoff);
 
       for (const p of patients ?? []) {
+        const nowIso = new Date().toISOString();
         await supabase.from("patients")
-          .update({ stage: "Active", updated_at: new Date().toISOString() })
+          .update({ stage: "Active", updated_at: nowIso })
           .eq("id", p.id);
         await supabase.from("activity").insert({
           type: "stage_changed",

@@ -36,32 +36,24 @@ const BASELINE_STAGES = new Set(["Active", "Post Care", "Dormant"]);
 export function getPatientStages(patient: { stage?: string | null } & Record<string, unknown>, opts?: { apptEnabled?: boolean }): string[] {
   const raw = (patient.stage as string | null) ?? "";
   const primary = STAGE_ALIASES[raw] ?? raw;
-  const inCare = patient.hasCarePlan === true;
+  const inCare   = patient.hasCarePlan === true;
+  const isQueued = patient.isInQueue   === true;
+  const isBooked = patient.isBooked    === true && opts?.apptEnabled !== false;
 
-  // Patient is "in treatment" if they have active care plans OR are in post-treatment recovery.
-  // In either case, baseline states (Active, Dormant) are suppressed — they don't apply.
-  const inTreatment = inCare || primary === "Post Treatment";
+  // Baseline stages (Active / Dormant) are suppressed whenever the patient has ANY
+  // second stage. If they're Queued, Booked, In Care, or Post Treatment their clock
+  // is paused — showing "Dormant" alongside those would be misleading.
+  const hasSecondStage = inCare || primary === "Post Treatment" || isQueued || isBooked;
 
   const stages: string[] = [];
 
-  if (primary && !(inTreatment && BASELINE_STAGES.has(primary))) {
+  if (primary && !(hasSecondStage && BASELINE_STAGES.has(primary))) {
     stages.push(primary);
   }
 
-  // Queued = currently in the queue (transient overlay)
-  if (patient.isInQueue === true && !stages.includes("Queued")) {
-    stages.push("Queued");
-  }
-
-  // Booked = upcoming appointment (transient overlay — only when appointments module is on)
-  if (patient.isBooked === true && opts?.apptEnabled !== false && !stages.includes("Booked")) {
-    stages.push("Booked");
-  }
-
-  // In Care = has active care plan(s)
-  if (inCare && !stages.includes("In Care")) {
-    stages.push("In Care");
-  }
+  if (isQueued && !stages.includes("Queued"))   stages.push("Queued");
+  if (isBooked && !stages.includes("Booked"))   stages.push("Booked");
+  if (inCare   && !stages.includes("In Care"))  stages.push("In Care");
 
   return Array.from(new Set(stages)).filter(Boolean);
 }

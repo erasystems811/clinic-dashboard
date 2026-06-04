@@ -233,6 +233,7 @@ export default function PatientHistory() {
   const handleDelete = () => {
     deletePatient.mutate({ id }, {
       onSuccess: () => setLocation("/patients"),
+      onError: () => toast({ title: "Failed to delete patient", description: "Please try again.", variant: "destructive" }),
     });
   };
 
@@ -417,6 +418,7 @@ export default function PatientHistory() {
                 <InfoRow label="Patient ID" value={patient.patientId} />
                 <InfoRow label="Date of Birth" value={fmtDate(patient.dateOfBirth)} />
                 <InfoRow label="Age / Gender" value={[patient.age ? `${patient.age} yrs` : null, patient.gender].filter(Boolean).join(" · ") || null} />
+                <InfoRow label="Last Visited" value={fmtDate((patient as Record<string, unknown>).checkedInAt as string | null)} />
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs text-muted-foreground uppercase tracking-wide font-medium">Phone</span>
                   <span className="text-sm font-medium flex items-center gap-1.5">
@@ -683,35 +685,34 @@ export default function PatientHistory() {
             </div>
           )}
         </Section>
+        {/* Admin-only: intentionally subtle delete — hidden from normal view to prevent accidental deletion */}
+        {isAdmin && (
+          <div className="pt-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="text-[11px] text-muted-foreground/30 hover:text-destructive/60 transition-colors flex items-center gap-1 opacity-0 hover:opacity-100 focus:opacity-100" disabled={deletePatient.isPending}>
+                  {deletePatient.isPending ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Trash2 className="w-2.5 h-2.5" />}
+                  Delete record
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete patient record?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently remove all data for {patientFullName} including appointments, activity history, and call tasks. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={deletePatient.isPending}>
+                    {deletePatient.isPending ? "Deleting…" : "Permanently Delete"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
       </div>
-
-      {/* Admin-only: subtle delete at very bottom */}
-      {isAdmin && (
-        <div className="pt-2 border-t border-border/40">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button className="text-xs text-muted-foreground/50 hover:text-destructive transition-colors flex items-center gap-1.5">
-                <Trash2 className="w-3 h-3" />
-                Delete patient record
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete patient record?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will permanently remove all data for {patientFullName} including appointments, activity history, and call tasks. This cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                  Permanently Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      )}
 
       {/* Modals */}
       {showFollowUp && (

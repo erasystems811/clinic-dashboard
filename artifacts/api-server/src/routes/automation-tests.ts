@@ -127,10 +127,15 @@ router.post("/super-admin/automation-test", auth, async (req: Request, res: Resp
         if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
         await sendBirthdayEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail);
         break;
-      case "feedback_email":
+      case "feedback_email": {
         if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
-        await sendFeedbackEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail, "https://era.hospital/feedback/test");
+        const { data: hospForFeedback } = await supabase.from("hospitals").select("feedback_slug").eq("id", hId).single();
+        const feedbackSlugTest = hospForFeedback?.feedback_slug as string | null;
+        const appBaseTest = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
+        const testFeedbackUrl = feedbackSlugTest ? `${appBaseTest}/feedback/h/${feedbackSlugTest}` : `${appBaseTest}/feedback/h/preview`;
+        await sendFeedbackEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail, testFeedbackUrl);
         break;
+      }
       case "care_plan_email":
         if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
         await sendCarePlanEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail, "General Outpatient", SAMPLE_PLAN, 7);

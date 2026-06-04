@@ -484,8 +484,9 @@ router.get("/wellness/topics", async (req, res): Promise<void> => {
 
 // ── Bulk Email — custom message to all active patients ────────────────────────
 const BulkEmailBody = z.object({
-  subject: z.string().min(1),
-  message: z.string().min(1),
+  subject:        z.string().min(1),
+  message:        z.string().min(1),
+  includeDormant: z.boolean().optional().default(false),
 });
 
 router.post("/wellness/bulk-email", async (req, res): Promise<void> => {
@@ -529,11 +530,14 @@ router.post("/wellness/bulk-email", async (req, res): Promise<void> => {
   try {
     const hCtx = await getHospitalContext(hospitalId);
 
+    const stages = ["Active", "Post Treatment", "In Care"];
+    if (parsed.data.includeDormant) stages.push("Dormant");
+
     const { data: patients } = await supabase
       .from("patients")
       .select("id, first_name, last_name, email")
       .eq("hospital_id", hCtx.hospitalCode)
-      .in("stage", ["Active", "Post Treatment", "In Care", "Dormant"])
+      .in("stage", stages)
       .not("email", "is", null);
 
     let sent = 0;

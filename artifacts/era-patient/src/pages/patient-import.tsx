@@ -13,30 +13,34 @@ import {
 // ── Patient fields the import supports ───────────────────────────────────────
 
 const PATIENT_FIELDS = [
-  { key: "firstName",  label: "First Name",              required: true  },
-  { key: "lastName",   label: "Last Name",               required: true  },
-  { key: "email",      label: "Email",                   required: false },
-  { key: "phone",      label: "Phone",                   required: false },
-  { key: "dateOfBirth",label: "Date of Birth",           required: false },
-  { key: "age",        label: "Age",                     required: false },
-  { key: "gender",     label: "Gender",                  required: false },
-  { key: "patientId",  label: "Hospital Patient ID / MRN", required: false },
-  { key: "notes",      label: "Notes",                   required: false },
+  { key: "fullName",      label: "Full Name (combined)",    required: false },
+  { key: "firstName",     label: "First Name",              required: false },
+  { key: "lastName",      label: "Last Name",               required: false },
+  { key: "email",         label: "Email",                   required: false },
+  { key: "phone",         label: "Phone",                   required: false },
+  { key: "dateOfBirth",   label: "Date of Birth",           required: false },
+  { key: "age",           label: "Age",                     required: false },
+  { key: "gender",        label: "Gender",                  required: false },
+  { key: "lastVisitedAt", label: "Last Visit Date",         required: false },
+  { key: "patientId",     label: "Hospital Patient ID / MRN", required: false },
+  { key: "notes",         label: "Notes",                   required: false },
 ] as const;
 
 type PatientField = typeof PATIENT_FIELDS[number]["key"];
 
 // Auto-detect column name → patient field
 const FIELD_ALIASES: Record<PatientField, string[]> = {
-  firstName:   ["first name", "firstname", "first_name", "given name", "given_name", "forename", "name (first)"],
-  lastName:    ["last name", "lastname", "last_name", "surname", "family name", "family_name", "second name", "name (last)"],
-  email:       ["email", "email address", "e-mail", "email_address", "e_mail"],
-  phone:       ["phone", "phone number", "telephone", "mobile", "tel", "phone_number", "mobile_number", "contact number"],
-  dateOfBirth: ["date of birth", "dob", "birth date", "birthday", "date_of_birth", "birthdate", "birth_date"],
-  age:         ["age"],
-  gender:      ["gender", "sex"],
-  patientId:   ["patient id", "patient_id", "hospital id", "mrn", "record number", "patient ref", "id", "pid", "ref", "chart no", "chart number"],
-  notes:       ["notes", "remarks", "comments", "note", "additional info", "additional notes"],
+  fullName:      ["name", "full name", "fullname", "full_name", "patient name", "patient_name"],
+  firstName:     ["first name", "firstname", "first_name", "given name", "given_name", "forename", "name (first)"],
+  lastName:      ["last name", "lastname", "last_name", "surname", "family name", "family_name", "second name", "name (last)"],
+  email:         ["email", "email address", "e-mail", "email_address", "e_mail"],
+  phone:         ["phone", "phone number", "telephone", "mobile", "tel", "phone_number", "mobile_number", "contact number"],
+  dateOfBirth:   ["date of birth", "dob", "birth date", "birthday", "date_of_birth", "birthdate", "birth_date"],
+  age:           ["age"],
+  gender:        ["gender", "sex"],
+  lastVisitedAt: ["last visit", "last visit date", "last visited", "last_visit", "last_visit_date", "last_visited", "last seen", "last_seen", "last attendance", "last check-in", "last checkin"],
+  patientId:     ["patient id", "patient_id", "hospital id", "mrn", "record number", "patient ref", "id", "pid", "ref", "chart no", "chart number"],
+  notes:         ["notes", "remarks", "comments", "note", "additional info", "additional notes"],
 };
 
 function autoDetect(headers: string[]): Record<PatientField, string> {
@@ -139,9 +143,9 @@ export default function PatientImport() {
   const handleImport = async () => {
     if (!parsed || !hospital?.token) return;
 
-    const requiredMapped = PATIENT_FIELDS.filter(f => f.required).every(f => mapping[f.key]);
-    if (!requiredMapped) {
-      toast({ title: "Please map First Name and Last Name columns", variant: "destructive" });
+    const hasNameMapping = mapping["fullName"] || (mapping["firstName"] && mapping["lastName"]) || mapping["firstName"];
+    if (!hasNameMapping) {
+      toast({ title: "Please map at least a Name or First Name column", variant: "destructive" });
       return;
     }
 
@@ -156,7 +160,7 @@ export default function PatientImport() {
           }
         }
         return p;
-      }).filter(p => p.firstName && p.lastName);
+      }).filter(p => p.fullName || p.firstName);
 
       if (patients.length === 0) {
         toast({ title: "No valid rows to import", description: "Make sure First Name and Last Name are mapped and filled", variant: "destructive" });
@@ -193,9 +197,9 @@ export default function PatientImport() {
 
   const mappedFields = PATIENT_FIELDS.filter(f => mapping[f.key]);
   const validRowCount = parsed?.rows.filter(r => {
+    const fullNameCol = mapping["fullName"];
     const fnCol = mapping["firstName"];
-    const lnCol = mapping["lastName"];
-    return fnCol && lnCol && r[fnCol]?.trim() && r[lnCol]?.trim();
+    return (fullNameCol && r[fullNameCol]?.trim()) || (fnCol && r[fnCol]?.trim());
   }).length ?? 0;
 
   // ── Download error report ─────────────────────────────────────────────────
@@ -394,13 +398,13 @@ export default function PatientImport() {
                     </p>
                     {parsed.rows.length !== validRowCount && (
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {parsed.rows.length - validRowCount} rows will be skipped (missing first or last name)
+                        {parsed.rows.length - validRowCount} rows will be skipped (no name found)
                       </p>
                     )}
                   </div>
                   <Button
                     onClick={handleImport}
-                    disabled={importing || validRowCount === 0 || !mapping["firstName"] || !mapping["lastName"]}
+                    disabled={importing || validRowCount === 0}
                     className="gap-2"
                   >
                     {importing
@@ -419,7 +423,7 @@ export default function PatientImport() {
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <span>Your file must have <strong className="text-foreground">First Name</strong> and <strong className="text-foreground">Last Name</strong> columns — everything else is optional.</span>
+                    <span>All fields are optional — just map whatever your EMR exports. If your export has a combined <strong className="text-foreground">Name</strong> column instead of separate first/last name, map it to <strong className="text-foreground">Full Name (combined)</strong> and it will be split automatically.</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
@@ -435,7 +439,7 @@ export default function PatientImport() {
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                    <span>All imported patients are added as <strong className="text-foreground">Active</strong> — you can update individual patients afterwards if needed.</span>
+                    <span>Map <strong className="text-foreground">Last Visit Date</strong> if your EMR export includes it. Patients whose last visit is older than your dormant threshold will be imported as <strong className="text-foreground">Dormant</strong> automatically — all others import as Active.</span>
                   </li>
                 </ul>
               </div>

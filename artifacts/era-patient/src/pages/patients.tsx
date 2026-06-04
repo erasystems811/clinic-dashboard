@@ -37,7 +37,7 @@ export default function Patients() {
       offset,
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    { query: { enabled: true } as any }
+    { query: { enabled: true, refetchInterval: 30000 } as any }
   );
 
   useEffect(() => {
@@ -105,6 +105,7 @@ export default function Patients() {
                   <TableHead>Patient ID</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Stage</TableHead>
+                  <TableHead>Last Visited</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead className="w-10"></TableHead>
                 </TableRow>
@@ -151,6 +152,15 @@ export default function Patients() {
                             <span className="text-sm">{patient.email}</span>
                             <span className="text-xs text-muted-foreground">{patient.phone}</span>
                           </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {(() => {
+                            const ci = (patient as Record<string, unknown>).checkedInAt as string | null | undefined;
+                            if (!ci) return <span className="opacity-40">—</span>;
+                            try {
+                              return new Date(ci).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
+                            } catch { return "—"; }
+                          })()}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">

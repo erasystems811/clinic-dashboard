@@ -1001,8 +1001,10 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
     // Text/WhatsApp — send the message
     if (phone) {
       try {
+        const { getHospitalContext } = await import("../lib/automation.js");
         const { deliverMobileMessage } = await import("../lib/messaging.js");
-        await deliverMobileMessage(hospital.intId, phone, message.trim());
+        const hCtx = await getHospitalContext(hospital.intId);
+        await deliverMobileMessage(hCtx.notificationChannel, phone, message.trim(), { senderId: hCtx.termiiSenderId });
         sent = true;
       } catch (err) {
         console.error("[direct-message] send failed:", err);

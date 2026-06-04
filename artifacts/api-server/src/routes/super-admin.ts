@@ -1626,6 +1626,21 @@ router.post("/super-admin/announcements", requireSuperAdmin, async (req, res): P
   res.status(201).json(data);
 });
 
+router.patch("/super-admin/announcements/:id", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const { title, message, type, expiresAt } = req.body ?? {};
+  const { data, error } = await supabase.from("hospital_announcements")
+    .update({
+      title: title?.trim(),
+      message: message?.trim(),
+      type,
+      expires_at: expiresAt ?? null,
+    })
+    .eq("id", id).select().single();
+  if (error || !data) { res.status(500).json({ error: error?.message ?? "Failed" }); return; }
+  res.json(data);
+});
+
 router.patch("/super-admin/announcements/:id/publish", requireSuperAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   const { data, error } = await supabase.from("hospital_announcements")

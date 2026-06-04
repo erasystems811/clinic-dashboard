@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Layout from "@/components/layout";
 import { get, post, del } from "@/lib/api";
-import { Info, TriangleAlert, RefreshCw, Plus, Trash2, Loader2, Building2, Radio, Check } from "lucide-react";
+import { Info, TriangleAlert, RefreshCw, Plus, Trash2, Loader2, Building2, Radio, Check, Edit } from "lucide-react";
 
 interface Announcement {
   id: number;
@@ -30,6 +30,7 @@ export default function Announcements() {
   const [hospitals, setHospitals] = useState<HospitalOption[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
@@ -61,19 +62,27 @@ export default function Announcements() {
     if (!title.trim() || !message.trim()) return;
     setSaveError(""); setSaving(true);
     try {
-      await post("/super-admin/announcements", {
-        title: title.trim(),
-        message: message.trim(),
-        type,
-        hospitalId: targetAll ? null : (hospitalId || null),
-        expiresAt: expiresAt || null,
-        publish: publishNow,
-      });
-      setTitle(""); setMessage(""); setType("info"); setTargetAll(true); setHospitalId(""); setExpiresAt(""); setPublishNow(false);
+      if (editingId) {
+        await fetch(`/api/super-admin/announcements/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", "x-super-admin-token": localStorage.getItem("era_super_admin_token") || "" },
+          body: JSON.stringify({ title: title.trim(), message: message.trim(), type, expiresAt: expiresAt || null }),
+        });
+      } else {
+        await post("/super-admin/announcements", {
+          title: title.trim(),
+          message: message.trim(),
+          type,
+          hospitalId: targetAll ? null : (hospitalId || null),
+          expiresAt: expiresAt || null,
+          publish: publishNow,
+        });
+      }
+      setTitle(""); setMessage(""); setType("info"); setTargetAll(true); setHospitalId(""); setExpiresAt(""); setPublishNow(false); setEditingId(null);
       setShowForm(false);
       load();
     } catch (err: unknown) {
-      setSaveError(err instanceof Error ? err.message : "Failed to create");
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
     } finally { setSaving(false); }
   };
 
@@ -91,6 +100,16 @@ export default function Announcements() {
       if (res.ok) load();
     } catch { /* */ }
     finally { setDeleting(null); }
+  };
+
+  const startEdit = (a: Announcement) => {
+    setEditingId(a.id);
+    setTitle(a.title);
+    setMessage(a.message);
+    setType(a.type);
+    setExpiresAt(a.expiresAt ? a.expiresAt.split("T")[0] : "");
+    setPublishNow(false);
+    setShowForm(true);
   };
 
   const drafts = items.filter(a => !a.published);
@@ -114,10 +133,10 @@ export default function Announcements() {
           </button>
         </div>
 
-        {/* Create form */}
+        {/* Create/Edit form */}
         {showForm && (
           <form onSubmit={handleCreate} className="rounded-xl border border-border bg-card p-5 space-y-4">
-            <p className="font-semibold text-sm">New Announcement</p>
+            <p className="font-semibold text-sm">{editingId ? "Edit Draft" : "New Announcement"}</p>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1 col-span-2">
@@ -168,29 +187,31 @@ export default function Announcements() {
               )}
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs text-muted-foreground font-medium">Save as</label>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setPublishNow(false)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition ${!publishNow ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-                  📝 Draft (hidden)
-                </button>
-                <button type="button" onClick={() => setPublishNow(true)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition ${publishNow ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-                  ✓ Publish now
-                </button>
+            {!editingId && (
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground font-medium">Save as</label>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setPublishNow(false)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition ${!publishNow ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+                    📝 Draft (hidden)
+                  </button>
+                  <button type="button" onClick={() => setPublishNow(true)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition ${publishNow ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+                    ✓ Publish now
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             {saveError && <p className="text-xs text-destructive">{saveError}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={() => setShowForm(false)}
+              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setTitle(""); setMessage(""); setType("info"); setExpiresAt(""); setPublishNow(false); }}
                 className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted transition">
                 Cancel
               </button>
               <button type="submit" disabled={saving}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 hover:bg-primary/90 transition">
-                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : "Create Announcement"}
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : editingId ? "Update Draft" : "Create Announcement"}
               </button>
             </div>
           </form>
@@ -232,11 +253,15 @@ export default function Announcements() {
                           </p>
                         </div>
                         <div className="shrink-0 flex gap-1.5">
-                          <button onClick={() => handlePublish(a.id)} disabled={deleting === a.id}
+                          <button type="button" onClick={() => startEdit(a)} disabled={deleting === a.id}
+                            className="p-1.5 text-muted-foreground hover:text-primary transition rounded hover:bg-primary/10">
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button type="button" onClick={() => handlePublish(a.id)} disabled={deleting === a.id}
                             className="p-1.5 text-primary hover:bg-primary/10 transition rounded">
                             {deleting === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                           </button>
-                          <button onClick={() => handleDelete(a.id)} disabled={deleting === a.id}
+                          <button type="button" onClick={() => handleDelete(a.id)} disabled={deleting === a.id}
                             className="p-1.5 text-muted-foreground hover:text-destructive transition rounded hover:bg-destructive/10">
                             {deleting === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                           </button>

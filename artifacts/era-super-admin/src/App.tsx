@@ -11,7 +11,6 @@ import Usage from "@/pages/usage";
 import SupportInbox from "@/pages/support";
 import DocsPage from "@/pages/docs";
 import Announcements from "@/pages/announcements";
-import KnowledgeBase from "@/pages/knowledge-base";
 
 const queryClient = new QueryClient();
 
@@ -31,7 +30,6 @@ function AppRoutes() {
       </Route>
       <Route path="/settings" component={Settings} />
       <Route path="/announcements" component={Announcements} />
-      <Route path="/knowledge-base" component={KnowledgeBase} />
       <Route path="/automation-tests" component={AutomationTests} />
       <Route path="/usage" component={Usage} />
       <Route path="/support" component={SupportInbox} />

@@ -7,7 +7,9 @@ CREATE TABLE IF NOT EXISTS hospital_announcements (
   title       TEXT NOT NULL,
   message     TEXT NOT NULL,
   type        TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'warning', 'update')),
+  published   BOOLEAN NOT NULL DEFAULT false, -- false = draft (hidden from hospitals), true = visible
   created_at  TIMESTAMPTZ DEFAULT NOW(),
+  published_at TIMESTAMPTZ, -- set when published
   expires_at  TIMESTAMPTZ -- NULL = never expires
 );
 

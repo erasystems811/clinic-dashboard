@@ -1601,13 +1601,15 @@ router.get("/super-admin/announcements", requireSuperAdmin, async (_req, res): P
     title: a.title,
     message: a.message,
     type: a.type,
+    published: a.published,
     createdAt: a.created_at,
+    publishedAt: a.published_at,
     expiresAt: a.expires_at,
   })));
 });
 
 router.post("/super-admin/announcements", requireSuperAdmin, async (req, res): Promise<void> => {
-  const { hospitalId, title, message, type, expiresAt } = req.body ?? {};
+  const { hospitalId, title, message, type, expiresAt, publish } = req.body ?? {};
   if (!title?.trim() || !message?.trim()) {
     res.status(400).json({ error: "title and message are required" }); return;
   }
@@ -1616,10 +1618,21 @@ router.post("/super-admin/announcements", requireSuperAdmin, async (req, res): P
     title: title.trim(),
     message: message.trim(),
     type: type ?? "info",
+    published: publish === true,
+    published_at: publish === true ? new Date().toISOString() : null,
     expires_at: expiresAt ?? null,
   }).select().single();
   if (error || !data) { res.status(500).json({ error: error?.message ?? "Failed" }); return; }
   res.status(201).json(data);
+});
+
+router.patch("/super-admin/announcements/:id/publish", requireSuperAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const { data, error } = await supabase.from("hospital_announcements")
+    .update({ published: true, published_at: new Date().toISOString() })
+    .eq("id", id).select().single();
+  if (error || !data) { res.status(500).json({ error: error?.message ?? "Failed" }); return; }
+  res.json(data);
 });
 
 router.delete("/super-admin/announcements/:id", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -1636,10 +1649,11 @@ router.get("/hospital/announcements", async (req, res): Promise<void> => {
 
   const now = new Date().toISOString();
 
-  // Fetch announcements for this hospital OR broadcast (hospital_id IS NULL)
+  // Fetch PUBLISHED announcements for this hospital OR broadcast (hospital_id IS NULL)
   const { data: all } = await supabase
     .from("hospital_announcements")
     .select("*")
+    .eq("published", true)
     .or(`hospital_id.eq.${hospitalId},hospital_id.is.null`)
     .or(`expires_at.is.null,expires_at.gt.${now}`)
     .order("created_at", { ascending: false });

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Layout from "@/components/layout";
 import { get, post, del } from "@/lib/api";
-import { Info, TriangleAlert, RefreshCw, Plus, Trash2, Loader2, Building2, Radio } from "lucide-react";
+import { Info, TriangleAlert, RefreshCw, Plus, Trash2, Loader2, Building2, Radio, Check } from "lucide-react";
 
 interface Announcement {
   id: number;
@@ -10,7 +10,9 @@ interface Announcement {
   title: string;
   message: string;
   type: "info" | "warning" | "update";
+  published: boolean;
   createdAt: string;
+  publishedAt: string | null;
   expiresAt: string | null;
 }
 
@@ -35,6 +37,7 @@ export default function Announcements() {
   const [targetAll, setTargetAll] = useState(true);
   const [hospitalId, setHospitalId] = useState<number | "">("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [publishNow, setPublishNow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
@@ -64,8 +67,9 @@ export default function Announcements() {
         type,
         hospitalId: targetAll ? null : (hospitalId || null),
         expiresAt: expiresAt || null,
+        publish: publishNow,
       });
-      setTitle(""); setMessage(""); setType("info"); setTargetAll(true); setHospitalId(""); setExpiresAt("");
+      setTitle(""); setMessage(""); setType("info"); setTargetAll(true); setHospitalId(""); setExpiresAt(""); setPublishNow(false);
       setShowForm(false);
       load();
     } catch (err: unknown) {
@@ -79,6 +83,18 @@ export default function Announcements() {
     catch { /* */ }
     finally { setDeleting(null); }
   };
+
+  const handlePublish = async (id: number) => {
+    setDeleting(id);
+    try {
+      const res = await fetch(`/api/super-admin/announcements/${id}/publish`, { method: "PATCH", headers: { "Content-Type": "application/json", "x-super-admin-token": localStorage.getItem("era_super_admin_token") || "" } });
+      if (res.ok) load();
+    } catch { /* */ }
+    finally { setDeleting(null); }
+  };
+
+  const drafts = items.filter(a => !a.published);
+  const published = items.filter(a => a.published);
 
   return (
     <Layout>
@@ -152,6 +168,20 @@ export default function Announcements() {
               )}
             </div>
 
+            <div className="space-y-2">
+              <label className="text-xs text-muted-foreground font-medium">Save as</label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setPublishNow(false)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition ${!publishNow ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+                  📝 Draft (hidden)
+                </button>
+                <button type="button" onClick={() => setPublishNow(true)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition ${publishNow ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
+                  ✓ Publish now
+                </button>
+              </div>
+            </div>
+
             {saveError && <p className="text-xs text-destructive">{saveError}</p>}
             <div className="flex gap-2">
               <button type="button" onClick={() => setShowForm(false)}
@@ -160,7 +190,7 @@ export default function Announcements() {
               </button>
               <button type="submit" disabled={saving}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 hover:bg-primary/90 transition">
-                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : "Send Announcement"}
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving…</> : "Create Announcement"}
               </button>
             </div>
           </form>
@@ -174,36 +204,85 @@ export default function Announcements() {
             No announcements yet. Create one above to notify hospitals of upcoming changes.
           </div>
         ) : (
-          <div className="space-y-3">
-            {items.map(a => {
-              const s = TYPE_STYLES[a.type] ?? TYPE_STYLES.info;
-              const Icon = s.icon;
-              return (
-                <div key={a.id} className="rounded-xl border border-border bg-card p-4 flex items-start gap-4">
-                  <div className={`p-2 rounded-lg border shrink-0 ${s.cls}`}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-sm">{a.title}</p>
-                      <span className={`text-[10px] font-semibold px-1.5 py-px rounded border ${s.cls}`}>{s.label}</span>
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        {a.hospitalName ? <><Building2 className="w-3 h-3" />{a.hospitalName}</> : <><Radio className="w-3 h-3" />All hospitals</>}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{a.message}</p>
-                    <p className="text-xs text-muted-foreground/60 mt-1.5">
-                      Sent {new Date(a.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                      {a.expiresAt ? ` · Expires ${new Date(a.expiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
-                    </p>
-                  </div>
-                  <button onClick={() => handleDelete(a.id)} disabled={deleting === a.id}
-                    className="shrink-0 p-1.5 text-muted-foreground hover:text-destructive transition rounded hover:bg-destructive/10">
-                    {deleting === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  </button>
+          <div className="space-y-6">
+            {drafts.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-3">📝 Drafts (not visible to hospitals)</p>
+                <div className="space-y-3">
+                  {drafts.map(a => {
+                    const s = TYPE_STYLES[a.type] ?? TYPE_STYLES.info;
+                    const Icon = s.icon;
+                    return (
+                      <div key={a.id} className="rounded-xl border border-border/50 bg-card/50 p-4 flex items-start gap-4">
+                        <div className={`p-2 rounded-lg border shrink-0 ${s.cls}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-sm">{a.title}</p>
+                            <span className={`text-[10px] font-semibold px-1.5 py-px rounded border ${s.cls}`}>{s.label}</span>
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              {a.hospitalName ? <><Building2 className="w-3 h-3" />{a.hospitalName}</> : <><Radio className="w-3 h-3" />All hospitals</>}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{a.message}</p>
+                          <p className="text-xs text-muted-foreground/60 mt-1.5">
+                            Created {new Date(a.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                            {a.expiresAt ? ` · Expires ${new Date(a.expiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                          </p>
+                        </div>
+                        <div className="shrink-0 flex gap-1.5">
+                          <button onClick={() => handlePublish(a.id)} disabled={deleting === a.id}
+                            className="p-1.5 text-primary hover:bg-primary/10 transition rounded">
+                            {deleting === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                          </button>
+                          <button onClick={() => handleDelete(a.id)} disabled={deleting === a.id}
+                            className="p-1.5 text-muted-foreground hover:text-destructive transition rounded hover:bg-destructive/10">
+                            {deleting === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            )}
+            {published.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground mb-3">✓ Published (visible to hospitals)</p>
+                <div className="space-y-3">
+                  {published.map(a => {
+                    const s = TYPE_STYLES[a.type] ?? TYPE_STYLES.info;
+                    const Icon = s.icon;
+                    return (
+                      <div key={a.id} className="rounded-xl border border-border bg-card p-4 flex items-start gap-4">
+                        <div className={`p-2 rounded-lg border shrink-0 ${s.cls}`}>
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold text-sm">{a.title}</p>
+                            <span className={`text-[10px] font-semibold px-1.5 py-px rounded border ${s.cls}`}>{s.label}</span>
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              {a.hospitalName ? <><Building2 className="w-3 h-3" />{a.hospitalName}</> : <><Radio className="w-3 h-3" />All hospitals</>}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{a.message}</p>
+                          <p className="text-xs text-muted-foreground/60 mt-1.5">
+                            Published {new Date(a.publishedAt || a.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                            {a.expiresAt ? ` · Expires ${new Date(a.expiresAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                          </p>
+                        </div>
+                        <button onClick={() => handleDelete(a.id)} disabled={deleting === a.id}
+                          className="shrink-0 p-1.5 text-muted-foreground hover:text-destructive transition rounded hover:bg-destructive/10">
+                          {deleting === a.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

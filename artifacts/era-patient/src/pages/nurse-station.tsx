@@ -6,7 +6,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListPatients,
-  useFlagMissedTreatment,
   getListPatientsQueryKey,
   getListQueueQueryKey,
 } from "@workspace/api-client-react";
@@ -14,6 +13,7 @@ import { useAuth } from "@/contexts/auth-context";
 import type { Patient } from "@workspace/api-client-react";
 import { apiUrl } from "@/lib/api";
 import { getPatientStages } from "@/lib/utils";
+import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
   Search, Stethoscope, Flag, Loader2, Plus,
   Pencil, MessageSquare, PhoneCall, ChevronDown,
@@ -56,12 +56,6 @@ interface PostTreatmentQueueItem {
 
 // ── Constants ───────────────────────────────────────────────────────────────────
 
-const FOLLOWUP_TYPES = [
-  { value: "manual_call", label: "Call", sub: "Call patient and log the outcome", icon: PhoneCall, color: "text-primary", active: "border-primary bg-primary/10 text-primary" },
-  { value: "manual_text", label: "Text", sub: "Compose or AI-generate a message", icon: MessageSquare, color: "text-blue-400", active: "border-blue-500 bg-blue-500/10 text-blue-400" },
-] as const;
-
-type FollowupType = typeof FOLLOWUP_TYPES[number]["value"];
 
 const TREATMENT_TYPES = [
   { value: "medication_only", label: "Medication Only", sub: "Patient self-administers at home" },
@@ -142,9 +136,8 @@ export default function NurseStation() {
 
   // Flag section
   const [flagSearch, setFlagSearch] = useState("");
-  const [flaggedPatient, setFlaggedPatient] = useState<Patient | null>(null);
-  const [flagReason, setFlagReason] = useState("");
-  const [flagActionType, setFlagActionType] = useState<FollowupType>("manual_call");
+  const [selectedFlagPatient, setSelectedFlagPatient] = useState<Patient | null>(null);
+  const [showFlagModal, setShowFlagModal] = useState(false);
 
   const { data: searchResults = [], isFetching: searching } = useListPatients(
     { search },
@@ -157,18 +150,6 @@ export default function NurseStation() {
     { query: { enabled: flagSearch.trim().length >= 2 } as any }
   );
 
-  const flagMissed = useFlagMissedTreatment({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Patient flagged", description: "A follow-up task has been created for the receptionist." });
-        setFlaggedPatient(null);
-        setFlagSearch("");
-        setFlagReason("");
-        setFlagActionType("manual_call");
-      },
-      onError: () => toast({ title: "Failed to flag patient", variant: "destructive" }),
-    },
-  });
 
   const authHeader = () => ({ "x-hospital-token": hospital?.token ?? "" });
 
@@ -346,12 +327,6 @@ export default function NurseStation() {
     } finally {
       setDismissingQueueId(null);
     }
-  };
-
-  const handleFlag = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!flaggedPatient) return;
-    flagMissed.mutate({ id: flaggedPatient.id, data: { reason: flagReason, actionType: flagActionType } });
   };
 
   const flagResults = flagSearchResults.filter(p => !getPatientStages(p as never, { apptEnabled }).every(s => s === "Dormant"));
@@ -849,107 +824,60 @@ export default function NurseStation() {
             <span className="font-semibold text-sm">Flag Patient for Follow-up</span>
           </div>
           <div className="p-5">
-            {!flaggedPatient ? (
-              <div className="space-y-3">
-                <div className="relative">
-                  <Input
-                    placeholder="Search by name or ID..."
-                    value={flagSearch}
-                    onChange={e => setFlagSearch(e.target.value)}
-                    className="pr-9"
-                  />
-                  {flagSearching
-                    ? <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />
-                    : <Search className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground" />}
-                </div>
-                {flagSearch.trim().length >= 2 && (
-                  <div className="space-y-1.5">
-                    {flagResults.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">No patients found matching "{flagSearch}"</p>
-                    ) : flagResults.map(patient => (
-                      <button
-                        key={patient.id}
-                        type="button"
-                        className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/40 text-left transition-colors"
-                        onClick={() => { setFlaggedPatient(patient); setFlagSearch(""); }}
-                      >
-                        <div className="w-9 h-9 rounded-full bg-destructive/10 text-destructive font-bold text-xs flex items-center justify-center shrink-0">
-                          {patient.firstName[0]}{patient.lastName[0]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
-                          <p className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
-                            {patient.patientId && <span className="font-mono">ID: {patient.patientId}</span>}
-                            {getPatientStages(patient as never, { apptEnabled }).map((s, i) => (
-                              <span key={s} className="text-blue-400">{i > 0 ? " · " : ""}{s}</span>
-                            ))}
-                            {patient.treatmentPlan && (
-                              <span className="truncate max-w-[220px] text-amber-400">Plan: {patient.treatmentPlan}</span>
-                            )}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <div className="space-y-3">
+              <div className="relative">
+                <Input
+                  placeholder="Search by name or ID..."
+                  value={flagSearch}
+                  onChange={e => setFlagSearch(e.target.value)}
+                  className="pr-9"
+                />
+                {flagSearching
+                  ? <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />
+                  : <Search className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground" />}
               </div>
-            ) : (
-              <form onSubmit={handleFlag} className="space-y-4">
-                <div className="flex items-center gap-3 p-3 rounded-lg border border-destructive/30 bg-destructive/5">
-                  <div className="w-9 h-9 rounded-full bg-destructive/20 text-destructive font-bold text-sm flex items-center justify-center shrink-0">
-                    {flaggedPatient.firstName[0]}{flaggedPatient.lastName[0]}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm">{flaggedPatient.firstName} {flaggedPatient.lastName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {flaggedPatient.department && <span className="mr-2">{flaggedPatient.department}</span>}
-                      {flaggedPatient.phone}
-                    </p>
-                  </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setFlaggedPatient(null)}>Change</Button>
-                </div>
+              {flagSearch.trim().length >= 2 && (
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Reason for flag *</label>
-                  <Input
-                    value={flagReason}
-                    onChange={e => setFlagReason(e.target.value)}
-                    placeholder="e.g. Lab result is out, needs to come in for another test"
-                    required
-                  />
+                  {flagResults.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No patients found matching "{flagSearch}"</p>
+                  ) : flagResults.map(patient => (
+                    <button
+                      key={patient.id}
+                      type="button"
+                      className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/40 text-left transition-colors"
+                      onClick={() => { setSelectedFlagPatient(patient); setShowFlagModal(true); setFlagSearch(""); }}
+                    >
+                      <div className="w-9 h-9 rounded-full bg-destructive/10 text-destructive font-bold text-xs flex items-center justify-center shrink-0">
+                        {patient.firstName[0]}{patient.lastName[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
+                        <p className="text-xs text-muted-foreground flex flex-wrap gap-x-2">
+                          {patient.patientId && <span className="font-mono">ID: {patient.patientId}</span>}
+                          {getPatientStages(patient as never, { apptEnabled }).map((s, i) => (
+                            <span key={s} className="text-blue-400">{i > 0 ? " · " : ""}{s}</span>
+                          ))}
+                          {patient.treatmentPlan && (
+                            <span className="truncate max-w-[220px] text-amber-400">Plan: {patient.treatmentPlan}</span>
+                          )}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Follow-up Method *</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {FOLLOWUP_TYPES.map(ft => {
-                      const Icon = ft.icon;
-                      const isSelected = flagActionType === ft.value;
-                      return (
-                        <button
-                          key={ft.value}
-                          type="button"
-                          onClick={() => setFlagActionType(ft.value)}
-                          className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center text-xs transition-colors ${
-                            isSelected ? ft.active : "border-border hover:border-border/60 text-muted-foreground"
-                          }`}
-                        >
-                          <Icon className={`w-4 h-4 ${isSelected ? "" : ft.color}`} />
-                          <span className="font-semibold">{ft.label}</span>
-                          <span className="leading-snug opacity-80">{ft.sub}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="outline" onClick={() => { setFlaggedPatient(null); setFlagActionType("manual_call"); }}>Cancel</Button>
-                  <Button type="submit" variant="destructive" disabled={flagMissed.isPending}>
-                    {flagMissed.isPending ? "Flagging..." : "Flag & Create Follow-up Task"}
-                  </Button>
-                </div>
-              </form>
-            )}
+              )}
+            </div>
           </div>
         </div>
+
+        {/* Flag modal */}
+        {showFlagModal && selectedFlagPatient && (
+          <FollowUpFlagModal
+            patientId={selectedFlagPatient.id}
+            patientName={`${selectedFlagPatient.firstName} ${selectedFlagPatient.lastName}`}
+            onClose={() => { setShowFlagModal(false); setSelectedFlagPatient(null); queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() }); }}
+          />
+        )}
       </div>
     </Layout>
   );

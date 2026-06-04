@@ -13,7 +13,7 @@ import {
 import type { CallTask } from "@workspace/api-client-react";
 import {
   Phone, CheckCircle, Clock, Loader2, PhoneCall,
-  Send, ChevronDown, ChevronUp, Flag, MessageSquare, Sparkles,
+  Send, ChevronDown, ChevronUp, Flag, MessageSquare, Sparkles, Mail,
 } from "lucide-react";
 
 import { apiUrl } from "@/lib/api";
@@ -34,10 +34,10 @@ const ACTION_TYPES = [
     badge: "bg-primary/10 text-primary border-primary/20",
   },
   {
-    value: "manual_text",
-    label: "Text",
-    icon: MessageSquare,
-    description: "Compose or AI-generate a message to send",
+    value: "manual_email",
+    label: "Email",
+    icon: Mail,
+    description: "Send email to patient",
     color: "text-blue-400",
     badge: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   },

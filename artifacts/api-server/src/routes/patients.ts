@@ -74,7 +74,7 @@ const TreatmentPlanBody = z.object({
 
 const FlagMissedBody = z.object({
   reason: z.string().min(1),
-  actionType: z.enum(["manual_text", "manual_call"]).optional(),
+  actionType: z.enum(["manual_call", "manual_email"]).optional(),
   taskType: z.enum(["follow_up", "check_in"]).optional(),
   checkInType: z.string().optional(),
 });
@@ -978,14 +978,16 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { message, reason, logOnly, callOutcome } = req.body ?? {};
-  if (!logOnly && !message?.trim()) { res.status(400).json({ error: "message is required" }); return; }
+  const { sendEmail, subject, message, reason, logOnly, callOutcome } = req.body ?? {};
+  if (!logOnly && !sendEmail && !message?.trim()) { res.status(400).json({ error: "message or email required" }); return; }
+  if (sendEmail && (!subject?.trim() || !message?.trim())) { res.status(400).json({ error: "subject and message required for email" }); return; }
 
   const { data: patient } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const patientName = `${patient.first_name} ${patient.last_name}`;
   const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+  const email = patient.email as string | null;
   const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
 
   let sent = false;
@@ -1000,20 +1002,36 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
       metadata: callOutcome ?? reason ?? null,
       performed_by: performedBy,
     });
-  } else {
-    // Text/WhatsApp — send the message
-    if (phone) {
+  } else if (sendEmail) {
+    // Email — send via platform email
+    if (email) {
       try {
-        const { getHospitalContext } = await import("../lib/automation.js");
-        const { deliverMobileMessage } = await import("../lib/messaging.js");
-        const hCtx = await getHospitalContext(hospital.intId);
-        await deliverMobileMessage(hCtx.notificationChannel, phone, message.trim(), { senderId: hCtx.termiiSenderId });
+        const { sendEmail: sendEmailFunc, wrapHtml } = await import("../lib/email.js");
+        const from = process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev";
+        const htmlBody = message.trim().replace(/\n/g, "<br>");
+        sendEmailFunc({
+          to: email,
+          from,
+          subject: subject.trim(),
+          html: wrapHtml(htmlBody, patientName),
+          text: message.trim(),
+        }).catch(err => console.error("[direct-message] email failed:", err));
         sent = true;
       } catch (err) {
-        console.error("[direct-message] send failed:", err);
+        console.error("[direct-message] email send error:", err);
       }
     }
 
+    await supabase.from("activity").insert({
+      type: "manual_email",
+      description: `Email sent to ${patientName}${reason ? ` — ${reason}` : ""}: ${subject.trim()}`,
+      patient_id: id,
+      patient_name: patientName,
+      metadata: { subject: subject.trim(), body: message.trim().slice(0, 200) },
+      performed_by: performedBy,
+    });
+  } else {
+    // Phone call logging only (legacy path)
     await supabase.from("activity").insert({
       type: "manual_text",
       description: `Direct message sent to ${patientName}${reason ? ` — ${reason}` : ""}`,
@@ -1024,7 +1042,7 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
     });
   }
 
-  res.json({ ok: true, sent, phone: phone || null });
+  res.json({ ok: true, sent, email: sendEmail ? email : null });
 });
 
 export default router;

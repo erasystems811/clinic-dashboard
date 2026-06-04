@@ -487,6 +487,9 @@ const UpdateModulesBody = z.object({
   wellnessNewsletterEnabled: z.boolean().optional(),
   whatsappEnabled: z.boolean().optional(),
   messagesEnabled: z.boolean().optional(),
+  callTaskSmsEnabled: z.boolean().optional(),
+  followupSmsEnabled: z.boolean().optional(),
+  appointmentReminderSmsEnabled: z.boolean().optional(),
 });
 
 router.get("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -521,6 +524,9 @@ router.put("/super-admin/hospitals/:id/modules", requireSuperAdmin, async (req, 
   if (parsed.data.wellnessNewsletterEnabled !== undefined) updates.wellness_newsletter_enabled = parsed.data.wellnessNewsletterEnabled;
   if (parsed.data.whatsappEnabled !== undefined) updates.whatsapp_enabled = parsed.data.whatsappEnabled;
   if (parsed.data.messagesEnabled !== undefined) updates.messages_enabled = parsed.data.messagesEnabled;
+  if (parsed.data.callTaskSmsEnabled !== undefined) updates.call_task_sms_enabled = parsed.data.callTaskSmsEnabled;
+  if (parsed.data.followupSmsEnabled !== undefined) updates.followup_sms_enabled = parsed.data.followupSmsEnabled;
+  if (parsed.data.appointmentReminderSmsEnabled !== undefined) updates.appointment_reminder_sms_enabled = parsed.data.appointmentReminderSmsEnabled;
 
   if (Object.keys(updates).length > 0) {
     const { error: updateErr } = await supabase

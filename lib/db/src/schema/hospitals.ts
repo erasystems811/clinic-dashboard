@@ -11,6 +11,7 @@ export const hospitalsTable = pgTable("hospitals", {
   logoUrl: text("logo_url"),
   active: boolean("active").notNull().default(true),
   subscriptionStatus: text("subscription_status").notNull().default("active"),
+  walletBalanceKobo: integer("wallet_balance_kobo").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -41,6 +42,9 @@ export const hospitalModulesTable = pgTable("hospital_modules", {
   wellnessNewsletterEnabled: boolean("wellness_newsletter_enabled").notNull().default(true),
   whatsappEnabled: boolean("whatsapp_enabled").notNull().default(false),
   messagesEnabled: boolean("messages_enabled").notNull().default(false),
+  callTaskSmsEnabled: boolean("call_task_sms_enabled").notNull().default(false),
+  followupSmsEnabled: boolean("followup_sms_enabled").notNull().default(false),
+  appointmentReminderSmsEnabled: boolean("appointment_reminder_sms_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 

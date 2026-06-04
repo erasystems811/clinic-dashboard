@@ -316,6 +316,27 @@ CREATE INDEX IF NOT EXISTS ptfp_hospital_id_idx  ON post_treatment_followup_plan
 ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS beneficiary_name  TEXT;
 ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS beneficiary_email TEXT;
 
+-- Wallet system
+ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS wallet_balance_kobo INTEGER NOT NULL DEFAULT 0;
+
+-- SMS flip toggles — per-hospital opt-in for email→SMS upgrade
+ALTER TABLE hospital_modules ADD COLUMN IF NOT EXISTS call_task_sms_enabled         BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE hospital_modules ADD COLUMN IF NOT EXISTS followup_sms_enabled           BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE hospital_modules ADD COLUMN IF NOT EXISTS appointment_reminder_sms_enabled BOOLEAN NOT NULL DEFAULT false;
+
+-- Wallet transactions log
+CREATE TABLE IF NOT EXISTS wallet_transactions (
+  id               SERIAL PRIMARY KEY,
+  hospital_id      INTEGER NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  type             TEXT NOT NULL CHECK (type IN ('credit', 'debit')),
+  amount_kobo      INTEGER NOT NULL,
+  description      TEXT NOT NULL,
+  flutterwave_ref  TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS wallet_tx_hospital_id_idx ON wallet_transactions(hospital_id);
+CREATE INDEX IF NOT EXISTS wallet_tx_flw_ref_idx     ON wallet_transactions(flutterwave_ref) WHERE flutterwave_ref IS NOT NULL;
+
 -- Care plan archive columns — plans are never deleted, only marked ended
 ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
 ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS ended_at  TIMESTAMPTZ;

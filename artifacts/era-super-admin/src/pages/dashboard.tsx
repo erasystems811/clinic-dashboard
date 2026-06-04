@@ -4,7 +4,7 @@ import Layout from "@/components/layout";
 import { api, Hospital } from "@/lib/api";
 import {
   Building2, Plus, Search, Users,
-  AlertCircle, Loader2, ChevronRight, RefreshCw, Filter
+  AlertCircle, Loader2, ChevronRight, RefreshCw, Filter, Wallet
 } from "lucide-react";
 import CreateHospitalModal from "@/components/create-hospital-modal";
 
@@ -150,6 +150,14 @@ export default function Hospitals() {
 
                   {/* Status badge */}
                   <StatusBadge status={h.subscriptionStatus} active={h.active} />
+
+                  {/* Wallet balance */}
+                  <div className="hidden md:flex items-center gap-1 min-w-[90px] justify-end" title="SMS wallet balance">
+                    <Wallet className="w-3 h-3 text-muted-foreground/50 shrink-0" />
+                    <span className={`text-sm font-semibold tabular-nums ${(h.walletBalanceKobo ?? 0) === 0 ? "text-muted-foreground/40" : (h.walletBalanceKobo ?? 0) < 50000 ? "text-amber-400" : "text-emerald-400"}`}>
+                      ₦{((h.walletBalanceKobo ?? 0) / 100).toLocaleString()}
+                    </span>
+                  </div>
 
                   {/* Patient count */}
                   <div className="hidden sm:flex items-center gap-1 min-w-[70px] justify-end">

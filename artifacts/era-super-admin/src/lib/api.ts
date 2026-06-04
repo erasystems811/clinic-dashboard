@@ -72,6 +72,7 @@ export interface Hospital {
   modules: HospitalModules | null;
   staffCredentials: StaffCredentials | null;
   patientCount: number;
+  walletBalanceKobo: number | null;
 }
 
 export interface HospitalSettings {
@@ -102,6 +103,15 @@ export interface HospitalModules {
   wellnessNewsletterEnabled: boolean;
   whatsappEnabled: boolean;
   messagesEnabled: boolean;
+  callTaskSmsEnabled: boolean;
+  followupSmsEnabled: boolean;
+  appointmentReminderSmsEnabled: boolean;
+}
+
+export interface WalletInfo {
+  balanceKobo: number;
+  balanceNaira: number;
+  transactions: { id: number; type: string; amount_kobo: number; description: string; flutterwave_ref: string | null; created_at: string }[];
 }
 
 export interface AutomationLog {
@@ -201,4 +211,7 @@ export const api = {
 
   testEmail: (to: string) =>
     post<{ ok: boolean; to?: string; from?: string; error?: string }>("/super-admin/test-email", { to }),
+
+  getHospitalWallet: (id: number) =>
+    get<WalletInfo>(`/super-admin/hospitals/${id}/wallet`),
 };

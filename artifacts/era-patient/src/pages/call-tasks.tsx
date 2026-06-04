@@ -163,8 +163,13 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed }: { task: Call
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
         body: JSON.stringify({ message: textMsg }),
       });
-      const data = await res.json();
+      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean };
       if (!res.ok) throw new Error(data.error ?? "Send failed");
+      if (data.insufficientFunds) {
+        toast({ title: "Sent via email — wallet empty", description: "Your SMS wallet has insufficient funds. Top up in Settings → SMS Wallet to enable SMS delivery.", variant: "default" });
+      } else if (data.sentViaSms) {
+        toast({ title: "SMS sent", description: "Message delivered via SMS (₦7 deducted from wallet)." });
+      }
       logOutcome.mutate(
         { id: task.id, data: { outcome: `[Text sent] ${textMsg}` } },
         { onError: () => { toast({ title: "Sent but failed to complete task", variant: "destructive" }); setSending(false); } },

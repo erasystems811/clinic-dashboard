@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader2, CheckCircle2, Eye, EyeOff, UserPlus, Pencil, UserX, Users } from "lucide-react";
+import { Loader2, CheckCircle2, Eye, EyeOff, UserPlus, Pencil, UserX, Users, Wallet, MessageSquare, AlertCircle } from "lucide-react";
 
 interface StaffCreds {
   nurseUsername: string;
@@ -164,6 +164,82 @@ export default function Settings() {
       body: JSON.stringify({ active: true }),
     });
     loadStaff();
+  };
+
+  // ── Wallet ───────────────────────────────────────────────────────────────────
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [fundAmount, setFundAmount] = useState("1000");
+  const [fundingUrl, setFundingUrl] = useState<string | null>(null);
+  const [fundingLoading, setFundingLoading] = useState(false);
+  const [fundingError, setFundingError] = useState("");
+
+  const loadWalletBalance = () => {
+    if (!token) return;
+    fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setWalletBalance(data.balanceNaira as number); });
+  };
+
+  useEffect(() => {
+    loadWalletBalance();
+    // If returning from Flutterwave payment redirect, clean the URL and refresh balance
+    if (typeof window !== "undefined" && window.location.search.includes("wallet_funded=1")) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("wallet_funded");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [token]);
+
+  const handleFundWallet = async () => {
+    setFundingError(""); setFundingLoading(true);
+    try {
+      const amount = parseInt(fundAmount, 10);
+      if (!amount || amount < 500) { setFundingError("Minimum amount is ₦500"); setFundingLoading(false); return; }
+      const res = await fetch(apiUrl("/api/wallet/fund/initiate"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify({ amountNaira: amount }),
+      });
+      const data = await res.json() as { paymentUrl?: string; error?: string };
+      if (!res.ok || !data.paymentUrl) throw new Error(data.error ?? "Failed to create payment link");
+      window.open(data.paymentUrl, "_blank");
+      setFundingUrl(data.paymentUrl);
+    } catch (err: unknown) {
+      setFundingError(err instanceof Error ? err.message : "Failed");
+    } finally { setFundingLoading(false); }
+  };
+
+  // ── SMS flip toggles ─────────────────────────────────────────────────────────
+  const [smsModules, setSmsModules] = useState<{ callTaskSmsEnabled: boolean; followupSmsEnabled: boolean; appointmentReminderSmsEnabled: boolean } | null>(null);
+  const [smsToggleSaving, setSmsToggleSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setSmsModules(data as typeof smsModules); });
+  }, [token]);
+
+  const handleSmsToggle = async (field: keyof NonNullable<typeof smsModules>, value: boolean) => {
+    if (!smsModules) return;
+    setSmsToggleSaving(field);
+    try {
+      const res = await fetch(apiUrl("/api/hospital/sms-modules"), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify({ [field]: value }),
+      });
+      if (res.ok) setSmsModules(prev => prev ? { ...prev, [field]: value } : prev);
+    } finally { setSmsToggleSaving(null); }
+  };
+
+  // Check if wallet is funded when enabling SMS toggles
+  const handleSmsToggleWithWalletCheck = (field: keyof NonNullable<typeof smsModules>, value: boolean) => {
+    if (value && (walletBalance ?? 0) < 7) {
+      setFundingError("Please fund your wallet before enabling SMS. Minimum ₦7 needed per SMS.");
+      return;
+    }
+    handleSmsToggle(field, value);
   };
 
   return (
@@ -364,6 +440,106 @@ export default function Settings() {
                   {saved && <span className="flex items-center gap-1 text-sm text-emerald-500"><CheckCircle2 className="w-4 h-4" /> Saved</span>}
                 </div>
               </form>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── SMS Wallet ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wallet className="w-4 h-4" /> SMS Wallet
+            </CardTitle>
+            <CardDescription>
+              Fund your wallet to enable SMS delivery for your automations. ₦7 is deducted per SMS sent. If your balance runs out, messages automatically fall back to email.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Balance display */}
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
+              <span className="text-sm text-muted-foreground">Current balance</span>
+              <span className={`text-lg font-bold tabular-nums ${walletBalance === null ? "text-muted-foreground" : walletBalance === 0 ? "text-red-400" : walletBalance < 100 ? "text-amber-400" : "text-emerald-400"}`}>
+                {walletBalance === null ? "Loading…" : `₦${walletBalance.toLocaleString()}`}
+              </span>
+            </div>
+
+            {/* Fund wallet */}
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <Label htmlFor="fund-amount" className="text-sm mb-1.5 block">Amount to add (₦)</Label>
+                <Input
+                  id="fund-amount"
+                  type="number"
+                  min={500}
+                  step={500}
+                  value={fundAmount}
+                  onChange={e => setFundAmount(e.target.value)}
+                  placeholder="1000"
+                />
+              </div>
+              <Button onClick={handleFundWallet} disabled={fundingLoading} className="shrink-0">
+                {fundingLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Opening…</> : "Fund Wallet"}
+              </Button>
+              <Button variant="outline" size="sm" className="shrink-0" onClick={loadWalletBalance}>
+                Refresh
+              </Button>
+            </div>
+
+            {fundingError && (
+              <div className="flex items-start gap-2 text-sm text-amber-400">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                {fundingError}
+              </div>
+            )}
+            {fundingUrl && (
+              <p className="text-xs text-muted-foreground">
+                Payment window opened. If it didn&apos;t open, <a href={fundingUrl} target="_blank" rel="noreferrer" className="text-primary underline">click here</a>. Refresh balance after payment.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── SMS Flip Toggles ── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <MessageSquare className="w-4 h-4" /> SMS Upgrades
+            </CardTitle>
+            <CardDescription>
+              Enable SMS delivery for specific automations. Each SMS costs ₦7 and is deducted from your wallet. If insufficient balance, it falls back to email automatically.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {smsModules === null ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+              </div>
+            ) : (
+              <>
+                {(
+                  [
+                    { key: "callTaskSmsEnabled" as const, label: "Call Tasks", description: "Send call task messages as SMS instead of email" },
+                    { key: "followupSmsEnabled" as const, label: "Follow-up Plans", description: "Send departmental follow-up check-ins as SMS" },
+                    { key: "appointmentReminderSmsEnabled" as const, label: "Appointment Reminders", description: "Send 24h and 2h appointment reminders as SMS" },
+                  ] as const
+                ).map(({ key, label, description }) => (
+                  <div key={key} className="flex items-start justify-between gap-4 pb-4 last:pb-0 border-b border-border/50 last:border-0">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">{label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+                    </div>
+                    <button
+                      onClick={() => handleSmsToggleWithWalletCheck(key, !smsModules[key])}
+                      disabled={smsToggleSaving === key}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${smsModules[key] ? "bg-primary" : "bg-muted"} disabled:opacity-50`}
+                      role="switch"
+                      aria-checked={smsModules[key]}
+                    >
+                      <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${smsModules[key] ? "translate-x-4" : "translate-x-0"}`} />
+                    </button>
+                  </div>
+                ))}
+              </>
             )}
           </CardContent>
         </Card>

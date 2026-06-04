@@ -17,6 +17,7 @@ import automationTestsRouter from "./automation-tests";
 import importRouter from "./import";
 import followupPlansRouter from "./followup-plans";
 import supportRouter from "./support";
+import walletRouter from "./wallet";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(automationTestsRouter);
 router.use(importRouter);
 router.use(followupPlansRouter);
 router.use(supportRouter);
+router.use(walletRouter);
 
 export default router;

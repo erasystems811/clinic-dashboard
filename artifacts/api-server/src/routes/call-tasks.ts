@@ -248,7 +248,7 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
   if (!email) { res.status(400).json({ error: "No email on record for this patient" }); return; }
 
   try {
-    await sendCallTaskConfirmedMessage(
+    const { sentViaSms, insufficientFunds } = await sendCallTaskConfirmedMessage(
       hospitalId,
       task.patient_id as number,
       task.patient_name as string,
@@ -259,13 +259,15 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
     await supabase.from("call_tasks").update({ action_type: "automated_message" }).eq("id", id);
     await supabase.from("activity").insert({
       type: "automated_message_sent",
-      description: `Important email sent to ${task.patient_name} via call task`,
+      description: sentViaSms
+        ? `SMS sent to ${task.patient_name} via call task`
+        : `Important email sent to ${task.patient_name} via call task`,
       patient_id: task.patient_id,
       patient_name: task.patient_name,
       metadata: parsed.data.message.slice(0, 200),
     });
 
-    res.json({ ok: true });
+    res.json({ ok: true, sentViaSms, insufficientFunds });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Send failed";
     res.status(500).json({ error: msg });

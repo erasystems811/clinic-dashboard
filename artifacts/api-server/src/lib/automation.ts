@@ -3,6 +3,7 @@ import { supabase } from "./supabase.js";
 import { generateOpenAIMessage, generateClaudeMessage, buildToneDescription } from "./ai.js";
 import { sendEmail, wrapHtml } from "./email.js";
 import { deliverMobileMessage } from "./messaging.js";
+import { deductSmsFromWallet } from "./wallet.js";
 
 export type AutomationChannel = "whatsapp" | "sms" | "email";
 export type AutomationStatus = "queued" | "sent" | "failed";
@@ -458,10 +459,22 @@ export async function sendAppointmentReminderEmail(
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
   const automationType = hoursAway === 24 ? "appointment_reminder_24h" : "appointment_reminder_2h";
+
+  // Check if SMS flip is enabled for this hospital
+  const { data: modules } = await supabase.from("hospital_modules").select("appointment_reminder_sms_enabled").eq("hospital_id", hospitalId).maybeSingle();
+  const smsFlipEnabled = (modules?.appointment_reminder_sms_enabled as boolean | null) ?? false;
+
+  let useSms = false;
+  if (smsFlipEnabled) {
+    const deduction = await deductSmsFromWallet(hospitalId, `Appointment reminder SMS (${hoursAway}h) — ${patientName}`);
+    useSms = deduction.ok;
+    if (deduction.insufficientFunds) console.log(`[sendAppointmentReminderEmail] Insufficient wallet — falling back to email for hospital ${hospitalId}`);
+  }
+
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType,
-    channel: "email",
+    channel: useSms ? "sms" : "email",
   };
   if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
@@ -469,22 +482,28 @@ export async function sendAppointmentReminderEmail(
     const contact = contactLine(hCtx.phoneNumber);
     const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short", timeZone: "Africa/Lagos" });
     const timeStr = new Date(scheduledAt).toLocaleString("en-GB", { timeStyle: "short", timeZone: "Africa/Lagos" });
-    const subject = hoursAway === 24
-      ? `Reminder — Your appointment is tomorrow — ${hCtx.hospitalName}`
-      : `Your appointment is in 2 hours — ${hCtx.hospitalName}`;
+
+    if (useSms) {
+      const { data: patient } = await supabase.from("patients").select("phone").eq("id", patientId).maybeSingle();
+      const phone = patient?.phone as string | null;
+      if (!phone) throw new Error("Patient has no phone number for SMS");
+      const smsBody = hoursAway === 24
+        ? `Hi ${patientName}, reminder: your appointment at ${hCtx.hospitalName} is tomorrow ${dateStr}. To reschedule call ${hCtx.phoneNumber ?? hCtx.hospitalName}.`
+        : `Hi ${patientName}, your appointment at ${hCtx.hospitalName} is in 2 hours at ${timeStr}. To reschedule call ${hCtx.phoneNumber ?? hCtx.hospitalName} immediately.`;
+      await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
+      await updateAutomationLog(logId, "sent", `Appointment reminder SMS (${hoursAway}h) → ${phone}`);
+      return;
+    }
+
     const body = hoursAway === 24
       ? `Hi ${patientName},\n\nThis is a friendly reminder that your appointment at ${hCtx.hospitalName} is tomorrow ${dateStr}. We look forward to seeing you.\n\nIf you need to reschedule please do not hesitate to ${contact} as soon as possible. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`
       : `Hi ${patientName},\n\nJust a quick reminder that your appointment at ${hCtx.hospitalName} is in 2 hours at ${timeStr}. We will see you soon.\n\nIf you need to reschedule please do not hesitate to ${contact} immediately. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
 
+    const subject = hoursAway === 24
+      ? `Reminder — Your appointment is tomorrow — ${hCtx.hospitalName}`
+      : `Your appointment is in 2 hours — ${hCtx.hospitalName}`;
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
-    await sendEmail({
-      to: patientEmail,
-      from: hCtx.fromAddress,
-      subject,
-      html,
-      text: body,
-    });
-
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: body });
     await updateAutomationLog(logId, "sent", `Appointment reminder (${hoursAway}h) → ${patientEmail}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -702,35 +721,50 @@ export async function generateCallTaskDraft(
   return message;
 }
 
-// Receptionist reviews/edits the AI draft, then sends it as an Important email.
+// Receptionist reviews/edits the AI draft, then sends it as an Important email (or SMS if wallet funded).
 export async function sendCallTaskConfirmedMessage(
   hospitalId: number,
   patientId: number,
   patientName: string,
   patientEmail: string,
   message: string,
-): Promise<void> {
+): Promise<{ sentViaSms: boolean; insufficientFunds: boolean }> {
   const hCtx = await getHospitalContext(hospitalId);
+
+  const { data: modules } = await supabase.from("hospital_modules").select("call_task_sms_enabled").eq("hospital_id", hospitalId).maybeSingle();
+  const smsFlipEnabled = (modules?.call_task_sms_enabled as boolean | null) ?? false;
+
+  let useSms = false;
+  let insufficientFunds = false;
+  if (smsFlipEnabled) {
+    const deduction = await deductSmsFromWallet(hospitalId, `Call task SMS — ${patientName}`);
+    useSms = deduction.ok;
+    insufficientFunds = deduction.insufficientFunds;
+  }
+
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType: "call_task_automated",
-    channel: "email",
+    channel: useSms ? "sms" : "email",
   };
-  if (await skipIfSuspended(hCtx, ctx)) return;
+  if (await skipIfSuspended(hCtx, ctx)) return { sentViaSms: false, insufficientFunds };
   const logId = await logAutomation(ctx, "queued");
   try {
-    const subject = `IMPORTANT - ${hCtx.hospitalName}`;
+    if (useSms) {
+      const { data: patient } = await supabase.from("patients").select("phone").eq("id", patientId).maybeSingle();
+      const phone = patient?.phone as string | null;
+      if (!phone) throw new Error("Patient has no phone number for SMS");
+      await deliverMobileMessage("sms", phone, message, { senderId: hCtx.termiiSenderId });
+      await updateAutomationLog(logId, "sent", `SMS → ${phone}`);
+      return { sentViaSms: true, insufficientFunds: false };
+    }
+
     const contact = contactLine(hCtx.phoneNumber);
     const body = `${message}\n\nIf you have any questions please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
-    await sendEmail({
-      to: patientEmail,
-      from: hCtx.fromAddress,
-      subject,
-      html,
-      text: body,
-    });
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject: `IMPORTANT - ${hCtx.hospitalName}`, html, text: body });
     await updateAutomationLog(logId, "sent", message);
+    return { sentViaSms: false, insufficientFunds };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendCallTaskConfirmedMessage] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -963,10 +997,21 @@ export async function sendDepartmentalFollowupEmail(
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
   const automationType = `departmental_followup_day${dayNumber}`;
+
+  const { data: modules } = await supabase.from("hospital_modules").select("followup_sms_enabled").eq("hospital_id", hospitalId).maybeSingle();
+  const smsFlipEnabled = (modules?.followup_sms_enabled as boolean | null) ?? false;
+
+  let useSms = false;
+  if (smsFlipEnabled) {
+    const deduction = await deductSmsFromWallet(hospitalId, `Follow-up SMS Day ${dayNumber} (${department}) — ${patientName}`);
+    useSms = deduction.ok;
+    if (deduction.insufficientFunds) console.log(`[sendDepartmentalFollowupEmail] Insufficient wallet — falling back to email for hospital ${hospitalId}`);
+  }
+
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType,
-    channel: "email",
+    channel: useSms ? "sms" : "email",
   };
   if (await skipIfSuspended(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
@@ -975,6 +1020,16 @@ export async function sendDepartmentalFollowupEmail(
     const tone = buildToneDescription(hCtx.tone);
     const lang = hCtx.language ?? "English";
     const contact = contactLine(hCtx.phoneNumber);
+
+    if (useSms) {
+      const { data: patient } = await supabase.from("patients").select("phone").eq("id", patientId).maybeSingle();
+      const phone = patient?.phone as string | null;
+      if (!phone) throw new Error("Patient has no phone number for SMS");
+      const smsBody = `Hi ${firstName}, checking in from ${hCtx.hospitalName}. How are you doing after your ${department} treatment (Day ${dayNumber})? Reach us at ${hCtx.phoneNumber ?? hCtx.hospitalName} if you need anything.`;
+      await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
+      await updateAutomationLog(logId, "sent", `Follow-up Day ${dayNumber} SMS → ${phone}`);
+      return;
+    }
 
     const body = await generateClaudeMessage(
       `You are writing a post-treatment follow-up email on behalf of ${hCtx.hospitalName} to a patient who has recently completed their ${department} treatment. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. This is day ${dayNumber} after treatment ended. Write a warm, caring check-in that feels personal — ask how the patient is doing, acknowledge the stage of their recovery (early days vs. weeks in), and encourage them to stay well and reach out if anything feels off. NEVER say you are happy, glad, or pleased that they needed treatment. NEVER use clinical jargon. Keep it to 3–4 short paragraphs. Start with "Hi ${firstName},". End with: "If you need anything at all please do not hesitate to ${contact}. Please do not reply to this email directly. Warm regards, ${hCtx.hospitalName} Team"`,

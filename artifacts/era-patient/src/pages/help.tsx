@@ -80,60 +80,69 @@ function Section({ emoji, title, defaultOpen = false, children, ci = 0 }: {
 
 /* ── automated messages (shared by all roles) ─────────────────────────────── */
 
-function AutoMessagesSection() {
+function AutoMessagesSection({ role }: { role: "admin" | "nurse" | "receptionist" }) {
   type Row = { icon: string; trigger: string; what: string; channel: string; example?: string; doNotDo?: string };
 
-  const rows: Row[] = [
-    { icon: "🪑", trigger: "Patient added to queue", what: "Welcomes the patient and tells them their queue position", channel: "SMS", doNotDo: "Do not call to say they are checked in" },
-    { icon: "🔔", trigger: "Patient is next in line", what: "Tells them to get ready — they will be called shortly", channel: "SMS" },
-    { icon: "✅", trigger: "Receptionist ticks 'called in' checkbox", what: "Tells the patient it is their turn to come in", channel: "SMS" },
-    { icon: "⏳", trigger: "Queue wait is very long", what: "Apologises for the long wait and thanks them for their patience", channel: "SMS", doNotDo: "Do not call separately to apologise" },
-    { icon: "💊", trigger: "Nurse saves a care plan", what: "Tells the patient their plan is set up and to check their email for details", channel: "SMS — immediately" },
-    { icon: "💊", trigger: "Nurse saves a care plan", what: "Full AI-written explanation of the plan in plain language", channel: "Email — 20 min later", doNotDo: "Do not call the patient — SMS and email go out automatically" },
+  const queueRows: Row[] = [
+    { icon: "🪑", trigger: "You add a patient to the queue", what: "Welcomes the patient and tells them their queue position", channel: "SMS", doNotDo: "Do not call to say they are checked in — they already received this message" },
+    { icon: "🔔", trigger: "Patient becomes next in line", what: "Tells them to get ready — they will be called shortly", channel: "SMS" },
+    { icon: "✅", trigger: "You tick the 'called in' checkbox", what: "Tells the patient it is their turn to come in", channel: "SMS" },
+    { icon: "⏳", trigger: "Queue wait is very long (45+ minutes)", what: "Apologises for the long wait and thanks them for their patience", channel: "SMS", doNotDo: "Do not call separately to apologise — this goes out automatically" },
+  ];
+
+  const appointmentRows: Row[] = [
+    { icon: "📅", trigger: "You book an appointment", what: "Confirms the appointment date and time, asks them to arrive early", channel: "Email — immediately", doNotDo: "Do not call to confirm — they already got this email" },
+    { icon: "🔄", trigger: "Appointment is rescheduled", what: "Informs them of the new date and time", channel: "Email" },
+    { icon: "⏰", trigger: "24 hours before appointment", what: "Reminds them their appointment is tomorrow", channel: "Email" },
+    { icon: "⏰", trigger: "2 hours before appointment", what: "Reminds them their appointment is in 2 hours", channel: "Email", doNotDo: "Do not call to remind — 3 emails are already sent automatically" },
+    { icon: "😟", trigger: "Patient does not show up for appointment", what: "Checks in on the patient and invites them to rebook", channel: "Email", doNotDo: "Do not follow up manually — this email goes out automatically" },
+  ];
+
+  const carePlanRows: Row[] = [
+    { icon: "💊", trigger: "You save a care plan", what: "Tells the patient their plan is set up and to check their email for full details", channel: "SMS — immediately" },
+    { icon: "📧", trigger: "You save a care plan (20 minutes later)", what: "Full AI-written explanation of the plan — medications, times, visit dates — in plain language the patient can understand", channel: "Email — 20 min after saving", doNotDo: "Do not call the patient to explain the plan — the email already does this for you" },
   ];
 
   const inCareRows: Row[] = [
     {
       icon: "💊",
-      trigger: "General Outpatient — Medication Only plan",
-      what: "Sent at the exact medication time (morning, afternoon, evening, or night) every day for the full plan duration. Reminds the patient to take their medication right now.",
+      trigger: "General Outpatient — Medication Only plan (every day, at each medication time)",
+      what: "Sent at the exact medication time you set (morning, afternoon, evening, or night). Reminds the patient to take their medication right now.",
       channel: "Email — at each medication time daily",
       example: "Good morning Ada, it is time to take your morning medication as part of your care plan. We are with you every step of the way — keep going, you are doing great.",
     },
     {
       icon: "🏨",
-      trigger: "General Outpatient — Come to Hospital plan",
-      what: "Sent 3 hours before each hospital visit slot. Reminds the patient their visit is coming up and to start getting ready.",
+      trigger: "General Outpatient — Come to Hospital plan (each visit day)",
+      what: "Sent 3 hours before each hospital visit. Reminds the patient their visit is coming up and to start getting ready.",
       channel: "Email — 3 hours before each visit",
       example: "Good morning Ada, just a reminder that your hospital visit today is in 3 hours at 10:00 AM. Please plan to leave on time and we will be ready for you.",
     },
     {
       icon: "💊🏨",
       trigger: "General Outpatient — Combination plan (medication + hospital visit)",
-      what: "Sent 2 hours before the hospital visit. Covers both: tells the patient their medication is due now AND their visit is in 2 hours.",
+      what: "One email sent 2 hours before the visit. Covers both: medication reminder AND visit reminder together. Patient is never sent two separate emails.",
       channel: "Email — 2 hours before visit",
       example: "Good afternoon Ada, your afternoon medication is due now. Also, your hospital visit today is in 2 hours at 3:00 PM. Please take your medication and start preparing to come in.",
     },
     {
       icon: "🏥",
-      trigger: "Specialist department plan (Antenatal, Surgery, Dental, Eye, Fertility, ENT, Paediatrics)",
-      what: "Sent 1 day before each scheduled visit or appointment in the care plan. Reminds the patient what is happening the next day and what to expect.",
+      trigger: "Specialist department plan — each scheduled visit date (Antenatal, Surgery, Dental, Eye, Fertility, ENT, Paediatrics)",
+      what: "Sent 1 day before each scheduled visit or appointment in the care plan. Reminds the patient what is happening the next day.",
       channel: "Email — 1 day before each scheduled visit",
       example: "Antenatal appointment reminder — Monday 9 June — [Hospital]. Hi Ada, just a reminder that your Antenatal visit is tomorrow. Please make sure you are prepared and arrive a few minutes early.",
       doNotDo: "Do not call patients to remind them of upcoming plan visits — this email goes out automatically the day before",
     },
   ];
 
-  const remainingRows: Row[] = [
-    { icon: "📅", trigger: "Appointment booked", what: "Confirms the appointment date and time, asks them to arrive early", channel: "Email — immediately", doNotDo: "Do not call to confirm — they already got this email" },
-    { icon: "🔄", trigger: "Appointment rescheduled", what: "Informs them of the new date and time", channel: "Email" },
-    { icon: "⏰", trigger: "24 hours before appointment", what: "Reminds them their appointment is tomorrow", channel: "Email" },
-    { icon: "⏰", trigger: "2 hours before appointment", what: "Reminds them their appointment is in 2 hours", channel: "Email", doNotDo: "Do not call to remind — 3 emails are already sent" },
-    { icon: "😟", trigger: "Appointment marked No Show", what: "Checks in on the patient and invites them to rebook", channel: "Email", doNotDo: "Do not follow up manually — this email goes out automatically" },
-    { icon: "🏥", trigger: "Patient moves to Post Treatment — Day 1", what: "Checks in, wishes them a good recovery, says the team is thinking of them", channel: "Email" },
-    { icon: "🏥", trigger: "Post Treatment — Day 4", what: "Checks in again, encourages them, says the team is rooting for them", channel: "Email" },
-    { icon: "🏥", trigger: "Post Treatment — Day 7", what: "One-week check-in, congratulates their progress", channel: "Email", doNotDo: "Do not add manual follow-ups for post-treatment — Day 1, 4, and 7 emails are automatic" },
-    { icon: "💭", trigger: "Patient dormant for 30 days with no activity", what: "A gentle 'thinking of you' email, invites them to come back if they need anything", channel: "Email" },
+  const postTreatmentRows: Row[] = [
+    { icon: "🏥", trigger: "Care plan end date passes — Day 1 after treatment ends", what: "Checks in, wishes them a good recovery, says the team is thinking of them", channel: "Email — automatic, no action needed from you" },
+    { icon: "🏥", trigger: "Day 4 after treatment ends", what: "Checks in again, encourages them, says the team is rooting for them", channel: "Email — automatic" },
+    { icon: "🏥", trigger: "Day 7 after treatment ends", what: "One-week check-in, congratulates their progress", channel: "Email — automatic", doNotDo: "Do not add manual follow-ups — Day 1, 4, and 7 emails are sent automatically when the plan ends" },
+  ];
+
+  const adminOnlyRows: Row[] = [
+    { icon: "💌", trigger: "Active patient — no queue check-in for 30+ days (wellness re-engagement)", what: "A warm 'thinking of you' email. Repeats every 30 days until they visit again or go dormant. Fires before the patient becomes dormant.", channel: "Email (free) — runs daily at 6 PM", example: "Hi Ada, it has been a little while since we last saw you at City Clinic and we just wanted to check in and see how you are doing. We hope you are feeling well and taking good care of yourself. We are always here when you need us." },
     { icon: "🎂", trigger: "Patient's birthday (every year)", what: "A warm, personalised birthday email written by AI — unique to your clinic's personality", channel: "Email" },
     { icon: "⭐", trigger: "After a patient visit", what: "Asks them to rate their experience and share feedback via a link", channel: "Email" },
     { icon: "💌", trigger: "Admin sends from Wellness Newsletter page", what: "Weekly health education email sent to all active patients", channel: "Email" },
@@ -161,25 +170,57 @@ function AutoMessagesSection() {
     </div>
   );
 
+  if (role === "receptionist") {
+    return (
+      <Section emoji="📱" title="Messages Your Actions Trigger" ci={10}>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Every time you check in a patient or book an appointment, the system automatically contacts them. You do <strong className="text-foreground">not</strong> need to call or message separately.
+        </p>
+        <p className="font-semibold text-sm border-b border-border pb-1.5 pt-1">Queue messages</p>
+        <div className="space-y-2">{queueRows.map(renderRow)}</div>
+        <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Appointment messages</p>
+        <div className="space-y-2">{appointmentRows.map(renderRow)}</div>
+      </Section>
+    );
+  }
+
+  if (role === "nurse") {
+    return (
+      <Section emoji="📱" title="Messages Your Care Plans Trigger" ci={10}>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Every time you save a care plan, the system automatically contacts the patient for the entire duration of the plan. You do <strong className="text-foreground">not</strong> need to call or send anything manually.
+        </p>
+        <p className="font-semibold text-sm border-b border-border pb-1.5 pt-1">When you first save the plan</p>
+        <div className="space-y-2">{carePlanRows.map(renderRow)}</div>
+        <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Every day while the patient is In Care</p>
+        <p className="text-xs text-muted-foreground -mt-2 pb-2">These run automatically every day for the whole plan duration. What gets sent depends on the department and treatment type you selected.</p>
+        <div className="space-y-2">{inCareRows.map(renderRow)}</div>
+        <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">After the plan ends — Post-Treatment check-ins</p>
+        <p className="text-xs text-muted-foreground -mt-2 pb-2">When the care plan end date passes, the system sends 3 automatic check-in emails to make sure the patient is recovering well.</p>
+        <div className="space-y-2">{postTreatmentRows.map(renderRow)}</div>
+      </Section>
+    );
+  }
+
+  // Admin: full list
   return (
-    <Section emoji="📱" title="What the System Sends to Patients Automatically" ci={10}>
+    <Section emoji="📱" title="All Messages the System Sends to Patients Automatically" ci={10}>
       <p className="text-sm text-muted-foreground leading-relaxed">
-        The system contacts patients <strong className="text-foreground">on its own</strong> after certain actions. You do not need to call or message separately. Here is what each one does.
+        The system contacts patients <strong className="text-foreground">on its own</strong> after certain actions. No manual calls or messages needed. Here is the full list.
       </p>
-
-      <div className="space-y-2">
-        {rows.map(renderRow)}
-      </div>
-
-      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Continuous in-care reminders — while patient is In Care</p>
-      <p className="text-xs text-muted-foreground -mt-2">These run every day for the entire plan duration. What gets sent depends on the patient's department and treatment type.</p>
-      <div className="space-y-2">
-        {inCareRows.map(renderRow)}
-      </div>
-
-      <div className="space-y-2 pt-1">
-        {remainingRows.map(renderRow)}
-      </div>
+      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-1">Queue messages (receptionist-triggered)</p>
+      <div className="space-y-2">{queueRows.map(renderRow)}</div>
+      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Appointment messages (receptionist-triggered)</p>
+      <div className="space-y-2">{appointmentRows.map(renderRow)}</div>
+      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Care plan messages (nurse-triggered)</p>
+      <div className="space-y-2">{carePlanRows.map(renderRow)}</div>
+      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Daily in-care reminders — while patient is In Care</p>
+      <p className="text-xs text-muted-foreground -mt-2 pb-2">These run every day for the full plan duration. Depends on department and treatment type set by the nurse.</p>
+      <div className="space-y-2">{inCareRows.map(renderRow)}</div>
+      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Post-Treatment check-ins (automatic after plan ends)</p>
+      <div className="space-y-2">{postTreatmentRows.map(renderRow)}</div>
+      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Other automatic messages</p>
+      <div className="space-y-2">{adminOnlyRows.map(renderRow)}</div>
     </Section>
   );
 }
@@ -347,7 +388,7 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
         <Tip>To top up your wallet or check your balance, go to <strong>Settings</strong> → <strong>SMS Wallet</strong> at the bottom of the page. If the wallet runs out, SMS messages automatically fall back to email so nothing is missed.</Tip>
       </Section>
 
-      <AutoMessagesSection />
+      <AutoMessagesSection role="admin" />
     </div>
   );
 }
@@ -405,7 +446,7 @@ function ReceptionistHelp({ hospitalName }: { hospitalName: string }) {
         <Remember>Do not call patients to confirm or remind them. They receive 3 emails automatically.</Remember>
       </Section>
 
-      <AutoMessagesSection />
+      <AutoMessagesSection role="receptionist" />
     </div>
   );
 }
@@ -416,37 +457,90 @@ function NurseHelp({ hospitalName }: { hospitalName: string }) {
   return (
     <div className="space-y-3">
 
-      <Section emoji="💊" title="Medication View — Managing Care Plans" defaultOpen ci={0}>
-        <p className="text-sm text-muted-foreground">This is where you create and manage care plans for patients. A care plan is the treatment schedule you set up for each patient.</p>
-        <div className="space-y-3">
-          <Step n={1}>Click <strong>Medication View</strong> in the sidebar.</Step>
-          <Step n={2}>Search for the patient by name or ID (type at least 2 characters). Click their name to select them.</Step>
-          <Step n={3}>Click <strong>New Care Plan</strong>. Choose the department, fill in the plan details, and click <strong>Save</strong>.</Step>
-          <Step n={4}>To view or edit an existing plan — find the patient and click on their active plan. Click the pencil icon to edit.</Step>
-          <Step n={5}>To end a plan early — open it and click <strong>End Early</strong>, then confirm.</Step>
-          <Step n={6}>To reuse a past plan as a starting point — click <strong>Use as template</strong> on any plan under Past Plans.</Step>
+      <Section emoji="💊" title="How to Create a Care Plan — Step by Step" defaultOpen ci={0}>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          A care plan is what you set up for a patient after the doctor has seen them. It tells the system what treatment the patient is getting, how long it lasts, and what reminders to send. <strong className="text-foreground">This is one of the most important things you do</strong> — take your time and fill it in carefully.
+        </p>
+
+        <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 px-4 py-3 space-y-1">
+          <p className="text-xs font-bold text-amber-300 uppercase tracking-wide">Before you start — read the doctor's notes first</p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            The doctor will have written what the patient needs — the medication name, the dose, how many times per day, and for how many days. Some doctors write it on paper, some write it on the patient's file, and some may tell you directly. <strong className="text-foreground">Read everything carefully before you touch the screen.</strong> If you are not sure, ask the doctor before you start.
+          </p>
+          <p className="text-xs text-muted-foreground">What you are looking for: <strong className="text-foreground">the medication name + dose</strong> (e.g. "Amoxicillin 500mg"), <strong className="text-foreground">how often</strong> (e.g. "3 times a day"), <strong className="text-foreground">how many days</strong> (e.g. "7 days"), and <strong className="text-foreground">any special instructions</strong> (e.g. "take after food", "come back on Monday").</p>
         </div>
+
+        <div className="space-y-3 pt-1">
+          <Step n={1}>
+            Click <strong>Medication View</strong> in the sidebar on the left.
+          </Step>
+          <Step n={2}>
+            You will see a search box at the top. Type the patient's name or ID — at least 2 letters. A list will appear below. Click the patient's name to select them. Their details will open on the right side of the screen.
+          </Step>
+          <Step n={3}>
+            Click the button that says <strong>New Care Plan</strong>. A form will open.
+          </Step>
+          <Step n={4}>
+            <strong>Choose the Department.</strong> This is the type of care the patient is getting. Look at the list below to pick the right one. <em>For most general medicine patients, choose "General Outpatient".</em>
+          </Step>
+          <Step n={5}>
+            <strong>Write the Treatment Summary.</strong> This is where you type what the doctor wrote. Use the doctor's own words — the medication name, the dose, and any instructions. Example: <em>"Amoxicillin 500mg — 3 times daily. Take after meals. Paracetamol 500mg for fever as needed. Return in 7 days if no improvement."</em> The system will use this to write a clear email to the patient explaining their treatment — so the more you write, the better the patient understands their care.
+          </Step>
+          <Step n={6}>
+            <strong>For General Outpatient only — choose the Treatment Type:</strong>
+            <div className="mt-2 space-y-1.5 pl-2">
+              <div className="flex gap-2 items-start"><span className="text-xs font-bold bg-muted rounded px-1.5 py-0.5 shrink-0 mt-px">Medication Only</span><p className="text-xs text-muted-foreground">The patient takes medicine at home. You will set the times: morning, afternoon, evening, or night. Tick all the times that apply.</p></div>
+              <div className="flex gap-2 items-start"><span className="text-xs font-bold bg-muted rounded px-1.5 py-0.5 shrink-0 mt-px">Come to Hospital</span><p className="text-xs text-muted-foreground">The patient comes to the hospital for each treatment. You will add the specific dates and times they should come in.</p></div>
+              <div className="flex gap-2 items-start"><span className="text-xs font-bold bg-muted rounded px-1.5 py-0.5 shrink-0 mt-px">Combination</span><p className="text-xs text-muted-foreground">Both — the patient takes medicine at home AND comes to the hospital. You set both the medication times and the visit dates.</p></div>
+            </div>
+          </Step>
+          <Step n={7}>
+            <strong>Set the start date and end date.</strong> The start date is today (or whenever the treatment begins). The end date is the last day of the treatment — for example, if it is a 7-day plan and today is the 5th, the end date is the 12th. Count carefully.
+          </Step>
+          <Step n={8}>
+            Look over everything one more time — patient name, department, treatment summary, dates. If anything looks wrong, fix it now.
+          </Step>
+          <Step n={9}>
+            Click <strong>Save</strong>. The plan is now created.
+          </Step>
+        </div>
+
         <AutoBox>
-          <p className="font-semibold">The moment you save a care plan, the system sends:</p>
-          <p>📱 SMS immediately: <em>"Hi [Name], your care plan at {hospitalName} has been set up. Please check your email continuously for your full care plan details and follow up. We are with you every step of the way."</em></p>
-          <p>📧 Email 20 minutes later: a full AI-written explanation of the plan in plain language</p>
-          <p>📧 Daily reminder emails at each medication time or visit slot for the whole plan duration</p>
+          <p className="font-semibold">The moment you click Save, the system automatically sends:</p>
+          <p>📱 SMS right away: <em>"Hi [Name], your care plan at {hospitalName} has been set up. Please check your email for full details."</em></p>
+          <p className="mt-1">📧 Email 20 minutes later: the system reads your treatment summary and writes a full, easy-to-understand explanation for the patient — what their medication is, when to take it, and what to expect.</p>
+          <p className="mt-1">📧 Daily reminder emails: every day for the whole plan — sent at the medication times or before each visit.</p>
         </AutoBox>
-        <Remember>The 20-minute gap is on purpose — it gives you time to fix mistakes before the full email goes out. Do NOT call the patient to tell them their plan started. The system already did it.</Remember>
+
+        <Remember>The 20-minute delay before the email is on purpose. It gives you time to go back and fix any mistake before the full email goes out. If you realise you made an error — go back, edit the plan, and save again. Do NOT call the patient — the system has already sent them a message.</Remember>
+
+        <div className="space-y-2 mt-1">
+          <p className="font-semibold text-sm text-foreground">Other things you can do with care plans:</p>
+          {[
+            { action: "Edit a plan", how: "Find the patient, click on their active plan, click the pencil (edit) icon, change what you need, and save again." },
+            { action: "End a plan early", how: "Open the patient's active plan, scroll to the bottom and click 'End Early', then confirm. Only do this if the doctor says treatment is done." },
+            { action: "Use a past plan as a template", how: "Under the patient's 'Past Plans' section, find the old plan and click 'Use as template'. It will pre-fill the form with the same details — you just change the dates and update the summary." },
+          ].map(x => (
+            <div key={x.action} className="rounded-lg border border-border bg-card/50 px-4 py-2.5 flex gap-3 items-start">
+              <span className="text-xs font-bold bg-primary/10 text-primary border border-primary/20 rounded px-2 py-0.5 shrink-0 mt-px whitespace-nowrap">{x.action}</span>
+              <p className="text-xs text-muted-foreground">{x.how}</p>
+            </div>
+          ))}
+        </div>
       </Section>
 
-      <Section emoji="📋" title="Care Plan Departments" ci={1}>
-        <p className="text-sm text-muted-foreground">Different departments have different plan formats. Here is what each one is for:</p>
+      <Section emoji="📋" title="Care Plan Departments — Which One to Choose" ci={1}>
+        <p className="text-sm text-muted-foreground">When you open a new care plan, you must choose the department. Here is what each one means:</p>
         <div className="space-y-2">
           {[
-            { dept: "General Outpatient", desc: "Treatment at home (Medication Only), at hospital (Come to Hospital), or both (Combination). Set timing slots — morning, afternoon, evening, night — and plan duration." },
-            { dept: "Antenatal", desc: "Pregnancy care. Tracks the current pregnancy week and ANC visit schedule with dates and times." },
-            { dept: "Paediatrics", desc: "Child health care. Includes vaccination schedule and age-based care plan." },
-            { dept: "Surgery", desc: "Procedure date and time, plus in-care recovery schedule." },
-            { dept: "Dental", desc: "Dental procedure and follow-up appointment schedule." },
-            { dept: "Eye", desc: "Eye care treatment and appointment schedule." },
-            { dept: "Fertility", desc: "Fertility treatment schedule and appointments." },
-            { dept: "ENT", desc: "Ear, nose, and throat treatment and follow-up dates." },
+            { dept: "General Outpatient", desc: "For most everyday patients — cough, fever, malaria, infections, general medicine. This is the most common department you will use. Choose Medication Only, Come to Hospital, or Combination depending on the doctor's instruction." },
+            { dept: "Antenatal", desc: "For pregnant patients. You will record the pregnancy week and schedule their ANC (antenatal care) clinic visits with dates and times." },
+            { dept: "Paediatrics", desc: "For children. You will record vaccinations and age-specific care visits." },
+            { dept: "Surgery", desc: "For patients having a procedure or operation. You set the procedure date and the recovery schedule after surgery." },
+            { dept: "Dental", desc: "For dental treatments — tooth extraction, cleaning, braces. You set the procedure date and any follow-up appointments." },
+            { dept: "Eye", desc: "For eye treatments and checkups. You set the treatment and visit schedule." },
+            { dept: "Fertility", desc: "For fertility treatment. You set the treatment schedule and appointments." },
+            { dept: "ENT", desc: "For ear, nose and throat conditions. You set the treatment and follow-up dates." },
           ].map(d => (
             <div key={d.dept} className="flex gap-3 items-start">
               <span className="text-xs font-bold bg-muted border border-border rounded px-2 py-0.5 shrink-0 mt-0.5 whitespace-nowrap">{d.dept}</span>
@@ -454,9 +548,31 @@ function NurseHelp({ hospitalName }: { hospitalName: string }) {
             </div>
           ))}
         </div>
+        <Tip>If you are not sure which department to choose, use <strong>General Outpatient</strong>. It covers the widest range of conditions.</Tip>
       </Section>
 
-      <AutoMessagesSection />
+      <Section emoji="🏥" title="Post-Treatment — What Happens After the Care Plan Ends" ci={2}>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          When you set an end date on a care plan and that date passes, the patient's stage changes to <strong className="text-foreground">Post Treatment</strong>. At this point, <strong className="text-foreground">you do not need to do anything</strong> — the system automatically follows up with the patient.
+        </p>
+
+        <div className="space-y-2 mt-1">
+          {[
+            { day: "Day 1 after plan ends", what: "The system sends a warm check-in email — wishes the patient a good recovery and lets them know the team is thinking of them." },
+            { day: "Day 4 after plan ends", what: "A second check-in — encourages the patient, tells them they are doing great, and reminds them the clinic is there if they need anything." },
+            { day: "Day 7 after plan ends", what: "One-week check-in — congratulates the patient on completing their treatment and encourages them to come back if they need more help." },
+          ].map(x => (
+            <div key={x.day} className="rounded-lg border border-border bg-card/50 px-4 py-3 flex gap-3 items-start">
+              <span className="text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded px-2 py-0.5 shrink-0 mt-px whitespace-nowrap">{x.day}</span>
+              <p className="text-xs text-muted-foreground">{x.what}</p>
+            </div>
+          ))}
+        </div>
+
+        <Remember>These emails go out by themselves — no action needed from you. Do not call the patient to follow up. The system is already checking on them for you.</Remember>
+      </Section>
+
+      <AutoMessagesSection role="nurse" />
     </div>
   );
 }

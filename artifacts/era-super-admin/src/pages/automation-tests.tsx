@@ -26,7 +26,7 @@ const AUTOMATIONS: AutomationTest[] = [
   { type: "post_treatment_day4",       label: "Post-Treatment Day 4 Check-in",         description: "Sent 4 days after treatment ends",                  category: "Post-Treatment",  channel: "email" },
   { type: "post_treatment_day7",       label: "Post-Treatment Day 7 Check-in",         description: "Sent 7 days after treatment ends",                  category: "Post-Treatment",  channel: "email" },
   // Patient care — email
-  { type: "post_care_email",           label: "Post-Care Wellness (30-day)",           description: "Sent 30 days after last treatment — Active patients", category: "Patient Care",   channel: "email" },
+  { type: "post_care_email",           label: "Active Wellness Nudge (30-day)",        description: "Sent when Active patient has had no queue check-in for 30+ days", category: "Patient Care", channel: "email" },
   { type: "birthday_email",            label: "Birthday Email",                        description: "Sent on the patient's birthday each year",          category: "Patient Care",    channel: "email" },
   { type: "feedback_email",            label: "Feedback Request",                      description: "Sent the day after a queue visit",                  category: "Patient Care",    channel: "email" },
   // AI-generated emails

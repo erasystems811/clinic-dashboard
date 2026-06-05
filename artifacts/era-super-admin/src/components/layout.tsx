@@ -23,8 +23,7 @@ const NAV = [
   { icon: Bell,          label: "Announcements",      href: "/announcements",    sub: "Push notices to hospitals" },
   { icon: FlaskConical,  label: "Automation Tests",   href: "/automation-tests", sub: "Verify email delivery" },
   { icon: Headphones,    label: "Support",            href: "/support",          sub: "Hospital tickets" },
-  { icon: BookOpen,      label: "Documentation",      href: "/docs",             sub: "Manual & reference" },
-  { icon: Settings,      label: "Settings",           href: "/settings",         sub: "System config" },
+  { icon: BookOpen,      label: "Docs & Settings",    href: "/docs",             sub: "Manual, config & reference" },
 ];
 
 const SIDEBAR_KEY = "era_sa_sidebar";

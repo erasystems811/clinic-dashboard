@@ -1,68 +1,53 @@
 import { useState } from "react";
 import Layout from "@/components/layout";
-import {
-  BookOpen, Server, Users, Zap, Database, Key, AlertTriangle,
-  CheckCircle2, ChevronDown, ChevronUp, Mail, MessageSquare,
-  LifeBuoy, Calendar, ClipboardList, Activity, Settings,
-  Building2, HelpCircle, RefreshCw, Clock,
-} from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Shared UI ─────────────────────────────────────────────────────────────────
 
-function Tab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function Tab({ label, emoji, active, onClick }: { label: string; emoji: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+      className={`px-5 py-2.5 text-sm font-bold rounded-xl transition-all flex items-center gap-2 ${
         active
-          ? "bg-primary/15 text-foreground"
+          ? "bg-primary text-primary-foreground shadow"
           : "text-muted-foreground/70 hover:bg-white/5 hover:text-foreground"
       }`}
     >
+      <span className="text-base">{emoji}</span>
       {label}
     </button>
   );
 }
 
-function SectionTitle({ icon: Icon, text, color = "text-primary" }: { icon: React.ComponentType<{ className?: string }>; text: string; color?: string }) {
+function SectionHead({ emoji, title, sub }: { emoji: string; title: string; sub?: string }) {
   return (
-    <div className="flex items-center gap-2.5 mb-4 mt-8 first:mt-0">
-      <div className="w-7 h-7 rounded-md bg-muted flex items-center justify-center shrink-0">
-        <Icon className={`w-3.5 h-3.5 ${color}`} />
+    <div className="flex items-center gap-3 mb-4 mt-8 first:mt-0">
+      <span className="text-2xl">{emoji}</span>
+      <div>
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-widest">{title}</h2>
+        {sub && <p className="text-xs text-muted-foreground/60 mt-0.5">{sub}</p>}
       </div>
-      <h2 className="text-sm font-bold text-foreground uppercase tracking-widest">{text}</h2>
     </div>
   );
 }
 
-function Note({ children, type = "info" }: { children: React.ReactNode; type?: "info" | "warning" | "tip" }) {
-  const styles = {
-    info:    "border-blue-500/30 bg-blue-500/8 text-blue-300",
-    warning: "border-amber-500/30 bg-amber-500/8 text-amber-300",
-    tip:     "border-emerald-500/30 bg-emerald-500/8 text-emerald-300",
-  };
-  const icons = { info: "ℹ", warning: "⚠", tip: "✓" };
-  return (
-    <div className={`border rounded-lg px-4 py-3 text-sm flex gap-2.5 my-3 ${styles[type]}`}>
-      <span className="shrink-0 font-bold">{icons[type]}</span>
-      <span>{children}</span>
-    </div>
-  );
-}
-
-function Accordion({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+function Acc({ title, emoji, children, open: defaultOpen = false }: { title: string; emoji?: string; children: React.ReactNode; open?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-border rounded-xl overflow-hidden mb-3">
+    <div className="border border-border rounded-xl overflow-hidden mb-2">
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-white/3 transition"
       >
-        <span className="text-sm font-semibold text-foreground">{title}</span>
+        <span className="text-sm font-semibold text-foreground flex items-center gap-2.5">
+          {emoji && <span className="text-base">{emoji}</span>}
+          {title}
+        </span>
         {open ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 pt-1 border-t border-border text-sm text-muted-foreground space-y-2">
+        <div className="px-4 pb-4 pt-2 border-t border-border text-sm text-muted-foreground space-y-2">
           {children}
         </div>
       )}
@@ -70,22 +55,36 @@ function Accordion({ title, children, defaultOpen = false }: { title: string; ch
   );
 }
 
-function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
+function InfoBox({ children, type = "info" }: { children: React.ReactNode; type?: "info" | "warning" | "tip" }) {
+  const s = {
+    info:    { box: "border-blue-500/30 bg-blue-500/8 text-blue-300",    icon: "ℹ️" },
+    warning: { box: "border-amber-500/30 bg-amber-500/8 text-amber-300", icon: "⚠️" },
+    tip:     { box: "border-emerald-500/30 bg-emerald-500/8 text-emerald-300", icon: "✅" },
+  }[type];
   return (
-    <div className="overflow-x-auto rounded-lg border border-border my-3">
+    <div className={`border rounded-xl px-4 py-3 text-sm flex gap-3 my-3 ${s.box}`}>
+      <span className="shrink-0 text-base">{s.icon}</span>
+      <span className="leading-relaxed">{children}</span>
+    </div>
+  );
+}
+
+function DataTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border my-3">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-border bg-muted/30">
+          <tr className="border-b border-border bg-muted/20">
             {headers.map(h => (
-              <th key={h} className="text-left px-3 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
+              <th key={h} className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">{h}</th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-border/40">
           {rows.map((row, i) => (
-            <tr key={i} className={i % 2 === 0 ? "" : "bg-white/2"}>
+            <tr key={i} className="hover:bg-white/2 transition">
               {row.map((cell, j) => (
-                <td key={j} className="px-3 py-2.5 text-foreground/80 align-top">{cell}</td>
+                <td key={j} className="px-3 py-2.5 text-foreground/80 align-top text-xs leading-relaxed">{cell}</td>
               ))}
             </tr>
           ))}
@@ -95,23 +94,18 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
   );
 }
 
-function Code({ children }: { children: string }) {
+function CodeBlock({ children }: { children: string }) {
   const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(children);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
   return (
     <div className="relative group my-3">
-      <pre className="bg-black/40 border border-border rounded-lg px-4 py-3 text-xs text-emerald-300 overflow-x-auto whitespace-pre-wrap leading-relaxed">
+      <pre className="bg-black/40 border border-border rounded-xl px-4 py-3 text-xs text-emerald-300 overflow-x-auto whitespace-pre-wrap leading-relaxed font-mono">
         {children}
       </pre>
       <button
-        onClick={copy}
-        className="absolute top-2 right-2 text-[10px] px-2 py-1 rounded bg-muted text-muted-foreground opacity-0 group-hover:opacity-100 transition"
+        onClick={() => { navigator.clipboard.writeText(children); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+        className="absolute top-2 right-2 text-[10px] px-2 py-1 rounded-lg bg-muted text-muted-foreground opacity-0 group-hover:opacity-100 transition"
       >
-        {copied ? "Copied!" : "Copy"}
+        {copied ? "✓ Copied" : "Copy"}
       </button>
     </div>
   );
@@ -120,478 +114,583 @@ function Code({ children }: { children: string }) {
 function P({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-muted-foreground leading-relaxed mb-2">{children}</p>;
 }
-
-function H3({ children }: { children: React.ReactNode }) {
-  return <h3 className="text-sm font-semibold text-foreground mt-5 mb-2">{children}</h3>;
-}
-
 function Li({ children }: { children: React.ReactNode }) {
   return <li className="text-sm text-muted-foreground leading-relaxed">{children}</li>;
 }
+function H3({ children }: { children: React.ReactNode }) {
+  return <h3 className="text-sm font-semibold text-foreground mt-4 mb-1.5">{children}</h3>;
+}
 
-// ── ABOUT TAB ─────────────────────────────────────────────────────────────────
+// ── TAB 1: The Platform ───────────────────────────────────────────────────────
 
-function AboutTab() {
+const STAGE_CARDS = [
+  {
+    name: "💊 In Care",
+    color: "border-blue-500/30 bg-blue-500/8",
+    nameColor: "text-blue-400",
+    desc: "Patient has an active care plan. Primary treatment stage.",
+    enters: "Nurse saves a care plan from the nurse station",
+    automations: "SMS notification instantly → AI care plan email 20 min later → hourly in-care reminders timed to treatment type",
+    exits: "Manual stage update or when all care plan dates pass",
+  },
+  {
+    name: "🔄 Post Treatment",
+    color: "border-violet-500/30 bg-violet-500/8",
+    nameColor: "text-violet-400",
+    desc: "Treatment ended. Era sends 3 warm check-in emails to support recovery.",
+    enters: "Daily 7 AM — care plan end date has passed",
+    automations: "AI check-in email: Day 1 → Day 4 → Day 7 after treatment end",
+    exits: "Automatically moves to Active after the Day 7 email",
+  },
+  {
+    name: "✅ Active",
+    color: "border-emerald-500/30 bg-emerald-500/8",
+    nameColor: "text-emerald-400",
+    desc: "Engaged patient — no active treatment. Stays connected via automation.",
+    enters: "After Post-Treatment completes, or manually set",
+    automations: "Birthday emails, wellness newsletter, appointment reminders, feedback requests. 30-day wellness nudge if no check-in for 30+ days.",
+    exits: "Moves to Dormant after configured days without a queue check-in (default 30)",
+  },
+  {
+    name: "😴 Dormant",
+    color: "border-zinc-500/30 bg-zinc-500/8",
+    nameColor: "text-zinc-400",
+    desc: "Patient gone quiet. Nothing targets dormant patients — the wellness nudge fires while still Active, before this stage.",
+    enters: "Daily 7 AM — Active patient with no check-in for the hospital's dormant threshold",
+    automations: "None. The 30-day wellness nudge (from Active stage) fires before this point.",
+    exits: "Returns to Active when manually moved or re-books",
+  },
+];
+
+function PlatformTab() {
   return (
     <div className="space-y-1">
 
-      <SectionTitle icon={BookOpen} text="What Is Era Systems?" />
-      <P>Era Systems is a clinic management platform you built and own. It is a SaaS product — many different hospitals and clinics subscribe and use it, each seeing only their own data. You are the platform owner. Every hospital is a tenant on your platform.</P>
-      <P>The system does three main things:</P>
-      <ul className="list-disc pl-5 space-y-1 mb-3">
-        <Li>Helps hospital staff manage patients, queues, appointments, and care plans</Li>
-        <Li>Automatically sends emails and messages to patients on behalf of hospitals (reminders, check-ins, feedback requests, birthday emails, etc.)</Li>
-        <Li>Gives you full visibility and control over all hospitals from this dashboard</Li>
-      </ul>
+      <SectionHead emoji="🏥" title="What Is Era Systems?" />
+      <P>Era Systems is a clinic management SaaS you own and built. Many hospitals subscribe and each sees only their own data. You are the platform owner — you control everything from this super admin dashboard.</P>
+      <P>Era does three things: manages patients, queues, appointments, and care plans; automatically sends emails and messages to patients on the hospital's behalf; gives you full visibility over all hospitals.</P>
 
-      <SectionTitle icon={Building2} text="The Three Portals" />
-      <Table
-        headers={["Portal", "Who uses it", "What it is"]}
+      <SectionHead emoji="🚪" title="The Three Portals" />
+      <DataTable
+        headers={["Portal", "Used by", "Purpose"]}
         rows={[
-          ["Hospital App (era-patient)", "Hospital staff", "The daily-use app — patients, queue, appointments, care plans"],
-          ["Super Admin (era-super-admin)", "You only", "This dashboard — manage all hospitals, view health, support inbox"],
-          ["Feedback Form", "Patients", "A public link each hospital shares with patients to collect ratings"],
+          ["Hospital App (era-patient)", "Hospital staff", "Daily-use app — patients, queue, appointments, care plans, settings"],
+          ["Super Admin (era-super-admin)", "You only", "This dashboard — manage hospitals, health check, support inbox, announcements"],
+          ["Feedback Form", "Patients", "Public link each hospital shares — patients rate their visits"],
         ]}
       />
 
-      <H3>The Three Hospital Roles</H3>
-      <Table
-        headers={["Role", "What they see", "What they do"]}
+      <SectionHead emoji="👥" title="Hospital Roles" />
+      <DataTable
+        headers={["Role", "What they can do"]}
         rows={[
-          ["Admin", "Everything", "Full access — patients, pipeline, settings, imports, analytics, care plans"],
-          ["Receptionist", "Queue + Appointments + Call Tasks", "Checks patients in, manages queue, books appointments, sends messages"],
-          ["Nurse", "Medication View + Call Tasks", "Views active care plans with daily schedules, flags patients who need follow-up"],
+          ["Admin", "Full access — patients, pipeline, settings, imports, analytics, care plans, announcements"],
+          ["Receptionist", "Queue management, appointments, call tasks, new patient form"],
+          ["Nurse", "Medication View — active care plans with daily schedules, flag patients for follow-up"],
         ]}
       />
+      <InfoBox type="info"><strong>Nurse note:</strong> Nurses do NOT see Call Tasks. That feature is for receptionists only.</InfoBox>
 
-      <SectionTitle icon={Users} text="Patient Journey & Stages" />
-      <P>There are three actual stages a patient can be in, plus one display badge. The system transitions patients automatically based on their queue activity and care plans.</P>
-      <Table
-        headers={["Stage", "Meaning", "Who is here"]}
-        rows={[
-          ["Active", "The default working stage", "New patients AND returning patients — anyone currently engaged who isn't in follow-up or dormant"],
-          ["Post Treatment", "Treatment ended, in follow-up", "Patients getting Day 1/4/7 check-in emails after a care plan ends"],
-          ["Dormant", "No queue check-in for the configured number of days (default 30)", "Patients who have gone quiet — a check-in re-activates them back to Active"],
-        ]}
-      />
-      <Note type="info"><strong>"In Care"</strong> is not a separate stage — it is a display badge shown on top of a patient's real stage whenever they have an active care plan. A patient can be "Active" AND show the "In Care" badge at the same time.</Note>
+      <SectionHead emoji="🔄" title="Patient Pipeline Stages" sub="How patients flow through Era and what fires at each stage" />
+      <div className="grid sm:grid-cols-2 gap-3 my-3">
+        {STAGE_CARDS.map(s => (
+          <div key={s.name} className={`rounded-xl border p-4 ${s.color}`}>
+            <p className={`text-sm font-bold mb-1.5 ${s.nameColor}`}>{s.name}</p>
+            <p className="text-xs text-foreground/80 leading-relaxed mb-3">{s.desc}</p>
+            <div className="space-y-1.5 text-[11px]">
+              <div><span className="font-bold text-muted-foreground/50 uppercase tracking-wide">Enters: </span><span className="text-muted-foreground">{s.enters}</span></div>
+              <div><span className="font-bold text-muted-foreground/50 uppercase tracking-wide">Auto: </span><span className="text-muted-foreground">{s.automations}</span></div>
+              <div><span className="font-bold text-muted-foreground/50 uppercase tracking-wide">Exits: </span><span className="text-muted-foreground">{s.exits}</span></div>
+            </div>
+          </div>
+        ))}
+      </div>
+      <InfoBox type="info"><strong>"In Care" is a badge, not a real stage.</strong> It overlays a patient's actual stage when they have an active care plan. A patient can be Active AND show "In Care" at the same time.</InfoBox>
 
-      <SectionTitle icon={Zap} text="All Features" />
+      <SectionHead emoji="⚡" title="All Features" sub="Click any to expand" />
 
-      <Accordion title="Queue Management" defaultOpen>
-        <P>When patients arrive, the receptionist adds them to the queue. The system automatically sends WhatsApp/SMS messages at each step: checked in (with queue number), next in line, your turn. If someone waits too long, an apology message goes out. No-shows are detected and handled automatically.</P>
-      </Accordion>
+      <Acc emoji="🪑" title="Queue Management" open>
+        <P>Patients arrive → receptionist adds to queue. SMS/WhatsApp fires at each step: checked in (with position), next in line, your turn. If wait exceeds 45 minutes, an apology message goes out automatically. No-shows detected and handled automatically.</P>
+      </Acc>
 
-      <Accordion title="Appointments">
-        <P>Admins and receptionists book appointments. The system sends a confirmation email immediately, a reminder 24 hours before, and another 2 hours before. If the patient doesn't show up, a follow-up email is sent automatically.</P>
-      </Accordion>
+      <Acc emoji="📅" title="Appointments">
+        <P>Admins and receptionists book appointments. Confirmation email fires immediately. Reminder at 24h before and 2h before. If patient doesn't show within 1 hour of the appointment time, a follow-up email goes out automatically.</P>
+      </Acc>
 
-      <Accordion title="Care Plans">
-        <P>Nurses create care plans with a full treatment schedule — which medications to take at which times of day, and which clinic visits are required. The system sends the patient an email with their full care plan details 20 minutes after the nurse creates it (giving the nurse time to make last-minute edits). Daily reminder emails fire at the right time slots (morning, afternoon, evening, night). If a family member/beneficiary is listed (with their relationship to the patient, e.g. wife, son, friend), they get their own reminders to check on the patient.</P>
-      </Accordion>
+      <Acc emoji="💊" title="Care Plans">
+        <P>Nurses create care plans — medications at specific times, clinic visits on specific dates. SMS notification fires immediately. Full AI-written care plan email fires 20 minutes later (giving the nurse time to make edits). Daily reminder emails then fire at the right time slots based on department and treatment type. If a family member is listed on the plan, they also get reminder emails.</P>
+      </Acc>
 
-      <Accordion title="Post-Treatment Check-ins">
-        <P>After treatment ends, the system automatically sends three check-in emails:</P>
-        <ul className="list-disc pl-5 space-y-1">
-          <Li>Day 1: "We hope you are resting well today"</Li>
-          <Li>Day 4: "Checking in — how are you feeling?"</Li>
-          <Li>Day 7: "One week on — we are proud of your progress"</Li>
+      <Acc emoji="🏥" title="Post-Treatment Check-Ins">
+        <P>After treatment ends, three AI-written check-in emails fire automatically:</P>
+        <ul className="list-disc pl-5 space-y-1 mt-1">
+          <Li>Day 1 — "We hope you are resting well today"</Li>
+          <Li>Day 4 — "Checking in — how are you feeling?"</Li>
+          <Li>Day 7 — "One week on — we are proud of your progress"</Li>
         </ul>
-      </Accordion>
+      </Acc>
 
-      <Accordion title="Feedback Collection">
-        <P>The day after a patient's appointment, the system sends them a feedback email. They click a link and rate their experience (overall, wait time, staff, quality of care) and leave a comment. The hospital sees all results in their Feedback section. You see all results in Analytics.</P>
-      </Accordion>
+      <Acc emoji="💌" title="30-Day Active Patient Wellness Nudge">
+        <P>If an Active patient hasn't had a queue check-in for 30+ days, the system sends a warm "we're thinking of you" email. It fires every 30 days until the patient visits again or moves to Dormant. This is SEPARATE from dormancy — it fires while the patient is still Active.</P>
+        <InfoBox type="tip">Only works when <strong>Wellness Newsletter</strong> module is enabled for the hospital.</InfoBox>
+      </Acc>
 
-      <Accordion title="Wellness Newsletter">
-        <P>Hospital admins choose a health topic and the system generates a full wellness newsletter using AI (Claude). It goes to all Active, In Care, Post Treatment, and Dormant patients who have an email address. Admins can also add YouTube and TikTok video links.</P>
-      </Accordion>
+      <Acc emoji="⭐" title="Feedback Collection">
+        <P>The day after a completed appointment, a feedback email is sent. Patient clicks a link and rates their experience. Hospital sees results in their Feedback section. You see all results in Analytics.</P>
+      </Acc>
 
-      <Accordion title="Call Tasks">
-        <P>When a nurse flags a patient from the Medication View (e.g., "missed medication"), it creates a Call Task. The system uses AI to draft a message tailored to the specific reason. The receptionist reviews, can edit it, and sends it as an email. They can also write a manual email instead.</P>
-      </Accordion>
+      <Acc emoji="📰" title="Wellness Newsletter">
+        <P>Admin chooses a health topic and the system generates a full newsletter using Claude (AI). Goes to all patients with an email address across Active, Post Treatment, In Care, and Dormant stages. Admins can also add YouTube and TikTok video links.</P>
+      </Acc>
 
-      <Accordion title="Patient Import (CSV)">
-        <P>Admins can upload a CSV or Excel (.xlsx/.xls) file of patients all at once. The system maps the columns to the right fields (First Name, Last Name, Email, Phone, etc.) and imports them. Duplicates are skipped only when the <strong>Hospital Patient ID / MRN</strong> already exists — email is NOT used for duplicate checking, so a parent can share one email across several children. Imported patients go straight into the Patients list and pipeline.</P>
-      </Accordion>
+      <Acc emoji="📞" title="Call Tasks">
+        <P>When a nurse flags a patient from Medication View (e.g. "missed medication"), a Call Task is created. AI drafts a message tailored to the reason. Receptionist reviews, edits if needed, and sends it as an email. They can also write a manual email instead.</P>
+        <InfoBox type="warning">Call Tasks are <strong>receptionist-only</strong> — do not appear in nurse or admin sidebar.</InfoBox>
+      </Acc>
 
-      <SectionTitle icon={Clock} text="The Scheduler — When Automations Fire" />
-      <Table
-        headers={["Schedule", "What runs"]}
-        rows={[
-          ["Every 5 minutes", "Care plan summary emails (20 min delay after nurse creates plan)"],
-          ["Every 15 minutes", "Appointment reminders, no-show detection, no-show follow-up emails, long queue wait alerts"],
-          ["Every hour", "Care plan daily reminders (medication + visit reminders)"],
-          ["Daily 7 AM WAT", "Stage transitions, post-treatment check-ins, departmental follow-ups, dormant detection, birthday emails"],
-          ["Daily 9 AM WAT", "Termii SMS credit balance alert (emails you if balance is low)"],
-          ["Daily noon WAT", "Feedback request emails (for previous day's patients)"],
-          ["Daily 6 PM WAT", "Post-care wellness email to Active patients who haven't checked in for 30+ days (one per patient per 30 days)"],
-          ["Daily 11 PM WAT", "Clear no-show flags from today"],
-          ["Every 6 hours", "Subscription expiry check"],
-        ]}
-      />
-      <Note type="info">The scheduler only runs when <strong>ENABLE_SCHEDULER=true</strong> is set in Railway environment variables. If automations stop working entirely, check this first.</Note>
+      <Acc emoji="📥" title="Patient Import (CSV/Excel)">
+        <P>Admins upload a CSV or Excel file to import patients in bulk. System maps columns to fields. Duplicates matched by Hospital Patient ID / MRN only — email is never used for duplicate detection (a parent can share an email across several children). All fields optional, but at minimum you need a first name or full name column.</P>
+      </Acc>
 
-      <SectionTitle icon={Mail} text="Email & SMS Providers" />
-      <Table
-        headers={["Service", "What it does", "Account"]}
-        rows={[
-          ["Resend", "Sends emails — free up to 3,000/month", "resend.com"],
-          ["AWS SES", "Sends emails at high volume (auto-switch when Resend limit is near)", "aws.amazon.com → SES"],
-          ["Termii", "Sends WhatsApp and SMS", "termii.com"],
-          ["Africa's Talking", "Optional second SMS provider (Termii is fallback)", "africastalking.com"],
-          ["OpenAI", "AI for some message types (visit reminders, call tasks, in-care reminders)", "platform.openai.com"],
-          ["Anthropic (Claude)", "AI for care plan emails, newsletters, birthday emails, follow-ups", "console.anthropic.com"],
-          ["Railway", "Hosts all your servers", "railway.app"],
-          ["Supabase", "Your database", "supabase.com"],
-        ]}
-      />
+      <SectionHead emoji="🚫" title="Hospital Suspension Behaviour" />
+      <P>When you suspend a hospital, logged-in staff are kicked within 30 seconds. New logins are blocked. Automations still process internally but nothing is delivered to patients. When you re-activate, there is no backlog — the system continues from today.</P>
+      <InfoBox type="tip">Intentional design — suspending does not create a flood of old messages on reactivation.</InfoBox>
 
-      <SectionTitle icon={CheckCircle2} text="Hospital Suspension Behaviour" />
-      <P>When you suspend a hospital, any staff currently logged in are automatically logged out within 30 seconds (the app polls the server every 30 seconds and gets kicked on suspension). New logins are blocked immediately. Automated messages are still processed internally and log entries are created, but nothing is actually delivered to patients. This means when you re-activate them, there is no catch-up flood — the system continues from the current date as if nothing was paused.</P>
-      <Note type="tip">This is intentional design. Suspending a hospital does not create a backlog of old messages waiting to send when they come back.</Note>
     </div>
   );
 }
 
-// ── MANUAL TAB ────────────────────────────────────────────────────────────────
+// ── TAB 2: Automations ────────────────────────────────────────────────────────
 
-function ManualTab() {
+const SERVICES = [
+  { name: "Resend", emoji: "📧", border: "border-blue-500/20", bg: "bg-blue-500/8", label: "text-blue-400", purpose: "Email delivery", detail: "All automated patient emails. Free up to 3,000/month, then auto-switches to AWS SES.", env: "RESEND_API_KEY" },
+  { name: "AWS SES", emoji: "📧", border: "border-sky-500/20", bg: "bg-sky-500/8", label: "text-sky-400", purpose: "High-volume email", detail: "Auto-used when Resend is near monthly limit. Backup email provider.", env: "AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY + AWS_REGION" },
+  { name: "Termii", emoji: "💬", border: "border-emerald-500/20", bg: "bg-emerald-500/8", label: "text-emerald-400", purpose: "SMS & WhatsApp", detail: "Queue messages, care plan notifications, appointment SMS reminders. ₦7 per SMS charged to hospital wallet.", env: "TERMII_API_KEY" },
+  { name: "Anthropic (Claude)", emoji: "🤖", border: "border-orange-500/20", bg: "bg-orange-500/8", label: "text-orange-400", purpose: "All AI generation", detail: "All AI-written messages — care plans, reminders, newsletters, birthdays. Model: claude-haiku-4-5-20251001.", env: "ANTHROPIC_API_KEY" },
+  { name: "OpenAI", emoji: "🤖", border: "border-violet-500/20", bg: "bg-violet-500/8", label: "text-violet-400", purpose: "Key held — not active", detail: "Key is validated in health checks but all AI calls currently route through Anthropic. Will switch when routing is toggled.", env: "OPENAI_API_KEY" },
+  { name: "Supabase", emoji: "🗄️", border: "border-teal-500/20", bg: "bg-teal-500/8", label: "text-teal-400", purpose: "Database", detail: "All hospital data — patients, care plans, queue, appointments, automations, support tickets, wallet.", env: "SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY" },
+  { name: "Sentry", emoji: "🚨", border: "border-red-500/20", bg: "bg-red-500/8", label: "text-red-400", purpose: "Error monitoring", detail: "Captures all API server exceptions in real time. API server only — frontend errors are not tracked.", env: "SENTRY_DSN" },
+];
+
+const SCHEDULE_ROWS = [
+  { time: "Every 5 min",   jobs: "Care plan email delay — picks up plans saved 20+ min ago, sends full AI-written care plan email" },
+  { time: "Every 15 min",  jobs: "Appointment reminders (24h + 2h before) · No-show detection · No-show follow-up email after 1h · Long queue wait apology (45+ min)" },
+  { time: "Every hour",    jobs: "In-care reminders: Medication-only fires AT medication time · Come to Hospital fires 3h before · Combination fires 2h before · Specialist dept visit reminders fire 4h before" },
+  { time: "Daily 7 AM",    jobs: "Post-treatment stage transitions · Post-treatment check-in emails (Day 1, Day 4, Day 7) · Dormant detection · Birthday emails" },
+  { time: "Daily 9 AM",    jobs: "Termii credit balance alert — emails you if balance is low" },
+  { time: "Daily 12 PM",   jobs: "Feedback request emails (for previous day's completed visits)" },
+  { time: "Daily 6 PM",    jobs: "30-day wellness nudge — Active patients with no queue check-in for 30+ days · 30-day per-patient cooldown" },
+  { time: "Daily 11 PM",   jobs: "Clear no-show flags from today's schedule" },
+  { time: "Every 6 hours", jobs: "Subscription expiry check — flags hospitals near expiry, deactivates expired ones" },
+];
+
+interface AutomationItem {
+  name: string; purpose: string; trigger: string; channel: "email" | "sms/whatsapp" | "both"; note?: string;
+}
+interface AutomationGroup {
+  label: string; emoji: string; timing: string; desc: string; accent: string; badge: string; items: AutomationItem[];
+}
+
+const AUTOMATION_GROUPS: AutomationGroup[] = [
+  {
+    label: "Immediate", emoji: "⚡", timing: "Fires instantly",
+    desc: "No scheduler. Sends the exact moment a staff action or system event occurs.",
+    accent: "border-l-emerald-500 bg-emerald-500/5",
+    badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25",
+    items: [
+      { name: "Queue Check-In Confirmation", channel: "sms/whatsapp", trigger: "Receptionist checks patient into queue", purpose: "Tells patient they are registered and shows their queue position" },
+      { name: "Next In Line Alert", channel: "sms/whatsapp", trigger: "Patient moves to position 2 in queue", purpose: "Warns patient their turn is coming so they are ready" },
+      { name: "It's Your Turn", channel: "sms/whatsapp", trigger: "Receptionist taps 'Call Patient' on queue screen", purpose: "Calls patient in the moment the doctor is ready" },
+      { name: "Long Wait Apology", channel: "sms/whatsapp", trigger: "Patient waiting 45+ minutes (checked every 15 min, sent at most once/hour)", purpose: "Proactively apologises — reduces walk-outs during busy periods" },
+      { name: "Care Plan Ready (SMS)", channel: "sms/whatsapp", trigger: "Nurse saves a care plan", purpose: "Instantly tells patient their plan is saved and to check email for full details" },
+      { name: "Appointment Booking Confirmation", channel: "email", trigger: "Receptionist or admin books an appointment", purpose: "Gives patient written confirmation the moment it is booked" },
+    ],
+  },
+  {
+    label: "20-Minute Delay", emoji: "⏱️", timing: "20 minutes after nurse saves",
+    desc: "Waits so the nurse can make last-minute edits before the full care plan email reaches the patient.",
+    accent: "border-l-sky-500 bg-sky-500/5",
+    badge: "bg-sky-500/10 text-sky-400 border-sky-500/25",
+    items: [
+      { name: "Care Plan Summary Email (AI — Claude)", channel: "email", trigger: "Scheduler picks up plans saved 20+ min ago (checks every 5 min)", purpose: "Full AI-written care plan in plain language — medications, visit schedule, instructions" },
+    ],
+  },
+  {
+    label: "In-Care Reminders", emoji: "💊", timing: "Checked every hour — exact time set by treatment type",
+    desc: "One hourly job handles all active care plan patients. When it fires depends on department and treatment type.",
+    accent: "border-l-violet-500 bg-violet-500/5",
+    badge: "bg-violet-500/10 text-violet-400 border-violet-500/25",
+    items: [
+      { name: "General Outpatient — Medication Only", channel: "email", trigger: "Fires AT the nurse-set medication time (e.g. 8:00 AM → sends at 8:00 AM)", purpose: "Reminds patient to take medication at the exact moment it is due" },
+      { name: "General Outpatient — Come to Hospital", channel: "email", trigger: "Fires 3 hours before the nurse-set visit slot", purpose: "Gives patient time to prepare and travel to the clinic" },
+      { name: "General Outpatient — Combination (Medication + Visit)", channel: "email", trigger: "Fires 2 hours before visit — one message covers both medication reminder and visit reminder", purpose: "Patient is never double-messaged. One combined reminder handles both." },
+      { name: "Specialist Dept — Care Visit Reminder", channel: "email", trigger: "Fires 4h before nurse-set visit (Antenatal, Surgery, Dental, Eye, Fertility, ENT, Paediatrics)", purpose: "Reminds patient of specific upcoming procedure/appointment in their care plan" },
+    ],
+  },
+  {
+    label: "Appointment-Driven", emoji: "📅", timing: "Checked every 15 minutes",
+    desc: "Polls appointments so reminders and no-show detection are never more than 15 minutes late.",
+    accent: "border-l-amber-500 bg-amber-500/5",
+    badge: "bg-amber-500/10 text-amber-400 border-amber-500/25",
+    items: [
+      { name: "Appointment Reminder", channel: "both", trigger: "24 hours before appointment · then again 2 hours before", purpose: "Two timely reminders to reduce no-shows" },
+      { name: "No-Show Follow-Up", channel: "email", trigger: "No check-in within 1 hour of appointment time", purpose: "Compassionate outreach so patient feels cared for and is encouraged to rebook" },
+    ],
+  },
+  {
+    label: "Scheduled Daily", emoji: "🗓️", timing: "Fixed times each day",
+    desc: "Run at exact times. Each job only sends to patients whose conditions are met on that specific day.",
+    accent: "border-l-primary bg-primary/5",
+    badge: "bg-primary/10 text-primary border-primary/25",
+    items: [
+      { name: "Post-Treatment Check-In Sequence", channel: "email", trigger: "Post-Treatment stage patient — Day 1, Day 4, Day 7 after treatment end · checked at 7 AM", purpose: "Shows patient the clinic still cares during recovery. Each email is AI-written." },
+      { name: "Birthday Greeting", channel: "email", trigger: "Patient's birthday matches today · checked at 7 AM", purpose: "Warm personal birthday message — small gesture that builds real loyalty" },
+      { name: "Post-Visit Feedback Request", channel: "email", trigger: "Patient had a completed appointment yesterday · checked at 12 PM", purpose: "Asks for feedback while experience is still fresh" },
+      { name: "30-Day Active Patient Wellness Nudge", channel: "email", trigger: "Active patient with no queue check-in for 30+ days · checked at 6 PM · 30-day per-patient cooldown", purpose: "Gently nudges inactive Active patients to come back. Repeats every 30 days until they visit or go dormant." },
+    ],
+  },
+  {
+    label: "Manual / Staff-Triggered", emoji: "✍️", timing: "Only when staff takes action",
+    desc: "These never send automatically. A staff member must deliberately trigger them.",
+    accent: "border-l-zinc-500 bg-zinc-500/5",
+    badge: "bg-zinc-500/10 text-zinc-400 border-zinc-500/25",
+    items: [
+      { name: "Call Task — AI Draft (Staff-Reviewed)", channel: "email", trigger: "Staff generates draft from call tasks screen, reviews it, then confirms send", purpose: "AI-written 'IMPORTANT' email to flagged patient — staff always reviews before it goes out", note: "Max 5 AI-drafted call task emails per hospital per day" },
+      { name: "Call Task — Manual Email (Staff-Written)", channel: "email", trigger: "Staff chooses 'Write Manually', types message, taps Send", purpose: "Fully staff-written 'IMPORTANT' email — for when staff prefers to write their own message" },
+      { name: "Wellness Newsletter", channel: "email", trigger: "Admin sends manually from the Wellness Newsletter screen", purpose: "AI-generated health education email to all patients with an email address" },
+    ],
+  },
+];
+
+const CHANNEL_BADGE: Record<string, string> = {
+  email: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  "sms/whatsapp": "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  both: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+};
+
+function AutomationsTab() {
   return (
     <div className="space-y-1">
 
-      <SectionTitle icon={Settings} text="Part 1 — Super Admin Operations" />
+      <SectionHead emoji="🔌" title="Connected Services" sub="Every external service Era depends on and what it powers" />
+      <div className="grid sm:grid-cols-2 gap-2.5 mb-4">
+        {SERVICES.map(s => (
+          <div key={s.name} className={`rounded-xl border p-4 ${s.border} ${s.bg}`}>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-base">{s.emoji}</span>
+              <span className="text-sm font-bold text-foreground">{s.name}</span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-auto border ${s.border} ${s.bg} ${s.label}`}>{s.purpose}</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed mb-2">{s.detail}</p>
+            <p className="text-[10px] font-mono text-muted-foreground/40 border-t border-white/5 pt-1.5">{s.env}</p>
+          </div>
+        ))}
+      </div>
 
-      <Accordion title="Creating a New Hospital Account" defaultOpen>
+      <SectionHead emoji="⏰" title="Scheduler Timetable" sub="Exact run times — enable with ENABLE_SCHEDULER=true in Railway" />
+      <div className="rounded-xl border border-border bg-card/50 overflow-hidden">
+        {SCHEDULE_ROWS.map((row, i) => (
+          <div key={row.time} className={`flex gap-4 px-4 py-3 ${i < SCHEDULE_ROWS.length - 1 ? "border-b border-border/40" : ""}`}>
+            <div className="w-28 shrink-0">
+              <span className="text-xs font-bold text-primary font-mono">{row.time}</span>
+            </div>
+            <span className="text-xs text-muted-foreground leading-relaxed">{row.jobs}</span>
+          </div>
+        ))}
+      </div>
+      <InfoBox type="warning">If automations stop working completely, check <strong>ENABLE_SCHEDULER=true</strong> in Railway Variables first.</InfoBox>
+
+      <SectionHead
+        emoji="🤖"
+        title="All Automations"
+        sub={`${AUTOMATION_GROUPS.reduce((a, g) => a + g.items.length, 0)} automations across ${AUTOMATION_GROUPS.length} groups`}
+      />
+      <div className="space-y-4">
+        {AUTOMATION_GROUPS.map(group => (
+          <div key={group.label}>
+            <div className={`flex items-center gap-3 px-4 py-2.5 border-l-2 rounded-r-xl mb-2 ${group.accent}`}>
+              <span className="text-xl">{group.emoji}</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-bold uppercase tracking-widest text-foreground">{group.label}</span>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 border rounded-full uppercase tracking-wider ${group.badge}`}>{group.timing}</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground/60 mt-0.5">{group.desc}</p>
+              </div>
+            </div>
+            <div className="space-y-1.5 pl-4">
+              {group.items.map(a => (
+                <div key={a.name} className="border border-border bg-card/40 rounded-xl p-3.5">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-[13px] font-bold text-foreground">{a.name}</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 border rounded uppercase tracking-wider ${CHANNEL_BADGE[a.channel]}`}>{a.channel}</span>
+                  </div>
+                  <p className="text-[11px] text-foreground/60 leading-relaxed mb-1">{a.purpose}</p>
+                  <p className="text-[10px] text-muted-foreground/50">
+                    <span className="font-bold text-muted-foreground/40 uppercase tracking-widest">Trigger · </span>{a.trigger}
+                  </p>
+                  {a.note && <p className="text-[10px] text-amber-400/70 mt-1.5 border-t border-border/40 pt-1.5">↳ {a.note}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── TAB 3: Operations ─────────────────────────────────────────────────────────
+
+const ENV_VARS: string[][] = [
+  ["SUPABASE_URL", "Database address", "Supabase → Project Settings → API"],
+  ["SUPABASE_SERVICE_KEY", "Database secret key", "Supabase → Project Settings → API"],
+  ["SUPER_ADMIN_USERNAME", "Your login username", "You set this"],
+  ["SUPER_ADMIN_PASSWORD", "Your login password", "You set this — make it strong"],
+  ["SUPER_ADMIN_RECOVERY_KEY", "Backup key if locked out", "Keep this safe offline"],
+  ["SUPER_ADMIN_ALERT_EMAIL", "Email for system alerts (low balance, etc.)", "Your email address"],
+  ["PLATFORM_FROM_EMAIL", "The 'from' address on all automated emails", "Must match verified Resend/SES address"],
+  ["RESEND_API_KEY", "Resend account key", "resend.com → API Keys"],
+  ["EMAIL_PROVIDER", "Force ses or resend (leave blank for auto)", "Leave blank normally"],
+  ["AWS_ACCESS_KEY_ID", "AWS key for SES email", "AWS Console → IAM"],
+  ["AWS_SECRET_ACCESS_KEY", "AWS secret for SES", "AWS Console → IAM"],
+  ["AWS_REGION", "Your AWS region (e.g. eu-west-1)", "Must match where SES is configured"],
+  ["TERMII_API_KEY", "Termii key for SMS/WhatsApp", "termii.com → API"],
+  ["TERMII_SENDER_ID", "Default Termii sender ID", "Your approved Termii sender ID"],
+  ["AFRICAS_TALKING_API_KEY", "Africa's Talking key (optional fallback)", "africastalking.com"],
+  ["AFRICAS_TALKING_USERNAME", "Africa's Talking username (optional)", "africastalking.com"],
+  ["ENABLE_SCHEDULER", "Must be true for automated jobs to run", "Set to: true"],
+  ["SUPPORT_EMAIL", "Your email for support ticket notifications", "Your email address"],
+  ["OPENAI_API_KEY", "OpenAI key (held — all AI currently routes to Anthropic)", "platform.openai.com"],
+  ["ANTHROPIC_API_KEY", "Claude key for all AI messages", "console.anthropic.com"],
+  ["APP_BASE_URL", "Public URL of the hospital app", "Your era-patient Railway URL"],
+];
+
+const DB_TABLES: string[][] = [
+  ["hospitals", "All registered hospitals — name, username, hashed password, hospital_code, active, subscription, wallet_balance_kobo"],
+  ["hospital_settings", "Per-hospital config — sender name, tone, language, Termii sender ID, notification channel, dormant threshold"],
+  ["hospital_modules", "Feature flags per hospital — appointments, feedback, wellness newsletter, WhatsApp, messages"],
+  ["hospital_staff", "Individual named staff accounts (nurse/receptionist) — username, hashed password, role, active"],
+  ["patients", "All patients — first name, last name, email, phone, DOB, stage, department, hospital_id, MRN"],
+  ["care_plans", "Treatment plans — patient, department, treatment type, medications, visit schedule, start/end dates, beneficiary info"],
+  ["appointments", "Appointments — patient, date/time, status, no-show flag"],
+  ["queue_entries", "Queue records — patient, check-in time, call time, status, wait duration"],
+  ["activity", "Activity log entries — patient actions, stage transitions, staff actions with actor name"],
+  ["automation_log", "Every automation ever attempted — type, status (sent/failed/skipped/queued), error message, channel, patient_id"],
+  ["support_tickets", "Support conversations — message, AI reply, escalation status, hospital_id"],
+  ["feedback_submissions", "Patient feedback — ratings (overall, wait, staff, quality), comment, appointment reference"],
+  ["hospital_announcements", "Platform announcements — title, message, type (info/update/warning), published flag, expiry"],
+  ["hospital_announcement_reads", "Tracks which hospitals dismissed which announcements (dedup table)"],
+  ["platform_deployments", "Deployment log — title, deployed_at — used as context for auto-draft announcements"],
+  ["wallet_transactions", "Wallet deduction and top-up history — hospital_id, amount_kobo, type (debit/credit), description, reference"],
+];
+
+function OperationsTab() {
+  return (
+    <div className="space-y-1">
+
+      <SectionHead emoji="🏗️" title="Managing Hospitals" />
+
+      <Acc emoji="✨" title="Creating a New Hospital Account" open>
         <ol className="list-decimal pl-5 space-y-1.5">
           <Li>Click <strong>Hospitals</strong> in the sidebar</Li>
           <Li>Click <strong>New Hospital</strong> (top right)</Li>
-          <Li>Fill in: Hospital Name, Username (short lowercase, e.g. <em>lagosclinic</em> — cannot be changed later), Subscription Status</Li>
+          <Li>Fill in: Hospital Name, Username (short lowercase e.g. <em>lagosclinic</em> — <strong>cannot be changed later</strong>), Subscription Status</Li>
           <Li>Click Create — a random password is generated automatically</Li>
-          <Li>Open the hospital's detail page to get all credentials and their feedback form link</Li>
-          <Li>Send the admin their username + password, and the staff credentials for receptionist and nurse</Li>
+          <Li>Open the hospital's detail page → get all credentials + their feedback form link</Li>
+          <Li>Send the admin their username + password, and staff credentials for receptionist and nurse</Li>
         </ol>
-      </Accordion>
+      </Acc>
 
-      <Accordion title="Resetting a Hospital's Password">
+      <Acc emoji="🔑" title="Resetting a Hospital's Password">
         <ol className="list-decimal pl-5 space-y-1.5">
-          <Li>Click the hospital name → open their detail page</Li>
+          <Li>Click hospital name → open detail page</Li>
           <Li>Click <strong>Regenerate Password</strong></Li>
-          <Li>A new password is created and shown once — send it to the hospital admin</Li>
+          <Li>New password shown once — send it to the hospital admin</Li>
         </ol>
-      </Accordion>
+      </Acc>
 
-      <Accordion title="Suspending / Activating a Hospital">
+      <Acc emoji="⏸️" title="Suspending / Re-activating a Hospital">
         <ol className="list-decimal pl-5 space-y-1.5">
           <Li>Open hospital detail page</Li>
           <Li>Toggle <strong>Active</strong> off to suspend, or change subscription status to <em>inactive</em></Li>
           <Li>To re-activate, toggle Active back on</Li>
         </ol>
-        <Note type="tip">Automations keep running silently during suspension so there is no catch-up flood when you re-activate.</Note>
-      </Accordion>
+        <InfoBox type="tip">Automations run silently during suspension — no catch-up flood on reactivation.</InfoBox>
+      </Acc>
 
-      <Accordion title="Enabling or Disabling Features for a Hospital">
-        <P>Each hospital can have features turned on or off. Open their detail page → Modules section → toggle on or off:</P>
+      <Acc emoji="🔧" title="Enabling/Disabling Features for a Hospital">
+        <P>Hospital detail page → Modules section → toggle:</P>
         <ul className="list-disc pl-5 space-y-1">
-          <Li><strong>Appointments</strong> — show/hide the appointments section</Li>
-          <Li><strong>Feedback</strong> — show/hide the feedback section</Li>
-          <Li><strong>Wellness Newsletter</strong> — show/hide the wellness section</Li>
+          <Li><strong>Appointments</strong> — show/hide appointments section</Li>
+          <Li><strong>Feedback</strong> — show/hide feedback section</Li>
+          <Li><strong>Wellness Newsletter</strong> — must be ON for the 30-day wellness nudge to work</Li>
           <Li><strong>WhatsApp</strong> — enable/disable WhatsApp messaging</Li>
-          <Li><strong>Messages</strong> — enable/disable the messages tab</Li>
+          <Li><strong>Messages</strong> — enable/disable messages tab</Li>
         </ul>
-      </Accordion>
+      </Acc>
 
-      <Accordion title="How Support Works (AI + You)">
-        <P>When a hospital sends a support message from the help button in their app, an AI assistant reads it first and tries to answer common questions automatically (login help, why a patient didn't get an email, how-to questions, etc.). The hospital sees the AI reply in a live conversation thread and can keep chatting.</P>
-        <P>If the AI can't confidently solve it — or the question is about billing, account changes, data, security, or anything sensitive — it <strong>escalates</strong> the ticket to you instead of guessing. The AI never reveals confidential or internal information.</P>
-        <H3>Your part — replying to escalated tickets</H3>
-        <ol className="list-decimal pl-5 space-y-1.5">
-          <Li>Click <strong>Support</strong> in the sidebar. It opens on the "Needs me" filter showing escalated tickets.</Li>
-          <Li>Click a ticket to see the full conversation — including what the AI already said.</Li>
-          <Li>Type your reply and send. It emails the hospital and they can continue the thread.</Li>
-          <Li>You can step into any conversation at any time, even ones the AI is still handling.</Li>
-        </ol>
-        <Note type="tip">Add your email as <strong>SUPPORT_EMAIL</strong> in Railway so you get an instant email ping whenever a ticket is escalated to you.</Note>
-      </Accordion>
+      <SectionHead emoji="🆘" title="Support Guide" sub="Every common problem a hospital will report and exactly how to fix it" />
 
-      <Accordion title="Checking Platform Health">
-        <P>Click <strong>Analytics</strong> in the sidebar. The health panel shows whether each service (Email, SMS, WhatsApp, Database) is working. Green = OK, Red = problem. See Part 5 for how to fix red services.</P>
-      </Accordion>
-
-      <Accordion title="Deploying a New Version">
-        <ol className="list-decimal pl-5 space-y-1.5">
-          <Li>Click <strong>Deploy</strong> in the sidebar</Li>
-          <Li>Click <strong>Deploy</strong> in the confirmation popup</Li>
-          <Li>Wait 60–90 seconds — the button turns green showing "Deployed"</Li>
-        </ol>
-      </Accordion>
-
-      <SectionTitle icon={LifeBuoy} text="Part 2 — Helping Hospitals (Support Guide)" />
-      <Note type="info">This section covers every common problem a hospital will report to you, and exactly how to fix it.</Note>
-
-      <Accordion title="Hospital can't log in">
-        <H3>Check 1 — Right URL?</H3>
+      <Acc emoji="🔐" title="Hospital can't log in">
+        <H3>1 — Right URL?</H3>
         <P>Make sure they are going to the correct era-patient URL. They should bookmark it.</P>
-        <H3>Check 2 — Wrong password?</H3>
-        <P>Super admin → their hospital → detail page → check or regenerate their password → send it to them.</P>
-        <H3>Check 3 — Are they suspended?</H3>
+        <H3>2 — Wrong password?</H3>
+        <P>Super admin → their hospital → detail page → check or regenerate password → send it to them.</P>
+        <H3>3 — Are they suspended?</H3>
         <P>Super admin → their hospital → check Active status. Re-activate if needed.</P>
-        <H3>Check 4 — Staff login (receptionist/nurse)</H3>
-        <P>Super admin → hospital detail → Staff Credentials section → confirm or regenerate the username and password shown there.</P>
-      </Accordion>
+        <H3>4 — Staff login issue?</H3>
+        <P>Super admin → hospital detail → Staff Credentials → confirm or regenerate username/password.</P>
+      </Acc>
 
-      <Accordion title="Emails are not reaching patients">
-        <H3>Step 1 — Check the automation log in Supabase</H3>
-        <P>Supabase → Table Editor → <strong>automation_log</strong> table → filter status = failed → look at the error_message column.</P>
-        <H3>Step 2 — Check platform health</H3>
-        <P>If Email shows red: check that RESEND_API_KEY and PLATFORM_FROM_EMAIL are set in Railway Variables.</P>
-        <H3>Step 3 — Is the patient's email correct?</H3>
-        <P>Ask the hospital to check the email address on the patient's record. A typo is the most common cause.</P>
-        <H3>Step 4 — Spam folder</H3>
-        <P>Ask the patient to check their spam/junk folder.</P>
-      </Accordion>
+      <Acc emoji="📧" title="Emails not reaching patients">
+        <H3>1 — Check automation_log in Supabase</H3>
+        <P>Filter status = failed → read the error_message column.</P>
+        <H3>2 — Check platform health</H3>
+        <P>Analytics → Email shows red → check RESEND_API_KEY and PLATFORM_FROM_EMAIL in Railway.</P>
+        <H3>3 — Patient email correct?</H3>
+        <P>Typo is the most common cause. Ask hospital to check the patient's profile.</P>
+        <H3>4 — Spam folder</H3>
+        <P>Ask patient to check spam/junk folder.</P>
+      </Acc>
 
-      <Accordion title="SMS/WhatsApp not sending to patients">
-        <H3>Step 1 — Check Termii balance</H3>
-        <P>Super admin → Analytics → check the SMS/WhatsApp health — it shows the Termii credit balance. If low, top up at <strong>termii.com</strong>. You also get a daily 9am email alert if balance drops below ₦50.</P>
-        <H3>Step 2 — Phone number format</H3>
+      <Acc emoji="📱" title="SMS/WhatsApp not sending">
+        <H3>1 — Check Termii balance</H3>
+        <P>Analytics → SMS/WhatsApp health shows Termii credit balance. Top up at termii.com if low. You also get a daily 9am alert if balance drops below ₦50.</P>
+        <H3>2 — Phone number format</H3>
         <P>Termii requires international format. Nigerian numbers must start with 234, not 0.</P>
         <ul className="list-disc pl-5 space-y-1">
           <Li>Wrong: 08012345678</Li>
           <Li>Correct: 2348012345678</Li>
         </ul>
-        <H3>Step 3 — Hospital's notification channel</H3>
-        <P>Super admin → hospital detail → Settings → check Notification Channel (should be whatsapp or sms) and Termii Sender ID.</P>
-        <H3>Step 4 — Check automation log</H3>
-        <P>Supabase → automation_log → filter status = failed for that hospital → read error_message.</P>
-      </Accordion>
+        <H3>3 — Hospital notification channel</H3>
+        <P>Hospital detail → Settings → check Notification Channel (whatsapp or sms) and Termii Sender ID.</P>
+      </Acc>
 
-      <Accordion title="Automated emails stopped working completely for a hospital">
-        <H3>Check 1 — Scheduler running?</H3>
-        <P>Railway → api-server → Logs. Search for "scheduler". You should see lines like [scheduler] running. If you see "Scheduler disabled", go to Variables and make sure ENABLE_SCHEDULER=true is set.</P>
-        <H3>Check 2 — Hospital settings created?</H3>
-        <P>The hospital admin must go to Settings in their app and press Save at least once. This creates their settings row in the database. Without it, automations cannot look up their configuration.</P>
-        <H3>Check 3 — Subscription active?</H3>
-        <P>A hospital with an expired subscription is auto-suspended. Check their status in your dashboard.</P>
-      </Accordion>
+      <Acc emoji="🤖" title="Automated emails stopped completely">
+        <H3>1 — Is the scheduler running?</H3>
+        <P>Railway → api-server → Logs → search "scheduler". Should see "[scheduler] running". If "Scheduler disabled" → add ENABLE_SCHEDULER=true in Variables.</P>
+        <H3>2 — Hospital settings created?</H3>
+        <P>Hospital admin must go to Settings in their app and press Save at least once. Without it, automations can't look up their config.</P>
+        <H3>3 — Subscription active?</H3>
+        <P>Expired subscriptions are auto-suspended. Check their status.</P>
+      </Acc>
 
-      <Accordion title="Care plan emails not sending">
-        <P>Care plan emails are delayed by design — they send 20 minutes after the nurse creates the plan. If it has been more than 30 minutes and nothing arrived:</P>
+      <Acc emoji="💊" title="Care plan emails not sending">
+        <P>Care plan emails are delayed 20 minutes by design. If over 30 minutes and nothing arrived:</P>
         <ol className="list-decimal pl-5 space-y-1.5">
-          <Li>Supabase → automation_log → filter automation_type = care_plan_email → check status and error</Li>
-          <Li>Most common cause: the patient has no email address on their profile</Li>
+          <Li>automation_log → filter automation_type = care_plan_email → check status and error_message</Li>
+          <Li>Most common cause: patient has no email address</Li>
         </ol>
-        <Note type="info">The SMS/WhatsApp notification fires immediately. The email fires 20 minutes later. This gap is normal.</Note>
-      </Accordion>
+        <InfoBox type="info">SMS fires immediately. Email fires 20 minutes later. This gap is normal.</InfoBox>
+      </Acc>
 
-      <Accordion title="Appointment reminders not sending">
+      <Acc emoji="🔗" title="Hospital needs their feedback form link">
+        <P>Super admin → hospital detail page → find Feedback Slug. Full URL:</P>
+        <CodeBlock>[era-patient URL]/feedback/h/[their-slug]</CodeBlock>
+      </Acc>
+
+      <SectionHead emoji="⚠️" title="Error Reference" />
+      <DataTable
+        headers={["Error message", "Plain meaning", "Fix"]}
+        rows={[
+          ["RESEND_API_KEY is not set", "Email sending is broken", "Add key in Railway Variables"],
+          ["TERMII_API_KEY not set", "SMS/WhatsApp is broken", "Add key in Railway Variables"],
+          ["AI not configured", "ANTHROPIC_API_KEY missing", "Add key in Railway Variables"],
+          ["Unauthorized", "Invalid or missing login token", "User logs out and back in"],
+          ["Hospital not found", "Hospital ID doesn't exist", "Stale login — hospital logs out and back in"],
+          ["Insufficient balance", "Termii is out of credit", "Top up at termii.com"],
+          ["Invalid address", "Patient's email is not valid", "Hospital corrects email on patient's profile"],
+          ["Hospital is suspended", "Account is inactive", "Re-activate in super admin"],
+          ["Subscription expired", "Subscription lapsed", "Renew their status in super admin"],
+          ["Scheduler disabled", "Automated jobs are off", "Set ENABLE_SCHEDULER=true in Railway"],
+        ]}
+      />
+
+      <SectionHead emoji="🔑" title="Environment Variables" sub="All Railway variables — Railway → api-server → Variables tab" />
+      <DataTable headers={["Variable", "What it does", "Where to get it"]} rows={ENV_VARS} />
+      <InfoBox type="warning">After changing any variable, Railway restarts the server within 30 seconds automatically.</InfoBox>
+
+      <SectionHead emoji="🚂" title="Railway Services" />
+      <DataTable
+        headers={["Service", "What it is"]}
+        rows={[
+          ["api-server", "The backend engine — all logic, scheduler, emails, SMS, API routes"],
+          ["era-patient", "Hospital staff app — what hospitals log into every day"],
+          ["era-super-admin", "This dashboard — what you use"],
+        ]}
+      />
+      <Acc emoji="📋" title="Reading Logs">
+        <P>Railway → api-server → Logs tab. Real-time view of everything.</P>
         <ul className="list-disc pl-5 space-y-1.5">
-          <Li>24h reminder fires 24–25 hours before the appointment. 2h reminder fires 2–3 hours before. Check the appointment is in the future.</Li>
-          <Li>Appointment reminders are email only — if the patient has no email, no reminder is sent.</Li>
-          <Li>Supabase → automation_log → filter automation_type = appointment_reminder_24h or appointment_reminder_2h → check if already sent</Li>
+          <Li>Search <strong>[scheduler]</strong> — automation activity</Li>
+          <Li>Search <strong>[email]</strong> — email activity</Li>
+          <Li>Red lines = errors — copy exact text to diagnose</Li>
+          <Li>HTTP 4xx/5xx = a request failed</Li>
         </ul>
-      </Accordion>
+        <InfoBox type="tip">If automations aren't running: search "scheduler" in logs. Should see "[scheduler] Scheduler started" on boot. "Scheduler disabled" = set ENABLE_SCHEDULER=true.</InfoBox>
+      </Acc>
 
-      <Accordion title="Feedback or Appointments section missing for a hospital">
-        <P>Super admin → hospital detail → Modules section → toggle Feedback or Appointments back on.</P>
-      </Accordion>
+      <SectionHead emoji="🗄️" title="Database Tables" sub="What lives where in Supabase" />
+      <DataTable headers={["Table", "What it contains"]} rows={DB_TABLES} />
+      <InfoBox type="info">Every patient, care plan, queue entry, and appointment is tagged with that hospital's unique ID. Hospitals can never see each other's data.</InfoBox>
 
-      <Accordion title="CSV / Excel patient import did not work">
-        <ul className="list-disc pl-5 space-y-1.5">
-          <Li>The import page shows a results summary after uploading — how many were imported and how many skipped. Skipped = a patient with that same Hospital Patient ID / MRN already exists (email is never used for duplicate detection).</Li>
-          <Li>The file (CSV, .xlsx or .xls) must have at least a First Name and Last Name column. Other columns are optional.</Li>
-          <Li>Supabase → patients table → filter hospital_id = their hospital code → check if rows are there</Li>
-        </ul>
-      </Accordion>
+      <SectionHead emoji="💾" title="Useful SQL Queries" sub="Copy-paste into Supabase SQL Editor" />
 
-      <Accordion title="Hospital needs their feedback form link">
-        <P>Super admin → hospital detail page → find their Feedback Slug. The full URL is:</P>
-        <Code>[era-patient URL]/feedback/h/[their-slug]</Code>
-      </Accordion>
-
-      <Accordion title="Wellness newsletter sent but patients not receiving it">
-        <ul className="list-disc pl-5 space-y-1.5">
-          <Li>Only patients with an email address receive newsletters.</Li>
-          <Li>Only patients in Active, Post Treatment, or Dormant stages (or showing the In Care badge) get them.</Li>
-          <Li>Supabase → automation_log → filter automation_type = wellness_newsletter → check for failed rows</Li>
-        </ul>
-      </Accordion>
-
-      <SectionTitle icon={Database} text="Part 3 — Supabase (Your Database)" />
-
-      <Accordion title="Key Tables Explained" defaultOpen>
-        <Table
-          headers={["Table", "What it contains"]}
-          rows={[
-            ["hospitals", "All registered hospitals — name, username, password, hospital_code, active status, subscription"],
-            ["hospital_settings", "Each hospital's config — sender name, tone, language, Termii ID, notification channel"],
-            ["hospital_modules", "Which features are enabled per hospital"],
-            ["hospital_staff", "Receptionist and nurse login credentials"],
-            ["patients", "All patient records across all hospitals"],
-            ["care_plans", "All care plans (treatment schedules)"],
-            ["appointments", "All appointments"],
-            ["queue_entries", "Current and past queue entries"],
-            ["automation_log", "Every automated message ever attempted — status, errors, previews"],
-            ["support_tickets", "Support messages from hospitals to you"],
-            ["feedback_submissions", "Patient feedback responses"],
-          ]}
-        />
-        <Note type="info">Each patient, care plan, queue entry, and appointment is tagged with that hospital's unique ID. Hospitals can never see each other's data.</Note>
-      </Accordion>
-
-      <Accordion title="Useful SQL Queries (copy-paste into Supabase SQL Editor)">
-        <H3>All failed automations in the last 7 days</H3>
-        <Code>{`SELECT hospital_id, automation_type, error_message, created_at
+      <H3>All failed automations in the last 7 days</H3>
+      <CodeBlock>{`SELECT hospital_id, automation_type, error_message, created_at
 FROM automation_log
 WHERE status = 'failed'
 AND created_at > now() - interval '7 days'
-ORDER BY created_at DESC;`}</Code>
+ORDER BY created_at DESC;`}</CodeBlock>
 
-        <H3>All tickets escalated to you (need a human reply)</H3>
-        <Code>{`SELECT * FROM support_tickets WHERE status = 'escalated' ORDER BY created_at DESC;`}</Code>
+      <H3>All escalated support tickets</H3>
+      <CodeBlock>{`SELECT * FROM support_tickets WHERE status = 'escalated' ORDER BY created_at DESC;`}</CodeBlock>
 
-        <H3>Find a patient by email</H3>
-        <Code>{`SELECT * FROM patients WHERE email = 'patient@email.com';`}</Code>
+      <H3>Find a patient by email</H3>
+      <CodeBlock>{`SELECT * FROM patients WHERE email = 'patient@example.com';`}</CodeBlock>
 
-        <H3>Check if an automation already ran for a patient</H3>
-        <Code>{`SELECT * FROM automation_log
-WHERE patient_id = 123
-ORDER BY created_at DESC;`}</Code>
+      <H3>All automations for a specific patient</H3>
+      <CodeBlock>{`SELECT * FROM automation_log WHERE patient_id = 123 ORDER BY created_at DESC;`}</CodeBlock>
 
-        <H3>How many patients does each hospital have?</H3>
-        <Code>{`SELECT h.name, COUNT(p.id) as patient_count
+      <H3>Patient count per hospital</H3>
+      <CodeBlock>{`SELECT h.name, COUNT(p.id) AS patient_count
 FROM hospitals h
 LEFT JOIN patients p ON p.hospital_id = h.hospital_code
 GROUP BY h.name
-ORDER BY patient_count DESC;`}</Code>
-      </Accordion>
+ORDER BY patient_count DESC;`}</CodeBlock>
 
-      <SectionTitle icon={Key} text="Part 4 — Environment Variables (Railway)" />
-      <P>These are settings stored securely in Railway. To view or change them: Railway → api-server service → Variables tab.</P>
+      <H3>SMS wallet balance per hospital</H3>
+      <CodeBlock>{`SELECT name, wallet_balance_kobo / 100.0 AS balance_naira
+FROM hospitals
+ORDER BY balance_naira ASC;`}</CodeBlock>
 
-      <Accordion title="All Variables and What They Do" defaultOpen>
-        <Table
-          headers={["Variable", "What it is", "Where to get it"]}
-          rows={[
-            ["SUPABASE_URL", "Your database address", "Supabase → Project Settings → API"],
-            ["SUPABASE_SERVICE_KEY", "Secret key to access database", "Supabase → Project Settings → API"],
-            ["SUPER_ADMIN_USERNAME", "Your login username", "You set this (e.g. era_admin)"],
-            ["SUPER_ADMIN_PASSWORD", "Your login password", "You set this — make it strong"],
-            ["SUPER_ADMIN_RECOVERY_KEY", "Backup key if you get locked out", "You set this — keep it safe offline"],
-            ["SUPER_ADMIN_ALERT_EMAIL", "Email for system alerts (low balance, etc.)", "Your email address"],
-            ["PLATFORM_FROM_EMAIL", "The 'from' address on all automated emails", "Must match verified Resend/SES address"],
-            ["RESEND_API_KEY", "Resend account key", "resend.com → API Keys"],
-            ["EMAIL_PROVIDER", "Force ses or resend (leave blank for auto)", "Leave blank unless forcing"],
-            ["AWS_ACCESS_KEY_ID", "AWS key for SES email", "AWS Console → IAM"],
-            ["AWS_SECRET_ACCESS_KEY", "AWS secret for SES", "AWS Console → IAM"],
-            ["AWS_REGION", "Your AWS region e.g. eu-west-1", "Must match where you set up SES"],
-            ["TERMII_API_KEY", "Termii API key for SMS/WhatsApp", "termii.com → API"],
-            ["TERMII_SENDER_ID", "Default sender ID for Termii messages", "Your approved Termii sender ID"],
-            ["AFRICAS_TALKING_API_KEY", "Africa's Talking key (optional)", "africastalking.com"],
-            ["AFRICAS_TALKING_USERNAME", "Africa's Talking username (optional)", "africastalking.com"],
-            ["ENABLE_SCHEDULER", "Must be true for automated jobs to run", "Set to: true"],
-            ["SUPPORT_EMAIL", "Your email for support ticket notifications", "Your email address"],
-            ["OPENAI_API_KEY", "OpenAI key for AI messages", "platform.openai.com"],
-            ["ANTHROPIC_API_KEY", "Claude key for AI messages", "console.anthropic.com"],
-            ["APP_BASE_URL", "The public URL of the hospital app", "Your era-patient Railway URL"],
-          ]}
-        />
-        <Note type="warning">After changing any variable in Railway, the server restarts automatically within 30 seconds. No manual action needed.</Note>
-      </Accordion>
+      <H3>Recent wallet transactions for a hospital</H3>
+      <CodeBlock>{`SELECT * FROM wallet_transactions
+WHERE hospital_id = 5
+ORDER BY created_at DESC
+LIMIT 20;`}</CodeBlock>
 
-      <SectionTitle icon={Server} text="Part 5 — Railway (Your Servers)" />
-
-      <Accordion title="The Three Services">
-        <Table
-          headers={["Service", "What it is"]}
-          rows={[
-            ["api-server", "The backend engine — all logic, the scheduler, emails, SMS"],
-            ["era-patient", "The hospital staff app (what hospitals use)"],
-            ["era-super-admin", "This dashboard (what you use)"],
-          ]}
-        />
-      </Accordion>
-
-      <Accordion title="Restarting a Service">
-        <P>If something seems broken and you cannot figure out why, a restart often fixes it:</P>
-        <ol className="list-decimal pl-5 space-y-1.5">
-          <Li>Railway → click the service (e.g. api-server)</Li>
-          <Li>Deployments tab → click the latest deployment → Restart</Li>
-          <Li>The service restarts within 30–60 seconds</Li>
-        </ol>
-      </Accordion>
-
-      <Accordion title="Reading Logs">
-        <P>Railway → click api-server → Logs tab. This shows everything happening on the server in real time.</P>
-        <ul className="list-disc pl-5 space-y-1.5">
-          <Li>Search for <strong>[scheduler]</strong> to see automation activity</Li>
-          <Li>Search for <strong>[email]</strong> to see email activity</Li>
-          <Li>Red lines = errors — copy the exact text to diagnose the problem</Li>
-          <Li>Lines with HTTP 4xx or 5xx mean a request failed</Li>
-        </ul>
-        <Note type="tip">If automations are not running, search logs for "scheduler". You should see "[scheduler] Scheduler started" when the server boots. If you see "Scheduler disabled", add ENABLE_SCHEDULER=true to Variables.</Note>
-      </Accordion>
-
-      <SectionTitle icon={AlertTriangle} text="Part 6 — Common Error Messages" color="text-amber-400" />
-
-      <Accordion title="Error reference table" defaultOpen>
-        <Table
-          headers={["Error", "Plain meaning", "How to fix"]}
-          rows={[
-            ["RESEND_API_KEY is not set", "Email sending is broken", "Add the key in Railway Variables"],
-            ["TERMII_API_KEY not set", "SMS/WhatsApp is broken", "Add the key in Railway Variables"],
-            ["Unauthorized", "Invalid or missing login token", "User logs out and back in"],
-            ["Hospital not found", "Hospital ID does not exist", "Usually stale login — hospital logs out and back in"],
-            ["Insufficient balance", "Termii is out of credit", "Top up at termii.com"],
-            ["Invalid address", "Patient's email is not real", "Hospital corrects the email in patient's profile"],
-            ["Hospital is suspended", "Account is inactive", "Re-activate in super admin if appropriate"],
-            ["Subscription expired", "Hospital's subscription lapsed", "Renew their status in super admin"],
-            ["Invalid import data", "CSV format issue", "Hospital checks CSV has First Name and Last Name columns"],
-            ["Scheduler disabled", "Automated jobs are off", "Set ENABLE_SCHEDULER=true in Railway Variables"],
-          ]}
-        />
-      </Accordion>
-
-      <SectionTitle icon={RefreshCw} text="Part 7 — Monthly Maintenance Checklist" />
+      <SectionHead emoji="✅" title="Monthly Checklist" />
       <div className="space-y-2">
         {[
-          ["Termii balance", "Log into termii.com and top up if low. You also get daily email alerts if it drops below ₦50."],
-          ["Resend email usage", "Log into resend.com — check monthly send count. If near 3,000, the system auto-switches to SES (make sure AWS keys are set)."],
-          ["OpenAI/Anthropic usage", "Check API dashboards for unexpected spikes."],
-          ["Supabase storage", "Check database is not running out of space. The automation_log table grows fastest."],
-          ["Subscription statuses", "Review hospitals with trial or expiring subscriptions and follow up."],
-          ["Support inbox", "Check the Support section in this dashboard for any unread tickets."],
-          ["Platform health check", "Analytics → make sure all services show green."],
-        ].map(([title, desc]) => (
-          <div key={title} className="flex items-start gap-2.5 p-3 rounded-lg border border-border bg-card/40">
-            <CheckCircle2 className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+          ["💬", "Termii balance", "Log into termii.com and top up if low. Daily 9am alert fires if balance drops below ₦50."],
+          ["📧", "Resend email usage", "Check resend.com monthly send count. If near 3,000, system auto-switches to SES — ensure AWS keys are set."],
+          ["🤖", "Anthropic/OpenAI usage", "Check API dashboards for unexpected spikes."],
+          ["🗄️", "Supabase storage", "Check database size — automation_log grows fastest."],
+          ["🏥", "Subscription statuses", "Review hospitals with trial or expiring subscriptions."],
+          ["🎫", "Support inbox", "Check Support section for any unread tickets."],
+          ["🟢", "Platform health", "Analytics → confirm all services show green."],
+        ].map(([emoji, title, desc]) => (
+          <div key={title} className="flex items-start gap-3 p-3 rounded-xl border border-border bg-card/40">
+            <span className="text-base shrink-0 mt-0.5">{emoji}</span>
             <div>
-              <p className="text-sm font-medium text-foreground">{title}</p>
+              <p className="text-sm font-semibold text-foreground">{title}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
             </div>
           </div>
         ))}
       </div>
-
-      <SectionTitle icon={Activity} text="Part 8 — Who Sees What" />
-      <Table
-        headers={["Role", "Access"]}
-        rows={[
-          ["Hospital Admin", "Dashboard, Patients, Patient history, Appointments, Pipeline, Activity log, Feedback, Wellness, Settings, Call Tasks, Import"],
-          ["Receptionist", "Queue Management, Call Tasks, Appointments (if enabled), New Patient form"],
-          ["Nurse", "Medication View (care plans with daily schedules), Call Tasks"],
-          ["You (Super Admin)", "Analytics, Hospitals, Hospital details, Usage stats, Automation tests, Support inbox, Settings, Deploy"],
-        ]}
-      />
-
-      <SectionTitle icon={HelpCircle} text="Part 9 — If You Are Completely Stuck" />
-      <ol className="list-decimal pl-5 space-y-2.5">
-        <Li><strong>Check Railway logs first</strong> — 90% of production issues show up as red error lines in the api-server logs. Copy the exact error text.</Li>
-        <Li><strong>Check Supabase automation_log</strong> — For automation issues, this table shows exactly which message failed and why.</Li>
-        <Li><strong>Restart the service</strong> — Railway → api-server → restart. Sometimes this is all it takes.</Li>
-        <Li><strong>Bring the error to Claude Code</strong> — Open Claude Code, describe the problem, and paste the exact error message from the logs. The system is well-documented enough that Claude can usually pinpoint the issue from the error text alone.</Li>
-        <Li><strong>Check this manual again</strong> — Most common issues are covered in Part 2 (Hospital Support Guide) and Part 6 (Error Messages).</Li>
-      </ol>
 
     </div>
   );
@@ -600,23 +699,27 @@ ORDER BY patient_count DESC;`}</Code>
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function DocsPage() {
-  const [tab, setTab] = useState<"about" | "manual">("about");
+  const [tab, setTab] = useState<"platform" | "automations" | "operations">("platform");
 
   return (
-    <Layout breadcrumb={[{ label: "Documentation" }]}>
+    <Layout breadcrumb={[{ label: "Docs & Settings" }]}>
       <div className="max-w-4xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-xl font-bold">Documentation</h1>
-          <p className="text-sm text-muted-foreground mt-1">Everything you need to run and support the platform — no tech background required.</p>
+          <p className="text-[9px] font-bold text-primary/60 uppercase tracking-[0.3em] mb-2">Era Systems</p>
+          <h1 className="text-xl font-bold">Docs & Settings</h1>
+          <p className="text-sm text-muted-foreground mt-1">Everything you need to run, understand, and support the platform.</p>
         </div>
 
-        <div className="flex gap-1 p-1 rounded-xl bg-muted/30 border border-border mb-8 w-fit">
-          <Tab label="About the System" active={tab === "about"} onClick={() => setTab("about")} />
-          <Tab label="Operations Manual" active={tab === "manual"} onClick={() => setTab("manual")} />
+        <div className="flex gap-1.5 p-1.5 rounded-2xl bg-muted/20 border border-border mb-8 flex-wrap">
+          <Tab label="The Platform" emoji="🌟" active={tab === "platform"} onClick={() => setTab("platform")} />
+          <Tab label="Automations" emoji="🤖" active={tab === "automations"} onClick={() => setTab("automations")} />
+          <Tab label="Operations" emoji="🛠️" active={tab === "operations"} onClick={() => setTab("operations")} />
         </div>
 
-        <div>
-          {tab === "about" ? <AboutTab /> : <ManualTab />}
+        <div className="pb-16">
+          {tab === "platform" && <PlatformTab />}
+          {tab === "automations" && <AutomationsTab />}
+          {tab === "operations" && <OperationsTab />}
         </div>
       </div>
     </Layout>

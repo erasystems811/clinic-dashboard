@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import Layout from "@/components/layout";
-import { get, post, del } from "@/lib/api";
+import { get, post, patch, del } from "@/lib/api";
 import { Info, TriangleAlert, RefreshCw, Plus, Trash2, Loader2, Building2, Radio, Check, Edit, Sparkles } from "lucide-react";
 
 interface Announcement {
@@ -65,11 +65,7 @@ export default function Announcements() {
     setSaveError(""); setSaving(true);
     try {
       if (editingId) {
-        await fetch(`/api/super-admin/announcements/${editingId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", "x-super-admin-token": localStorage.getItem("era_super_admin_token") || "" },
-          body: JSON.stringify({ title: title.trim(), message: message.trim(), type, expiresAt: expiresAt || null }),
-        });
+        await patch(`/super-admin/announcements/${editingId}`, { title: title.trim(), message: message.trim(), type, expiresAt: expiresAt || null });
       } else {
         await post("/super-admin/announcements", {
           title: title.trim(),
@@ -90,18 +86,14 @@ export default function Announcements() {
 
   const handleDelete = async (id: number) => {
     setDeleting(id);
-    try { await del(`/super-admin/announcements/${id}`); load(); }
-    catch { /* */ }
-    finally { setDeleting(null); }
+    try { await del(`/super-admin/announcements/${id}`); } catch { /* 204 no-content causes json parse throw — ignore */ }
+    finally { load(); setDeleting(null); }
   };
 
   const handlePublish = async (id: number) => {
     setDeleting(id);
-    try {
-      const res = await fetch(`/api/super-admin/announcements/${id}/publish`, { method: "PATCH", headers: { "Content-Type": "application/json", "x-super-admin-token": localStorage.getItem("era_super_admin_token") || "" } });
-      if (res.ok) load();
-    } catch { /* */ }
-    finally { setDeleting(null); }
+    try { await patch(`/super-admin/announcements/${id}/publish`, {}); } catch { /* */ }
+    finally { load(); setDeleting(null); }
   };
 
   const startEdit = (a: Announcement) => {

@@ -5,7 +5,6 @@ import LoginPage from "@/pages/login";
 import Analytics from "@/pages/analytics";
 import Hospitals from "@/pages/dashboard";
 import HospitalDetail from "@/pages/hospital-detail";
-import Settings from "@/pages/settings";
 import AutomationTests from "@/pages/automation-tests";
 import Usage from "@/pages/usage";
 import SupportInbox from "@/pages/support";
@@ -28,7 +27,7 @@ function AppRoutes() {
       <Route path="/hospitals/:id">
         {(params) => <HospitalDetail id={parseInt(params.id)} />}
       </Route>
-      <Route path="/settings" component={Settings} />
+      <Route path="/settings" component={DocsPage} />
       <Route path="/announcements" component={Announcements} />
       <Route path="/automation-tests" component={AutomationTests} />
       <Route path="/usage" component={Usage} />

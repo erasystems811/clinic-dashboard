@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { useGetDashboardSummary, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Users, Calendar, AlertCircle, Star, Clock, Send, TrendingUp, TrendingDown, Minus, UserX, Info, TriangleAlert, RefreshCw, X } from "lucide-react";
+import { Activity, Users, Calendar, AlertCircle, Star, Clock, Send, TrendingUp, TrendingDown, Minus, UserX, Info, TriangleAlert, RefreshCw, X, Wallet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
 import { useAuth } from "@/contexts/auth-context";
@@ -77,6 +77,15 @@ export default function Dashboard() {
   const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
   const feedbackEnabled = hospitalConfig?.modules?.feedbackEnabled ?? true;
   const wellnessEnabled = hospitalConfig?.modules?.wellnessNewsletterEnabled ?? true;
+
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  useEffect(() => {
+    if (!hospital?.token) return;
+    fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setWalletBalance(d.balanceNaira as number); })
+      .catch(() => {});
+  }, [hospital?.token]);
 
   const { data: summary, isLoading } = useGetDashboardSummary({
     query: { queryKey: getGetDashboardSummaryQueryKey(), refetchInterval: 30000 },
@@ -212,6 +221,19 @@ export default function Dashboard() {
                 <CardContent>
                   <div className="text-2xl font-bold text-green-500">Healthy</div>
                   <p className="text-xs text-muted-foreground mt-1">All services operational</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">SMS Wallet</CardTitle>
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className={`text-2xl font-bold tabular-nums ${walletBalance === null ? "text-muted-foreground" : walletBalance === 0 ? "text-red-400" : walletBalance < 100 ? "text-amber-400" : "text-emerald-400"}`}>
+                    {walletBalance === null ? "—" : `₦${walletBalance.toLocaleString()}`}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">Fund in Settings if low</p>
                 </CardContent>
               </Card>
             </div>

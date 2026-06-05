@@ -983,9 +983,9 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { sendEmail, message, reason, logOnly, callOutcome } = req.body ?? {};
-  if (!logOnly && !sendEmail && !message?.trim()) { res.status(400).json({ error: "message or email required" }); return; }
-  if (sendEmail && !message?.trim()) { res.status(400).json({ error: "message required for email" }); return; }
+  const { sendEmail: shouldSendEmail, message, reason, logOnly, callOutcome } = req.body ?? {};
+  if (!logOnly && !shouldSendEmail && !message?.trim()) { res.status(400).json({ error: "message or email required" }); return; }
+  if (shouldSendEmail && !message?.trim()) { res.status(400).json({ error: "message required for email" }); return; }
 
   const { data: patient } = await supabase.from("patients").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
@@ -1009,7 +1009,7 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
       metadata: callOutcome ?? reason ?? null,
       performed_by: performedBy,
     });
-  } else if (sendEmail) {
+  } else if (shouldSendEmail) {
     const hCtx = await getHospitalContext(hospital.intId);
 
     // Check SMS toggle — if on and wallet funded, send via SMS instead of email
@@ -1066,7 +1066,7 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
     });
   }
 
-  res.json({ ok: true, sent, sentViaSms, insufficientFunds, email: sendEmail ? email : null });
+  res.json({ ok: true, sent, sentViaSms, insufficientFunds, email: shouldSendEmail ? email : null });
 });
 
 export default router;

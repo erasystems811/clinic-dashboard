@@ -81,14 +81,50 @@ function Section({ emoji, title, defaultOpen = false, children, ci = 0 }: {
 /* ── automated messages (shared by all roles) ─────────────────────────────── */
 
 function AutoMessagesSection() {
-  const rows: { icon: string; trigger: string; what: string; channel: string; doNotDo?: string }[] = [
+  type Row = { icon: string; trigger: string; what: string; channel: string; example?: string; doNotDo?: string };
+
+  const rows: Row[] = [
     { icon: "🪑", trigger: "Patient added to queue", what: "Welcomes the patient and tells them their queue position", channel: "SMS", doNotDo: "Do not call to say they are checked in" },
     { icon: "🔔", trigger: "Patient is next in line", what: "Tells them to get ready — they will be called shortly", channel: "SMS" },
     { icon: "✅", trigger: "Receptionist ticks 'called in' checkbox", what: "Tells the patient it is their turn to come in", channel: "SMS" },
     { icon: "⏳", trigger: "Queue wait is very long", what: "Apologises for the long wait and thanks them for their patience", channel: "SMS", doNotDo: "Do not call separately to apologise" },
     { icon: "💊", trigger: "Nurse saves a care plan", what: "Tells the patient their plan is set up and to check their email for details", channel: "SMS — immediately" },
     { icon: "💊", trigger: "Nurse saves a care plan", what: "Full AI-written explanation of the plan in plain language", channel: "Email — 20 min later", doNotDo: "Do not call the patient — SMS and email go out automatically" },
-    { icon: "📋", trigger: "Patient is In Care", what: "Reminder at each medication time or visit slot — every day for the full plan duration", channel: "Email — daily" },
+  ];
+
+  const inCareRows: Row[] = [
+    {
+      icon: "💊",
+      trigger: "General Outpatient — Medication Only plan",
+      what: "Sent at the exact medication time (morning, afternoon, evening, or night) every day for the full plan duration. Reminds the patient to take their medication right now.",
+      channel: "Email — at each medication time daily",
+      example: "Good morning Ada, it is time to take your morning medication as part of your care plan. We are with you every step of the way — keep going, you are doing great.",
+    },
+    {
+      icon: "🏨",
+      trigger: "General Outpatient — Come to Hospital plan",
+      what: "Sent 3 hours before each hospital visit slot. Reminds the patient their visit is coming up and to start getting ready.",
+      channel: "Email — 3 hours before each visit",
+      example: "Good morning Ada, just a reminder that your hospital visit today is in 3 hours at 10:00 AM. Please plan to leave on time and we will be ready for you.",
+    },
+    {
+      icon: "💊🏨",
+      trigger: "General Outpatient — Combination plan (medication + hospital visit)",
+      what: "Sent 2 hours before the hospital visit. Covers both: tells the patient their medication is due now AND their visit is in 2 hours.",
+      channel: "Email — 2 hours before visit",
+      example: "Good afternoon Ada, your afternoon medication is due now. Also, your hospital visit today is in 2 hours at 3:00 PM. Please take your medication and start preparing to come in.",
+    },
+    {
+      icon: "🏥",
+      trigger: "Specialist department plan (Antenatal, Surgery, Dental, Eye, Fertility, ENT, Paediatrics)",
+      what: "Sent 1 day before each scheduled visit or appointment in the care plan. Reminds the patient what is happening the next day and what to expect.",
+      channel: "Email — 1 day before each scheduled visit",
+      example: "Antenatal appointment reminder — Monday 9 June — [Hospital]. Hi Ada, just a reminder that your Antenatal visit is tomorrow. Please make sure you are prepared and arrive a few minutes early.",
+      doNotDo: "Do not call patients to remind them of upcoming plan visits — this email goes out automatically the day before",
+    },
+  ];
+
+  const remainingRows: Row[] = [
     { icon: "📅", trigger: "Appointment booked", what: "Confirms the appointment date and time, asks them to arrive early", channel: "Email — immediately", doNotDo: "Do not call to confirm — they already got this email" },
     { icon: "🔄", trigger: "Appointment rescheduled", what: "Informs them of the new date and time", channel: "Email" },
     { icon: "⏰", trigger: "24 hours before appointment", what: "Reminds them their appointment is tomorrow", channel: "Email" },
@@ -103,6 +139,28 @@ function AutoMessagesSection() {
     { icon: "💌", trigger: "Admin sends from Wellness Newsletter page", what: "Weekly health education email sent to all active patients", channel: "Email" },
   ];
 
+  const renderRow = (row: Row, i: number) => (
+    <div key={i} className="rounded-lg border border-border bg-card/50 px-4 py-3 space-y-1.5">
+      <div className="flex items-start gap-2">
+        <span className="text-base shrink-0 mt-0.5">{row.icon}</span>
+        <div className="flex-1 min-w-0 space-y-0.5">
+          <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">When:</span> {row.trigger}</p>
+          <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Message:</span> {row.what}</p>
+          <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">How:</span> {row.channel}</p>
+          {row.example && (
+            <p className="text-xs text-muted-foreground/70 italic border-l-2 border-muted pl-2 mt-1">"{row.example}"</p>
+          )}
+        </div>
+      </div>
+      {row.doNotDo && (
+        <div className="flex gap-1.5 items-start pl-6">
+          <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-300/80">{row.doNotDo}</p>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Section emoji="📱" title="What the System Sends to Patients Automatically" ci={10}>
       <p className="text-sm text-muted-foreground leading-relaxed">
@@ -110,24 +168,17 @@ function AutoMessagesSection() {
       </p>
 
       <div className="space-y-2">
-        {rows.map((row, i) => (
-          <div key={i} className="rounded-lg border border-border bg-card/50 px-4 py-3 space-y-1">
-            <div className="flex items-start gap-2">
-              <span className="text-base shrink-0 mt-0.5">{row.icon}</span>
-              <div className="flex-1 min-w-0 space-y-0.5">
-                <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">When:</span> {row.trigger}</p>
-                <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Message:</span> {row.what}</p>
-                <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">How:</span> {row.channel}</p>
-              </div>
-            </div>
-            {row.doNotDo && (
-              <div className="flex gap-1.5 items-start pl-6">
-                <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-300/80">{row.doNotDo}</p>
-              </div>
-            )}
-          </div>
-        ))}
+        {rows.map(renderRow)}
+      </div>
+
+      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Continuous in-care reminders — while patient is In Care</p>
+      <p className="text-xs text-muted-foreground -mt-2">These run every day for the entire plan duration. What gets sent depends on the patient's department and treatment type.</p>
+      <div className="space-y-2">
+        {inCareRows.map(renderRow)}
+      </div>
+
+      <div className="space-y-2 pt-1">
+        {remainingRows.map(renderRow)}
       </div>
     </Section>
   );

@@ -80,7 +80,7 @@ function Section({ emoji, title, defaultOpen = false, children, ci = 0 }: {
 
 /* ── automated messages (shared by all roles) ─────────────────────────────── */
 
-function AutoMessagesSection({ role }: { role: "admin" | "nurse" | "receptionist" }) {
+function AutoMessagesSection({ role, modules }: { role: "admin" | "nurse" | "receptionist"; modules: { appointmentsEnabled: boolean; feedbackEnabled: boolean; wellnessNewsletterEnabled?: boolean } }) {
   type Row = { icon: string; trigger: string; what: string; channel: string; example?: string; doNotDo?: string };
 
   const queueRows: Row[] = [
@@ -178,8 +178,10 @@ function AutoMessagesSection({ role }: { role: "admin" | "nurse" | "receptionist
         </p>
         <p className="font-semibold text-sm border-b border-border pb-1.5 pt-1">Queue messages</p>
         <div className="space-y-2">{queueRows.map(renderRow)}</div>
-        <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Appointment messages</p>
-        <div className="space-y-2">{appointmentRows.map(renderRow)}</div>
+        {modules.appointmentsEnabled && <>
+          <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Appointment messages</p>
+          <div className="space-y-2">{appointmentRows.map(renderRow)}</div>
+        </>}
       </Section>
     );
   }
@@ -202,7 +204,12 @@ function AutoMessagesSection({ role }: { role: "admin" | "nurse" | "receptionist
     );
   }
 
-  // Admin: full list
+  // Admin: full list (filtered by enabled modules)
+  const visibleAdminRows = adminOnlyRows.filter(r => {
+    if (r.icon === "⭐") return modules.feedbackEnabled;
+    if (r.icon === "💌" && r.trigger.includes("Wellness Newsletter")) return modules.wellnessNewsletterEnabled ?? true;
+    return true;
+  });
   return (
     <Section emoji="📱" title="All Messages the System Sends to Patients Automatically" ci={10}>
       <p className="text-sm text-muted-foreground leading-relaxed">
@@ -210,8 +217,10 @@ function AutoMessagesSection({ role }: { role: "admin" | "nurse" | "receptionist
       </p>
       <p className="font-semibold text-sm border-b border-border pb-1.5 pt-1">Queue messages (receptionist-triggered)</p>
       <div className="space-y-2">{queueRows.map(renderRow)}</div>
-      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Appointment messages (receptionist-triggered)</p>
-      <div className="space-y-2">{appointmentRows.map(renderRow)}</div>
+      {modules.appointmentsEnabled && <>
+        <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Appointment messages (receptionist-triggered)</p>
+        <div className="space-y-2">{appointmentRows.map(renderRow)}</div>
+      </>}
       <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Care plan messages (nurse-triggered)</p>
       <div className="space-y-2">{carePlanRows.map(renderRow)}</div>
       <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Daily in-care reminders — while patient is In Care</p>
@@ -219,15 +228,17 @@ function AutoMessagesSection({ role }: { role: "admin" | "nurse" | "receptionist
       <div className="space-y-2">{inCareRows.map(renderRow)}</div>
       <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Post-Treatment check-ins (automatic after plan ends)</p>
       <div className="space-y-2">{postTreatmentRows.map(renderRow)}</div>
-      <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Other automatic messages</p>
-      <div className="space-y-2">{adminOnlyRows.map(renderRow)}</div>
+      {visibleAdminRows.length > 0 && <>
+        <p className="font-semibold text-sm border-b border-border pb-1.5 pt-2">Other automatic messages</p>
+        <div className="space-y-2">{visibleAdminRows.map(renderRow)}</div>
+      </>}
     </Section>
   );
 }
 
 /* ── admin ─────────────────────────────────────────────────────────────────── */
 
-function AdminHelp({ hospitalName }: { hospitalName: string }) {
+function AdminHelp({ hospitalName, modules }: { hospitalName: string; modules: { appointmentsEnabled: boolean; feedbackEnabled: boolean; wellnessNewsletterEnabled?: boolean } }) {
   return (
     <div className="space-y-3">
 
@@ -236,15 +247,15 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
         <div className="space-y-3">
           {[
             { label: "Total Patients", desc: 'Total registered patients. The small note below shows how many joined this month — for example "+3 new this month".' },
-            { label: "Appointments Today", desc: "How many appointments are scheduled for today. Also shows the total count for this week underneath." },
+            modules.appointmentsEnabled ? { label: "Appointments Today", desc: "How many appointments are scheduled for today. Also shows the total count for this week underneath." } : null,
             { label: "Active Patients", desc: "How many patients are currently in the queue or in active care right now." },
             { label: "Avg Wait Time", desc: "The average time patients wait before being seen. The arrow shows if it is going up or down compared to last month." },
-            { label: "No-show Rate", desc: "The percentage of appointments where the patient did not show up. Lower is better." },
-            { label: "Patient Feedback", desc: "Your average star rating out of 5, based on all submitted feedback responses." },
-            { label: "Wellness Newsletter", desc: "The date of the last wellness email you sent to patients." },
+            modules.appointmentsEnabled ? { label: "No-show Rate", desc: "The percentage of appointments where the patient did not show up. Lower is better." } : null,
+            modules.feedbackEnabled ? { label: "Patient Feedback", desc: "Your average star rating out of 5, based on all submitted feedback responses." } : null,
+            (modules.wellnessNewsletterEnabled ?? true) ? { label: "Wellness Newsletter", desc: "The date of the last wellness email you sent to patients." } : null,
             { label: "System Status", desc: 'Shows "Healthy" when everything is working normally.' },
             { label: "Pipeline Breakdown", desc: "A bar chart showing how many patients are in each stage of care." },
-          ].map(item => (
+          ].filter((x): x is { label: string; desc: string } => Boolean(x)).map(item => (
             <div key={item.label} className="flex gap-3 items-start">
               <span className="text-xs font-bold bg-primary/10 text-primary border border-primary/20 rounded px-2 py-0.5 shrink-0 mt-0.5 whitespace-nowrap">{item.label}</span>
               <p className="text-sm text-muted-foreground">{item.desc}</p>
@@ -281,7 +292,7 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
         </AutoBox>
       </Section>
 
-      <Section emoji="📅" title="Appointments" ci={3}>
+      {modules.appointmentsEnabled && <Section emoji="📅" title="Appointments" ci={3}>
         <p className="text-sm text-muted-foreground">Schedule patient visits in advance on a weekly calendar.</p>
         <div className="space-y-3">
           <Step n={1}>Click <strong>Appointments</strong> in the sidebar.</Step>
@@ -297,7 +308,7 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
           <p>📧 Reminder email 2 hours before: <em>"Just a quick reminder that your appointment is in 2 hours at [time]."</em></p>
           <p>📧 If No Show: <em>"We noticed you were not able to make your appointment today and we just wanted to check in..."</em></p>
         </AutoBox>
-      </Section>
+      </Section>}
 
       <Section emoji="🔄" title="The Pipeline" ci={4}>
         <p className="text-sm text-muted-foreground">The Pipeline shows all patients in columns by their current care stage. It is a live read-only view — you cannot take actions from here. It simply shows you where all your patients are at a glance.</p>
@@ -310,7 +321,7 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
         <Tip>The pipeline updates every 30 seconds. Stages are configured for your hospital — they are not fixed labels.</Tip>
       </Section>
 
-      <Section emoji="⭐" title="Patient Feedback" ci={5}>
+      {modules.feedbackEnabled && <Section emoji="⭐" title="Patient Feedback" ci={5}>
         <p className="text-sm text-muted-foreground">See star ratings and comments left by patients about their experience.</p>
         <div className="space-y-3">
           <Step n={1}>Click <strong>Feedback</strong> in the sidebar.</Step>
@@ -322,9 +333,9 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
           <p className="font-semibold">After a visit, the system automatically sends:</p>
           <p>📧 <em>"Thank you for visiting [Hospital] yesterday. Please take a moment to share your feedback..."</em></p>
         </AutoBox>
-      </Section>
+      </Section>}
 
-      <Section emoji="💌" title="Wellness Newsletter" ci={6}>
+      {(modules.wellnessNewsletterEnabled ?? true) && <Section emoji="💌" title="Wellness Newsletter" ci={6}>
         <p className="text-sm text-muted-foreground">Send weekly health education emails to your active patients. AI writes the content for you.</p>
         <div className="space-y-3">
           <Step n={1}>Click <strong>Wellness Newsletter</strong> in the sidebar.</Step>
@@ -334,7 +345,7 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
           <Step n={5}>The <strong>Bulk tab</strong> is for sending to a specific group of patients.</Step>
         </div>
         <Tip>Only patients in Active, In Care, Post Treatment, or Dormant stages with an email address will receive the newsletter.</Tip>
-      </Section>
+      </Section>}
 
       <Section emoji="📥" title="Importing Many Patients at Once" ci={7}>
         <p className="text-sm text-muted-foreground">If you have a list of patients in Excel or a spreadsheet, upload them all at once.</p>
@@ -388,14 +399,14 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
         <Tip>To top up your wallet or check your balance, go to <strong>Settings</strong> → <strong>SMS Wallet</strong> at the bottom of the page. If the wallet runs out, SMS messages automatically fall back to email so nothing is missed.</Tip>
       </Section>
 
-      <AutoMessagesSection role="admin" />
+      <AutoMessagesSection role="admin" modules={modules} />
     </div>
   );
 }
 
 /* ── receptionist ──────────────────────────────────────────────────────────── */
 
-function ReceptionistHelp({ hospitalName }: { hospitalName: string }) {
+function ReceptionistHelp({ hospitalName, modules }: { hospitalName: string; modules: { appointmentsEnabled: boolean; feedbackEnabled: boolean; wellnessNewsletterEnabled?: boolean } }) {
   return (
     <div className="space-y-3">
 
@@ -430,7 +441,7 @@ function ReceptionistHelp({ hospitalName }: { hospitalName: string }) {
         <Remember>Adding a patient does NOT send them any message. Messages go out when a care plan is created or an appointment is booked.</Remember>
       </Section>
 
-      <Section emoji="📅" title="Booking Appointments" ci={2}>
+      {modules.appointmentsEnabled && <Section emoji="📅" title="Booking Appointments" ci={2}>
         <p className="text-sm text-muted-foreground">For scheduling a patient's visit in advance.</p>
         <div className="space-y-3">
           <Step n={1}>Click <strong>Appointments</strong> in the sidebar.</Step>
@@ -444,7 +455,7 @@ function ReceptionistHelp({ hospitalName }: { hospitalName: string }) {
           <p>📧 2h reminder: <em>"Just a quick reminder that your appointment is in 2 hours at [time]."</em></p>
         </AutoBox>
         <Remember>Do not call patients to confirm or remind them. They receive 3 emails automatically.</Remember>
-      </Section>
+      </Section>}
 
       <Section emoji="📞" title="Call Tasks — Following Up on Flagged Patients" ci={3}>
         <p className="text-sm text-muted-foreground leading-relaxed">
@@ -480,7 +491,7 @@ function ReceptionistHelp({ hospitalName }: { hospitalName: string }) {
         <Remember>Tasks are created by nurses — you do not create them yourself. Your job is to action them: either call the patient and log what happened, or send them the message.</Remember>
       </Section>
 
-      <AutoMessagesSection role="receptionist" />
+      <AutoMessagesSection role="receptionist" modules={modules} />
     </div>
   );
 }
@@ -662,7 +673,7 @@ function NurseHelp({ hospitalName }: { hospitalName: string }) {
         <Remember>The AI Draft button only works after you have typed a reason. Fill in the reason first, then click AI Draft.</Remember>
       </Section>
 
-      <AutoMessagesSection role="nurse" />
+      <AutoMessagesSection role="nurse" modules={{ appointmentsEnabled: true, feedbackEnabled: true, wellnessNewsletterEnabled: true }} />
     </div>
   );
 }
@@ -676,10 +687,15 @@ const GREETINGS: Record<string, { emoji: string; title: string; subtitle: string
 };
 
 export default function HelpPage() {
-  const { user, hospital } = useAuth();
+  const { user, hospital, hospitalConfig } = useAuth();
   const role = user?.role ?? "admin";
   const hospitalName = hospital?.name ?? "Your Clinic";
   const g = GREETINGS[role] ?? GREETINGS.admin;
+  const modules = {
+    appointmentsEnabled: hospitalConfig?.modules?.appointmentsEnabled ?? true,
+    feedbackEnabled: hospitalConfig?.modules?.feedbackEnabled ?? true,
+    wellnessNewsletterEnabled: hospitalConfig?.modules?.wellnessNewsletterEnabled ?? true,
+  };
 
   return (
     <Layout>
@@ -695,8 +711,8 @@ export default function HelpPage() {
           </div>
         </div>
 
-        {role === "admin"        && <AdminHelp        hospitalName={hospitalName} />}
-        {role === "receptionist" && <ReceptionistHelp hospitalName={hospitalName} />}
+        {role === "admin"        && <AdminHelp        hospitalName={hospitalName} modules={modules} />}
+        {role === "receptionist" && <ReceptionistHelp hospitalName={hospitalName} modules={modules} />}
         {role === "nurse"        && <NurseHelp        hospitalName={hospitalName} />}
 
         <div className="rounded-xl border border-border bg-card p-4 flex gap-3 items-start">

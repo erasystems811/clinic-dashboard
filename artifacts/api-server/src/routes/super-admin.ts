@@ -1612,14 +1612,16 @@ router.get("/super-admin/announcements", requireSuperAdmin, async (_req, res): P
     createdAt: a.created_at,
     publishedAt: a.published_at,
     expiresAt: a.expires_at,
+    targetModule: (a as Record<string, unknown>).target_module ?? null,
   })));
 });
 
 router.post("/super-admin/announcements", requireSuperAdmin, async (req, res): Promise<void> => {
-  const { hospitalId, title, message, type, expiresAt, publish } = req.body ?? {};
+  const { hospitalId, title, message, type, expiresAt, publish, targetModule } = req.body ?? {};
   if (!title?.trim() || !message?.trim()) {
     res.status(400).json({ error: "title and message are required" }); return;
   }
+  const validModules = ["appointments", "feedback", "wellness_newsletter", "messages"];
   const { data, error } = await supabase.from("hospital_announcements").insert({
     hospital_id: hospitalId ?? null,
     title: title.trim(),
@@ -1628,6 +1630,7 @@ router.post("/super-admin/announcements", requireSuperAdmin, async (req, res): P
     published: publish === true,
     published_at: publish === true ? new Date().toISOString() : null,
     expires_at: expiresAt ?? null,
+    target_module: (targetModule && validModules.includes(targetModule)) ? targetModule : null,
   }).select().single();
   if (error || !data) { res.status(500).json({ error: error?.message ?? "Failed" }); return; }
   res.status(201).json(data);
@@ -1635,7 +1638,8 @@ router.post("/super-admin/announcements", requireSuperAdmin, async (req, res): P
 
 router.patch("/super-admin/announcements/:id", requireSuperAdmin, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
-  const { title, message, type, expiresAt, hospitalId } = req.body ?? {};
+  const { title, message, type, expiresAt, hospitalId, targetModule } = req.body ?? {};
+  const validModules = ["appointments", "feedback", "wellness_newsletter", "messages"];
   const { data, error } = await supabase.from("hospital_announcements")
     .update({
       title: title?.trim(),
@@ -1643,6 +1647,7 @@ router.patch("/super-admin/announcements/:id", requireSuperAdmin, async (req, re
       type,
       expires_at: expiresAt ?? null,
       ...(hospitalId !== undefined && { hospital_id: hospitalId ?? null }),
+      ...(targetModule !== undefined && { target_module: (targetModule && validModules.includes(targetModule)) ? targetModule : null }),
     })
     .eq("id", id).select().single();
   if (error || !data) { res.status(500).json({ error: error?.message ?? "Failed" }); return; }
@@ -1764,7 +1769,26 @@ router.get("/hospital/announcements", async (req, res): Promise<void> => {
   const readSet = new Set((reads ?? []).map(r => r.announcement_id as number));
   const unread = all.filter(a => !readSet.has(a.id as number));
 
-  res.json(unread.map(a => ({
+  // Filter out announcements targeting a module that's disabled for this hospital
+  const { data: hospitalModules } = await supabase
+    .from("hospital_modules")
+    .select("appointments_enabled, feedback_enabled, wellness_newsletter_enabled, messages_enabled")
+    .eq("hospital_id", hospitalId)
+    .single();
+
+  const moduleEnabled: Record<string, boolean> = {
+    appointments: hospitalModules?.appointments_enabled ?? true,
+    feedback: hospitalModules?.feedback_enabled ?? true,
+    wellness_newsletter: (hospitalModules as Record<string, unknown>)?.wellness_newsletter_enabled ?? true,
+    messages: (hospitalModules as Record<string, unknown>)?.messages_enabled ?? false,
+  };
+
+  const visible = unread.filter(a => {
+    const mod = (a as Record<string, unknown>).target_module as string | null;
+    return !mod || moduleEnabled[mod] !== false;
+  });
+
+  res.json(visible.map(a => ({
     id: a.id,
     title: a.title,
     message: a.message,

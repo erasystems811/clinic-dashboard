@@ -1,7 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import Layout from "@/components/layout";
 import { get, post, patch, del } from "@/lib/api";
-import { Info, TriangleAlert, RefreshCw, Plus, Trash2, Loader2, Building2, Radio, Check, Edit, Sparkles } from "lucide-react";
+import { Info, TriangleAlert, RefreshCw, Plus, Trash2, Loader2, Building2, Radio, Check, Edit, Sparkles, Layers } from "lucide-react";
+
+const MODULE_LABELS: Record<string, string> = {
+  appointments: "Appointments",
+  feedback: "Feedback",
+  wellness_newsletter: "Wellness Newsletter",
+  messages: "Messages",
+};
 
 interface Announcement {
   id: number;
@@ -14,6 +21,7 @@ interface Announcement {
   createdAt: string;
   publishedAt: string | null;
   expiresAt: string | null;
+  targetModule: string | null;
 }
 
 interface HospitalOption { id: number; name: string; }
@@ -38,6 +46,7 @@ export default function Announcements() {
   const [targetAll, setTargetAll] = useState(true);
   const [hospitalId, setHospitalId] = useState<number | "">("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [targetModule, setTargetModule] = useState("");
   const [publishNow, setPublishNow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -71,6 +80,7 @@ export default function Announcements() {
           type,
           expiresAt: expiresAt || null,
           hospitalId: targetAll ? null : (hospitalId || null),
+          targetModule: targetModule || null,
         });
       } else {
         await post("/super-admin/announcements", {
@@ -80,9 +90,10 @@ export default function Announcements() {
           hospitalId: targetAll ? null : (hospitalId || null),
           expiresAt: expiresAt || null,
           publish: publishNow,
+          targetModule: targetModule || null,
         });
       }
-      setTitle(""); setMessage(""); setType("info"); setTargetAll(true); setHospitalId(""); setExpiresAt(""); setPublishNow(false); setEditingId(null);
+      setTitle(""); setMessage(""); setType("info"); setTargetAll(true); setHospitalId(""); setExpiresAt(""); setTargetModule(""); setPublishNow(false); setEditingId(null);
       setShowForm(false);
       load();
     } catch (err: unknown) {
@@ -110,6 +121,7 @@ export default function Announcements() {
     setExpiresAt(a.expiresAt ? a.expiresAt.split("T")[0] : "");
     setTargetAll(a.hospitalId === null);
     setHospitalId(a.hospitalId ?? "");
+    setTargetModule(a.targetModule ?? "");
     setPublishNow(false);
     setShowForm(true);
   };
@@ -157,7 +169,7 @@ export default function Announcements() {
               {generating ? "Generating…" : "Auto-draft"}
             </button>
             <button
-              onClick={() => { setShowForm(v => !v); setSaveError(""); }}
+              onClick={() => { setShowForm(v => !v); setSaveError(""); setEditingId(null); setTitle(""); setMessage(""); setType("info"); setExpiresAt(""); setTargetModule(""); setPublishNow(false); setTargetAll(true); setHospitalId(""); }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition"
             >
               <Plus className="w-4 h-4" /> New Notice
@@ -197,6 +209,17 @@ export default function Announcements() {
                 <label className="text-xs text-muted-foreground font-medium">Expires (optional)</label>
                 <input type="date" className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <label className="text-xs text-muted-foreground font-medium">Module (optional — only show to hospitals with this module enabled)</label>
+                <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={targetModule} onChange={e => setTargetModule(e.target.value)}>
+                  <option value="">All modules (no restriction)</option>
+                  <option value="appointments">Appointments</option>
+                  <option value="feedback">Patient Feedback</option>
+                  <option value="wellness_newsletter">Wellness Newsletter</option>
+                  <option value="messages">Messages / WhatsApp</option>
+                </select>
               </div>
             </div>
 
@@ -239,7 +262,7 @@ export default function Announcements() {
 
             {saveError && <p className="text-xs text-destructive">{saveError}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setTitle(""); setMessage(""); setType("info"); setExpiresAt(""); setPublishNow(false); }}
+              <button type="button" onClick={() => { setShowForm(false); setEditingId(null); setTitle(""); setMessage(""); setType("info"); setExpiresAt(""); setTargetModule(""); setPublishNow(false); setTargetAll(true); setHospitalId(""); }}
                 className="px-4 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted transition">
                 Cancel
               </button>
@@ -279,6 +302,11 @@ export default function Announcements() {
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                               {a.hospitalName ? <><Building2 className="w-3 h-3" />{a.hospitalName}</> : <><Radio className="w-3 h-3" />All hospitals</>}
                             </span>
+                            {a.targetModule && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Layers className="w-3 h-3" />{MODULE_LABELS[a.targetModule] ?? a.targetModule} only
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{a.message}</p>
                           <p className="text-xs text-muted-foreground/60 mt-1.5">
@@ -325,6 +353,11 @@ export default function Announcements() {
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                               {a.hospitalName ? <><Building2 className="w-3 h-3" />{a.hospitalName}</> : <><Radio className="w-3 h-3" />All hospitals</>}
                             </span>
+                            {a.targetModule && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Layers className="w-3 h-3" />{MODULE_LABELS[a.targetModule] ?? a.targetModule} only
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{a.message}</p>
                           <p className="text-xs text-muted-foreground/60 mt-1.5">

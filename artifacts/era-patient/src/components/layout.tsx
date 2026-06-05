@@ -59,12 +59,14 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
     if (queueFeedback) items.push({ icon: ClipboardList, label: "Queue Management", href: "/queue" });
     items.push({ icon: Phone, label: "Call Tasks", href: "/call-tasks" });
     if (appt) items.push({ icon: Calendar, label: "Appointments", href: "/appointments" });
+    items.push({ icon: HelpCircle, label: "Help & Guide", href: "/help" });
     return items;
   }
   if (role === "nurse") {
     return [
       { icon: Stethoscope, label: "Medication View", href: "/nurse-station" },
       { icon: Phone, label: "Call Tasks", href: "/call-tasks" },
+      { icon: HelpCircle, label: "Help & Guide", href: "/help" },
     ];
   }
   const items: NavItem[] = [
@@ -81,6 +83,7 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
     { icon: FileUp, label: "Import Patients", href: "/import" },
     { icon: GitBranch, label: "Pipeline", href: "/pipeline" },
     { icon: Activity, label: "Activity", href: "/activity" },
+    { icon: HelpCircle, label: "Help & Guide", href: "/help" },
   );
   return items;
 }

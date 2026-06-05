@@ -21,6 +21,7 @@ import FeedbackForm from "@/pages/feedback-form";
 import WellnessAdmin from "@/pages/wellness-admin";
 import Settings from "@/pages/settings";
 import PatientImport from "@/pages/patient-import";
+import HelpPage from "@/pages/help";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -97,16 +98,19 @@ function ProtectedRouter() {
       {role === "admin" && <Route path="/settings" component={Settings} />}
       {role === "admin" && <Route path="/call-tasks" component={CallTasks} />}
       {role === "admin" && <Route path="/import" component={PatientImport} />}
+      {role === "admin" && <Route path="/help" component={HelpPage} />}
 
       {/* Receptionist routes */}
       {role === "receptionist" && <Route path="/queue" component={QueueManagement} />}
       {role === "receptionist" && <Route path="/call-tasks" component={CallTasks} />}
       {role === "receptionist" && apptEnabled && <Route path="/appointments" component={Appointments} />}
       {role === "receptionist" && <Route path="/patients/new" component={NewPatient} />}
+      {role === "receptionist" && <Route path="/help" component={HelpPage} />}
 
       {/* Nurse routes */}
       {role === "nurse" && <Route path="/nurse-station" component={NurseStation} />}
       {role === "nurse" && <Route path="/call-tasks" component={CallTasks} />}
+      {role === "nurse" && <Route path="/help" component={HelpPage} />}
 
       {/* Default redirect */}
       <Route>

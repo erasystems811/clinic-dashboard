@@ -349,6 +349,19 @@ function BookModal({
           </select>
         </div>
 
+        {/* Automation hint */}
+        <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-3 space-y-1">
+          <p className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+            <span>⚡</span> What happens automatically after booking:
+          </p>
+          <ul className="space-y-0.5 text-xs text-emerald-200/80 pl-4">
+            <li>📧 Confirmation email → sent to patient immediately</li>
+            <li>📧 Reminder email → sent 24 hours before appointment</li>
+            <li>📧 Reminder email → sent 2 hours before appointment</li>
+          </ul>
+          <p className="text-[11px] text-emerald-300/50 pt-0.5">You don't need to call or text the patient separately.</p>
+        </div>
+
         <div className="flex gap-2 justify-end pt-1">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={create.isPending || !selectedPatient || !title || !date || !time}>

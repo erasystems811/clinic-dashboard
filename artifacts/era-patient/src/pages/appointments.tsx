@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import {
   format, isWithinInterval, subMinutes, addMinutes,
   startOfWeek, addDays, addWeeks, subWeeks, isSameDay,
-  parseISO, setHours, setMinutes, isToday,
+  setHours, setMinutes, isToday,
 } from "date-fns";
 import {
   useListAppointments,
@@ -24,7 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Calendar, Clock, AlertTriangle, RefreshCw, X,
-  CalendarPlus, ChevronLeft, ChevronRight, Loader2, Search, MessageSquare, Pencil,
+  CalendarPlus, ChevronLeft, ChevronRight, Loader2, Search, MessageSquare, Pencil, Wallet,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -185,21 +186,24 @@ function EditPatientModal({ patient, onClose, onSaved }: { patient: EditPatient;
    Book Appointment Modal (shared)
 ────────────────────────────────────────────── */
 function BookModal({
-  prefillDate, prefillTime, onClose, smsWalletWarning,
+  prefillDate, prefillTime, onClose, smsEnabled, walletBalance,
 }: {
   prefillDate?: string;
   prefillTime?: string;
   onClose: () => void;
-  smsWalletWarning?: boolean;
+  smsEnabled: boolean;
+  walletBalance: number | null;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<{ id: number; name: string } | null>(null);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(prefillDate ?? "");
   const [time, setTime] = useState(prefillTime ?? "");
   const [duration, setDuration] = useState("30");
+  const [showWalletDialog, setShowWalletDialog] = useState(false);
 
   const { data: results = [], isFetching } = useListPatients(
     { search },
@@ -211,9 +215,6 @@ function BookModal({
     mutation: {
       onSuccess: () => {
         toast({ title: "Appointment booked" });
-        if (smsWalletWarning) {
-          toast({ title: "SMS wallet is empty", description: "Appointment reminder will fall back to email. Fund your wallet in Settings to enable SMS reminders.", variant: "default" });
-        }
         queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
         onClose();
       },
@@ -221,13 +222,8 @@ function BookModal({
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const doBook = () => {
     if (!selectedPatient || !title || !date || !time) return;
-    if (new Date(`${date}T${time}:00`) < new Date()) {
-      toast({ title: "Cannot book in the past", description: "Please choose a future date and time.", variant: "destructive" });
-      return;
-    }
     create.mutate({
       data: {
         patientId: selectedPatient.id,
@@ -236,6 +232,20 @@ function BookModal({
         duration: parseInt(duration) || 30,
       },
     });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatient || !title || !date || !time) return;
+    if (new Date(`${date}T${time}:00`) < new Date()) {
+      toast({ title: "Cannot book in the past", description: "Please choose a future date and time.", variant: "destructive" });
+      return;
+    }
+    if (smsEnabled && walletBalance !== null && walletBalance < 7) {
+      setShowWalletDialog(true);
+      return;
+    }
+    doBook();
   };
 
   return (
@@ -346,6 +356,29 @@ function BookModal({
           </Button>
         </div>
       </form>
+
+      <AlertDialog open={showWalletDialog} onOpenChange={setShowWalletDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-amber-400" />
+              SMS wallet is empty
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              SMS reminders are enabled but your wallet balance is ₦0. Fund your wallet to send SMS reminders, or book now and reminders will be sent via email instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction className="bg-secondary text-secondary-foreground hover:bg-secondary/80" onClick={() => { setShowWalletDialog(false); navigate("/settings"); }}>
+              Fund Wallet
+            </AlertDialogAction>
+            <AlertDialogAction onClick={() => { setShowWalletDialog(false); doBook(); }}>
+              Book (email reminders)
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -766,9 +799,6 @@ export default function Appointments() {
                 >
                   <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${smsModules.appointmentReminderSmsEnabled ? "translate-x-4" : "translate-x-0"}`} />
                 </button>
-                {smsModules.appointmentReminderSmsEnabled && walletBalance !== null && walletBalance < 7 && (
-                  <span className="text-amber-400 font-medium" title="SMS wallet is empty — reminders will fall back to email">⚠ wallet empty</span>
-                )}
               </div>
             )}
             {isReceptionist && (
@@ -907,7 +937,8 @@ export default function Appointments() {
           prefillDate={bookPrefillDate}
           prefillTime={bookPrefillTime}
           onClose={() => setShowBook(false)}
-          smsWalletWarning={!!(smsModules?.appointmentReminderSmsEnabled && walletBalance !== null && walletBalance < 7)}
+          smsEnabled={!!smsModules?.appointmentReminderSmsEnabled}
+          walletBalance={walletBalance}
         />
       )}
 

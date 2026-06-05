@@ -402,7 +402,7 @@ export function SupportWidget() {
     <>
       {open && (
         <div
-          className="fixed bottom-20 right-4 z-50 w-96 max-h-[560px] rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden"
+          className="fixed bottom-24 right-5 z-50 w-96 max-h-[560px] rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden"
           style={{ animation: "supportSlideDown 0.2s ease-out", transformOrigin: "top right" }}
         >
           {view === "list" && (
@@ -431,15 +431,33 @@ export function SupportWidget() {
 
       <button
         onClick={handleOpen}
-        className="fixed bottom-4 right-4 z-50 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center relative"
+        className="fixed bottom-6 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-full bg-primary text-primary-foreground shadow-xl hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all"
         title="Contact Support"
         aria-label="Contact Support"
+        style={!open ? { animation: "supportPulse 3s ease-in-out infinite" } : undefined}
       >
-        {open ? <X className="w-5 h-5" /> : <MessageCircle className="w-5 h-5" />}
-        {!open && dotColor && (
-          <span className={`absolute top-0.5 right-0.5 w-3 h-3 rounded-full border-2 border-card ${dotColor}`} />
+        {open ? (
+          <>
+            <X className="w-5 h-5 shrink-0" />
+            <span className="text-sm font-semibold pr-0.5">Close</span>
+          </>
+        ) : (
+          <>
+            <MessageCircle className="w-5 h-5 shrink-0" />
+            <span className="text-sm font-semibold">Need Help?</span>
+            {dotColor && (
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotColor}`} />
+            )}
+          </>
         )}
       </button>
+
+      <style>{`
+        @keyframes supportPulse {
+          0%, 100% { box-shadow: 0 10px 25px -3px rgba(var(--primary-rgb, 99,102,241), 0.5), 0 4px 6px -2px rgba(0,0,0,0.2); }
+          50%       { box-shadow: 0 10px 35px -3px rgba(var(--primary-rgb, 99,102,241), 0.8), 0 4px 6px -2px rgba(0,0,0,0.2); }
+        }
+      `}</style>
     </>
   );
 }

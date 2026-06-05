@@ -1,0 +1,15 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Railway deployment
+        run: |
+          curl -s -X POST "${{ secrets.RAILWAY_DEPLOY_HOOK }}" \
+            -o /dev/null -w "HTTP %{http_code}\n"

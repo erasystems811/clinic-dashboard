@@ -449,6 +449,38 @@ export async function sendAppointmentConfirmationEmail(
   }
 }
 
+export async function sendAppointmentRescheduleEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+  scheduledAt: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "appointment_rescheduled_email",
+    channel: "email",
+  };
+  if (await skipIfSuspended(hCtx, ctx)) return;
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const contact = contactLine(hCtx.phoneNumber);
+    const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short", timeZone: "Africa/Lagos" });
+    const subject = `Appointment Rescheduled — ${hCtx.hospitalName}`;
+    const body = `Hi ${patientName},\n\nWe would like to let you know that your appointment at ${hCtx.hospitalName} has been rescheduled to ${dateStr}. Please take note of the new date and time and plan accordingly.\n\nIf you have any questions or need to make further changes please do not hesitate to ${contact} as soon as possible. Please do not reply to this email directly. We look forward to seeing you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: body });
+    await updateAutomationLog(logId, "sent", `Appointment reschedule confirmation → ${patientEmail}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendAppointmentRescheduleEmail] failed:", msg, { hospitalId, patientId, patientEmail });
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
 export async function sendAppointmentReminderEmail(
   hospitalId: number,
   patientId: number,

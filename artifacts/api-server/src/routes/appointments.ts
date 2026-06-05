@@ -4,6 +4,7 @@ import { camelize, snakify } from "../lib/camel.js";
 import { z } from "zod/v4";
 import {
   sendAppointmentConfirmationEmail as sendAppointmentConfirmation,
+  sendAppointmentRescheduleEmail as sendAppointmentReschedule,
   sendAppointmentNoShowEmail as sendAppointmentNoShowFollowUp,
 } from "../lib/automation.js";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
@@ -138,9 +139,16 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
   const parsed = UpdateAppointmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const updatePayload: Record<string, unknown> = { ...snakify(parsed.data as Record<string, unknown>) };
+  if (parsed.data.scheduledAt) {
+    // Clear sent-at flags so the scheduler fires fresh 24h/2h reminders for the new time
+    updatePayload.reminder_24h_sent_at = null;
+    updatePayload.reminder_2h_sent_at = null;
+  }
+
   const { data: appt, error } = await supabase
     .from("appointments")
-    .update(snakify(parsed.data as Record<string, unknown>))
+    .update(updatePayload)
     .eq("id", id)
     .eq("hospital_id", hospital.intId)
     .select()
@@ -179,16 +187,26 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
     });
   }
 
-  if (parsed.data.status === "rescheduled" || (parsed.data.scheduledAt && !parsed.data.status)) {
+  if (parsed.data.scheduledAt) {
     const pBy = (req.headers["x-performed-by"] as string | undefined) || null;
     await supabase.from("activity").insert({
       type: "appointment_rescheduled",
       description: `Appointment rescheduled for ${appt.patient_name}: ${appt.title}`,
       patient_id: appt.patient_id,
       patient_name: appt.patient_name,
-      metadata: parsed.data.scheduledAt ?? appt.scheduled_at,
+      metadata: parsed.data.scheduledAt,
       performed_by: pBy,
     });
+
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("email")
+      .eq("id", appt.patient_id as number)
+      .maybeSingle();
+    if (patient?.email) {
+      sendAppointmentReschedule(hospital.intId, appt.patient_id as number, appt.patient_name as string, patient.email as string, parsed.data.scheduledAt)
+        .catch((err) => console.error("[appt-reschedule-email] unhandled error:", err));
+    }
   }
 
   if (parsed.data.status === "cancelled") {

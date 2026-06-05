@@ -10,8 +10,13 @@ import {
   sendCarePlanEmail,
   generateCallTaskDraft,
   sendCallTaskConfirmedMessage,
+  getHospitalContext,
+  contactLine,
 } from "../lib/automation.js";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
+import { deductSmsFromWallet } from "../lib/wallet.js";
+import { deliverMobileMessage } from "../lib/messaging.js";
+import { sendEmail, wrapHtml } from "../lib/email.js";
 
 const router: IRouter = Router();
 
@@ -986,11 +991,13 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const patientName = `${patient.first_name} ${patient.last_name}`;
-  const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+  const smsPhone = patient.phone as string | null;
   const email = patient.email as string | null;
   const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
 
   let sent = false;
+  let sentViaSms = false;
+  let insufficientFunds = false;
 
   if (logOnly) {
     // Phone call — just log the outcome, no message sent
@@ -1003,29 +1010,45 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
       performed_by: performedBy,
     });
   } else if (sendEmail) {
-    // Email — send via platform email with templated subject
-    if (email) {
-      try {
-        const { sendEmail: sendEmailFunc, wrapHtml } = await import("../lib/email.js");
-        const from = process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev";
-        const subject = `Important message from ${hospital.name}`;
-        const htmlBody = message.trim().replace(/\n/g, "<br>");
-        sendEmailFunc({
-          to: email,
-          from,
-          subject,
-          html: wrapHtml(htmlBody, patientName),
-          text: message.trim(),
-        }).catch(err => console.error("[direct-message] email failed:", err));
-        sent = true;
-      } catch (err) {
-        console.error("[direct-message] email send error:", err);
+    const hCtx = await getHospitalContext(hospital.intId);
+
+    // Check SMS toggle — if on and wallet funded, send via SMS instead of email
+    const { data: modules } = await supabase.from("hospital_modules").select("followup_sms_enabled").eq("hospital_id", hospital.intId).maybeSingle();
+    const smsFlipEnabled = (modules?.followup_sms_enabled as boolean | null) ?? false;
+
+    if (smsFlipEnabled) {
+      const deduction = await deductSmsFromWallet(hospital.intId, `Follow-up SMS — ${patientName}`);
+      if (deduction.ok && smsPhone) {
+        try {
+          await deliverMobileMessage("sms", smsPhone, message.trim(), { senderId: hCtx.termiiSenderId });
+          sentViaSms = true;
+          sent = true;
+        } catch (err) {
+          console.error("[direct-message] SMS failed, falling back to email:", err);
+        }
+      } else {
+        insufficientFunds = deduction.insufficientFunds;
       }
     }
 
+    // Fall through to email if SMS was not used
+    if (!sentViaSms && email) {
+      const contact = contactLine(hCtx.phoneNumber);
+      const body = `${message.trim()}\n\nIf you have any questions please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+      const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+      sendEmail({
+        to: email,
+        from: hCtx.fromAddress,
+        subject: `IMPORTANT - ${hCtx.hospitalName}`,
+        html,
+        text: body,
+      }).catch(err => console.error("[direct-message] email failed:", err));
+      sent = true;
+    }
+
     await supabase.from("activity").insert({
-      type: "manual_email",
-      description: `Email sent to ${patientName}${reason ? ` — ${reason}` : ""}`,
+      type: sentViaSms ? "manual_sms" : "manual_email",
+      description: `${sentViaSms ? "SMS" : "Email"} sent to ${patientName}${reason ? ` — ${reason}` : ""}`,
       patient_id: id,
       patient_name: patientName,
       metadata: { body: message.trim().slice(0, 200) },
@@ -1043,7 +1066,7 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
     });
   }
 
-  res.json({ ok: true, sent, email: sendEmail ? email : null });
+  res.json({ ok: true, sent, sentViaSms, insufficientFunds, email: sendEmail ? email : null });
 });
 
 export default router;

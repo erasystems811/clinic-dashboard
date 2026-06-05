@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useFlagMissedTreatment,
@@ -9,7 +10,11 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
-import { Flag, MessageSquare, PhoneCall, X, User, Users, Send, Loader2, CheckCircle2, Sparkles, Mail } from "lucide-react";
+import { Flag, MessageSquare, PhoneCall, X, User, Users, Send, Loader2, CheckCircle2, Sparkles, Mail, Wallet } from "lucide-react";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 interface ModalProps {
   patientName: string;
@@ -24,6 +29,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   const { toast } = useToast();
   const { hospital } = useAuth();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [step, setStep] = useState<Step>("choose");
 
   // ── Send to Receptionist state ──────────────────────────────────────────────
@@ -48,6 +54,8 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   const [callOutcome, setCallOutcome] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [showWalletDialog, setShowWalletDialog] = useState(false);
+  const skipInsufficientToast = useRef(false);
 
   const handleGenerateDraft = async () => {
     if (!hospital?.token || !selfReason.trim()) return;
@@ -73,6 +81,17 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
     const isEmail = selfMethod === "email";
     if (isEmail && !emailBody.trim()) return;
     if (!isEmail && !callOutcome.trim()) return;
+    // Pre-flight: if SMS is on and wallet is empty, prompt the user before sending
+    if (isEmail && smsEnabled && walletBalance !== null && walletBalance < 7) {
+      setShowWalletDialog(true);
+      return;
+    }
+    await doSendSelf();
+  };
+
+  const doSendSelf = async () => {
+    if (!hospital?.token) return;
+    const isEmail = selfMethod === "email";
     setSending(true);
     try {
       const body = isEmail
@@ -83,15 +102,24 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean };
       if (!res.ok) throw new Error(data.error ?? "Failed");
       setSent(true);
-      toast({
-        title: isEmail ? "Email sent" : "Call logged",
-        description: isEmail ? `Email sent to ${patientName}.` : undefined,
-      });
+      if (!isEmail) {
+        toast({ title: "Call logged" });
+      } else if (data.sentViaSms) {
+        toast({ title: "SMS sent", description: `Message delivered via SMS (₦7 deducted from wallet).` });
+      } else if (data.insufficientFunds && !skipInsufficientToast.current) {
+        toast({ title: "Sent via email — wallet empty", description: "Your SMS wallet has insufficient funds. Top up in Settings → SMS Wallet to enable SMS delivery." });
+      } else if (skipInsufficientToast.current) {
+        toast({ title: "Sent via email", description: `Email sent to ${patientName}.` });
+      } else {
+        toast({ title: "Email sent", description: `Email sent to ${patientName}.` });
+      }
+      skipInsufficientToast.current = false;
       setTimeout(onClose, 1500);
     } catch (err: unknown) {
+      skipInsufficientToast.current = false;
       toast({ title: "Failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
     } finally {
       setSending(false);
@@ -100,12 +128,16 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
 
   const [smsEnabled, setSmsEnabled] = useState<boolean | null>(null);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   useEffect(() => {
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setSmsEnabled((data as Record<string, unknown>).followupSmsEnabled as boolean); });
+    fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
   }, [hospital?.token]);
 
   const handleSmsToggle = async (value: boolean) => {
@@ -344,6 +376,34 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
           </div>
         )}
       </div>
+
+      <AlertDialog open={showWalletDialog} onOpenChange={setShowWalletDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-amber-400" />
+              SMS wallet is empty
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Your SMS wallet has ₦0. You can fund your wallet to send this message via SMS, or send it via email now at no cost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => navigate("/settings")}>
+              Fund Wallet
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowWalletDialog(false);
+                skipInsufficientToast.current = true;
+                void doSendSelf();
+              }}
+            >
+              Send via Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

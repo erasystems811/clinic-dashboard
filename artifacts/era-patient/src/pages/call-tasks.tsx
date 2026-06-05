@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -13,8 +14,12 @@ import {
 import type { CallTask } from "@workspace/api-client-react";
 import {
   Phone, CheckCircle, Clock, Loader2, PhoneCall,
-  Send, ChevronDown, ChevronUp, Flag, MessageSquare, Sparkles, Mail,
+  Send, ChevronDown, ChevronUp, Flag, MessageSquare, Sparkles, Mail, Wallet,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 import { apiUrl } from "@/lib/api";
 
@@ -44,10 +49,14 @@ const ACTION_TYPES = [
 ] as const;
 
 /* ── Action Panel ── */
-function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed }: { task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (newCount: number) => void }) {
+function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, walletBalance }: {
+  task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (newCount: number) => void;
+  smsEnabled: boolean; walletBalance: number | null;
+}) {
   const { toast } = useToast();
   const { hospital } = useAuth();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   const [callOpen, setCallOpen] = useState(false);
   const [callText, setCallText] = useState("");
@@ -56,6 +65,8 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed }: { task: Call
   const [draftIsAi, setDraftIsAi] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [showWalletDialog, setShowWalletDialog] = useState(false);
+  const skipInsufficientToast = useRef(false);
 
   const logOutcome = useLogCallOutcome({
     mutation: {
@@ -153,28 +164,39 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed }: { task: Call
       toast({ title: "Not authenticated", description: "Please log in again and retry.", variant: "destructive" });
       return;
     }
+    // Pre-flight: if SMS is on and wallet is empty, prompt the user before sending
+    if (smsEnabled && walletBalance !== null && walletBalance < 7) {
+      setShowWalletDialog(true);
+      return;
+    }
+    await doSend();
+  };
+
+  const doSend = async () => {
+    if (!hospital?.token) return;
     setSending(true);
     try {
-      const endpoint = draftIsAi
-        ? `/api/call-tasks/${task.id}/send-message`
-        : `/api/call-tasks/${task.id}/send-manual-email`;
-      const res = await fetch(apiUrl(endpoint), {
+      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-message`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
         body: JSON.stringify({ message: textMsg }),
       });
       const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean };
       if (!res.ok) throw new Error(data.error ?? "Send failed");
-      if (data.insufficientFunds) {
+      if (data.insufficientFunds && !skipInsufficientToast.current) {
         toast({ title: "Sent via email — wallet empty", description: "Your SMS wallet has insufficient funds. Top up in Settings → SMS Wallet to enable SMS delivery.", variant: "default" });
       } else if (data.sentViaSms) {
         toast({ title: "SMS sent", description: "Message delivered via SMS (₦7 deducted from wallet)." });
+      } else if (skipInsufficientToast.current) {
+        toast({ title: "Sent via email", description: "Message delivered to patient's inbox." });
       }
+      skipInsufficientToast.current = false;
       logOutcome.mutate(
         { id: task.id, data: { outcome: `[Text sent] ${textMsg}` } },
         { onError: () => { toast({ title: "Sent but failed to complete task", variant: "destructive" }); setSending(false); } },
       );
     } catch (err: unknown) {
+      skipInsufficientToast.current = false;
       toast({ title: "Failed to send", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
       setSending(false);
     }
@@ -215,12 +237,43 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed }: { task: Call
           Send Text
         </Button>
       </div>
+
+      <AlertDialog open={showWalletDialog} onOpenChange={setShowWalletDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Wallet className="w-5 h-5 text-amber-400" />
+              SMS wallet is empty
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Your SMS wallet has ₦0. You can fund your wallet to send this message via SMS, or send it via email now at no cost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => navigate("/settings")}>
+              Fund Wallet
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowWalletDialog(false);
+                skipInsufficientToast.current = true;
+                void doSend();
+              }}
+            >
+              Send via Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
 /* ── Task Card ── */
-function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed }: { task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (n: number) => void }) {
+function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, walletBalance }: {
+  task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (n: number) => void;
+  smsEnabled: boolean; walletBalance: number | null;
+}) {
   const queryClient = useQueryClient();
   const [showMethodPicker, setShowMethodPicker] = useState(false);
 
@@ -329,7 +382,7 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed }: { task: CallTas
             </div>
           )}
 
-          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} />
+          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} smsEnabled={smsEnabled} walletBalance={walletBalance} />
         </div>
       )}
 
@@ -359,6 +412,7 @@ export default function CallTasks() {
   const [aiDailyLimit, setAiDailyLimit] = useState(20);
   const [smsModules, setSmsModules] = useState<{ callTaskSmsEnabled: boolean } | null>(null);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   const { data: tasks = [], isLoading } = useListCallTasks(
     {},
@@ -389,6 +443,9 @@ export default function CallTasks() {
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setSmsModules({ callTaskSmsEnabled: (data as Record<string, unknown>).callTaskSmsEnabled as boolean }); });
+    fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
   }, [hospital?.token]);
 
   const handleSmsToggle = async (value: boolean) => {
@@ -456,6 +513,8 @@ export default function CallTasks() {
                     aiUsedToday={aiUsedToday}
                     aiDailyLimit={aiDailyLimit}
                     onAiUsed={setAiUsedToday}
+                    smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
+                    walletBalance={walletBalance}
                   />
                 ))}
               </div>
@@ -478,6 +537,8 @@ export default function CallTasks() {
                     aiUsedToday={aiUsedToday}
                     aiDailyLimit={aiDailyLimit}
                     onAiUsed={setAiUsedToday}
+                    smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
+                    walletBalance={walletBalance}
                   />
                 ))}
               </div>

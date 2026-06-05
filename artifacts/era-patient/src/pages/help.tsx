@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Layout from "@/components/layout";
+import { Layout } from "@/components/layout";
 import { useAuth } from "@/contexts/auth-context";
 import { ChevronDown, ChevronRight, Mail, MessageSquare, CheckCircle2, Lightbulb, AlertTriangle, Zap } from "lucide-react";
 

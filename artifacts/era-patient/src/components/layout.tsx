@@ -65,7 +65,6 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
   if (role === "nurse") {
     return [
       { icon: Stethoscope, label: "Medication View", href: "/nurse-station" },
-      { icon: Phone, label: "Call Tasks", href: "/call-tasks" },
       { icon: HelpCircle, label: "Help & Guide", href: "/help" },
     ];
   }
@@ -74,7 +73,6 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
     { icon: Users, label: "Patients", href: "/patients" },
   ];
   if (appt) items.push({ icon: Calendar, label: "Appointments", href: "/appointments" });
-  items.push({ icon: Phone, label: "Call Tasks", href: "/call-tasks" });
   if (modules?.feedbackEnabled ?? true) {
     items.push({ icon: Star, label: "Feedback", href: "/feedback-admin" });
   }

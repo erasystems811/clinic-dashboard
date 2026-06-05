@@ -1667,49 +1667,37 @@ router.post("/super-admin/announcements/auto-draft", requireSuperAdmin, async (_
   const key = process.env.OPENAI_API_KEY;
   if (!key) { res.status(500).json({ error: "AI not configured" }); return; }
 
-  // Fetch commit history from GitHub API — reliable regardless of Railway's clone depth
-  const pat = process.env.GITHUB_PAT;
-  let gitLog = "";
-  if (pat) {
-    try {
-      const ghRes = await fetch("https://api.github.com/repos/erasystems811/clinic-dashboard/commits?per_page=60", {
-        headers: { Authorization: `token ${pat}`, Accept: "application/vnd.github.v3+json" },
-      });
-      if (ghRes.ok) {
-        const commits = await ghRes.json() as Array<{ sha: string; commit: { message: string } }>;
-        gitLog = commits
-          .map(c => `${c.sha.slice(0, 7)} ${c.commit.message.split("\n")[0]}`)
-          .join("\n");
-      }
-    } catch { /* fall through to local git */ }
-  }
+  // Use platform_deployments from Supabase as context — no git dependency
+  const { data: deployments } = await supabase
+    .from("platform_deployments")
+    .select("title, deployed_at")
+    .order("deployed_at", { ascending: false })
+    .limit(20);
 
-  // Fallback: try local git log (works in dev)
-  if (!gitLog) {
-    try {
-      const { stdout } = await execAsync("git log --no-merges -60 --oneline");
-      gitLog = stdout.trim();
-    } catch { /* no git */ }
-  }
-
-  if (!gitLog) { res.status(400).json({ error: "No git history found — ensure GITHUB_PAT is set" }); return; }
+  const hasDeployments = deployments && deployments.length > 0;
+  const deploymentContext = hasDeployments
+    ? deployments.map(d => `- ${d.title} (${new Date(d.deployed_at as string).toLocaleDateString()})`).join("\n")
+    : null;
 
   const openai = new OpenAI({ apiKey: key });
 
-  const systemPrompt = `You are helping Era Systems (a clinic management SaaS) write draft announcements for their hospital clients.
+  const systemPrompt = `You are helping Era Systems (a clinic management SaaS for hospitals in Nigeria) write draft announcements for their hospital clients.
 
-Given recent git commits, identify hospital-facing changes and generate 2–5 draft announcements.
+Generate 2–5 draft announcements that would be useful for hospitals using this platform.
+${deploymentContext
+    ? `\nRecent platform updates:\n${deploymentContext}\n\nBase announcements on these updates where relevant.`
+    : `\nGenerate helpful tip-style announcements about using the platform effectively — queue management, appointment reminders, automated SMS, patient import, pipeline tracking, wellness newsletters, automated in-care treatment reminders, etc.`
+  }
 
 Rules:
-- Only include changes hospitals care about: new features, workflow changes, important UX improvements
-- Skip: internal refactors, dependency bumps, debug fixes, super-admin-only tools
-- Plain language — no technical jargon
-- Group related commits into one announcement
+- Plain language — no technical jargon, no developer talk
+- Relevant to hospital admins, receptionists, and nurses
 - Titles: 5–10 words
-- Messages: 2–3 sentences describing what changed and what the hospital can now do
+- Messages: 2–3 sentences describing what's available and what the hospital can do
+- Skip: internal/developer updates, super-admin-only tools
 
 Return JSON only: { "announcements": [{ "title": "...", "message": "...", "type": "info"|"update"|"warning" }] }
-Use "update" for new/changed features, "info" for general notices, "warning" for things needing attention.`;
+Use "update" for new/changed features, "info" for general tips, "warning" for things needing attention.`;
 
   let drafts: Array<{ title: string; message: string; type: string }> = [];
   try {
@@ -1717,10 +1705,10 @@ Use "update" for new/changed features, "info" for general notices, "warning" for
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Recent commits:\n\n${gitLog}` },
+        { role: "user", content: "Generate draft announcements now." },
       ],
       max_tokens: 900,
-      temperature: 0.3,
+      temperature: 0.4,
       response_format: { type: "json_object" },
     });
     const raw = resp.choices[0]?.message?.content?.trim() ?? "{}";

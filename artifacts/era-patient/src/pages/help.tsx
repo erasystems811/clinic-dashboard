@@ -327,7 +327,7 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
           {[
             { label: "Appointment reminder SMS", desc: "If you have turned on SMS reminders for appointments — the 24h and 2h reminders go via SMS instead of email. Each one costs ₦7." },
             { label: "Call task message (if SMS is enabled)", desc: "When the receptionist sends a message from a Call Task — if SMS is enabled for your account, it goes via SMS (₦7). Otherwise it sends as a free email." },
-            { label: "Post-treatment follow-up SMS", desc: "For Antenatal, Surgery, Dental, Eye, ENT, and Fertility departments — follow-up check-ins can go via SMS if enabled. Each one costs ₦7." },
+            { label: "Flag for Follow-up SMS", desc: "When a patient is flagged for follow-up — if SMS is enabled, the follow-up message goes via SMS. Each one costs ₦7." },
           ].map(item => (
             <div key={item.label} className="rounded-lg border border-border bg-card/50 px-4 py-3 flex gap-3 items-start">
               <span className="text-base shrink-0">📱</span>

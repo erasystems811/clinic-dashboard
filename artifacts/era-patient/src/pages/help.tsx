@@ -44,26 +44,6 @@ function Remember({ children }: { children: React.ReactNode }) {
   );
 }
 
-function EmailPreview({ subject, body }: { subject: string; body: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-card/60 text-sm overflow-hidden">
-      <div className="px-4 py-2 border-b border-border bg-muted/40">
-        <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Subject:</span> {subject}</p>
-      </div>
-      <div className="px-4 py-3">
-        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{body}</p>
-      </div>
-    </div>
-  );
-}
-
-function SmsPreview({ body }: { body: string }) {
-  return (
-    <div className="flex justify-end">
-      <div className="max-w-xs bg-emerald-600 text-white text-sm rounded-2xl rounded-br-sm px-4 py-2.5 leading-relaxed">{body}</div>
-    </div>
-  );
-}
 
 const SECTION_COLORS = [
   "from-violet-500/20 to-violet-500/5 border-violet-500/30",
@@ -100,219 +80,54 @@ function Section({ emoji, title, defaultOpen = false, children, ci = 0 }: {
 
 /* ── automated messages (shared by all roles) ─────────────────────────────── */
 
-function AutoMessagesSection({ hospitalName = "Your Clinic" }: { hospitalName?: string }) {
+function AutoMessagesSection() {
+  const rows: { icon: string; trigger: string; what: string; channel: string; doNotDo?: string }[] = [
+    { icon: "🪑", trigger: "Patient added to queue", what: "Welcomes the patient and tells them their queue position", channel: "SMS", doNotDo: "Do not call to say they are checked in" },
+    { icon: "🔔", trigger: "Patient is next in line", what: "Tells them to get ready — they will be called shortly", channel: "SMS" },
+    { icon: "✅", trigger: "Receptionist ticks 'called in' checkbox", what: "Tells the patient it is their turn to come in", channel: "SMS" },
+    { icon: "⏳", trigger: "Queue wait is very long", what: "Apologises for the long wait and thanks them for their patience", channel: "SMS", doNotDo: "Do not call separately to apologise" },
+    { icon: "💊", trigger: "Nurse saves a care plan", what: "Tells the patient their plan is set up and to check their email for details", channel: "SMS — immediately" },
+    { icon: "💊", trigger: "Nurse saves a care plan", what: "Full AI-written explanation of the plan in plain language", channel: "Email — 20 min later", doNotDo: "Do not call the patient — SMS and email go out automatically" },
+    { icon: "📋", trigger: "Patient is In Care", what: "Reminder at each medication time or visit slot — every day for the full plan duration", channel: "Email — daily" },
+    { icon: "📅", trigger: "Appointment booked", what: "Confirms the appointment date and time, asks them to arrive early", channel: "Email — immediately", doNotDo: "Do not call to confirm — they already got this email" },
+    { icon: "🔄", trigger: "Appointment rescheduled", what: "Informs them of the new date and time", channel: "Email" },
+    { icon: "⏰", trigger: "24 hours before appointment", what: "Reminds them their appointment is tomorrow", channel: "Email" },
+    { icon: "⏰", trigger: "2 hours before appointment", what: "Reminds them their appointment is in 2 hours", channel: "Email", doNotDo: "Do not call to remind — 3 emails are already sent" },
+    { icon: "😟", trigger: "Appointment marked No Show", what: "Checks in on the patient and invites them to rebook", channel: "Email", doNotDo: "Do not follow up manually — this email goes out automatically" },
+    { icon: "🏥", trigger: "Patient moves to Post Treatment — Day 1", what: "Checks in, wishes them a good recovery, says the team is thinking of them", channel: "Email" },
+    { icon: "🏥", trigger: "Post Treatment — Day 4", what: "Checks in again, encourages them, says the team is rooting for them", channel: "Email" },
+    { icon: "🏥", trigger: "Post Treatment — Day 7", what: "One-week check-in, congratulates their progress", channel: "Email", doNotDo: "Do not add manual follow-ups for post-treatment — Day 1, 4, and 7 emails are automatic" },
+    { icon: "💭", trigger: "Patient dormant for 30 days with no activity", what: "A gentle 'thinking of you' email, invites them to come back if they need anything", channel: "Email" },
+    { icon: "🎂", trigger: "Patient's birthday (every year)", what: "A warm, personalised birthday email written by AI — unique to your clinic's personality", channel: "Email" },
+    { icon: "⭐", trigger: "After a patient visit", what: "Asks them to rate their experience and share feedback via a link", channel: "Email" },
+    { icon: "💌", trigger: "Admin sends from Wellness Newsletter page", what: "Weekly health education email sent to all active patients", channel: "Email" },
+  ];
+
   return (
     <Section emoji="📱" title="What the System Sends to Patients Automatically" ci={10}>
       <p className="text-sm text-muted-foreground leading-relaxed">
-        The system sends messages to patients <strong className="text-foreground">on its own</strong> — you don't need to call or message separately. Here is exactly what each message says.
+        The system contacts patients <strong className="text-foreground">on its own</strong> after certain actions. You do not need to call or message separately. Here is what each one does.
       </p>
 
-      {/* Queue */}
-      <div className="space-y-4">
-        <p className="font-semibold text-sm border-b border-border pb-1.5">Queue messages (SMS)</p>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>1️⃣</span> When receptionist adds patient to queue</p>
-          <SmsPreview body={`Hi Ada, welcome to ${hospitalName}. You've been checked in and you're currently number 3 in the queue. Our team is working as quickly as possible and we'll keep you updated every step of the way. Please relax and make yourself comfortable. Thank you for trusting us with your care.`} />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>2️⃣</span> When patient is next in line</p>
-          <SmsPreview body={`Hi Ada, you are next in line at ${hospitalName}. Please be ready — you will be called in shortly. Thank you for your patience.`} />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>3️⃣</span> When receptionist ticks the "called in" checkbox</p>
-          <SmsPreview body={`Hi Ada, it is your turn now at ${hospitalName}. Please proceed, we are ready for you.`} />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>⏳</span> When the wait is running very long</p>
-          <SmsPreview body={`Hi Ada, we sincerely apologise for the longer than usual wait today at ${hospitalName}. We are doing our best to attend to everyone as quickly as possible and we truly appreciate your patience. Thank you for being with us.`} />
-          <Remember>Do NOT call patients to apologise for a long wait — the system already sends this SMS automatically.</Remember>
-        </div>
-      </div>
-
-      {/* Care plan */}
-      <div className="space-y-4">
-        <p className="font-semibold text-sm border-b border-border pb-1.5">Care plan messages (triggered when nurse saves a care plan)</p>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📱</span> SMS — sent immediately</p>
-          <SmsPreview body={`Hi Ada, your care plan at ${hospitalName} has been set up. Please check your email continuously for your full care plan details and follow up. We are with you every step of the way.`} />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📧</span> Email — sent 20 minutes later</p>
-          <p className="text-xs text-muted-foreground">The 20-minute gap lets the nurse correct any mistakes before the detailed email goes out.</p>
-          <EmailPreview
-            subject={`Your care plan has started — ${hospitalName}`}
-            body={`Hi Ada,\n\nYour care plan with us begins today. The team at ${hospitalName} will be with you every step of the way. Please follow the schedule carefully and take things one day at a time.\n\nIf you have any questions please do not hesitate to contact us directly. Please do not reply to this email directly.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-          <p className="text-xs text-muted-foreground">The email body is written by AI and personalised based on the patient's actual plan details.</p>
-          <Remember>Do NOT call the patient to say their care plan started — the SMS and email are sent automatically the moment the nurse saves.</Remember>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📧</span> Daily in-care reminders — for the whole plan duration</p>
-          <p className="text-xs text-muted-foreground">At each medication time or hospital visit slot on the plan, the patient receives a reminder email. For hospital visits it arrives 2–3 hours before.</p>
-          <EmailPreview
-            subject={`Good morning, Ada — Outpatient reminder — ${hospitalName}`}
-            body={`Good morning Ada,\n\nJust a warm reminder that it is time to take your morning medication as part of your care plan at ${hospitalName}. We are with you every step of the way — keep going, you are doing great.\n\nIf you have any concerns please contact us directly. Please do not reply to this email directly.\n— ${hospitalName} Team`}
-          />
-        </div>
-      </div>
-
-      {/* Appointments */}
-      <div className="space-y-4">
-        <p className="font-semibold text-sm border-b border-border pb-1.5">Appointment emails</p>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📧</span> Confirmation — sent immediately after booking</p>
-          <EmailPreview
-            subject={`Appointment Confirmed — ${hospitalName}`}
-            body={`Hi Ada,\n\nYour appointment at ${hospitalName} has been confirmed for Monday 9 June at 10:00 AM. Please arrive a few minutes early.\n\nIf you need to reschedule please do not hesitate to contact us as soon as possible. Please do not reply to this email directly. We look forward to seeing you.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📧</span> Reminder — sent 24 hours before</p>
-          <EmailPreview
-            subject={`Reminder — Your appointment is tomorrow — ${hospitalName}`}
-            body={`Hi Ada,\n\nThis is a friendly reminder that your appointment at ${hospitalName} is tomorrow Monday 9 June at 10:00 AM. We look forward to seeing you.\n\nIf you need to reschedule please contact us as soon as possible. Please do not reply to this email directly.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📧</span> Reminder — sent 2 hours before</p>
-          <EmailPreview
-            subject={`Your appointment is in 2 hours — ${hospitalName}`}
-            body={`Hi Ada,\n\nJust a quick reminder that your appointment at ${hospitalName} is in 2 hours at 10:00 AM. We will see you soon.\n\nIf you need to reschedule please contact us immediately. Please do not reply to this email directly.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-          <Remember>Do NOT call patients to remind them about appointments. They get 3 automatic emails: at booking, 24h before, and 2h before.</Remember>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📧</span> Reschedule confirmation — sent when appointment is rescheduled</p>
-          <EmailPreview
-            subject={`Appointment Rescheduled — ${hospitalName}`}
-            body={`Hi Ada,\n\nWe would like to let you know that your appointment at ${hospitalName} has been rescheduled to Tuesday 10 June at 2:00 PM. Please take note of the new date and time.\n\nIf you have any questions please contact us as soon as possible. Please do not reply to this email directly.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>😟</span> No-show email — sent when appointment is marked "No Show"</p>
-          <EmailPreview
-            subject={`We are worried about you — ${hospitalName}`}
-            body={`Hi Ada,\n\nWe noticed you were not able to make your appointment at ${hospitalName} today and we just wanted to check in to make sure you are okay. Your health and wellbeing are always our priority and we care about you.\n\nWhenever you are ready to rebook or if you need anything at all please do not hesitate to contact us. Please do not reply to this email directly.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-          <Remember>Marking an appointment as No Show automatically sends this email. You do not need to contact the patient yourself.</Remember>
-        </div>
-      </div>
-
-      {/* Post-treatment */}
-      <div className="space-y-4">
-        <p className="font-semibold text-sm border-b border-border pb-1.5">Post-treatment check-ins (sent after patient stage moves to Post Treatment)</p>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📧</span> Day 1</p>
-          <EmailPreview
-            subject={`Checking in on you — ${hospitalName}`}
-            body={`Hi Ada,\n\nWe hope you are resting and taking things easy today. Your treatment at ${hospitalName} has just concluded and we wanted to reach out on this first day to let you know we are thinking of you. Recovery takes time and that is completely okay.\n\nIf you have any questions or concerns please do not hesitate to contact us. Please do not reply to this email directly.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📧</span> Day 4</p>
-          <EmailPreview
-            subject={`How are you feeling? — ${hospitalName}`}
-            body={`Hi Ada,\n\nIt has been a few days since your treatment at ${hospitalName} and we just wanted to check in on you. We hope you are feeling a little better each day. Recovery is a journey and we want you to know we are rooting for you.\n\nIf anything feels off or you have any concerns at all please contact us. Please do not reply to this email directly.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>📧</span> Day 7</p>
-          <EmailPreview
-            subject={`One week check-in — ${hospitalName}`}
-            body={`Hi Ada,\n\nA week has passed since your treatment at ${hospitalName} and we hope you are feeling much better. You have come a long way and we are proud of your progress.\n\nIf you need anything at all please do not hesitate to contact us. Please do not reply to this email directly. We are always here for you.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-          <Remember>Do NOT add manual call tasks for post-treatment patients. The system sends Day 1, Day 4, and Day 7 emails automatically.</Remember>
-        </div>
-      </div>
-
-      {/* Dormant & birthday */}
-      <div className="space-y-4">
-        <p className="font-semibold text-sm border-b border-border pb-1.5">Re-engagement and special emails</p>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>💭</span> After 30 days of no activity (Dormant stage)</p>
-          <EmailPreview
-            subject={`Thinking of you — ${hospitalName}`}
-            body={`Hi Ada,\n\nIt has been a little while since we last saw you at ${hospitalName} and we just wanted to check in and see how you are doing. We hope you are feeling well and taking good care of yourself. Your health and wellbeing mean a lot to us.\n\nIf you ever need anything or feel it is time for a check-up please do not hesitate to contact us. Please do not reply to this email directly. We are always here when you need us.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>🎂</span> On the patient's birthday (every year, automatically)</p>
-          <EmailPreview
-            subject={`Happy Birthday from ${hospitalName} 🎂`}
-            body={`Hi Ada,\n\nThe entire team at ${hospitalName} wants to wish you a very happy birthday! Today is your day and we are all thinking of you.\n\nOur biggest wish for you today is truly good health. And remember — an apple a day keeps the doctor away, but visiting us occasionally keeps the doctor happy 😄\n\nWarm regards,\n${hospitalName} Team`}
-          />
-          <p className="text-xs text-muted-foreground">The birthday message is uniquely written by AI for your clinic's personality. You don't need to do anything — it goes out automatically every year.</p>
-        </div>
-      </div>
-
-      {/* Feedback */}
-      <div className="space-y-4">
-        <p className="font-semibold text-sm border-b border-border pb-1.5">Feedback request email</p>
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>⭐</span> Sent automatically after a patient is seen</p>
-          <EmailPreview
-            subject={`How was your visit? — ${hospitalName}`}
-            body={`Hi Ada,\n\nThank you for visiting ${hospitalName} yesterday. We hope your experience was a positive one. We would love to hear your thoughts so we can continue to improve our service. Please take a moment to share your feedback using the link below.\n\n[Share Your Feedback →]\n\nYour feedback means a lot to us. Please do not reply to this email directly.\n\nWarm regards,\n${hospitalName} Team`}
-          />
-        </div>
-      </div>
-
-      {/* Wellness */}
-      <div className="space-y-4">
-        <p className="font-semibold text-sm border-b border-border pb-1.5">Weekly wellness newsletter</p>
-        <div className="space-y-2">
-          <p className="text-sm font-medium flex items-center gap-2"><span>💌</span> Sent when admin clicks Send on the Wellness Newsletter page</p>
-          <EmailPreview
-            subject={`Your weekly wellness update — ${hospitalName}`}
-            body={`Dear Friends,\n\nThis week we are looking at something most people never think about — the effect of shallow breathing on daily energy levels...\n\n[Full newsletter content here]\n\nWith care, The ${hospitalName} Wellness Team\n\nThis newsletter is for general wellness information only. Please do not reply to this email.`}
-          />
-          <p className="text-xs text-muted-foreground">Only patients in Active, In Care, Post Treatment, or Dormant stages with an email address will receive this.</p>
-        </div>
-      </div>
-
-      {/* Summary */}
-      <div className="rounded-xl bg-muted/30 border border-border p-4 space-y-2">
-        <p className="font-semibold text-sm">All messages the system handles automatically:</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-muted-foreground">
-          {[
-            "✅ Queue joined SMS",
-            "✅ Next in line SMS",
-            "✅ Your turn SMS",
-            "✅ Long wait apology SMS",
-            "✅ Care plan SMS (instant)",
-            "✅ Care plan email (20 min later)",
-            "✅ Daily in-care reminders",
-            "✅ Appointment confirmation email",
-            "✅ Appointment reschedule email",
-            "✅ 24h appointment reminder",
-            "✅ 2h appointment reminder",
-            "✅ No-show check-in email",
-            "✅ Post-treatment Day 1 email",
-            "✅ Post-treatment Day 4 email",
-            "✅ Post-treatment Day 7 email",
-            "✅ 30-day dormant re-engagement",
-            "✅ Birthday email (every year)",
-            "✅ Feedback request email",
-            "✅ Weekly wellness newsletter",
-          ].map(i => <p key={i}>{i}</p>)}
-        </div>
+      <div className="space-y-2">
+        {rows.map((row, i) => (
+          <div key={i} className="rounded-lg border border-border bg-card/50 px-4 py-3 space-y-1">
+            <div className="flex items-start gap-2">
+              <span className="text-base shrink-0 mt-0.5">{row.icon}</span>
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">When:</span> {row.trigger}</p>
+                <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">Message:</span> {row.what}</p>
+                <p className="text-xs text-muted-foreground"><span className="font-semibold text-foreground">How:</span> {row.channel}</p>
+              </div>
+            </div>
+            {row.doNotDo && (
+              <div className="flex gap-1.5 items-start pl-6">
+                <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-300/80">{row.doNotDo}</p>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </Section>
   );
@@ -455,7 +270,33 @@ function AdminHelp({ hospitalName }: { hospitalName: string }) {
         <Remember>Usernames cannot be changed after they are created. Choose carefully.</Remember>
       </Section>
 
-      <AutoMessagesSection hospitalName={hospitalName} />
+      <Section emoji="💳" title="SMS Wallet — What Gets Charged" ci={9}>
+        <p className="text-sm text-muted-foreground">Most messages the system sends are <strong className="text-foreground">free emails</strong>. Only a few specific actions send an SMS, and each SMS costs <strong className="text-foreground">₦7</strong> from your wallet. Here is exactly which ones cost money:</p>
+        <div className="space-y-2 mt-1">
+          {[
+            { label: "Appointment reminder SMS", desc: "If you have turned on SMS reminders for appointments — the 24h and 2h reminders go via SMS instead of email. Each one costs ₦7." },
+            { label: "Call task message (if SMS is enabled)", desc: "When the receptionist sends a message from a Call Task — if SMS is enabled for your account, it goes via SMS (₦7). Otherwise it sends as a free email." },
+            { label: "Post-treatment follow-up SMS", desc: "For Antenatal, Surgery, Dental, Eye, ENT, and Fertility departments — follow-up check-ins can go via SMS if enabled. Each one costs ₦7." },
+          ].map(item => (
+            <div key={item.label} className="rounded-lg border border-border bg-card/50 px-4 py-3 flex gap-3 items-start">
+              <span className="text-base shrink-0">📱</span>
+              <div>
+                <p className="text-sm font-semibold">{item.label}</p>
+                <p className="text-sm text-muted-foreground">{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2">
+          <p className="font-semibold text-sm border-b border-border pb-1.5 mt-2">Everything else is free email — no wallet charge:</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-muted-foreground pl-1">
+            {["Care plan confirmation email","Daily in-care reminder emails","Appointment confirmation email","Birthday email","Post-treatment Day 1, 4, 7 emails","Dormant re-engagement email","Feedback request email","Queue SMS (these use a separate system — not your wallet)","Wellness newsletter"].map(i => <p key={i}>✅ {i}</p>)}
+          </div>
+        </div>
+        <Tip>To top up your wallet or check your balance, go to <strong>Settings</strong> → <strong>SMS Wallet</strong> at the bottom of the page. If the wallet runs out, SMS messages automatically fall back to email so nothing is missed.</Tip>
+      </Section>
+
+      <AutoMessagesSection />
     </div>
   );
 }
@@ -513,7 +354,7 @@ function ReceptionistHelp({ hospitalName }: { hospitalName: string }) {
         <Remember>Do not call patients to confirm or remind them. They receive 3 emails automatically.</Remember>
       </Section>
 
-      <AutoMessagesSection hospitalName={hospitalName} />
+      <AutoMessagesSection />
     </div>
   );
 }
@@ -564,7 +405,7 @@ function NurseHelp({ hospitalName }: { hospitalName: string }) {
         </div>
       </Section>
 
-      <AutoMessagesSection hospitalName={hospitalName} />
+      <AutoMessagesSection />
     </div>
   );
 }

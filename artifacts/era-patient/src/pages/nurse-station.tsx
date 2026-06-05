@@ -139,6 +139,7 @@ export default function NurseStation() {
   const [selectedFlagPatient, setSelectedFlagPatient] = useState<Patient | null>(null);
   const [showFlagModal, setShowFlagModal] = useState(false);
 
+
   const { data: searchResults = [], isFetching: searching } = useListPatients(
     { search },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

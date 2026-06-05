@@ -69,11 +69,24 @@ router.post("/wallet/fund/initiate", async (req: Request, res: Response): Promis
     meta: { hospital_id: ctx.intId, tx_ref: txRef },
   };
 
-  const flwRes = await fetch(`${FLW_BASE}/payments`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${FLW_SECRET_KEY()}` },
-    body: JSON.stringify(payload),
-  });
+  if (!FLW_SECRET_KEY()) {
+    console.error("[wallet] FLUTTERWAVE_SECRET_KEY is not set");
+    res.status(503).json({ error: "Payment provider not configured — contact support" });
+    return;
+  }
+
+  let flwRes: Response;
+  try {
+    flwRes = await fetch(`${FLW_BASE}/payments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${FLW_SECRET_KEY()}` },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error("[wallet] Flutterwave request failed:", err);
+    res.status(502).json({ error: "Could not reach payment provider" });
+    return;
+  }
 
   const flwJson = await flwRes.json() as Record<string, unknown>;
   if (!flwRes.ok || flwJson.status !== "success") {

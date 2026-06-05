@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useFlagMissedTreatment,
@@ -98,6 +98,29 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
     }
   };
 
+  const [smsEnabled, setSmsEnabled] = useState<boolean | null>(null);
+  const [smsToggleSaving, setSmsToggleSaving] = useState(false);
+
+  useEffect(() => {
+    if (!hospital?.token) return;
+    fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setSmsEnabled((data as Record<string, unknown>).followupSmsEnabled as boolean); });
+  }, [hospital?.token]);
+
+  const handleSmsToggle = async (value: boolean) => {
+    if (!hospital?.token || smsToggleSaving) return;
+    setSmsToggleSaving(true);
+    try {
+      const res = await fetch(apiUrl("/api/hospital/sms-modules"), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        body: JSON.stringify({ followupSmsEnabled: value }),
+      });
+      if (res.ok) setSmsEnabled(value);
+    } finally { setSmsToggleSaving(false); }
+  };
+
   const initials = patientName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
 
   return (
@@ -110,9 +133,27 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
             <Flag className="w-4 h-4 text-destructive" />
             <h2 className="font-semibold">Follow-up for {patientName}</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition">
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-3">
+            {smsEnabled !== null && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>SMS</span>
+                <button
+                  onClick={() => handleSmsToggle(!smsEnabled)}
+                  disabled={smsToggleSaving}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${smsEnabled ? "bg-primary" : "bg-muted-foreground/30"} disabled:opacity-50`}
+                  role="switch"
+                  aria-checked={smsEnabled}
+                  title={smsEnabled ? "Follow-up SMS on — click to disable" : "Follow-up SMS off — click to enable"}
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${smsEnabled ? "translate-x-4" : "translate-x-0"}`} />
+                </button>
+              </div>
+            )}
+            <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* ── Step 1: Choose who handles it ── */}

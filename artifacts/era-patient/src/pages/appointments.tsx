@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   format, isWithinInterval, subMinutes, addMinutes,
   startOfWeek, addDays, addWeeks, subWeeks, isSameDay,
@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Calendar, Clock, AlertTriangle, RefreshCw, X,
-  CalendarPlus, ChevronLeft, ChevronRight, Loader2, Search,
+  CalendarPlus, ChevronLeft, ChevronRight, Loader2, Search, MessageSquare,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -28,6 +28,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/auth-context";
+import { apiUrl } from "@/lib/api";
 
 /* ──────────────────────────────────────────────
    Constants
@@ -466,9 +467,32 @@ function CalendarView({
 export default function Appointments() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user, hospitalConfig } = useAuth();
+  const { user, hospitalConfig, hospital } = useAuth();
   const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
   const isReceptionist = user?.role === "receptionist" || user?.role === "admin";
+
+  const [smsModules, setSmsModules] = useState<{ appointmentReminderSmsEnabled: boolean } | null>(null);
+  const [smsToggleSaving, setSmsToggleSaving] = useState(false);
+
+  useEffect(() => {
+    if (!hospital?.token) return;
+    fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setSmsModules({ appointmentReminderSmsEnabled: (data as Record<string, unknown>).appointmentReminderSmsEnabled as boolean }); });
+  }, [hospital?.token]);
+
+  const handleSmsToggle = async (value: boolean) => {
+    if (!hospital?.token || smsToggleSaving) return;
+    setSmsToggleSaving(true);
+    try {
+      const res = await fetch(apiUrl("/api/hospital/sms-modules"), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        body: JSON.stringify({ appointmentReminderSmsEnabled: value }),
+      });
+      if (res.ok) setSmsModules(prev => prev ? { ...prev, appointmentReminderSmsEnabled: value } : prev);
+    } finally { setSmsToggleSaving(false); }
+  };
 
   if (!apptEnabled) {
     return (
@@ -555,12 +579,30 @@ export default function Appointments() {
               Book, reschedule, and track patient visits
             </p>
           </div>
-          {isReceptionist && (
-            <Button className="gap-2" onClick={() => openBook()}>
-              <CalendarPlus className="w-4 h-4" />
-              Book Appointment
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            {smsModules !== null && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>SMS reminders</span>
+                <button
+                  onClick={() => handleSmsToggle(!smsModules.appointmentReminderSmsEnabled)}
+                  disabled={smsToggleSaving}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${smsModules.appointmentReminderSmsEnabled ? "bg-primary" : "bg-muted-foreground/30"} disabled:opacity-50`}
+                  role="switch"
+                  aria-checked={smsModules.appointmentReminderSmsEnabled}
+                  title={smsModules.appointmentReminderSmsEnabled ? "SMS reminders on — click to disable" : "SMS reminders off — click to enable"}
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${smsModules.appointmentReminderSmsEnabled ? "translate-x-4" : "translate-x-0"}`} />
+                </button>
+              </div>
+            )}
+            {isReceptionist && (
+              <Button className="gap-2" onClick={() => openBook()}>
+                <CalendarPlus className="w-4 h-4" />
+                Book Appointment
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Tabs */}

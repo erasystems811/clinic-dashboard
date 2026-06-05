@@ -551,25 +551,40 @@ function NurseHelp({ hospitalName }: { hospitalName: string }) {
         <Tip>If you are not sure which department to choose, use <strong>General Outpatient</strong>. It covers the widest range of conditions.</Tip>
       </Section>
 
-      <Section emoji="🏥" title="Post-Treatment — What Happens After the Care Plan Ends" ci={2}>
+      <Section emoji="🏥" title="Post-Treatment Follow-up — Your Action Is Required for Specialist Patients" ci={2}>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          When you set an end date on a care plan and that date passes, the patient's stage changes to <strong className="text-foreground">Post Treatment</strong>. At this point, <strong className="text-foreground">you do not need to do anything</strong> — the system automatically follows up with the patient.
+          After a care plan ends, the system needs to check in on the patient to make sure they are recovering well. <strong className="text-foreground">How this works depends on the department:</strong>
         </p>
 
         <div className="space-y-2 mt-1">
-          {[
-            { day: "Day 1 after plan ends", what: "The system sends a warm check-in email — wishes the patient a good recovery and lets them know the team is thinking of them." },
-            { day: "Day 4 after plan ends", what: "A second check-in — encourages the patient, tells them they are doing great, and reminds them the clinic is there if they need anything." },
-            { day: "Day 7 after plan ends", what: "One-week check-in — congratulates the patient on completing their treatment and encourages them to come back if they need more help." },
-          ].map(x => (
-            <div key={x.day} className="rounded-lg border border-border bg-card/50 px-4 py-3 flex gap-3 items-start">
-              <span className="text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded px-2 py-0.5 shrink-0 mt-px whitespace-nowrap">{x.day}</span>
-              <p className="text-xs text-muted-foreground">{x.what}</p>
-            </div>
-          ))}
+          <div className="rounded-lg border border-border bg-card/50 px-4 py-3 space-y-1">
+            <p className="text-xs font-bold text-foreground">General Outpatient — automatic, no action needed</p>
+            <p className="text-xs text-muted-foreground">When a General Outpatient care plan ends, the system automatically sends check-in emails on Day 1, Day 4, and Day 7. You do not need to do anything for these patients.</p>
+          </div>
+          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 space-y-1">
+            <p className="text-xs font-bold text-foreground">All other departments — <span className="text-primary">you must take action within 48 hours</span></p>
+            <p className="text-xs text-muted-foreground">For Antenatal, Surgery, Dental, Eye, Fertility, ENT, and Paediatrics — when the plan ends, the patient appears in the <strong className="text-foreground">Post-Treatment Follow-up</strong> section at the bottom of your Medication View page. You have 48 hours to decide what to do.</p>
+          </div>
         </div>
 
-        <Remember>These emails go out by themselves — no action needed from you. Do not call the patient to follow up. The system is already checking on them for you.</Remember>
+        <p className="font-semibold text-sm pt-1">How to set up follow-up for a specialist patient:</p>
+        <div className="space-y-3">
+          <Step n={1}>Scroll to the bottom of the <strong>Medication View</strong> page. You will see a section called <strong>Post-Treatment Follow-up</strong>. Any specialist patients whose plans ended in the last 48 hours will appear here.</Step>
+          <Step n={2}>For each patient, you have two choices:
+            <div className="mt-2 space-y-1.5 pl-2">
+              <div className="flex gap-2 items-start"><span className="text-xs font-bold bg-primary/10 text-primary border border-primary/20 rounded px-1.5 py-0.5 shrink-0 mt-px">Set up</span><p className="text-xs text-muted-foreground">Click this if the patient needs follow-up emails. You will then choose which days to send them (e.g. Day 7, Day 14). You can add up to 3 follow-up dates. Think about the type of treatment — a surgery patient may need follow-up sooner than an ENT patient.</p></div>
+              <div className="flex gap-2 items-start"><span className="text-xs font-bold bg-muted text-muted-foreground border border-border rounded px-1.5 py-0.5 shrink-0 mt-px">No follow-up</span><p className="text-xs text-muted-foreground">Click this if the patient does not need any follow-up — for example, the doctor said they are fully discharged. This removes the patient from the queue.</p></div>
+            </div>
+          </Step>
+          <Step n={3}>If you chose <strong>Set up</strong> — the default starts at Day 7. You can change this number to whatever day makes sense. Click <strong>Add follow-up day</strong> to add a second or third date. When you are done, click <strong>Save</strong>. The system will email the patient on those exact days.</Step>
+        </div>
+
+        <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 px-4 py-3 mt-1 space-y-1">
+          <p className="text-xs font-bold text-amber-300 uppercase tracking-wide">Important — you have 48 hours</p>
+          <p className="text-xs text-muted-foreground">The patient only stays in the Post-Treatment Follow-up queue for 48 hours after their plan ends. After that, they disappear from the list and no follow-up will be sent. <strong className="text-foreground">Check this section every day</strong> — especially on days when specialist care plans are likely to end.</p>
+        </div>
+
+        <Remember>General Outpatient follow-up is fully automatic — Day 1, 4, 7. All other departments need you to set the follow-up days manually. If you do nothing within 48 hours, no follow-up email will be sent to that patient.</Remember>
       </Section>
 
       <AutoMessagesSection role="nurse" />

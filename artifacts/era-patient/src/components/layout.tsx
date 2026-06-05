@@ -21,7 +21,11 @@ import {
   Menu,
   X,
   FileUp,
+  Info,
+  TriangleAlert,
+  RefreshCw,
 } from "lucide-react";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/api";
@@ -39,6 +43,63 @@ import { useAuth, type Role, type HospitalConfig } from "@/contexts/auth-context
 import { TourGuide } from "@/components/tour-guide";
 import { SupportWidget } from "@/components/support-widget";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+interface Announcement {
+  id: number;
+  title: string;
+  message: string;
+  type: "info" | "warning" | "update";
+  createdAt: string;
+}
+
+const ANNOUNCEMENT_STYLES: Record<string, { banner: string; icon: typeof Info }> = {
+  info:    { banner: "border-blue-500/30 bg-blue-500/5 text-blue-300",    icon: Info },
+  warning: { banner: "border-amber-500/30 bg-amber-500/5 text-amber-300", icon: TriangleAlert },
+  update:  { banner: "border-primary/30 bg-primary/5 text-primary",       icon: RefreshCw },
+};
+
+function AnnouncementBanners({ token }: { token: string }) {
+  const [items, setItems] = useState<Announcement[]>([]);
+
+  useEffect(() => {
+    fetch(apiUrl("/api/hospital/announcements"), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : [])
+      .then(setItems)
+      .catch(() => {});
+  }, [token]);
+
+  const dismiss = async (id: number) => {
+    setItems(prev => prev.filter(a => a.id !== id));
+    await fetch(apiUrl(`/api/hospital/announcements/${id}/dismiss`), {
+      method: "POST",
+      headers: { "x-hospital-token": token },
+    }).catch(() => {});
+  };
+
+  if (!items.length) return null;
+
+  return (
+    <div className="space-y-3 mb-6">
+      {items.map(a => {
+        const s = ANNOUNCEMENT_STYLES[a.type] ?? ANNOUNCEMENT_STYLES.info;
+        const Icon = s.icon;
+        return (
+          <div key={a.id} className={`rounded-lg border px-4 py-3 flex items-start gap-3 ${s.banner}`}>
+            <Icon className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold">{a.title}</p>
+              <p className="text-sm mt-0.5 opacity-90 whitespace-pre-wrap">{a.message}</p>
+              <p className="text-xs opacity-60 mt-1">{format(new Date(a.createdAt), "d MMM yyyy")}</p>
+            </div>
+            <button onClick={() => dismiss(a.id)} className="shrink-0 opacity-60 hover:opacity-100 transition mt-0.5">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface LayoutProps {
   children: ReactNode;
@@ -402,6 +463,7 @@ export function Layout({ children }: LayoutProps) {
         )}
 
         <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+          {hospital?.token && <AnnouncementBanners token={hospital.token} />}
           {children}
         </div>
       </main>

@@ -2,68 +2,11 @@ import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout";
 import { useGetDashboardSummary, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Users, Calendar, AlertCircle, Star, Clock, Send, TrendingUp, TrendingDown, Minus, UserX, Info, TriangleAlert, RefreshCw, X, Wallet } from "lucide-react";
+import { Activity, Users, Calendar, AlertCircle, Star, Clock, Send, TrendingUp, TrendingDown, Minus, UserX, Wallet } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
-
-interface Announcement {
-  id: number;
-  title: string;
-  message: string;
-  type: "info" | "warning" | "update";
-  createdAt: string;
-}
-
-function AnnouncementBanners({ token }: { token: string }) {
-  const [items, setItems] = useState<Announcement[]>([]);
-
-  useEffect(() => {
-    fetch(apiUrl("/api/hospital/announcements"), { headers: { "x-hospital-token": token } })
-      .then(r => r.ok ? r.json() : [])
-      .then(setItems)
-      .catch(() => {});
-  }, [token]);
-
-  const dismiss = async (id: number) => {
-    setItems(prev => prev.filter(a => a.id !== id));
-    await fetch(apiUrl(`/api/hospital/announcements/${id}/dismiss`), {
-      method: "POST",
-      headers: { "x-hospital-token": token },
-    }).catch(() => {});
-  };
-
-  if (!items.length) return null;
-
-  const STYLES: Record<string, { banner: string; icon: typeof Info }> = {
-    info:    { banner: "border-blue-500/30 bg-blue-500/5 text-blue-300",    icon: Info },
-    warning: { banner: "border-amber-500/30 bg-amber-500/5 text-amber-300", icon: TriangleAlert },
-    update:  { banner: "border-primary/30 bg-primary/5 text-primary",       icon: RefreshCw },
-  };
-
-  return (
-    <div className="space-y-3">
-      {items.map(a => {
-        const s = STYLES[a.type] ?? STYLES.info;
-        const Icon = s.icon;
-        return (
-          <div key={a.id} className={`rounded-lg border px-4 py-3 flex items-start gap-3 ${s.banner}`}>
-            <Icon className="w-4 h-4 shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">{a.title}</p>
-              <p className="text-sm mt-0.5 opacity-90 whitespace-pre-wrap">{a.message}</p>
-              <p className="text-xs opacity-60 mt-1">{format(new Date(a.createdAt), "d MMM yyyy")}</p>
-            </div>
-            <button onClick={() => dismiss(a.id)} className="shrink-0 opacity-60 hover:opacity-100 transition mt-0.5">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function TrendBadge({ trend, goodDirection = "down" }: { trend?: "up" | "down" | "stable" | null; goodDirection?: "up" | "down" }) {
   if (!trend || trend === "stable") return <span className="flex items-center gap-0.5 text-xs text-muted-foreground"><Minus className="h-3 w-3" /> Stable vs last month</span>;
@@ -99,7 +42,6 @@ export default function Dashboard() {
   return (
     <Layout>
       <div className="space-y-8">
-        {hospital?.token && <AnnouncementBanners token={hospital.token} />}
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground mt-1">Live overview of clinic activity and patient pipeline.</p>

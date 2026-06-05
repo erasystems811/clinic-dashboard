@@ -10,6 +10,7 @@ import Usage from "@/pages/usage";
 import SupportInbox from "@/pages/support";
 import DocsPage from "@/pages/docs";
 import Announcements from "@/pages/announcements";
+import SystemFeedbackPage from "@/pages/system-feedback";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ function AppRoutes() {
       <Route path="/automation-tests" component={AutomationTests} />
       <Route path="/usage" component={Usage} />
       <Route path="/support" component={SupportInbox} />
+      <Route path="/feedback" component={SystemFeedbackPage} />
       <Route path="/docs" component={DocsPage} />
       <Route>
         <div className="flex items-center justify-center min-h-screen text-muted-foreground text-sm">

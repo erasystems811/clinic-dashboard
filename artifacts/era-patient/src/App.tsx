@@ -1,4 +1,5 @@
 import { Switch, Route, Router as WouterRouter, Redirect, useRoute } from "wouter";
+import SystemFeedbackPopup from "@/components/system-feedback-popup";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -129,6 +130,7 @@ function App() {
             <ProtectedRouter />
           </WouterRouter>
           <Toaster />
+          <SystemFeedbackPopup />
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

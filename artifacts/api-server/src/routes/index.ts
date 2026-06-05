@@ -18,6 +18,7 @@ import importRouter from "./import";
 import followupPlansRouter from "./followup-plans";
 import supportRouter from "./support";
 import walletRouter from "./wallet";
+import systemFeedbackRouter from "./system-feedback";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(importRouter);
 router.use(followupPlansRouter);
 router.use(supportRouter);
 router.use(walletRouter);
+router.use(systemFeedbackRouter);
 
 export default router;

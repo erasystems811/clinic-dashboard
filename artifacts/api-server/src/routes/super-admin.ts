@@ -1669,7 +1669,7 @@ router.post("/super-admin/announcements/auto-draft", requireSuperAdmin, async (_
 
   let gitLog = "";
   try {
-    const { stdout } = await execAsync("git log --no-merges -60 --format=\"%h %s\"");
+    const { stdout } = await execAsync("git log --no-merges -60 --oneline");
     gitLog = stdout.trim();
   } catch { /* no git */ }
 

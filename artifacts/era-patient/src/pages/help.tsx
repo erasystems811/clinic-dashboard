@@ -446,6 +446,40 @@ function ReceptionistHelp({ hospitalName }: { hospitalName: string }) {
         <Remember>Do not call patients to confirm or remind them. They receive 3 emails automatically.</Remember>
       </Section>
 
+      <Section emoji="📞" title="Call Tasks — Following Up on Flagged Patients" ci={3}>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          When a nurse flags a patient who needs follow-up — for example a missed medication or a patient they are worried about — a task is created here for you to action. Click <strong className="text-foreground">Call Tasks</strong> in the sidebar.
+        </p>
+
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Each task card shows the patient's name, phone number, the reason the nurse flagged them, and whether the task is a <strong className="text-foreground">Call</strong> or an <strong className="text-foreground">Email</strong>. Open tasks appear at the top. Completed tasks appear below.
+        </p>
+
+        <p className="font-semibold text-sm pt-1">If the task is a Phone Call:</p>
+        <div className="space-y-3">
+          <Step n={1}>Look at the phone number shown on the card. Call the patient on that number.</Step>
+          <Step n={2}>After the call, click <strong>Log Call Outcome</strong> on the card.</Step>
+          <Step n={3}>Type what happened — what the patient said, what was agreed, any next steps. Example: <em>"Patient picked up. Said she forgot. Will come in Thursday."</em></Step>
+          <Step n={4}>Click <strong>Save &amp; Complete</strong>. The task moves to Completed.</Step>
+        </div>
+
+        <p className="font-semibold text-sm pt-2">If the task is an Email:</p>
+        <div className="space-y-3">
+          <Step n={1}>You will see a message box on the card. Either type your own message, or click the purple <strong>AI Draft</strong> button and the system will write a message for you based on the reason the nurse provided. You can edit the AI draft before sending.</Step>
+          <Step n={2}>Read the message carefully. Make sure it sounds right for the patient.</Step>
+          <Step n={3}>Click <strong>Send Text</strong>. If your clinic has SMS turned on and the wallet has credit (₦7), it goes as an SMS to the patient's phone. If not, it goes as a free email to their inbox.</Step>
+          <Step n={4}>Sending automatically marks the task as completed.</Step>
+        </div>
+
+        <div className="space-y-2 mt-2">
+          <p className="font-semibold text-sm">Switching between Call and Email:</p>
+          <p className="text-xs text-muted-foreground">Each task has a small badge showing the current method (Call or Email). Click it to change — a picker will appear and you can switch to the other option.</p>
+        </div>
+
+        <Tip>The AI Draft button shows how many drafts you have left today — e.g. <em>"AI Draft (4/5)"</em>. There is a daily limit on how many AI messages can be generated. If you run out, just write the message yourself.</Tip>
+        <Remember>Tasks are created by nurses — you do not create them yourself. Your job is to action them: either call the patient and log what happened, or send them the message.</Remember>
+      </Section>
+
       <AutoMessagesSection role="receptionist" />
     </div>
   );

@@ -54,7 +54,7 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, wa
   smsEnabled: boolean; walletBalance: number | null;
 }) {
   const { toast } = useToast();
-  const { hospital } = useAuth();
+  const { hospital, user } = useAuth();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
 
@@ -178,7 +178,11 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, wa
     try {
       const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-message`), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        headers: {
+          "Content-Type": "application/json",
+          "x-hospital-token": hospital.token,
+          ...(user?.staffName ? { "x-performed-by": user.staffName } : {}),
+        },
         body: JSON.stringify({ message: textMsg }),
       });
       const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean };

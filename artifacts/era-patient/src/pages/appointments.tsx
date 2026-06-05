@@ -9,7 +9,11 @@ import {
   useUpdateAppointment,
   useCreateAppointment,
   useListPatients,
+  useUpdatePatient,
+  useGetPatient,
   getListAppointmentsQueryKey,
+  getListPatientsQueryKey,
+  getListQueueQueryKey,
 } from "@workspace/api-client-react";
 import type { Appointment } from "@workspace/api-client-react";
 import { getPatientStages } from "@/lib/utils";
@@ -20,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Calendar, Clock, AlertTriangle, RefreshCw, X,
-  CalendarPlus, ChevronLeft, ChevronRight, Loader2, Search, MessageSquare,
+  CalendarPlus, ChevronLeft, ChevronRight, Loader2, Search, MessageSquare, Pencil,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -60,14 +64,133 @@ function isUpcomingNow(scheduledAt: string) {
 }
 
 /* ──────────────────────────────────────────────
+   Edit Patient Modal
+────────────────────────────────────────────── */
+interface EditPatient {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  whatsappNumber: string;
+  dateOfBirth: string;
+  gender: string;
+  patientId: string;
+  notes: string;
+}
+
+function EditPatientModal({ patient, onClose, onSaved }: { patient: EditPatient; onClose: () => void; onSaved: () => void }) {
+  const { toast } = useToast();
+  const update = useUpdatePatient();
+  const [form, setForm] = useState({ ...patient });
+
+  const field = (key: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm(f => ({ ...f, [key]: e.target.value }));
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    update.mutate(
+      { id: patient.id, data: {
+        firstName: form.firstName || undefined,
+        lastName: form.lastName || undefined,
+        phone: form.phone || undefined,
+        email: form.email || undefined,
+        whatsappNumber: form.whatsappNumber || undefined,
+        dateOfBirth: form.dateOfBirth || undefined,
+        gender: form.gender || undefined,
+        patientId: form.patientId || undefined,
+        notes: form.notes || undefined,
+      }},
+      {
+        onSuccess: () => { toast({ title: "Patient info updated" }); onSaved(); onClose(); },
+        onError: (err: unknown) => {
+          const msg = (err as { data?: { error?: string } })?.data?.error ?? "Update failed";
+          toast({ title: "Could not update patient", description: msg, variant: "destructive" });
+        },
+      }
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-card border border-border rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <p className="font-semibold text-sm">Edit Patient Info</p>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={onSubmit} className="p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">First Name</label>
+              <Input value={form.firstName} onChange={field("firstName")} placeholder="First name" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Last Name</label>
+              <Input value={form.lastName} onChange={field("lastName")} placeholder="Last name" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Phone</label>
+              <Input value={form.phone} onChange={field("phone")} placeholder="Phone number" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">WhatsApp</label>
+              <Input value={form.whatsappNumber} onChange={field("whatsappNumber")} placeholder="If different" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Email</label>
+            <Input type="email" value={form.email} onChange={field("email")} placeholder="Email address" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Date of Birth</label>
+              <Input type="date" value={form.dateOfBirth} onChange={field("dateOfBirth")} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Gender</label>
+              <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" value={form.gender} onChange={field("gender")}>
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Patient ID / MRN</label>
+            <Input value={form.patientId} onChange={field("patientId")} placeholder="e.g. PT-00123" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Notes</label>
+            <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[60px] resize-y"
+              value={form.notes} onChange={field("notes")} placeholder="Any additional notes..." />
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+            <Button type="submit" size="sm" disabled={update.isPending}>
+              {update.isPending && <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />}
+              Save Changes
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
    Book Appointment Modal (shared)
 ────────────────────────────────────────────── */
 function BookModal({
-  prefillDate, prefillTime, onClose,
+  prefillDate, prefillTime, onClose, smsWalletWarning,
 }: {
   prefillDate?: string;
   prefillTime?: string;
   onClose: () => void;
+  smsWalletWarning?: boolean;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -88,6 +211,9 @@ function BookModal({
     mutation: {
       onSuccess: () => {
         toast({ title: "Appointment booked" });
+        if (smsWalletWarning) {
+          toast({ title: "SMS wallet is empty", description: "Appointment reminder will fall back to email. Fund your wallet in Settings to enable SMS reminders.", variant: "default" });
+        }
         queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
         onClose();
       },
@@ -231,11 +357,12 @@ function isOverdue2Hours(scheduledAt: string) {
   return new Date().getTime() - new Date(scheduledAt).getTime() > 2 * 60 * 60 * 1000;
 }
 
-function AppointmentCard({ apt, onCancel, onReschedule, onNoShow, showActions }: {
+function AppointmentCard({ apt, onCancel, onReschedule, onNoShow, onEdit, showActions }: {
   apt: Appointment;
   onCancel: (id: number) => void;
   onReschedule: (apt: Appointment) => void;
   onNoShow: (id: number) => void;
+  onEdit: (patientId: number) => void;
   showActions: boolean;
 }) {
   const soon = isUpcomingNow(apt.scheduledAt);
@@ -249,6 +376,16 @@ function AppointmentCard({ apt, onCancel, onReschedule, onNoShow, showActions }:
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <h3 className="font-semibold">{apt.patientName}</h3>
+          {showActions && (
+            <button
+              type="button"
+              onClick={() => onEdit(apt.patientId)}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="Edit patient info"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[apt.status] ?? STATUS_STYLES.scheduled}`}>
             {STATUS_LABELS[apt.status] ?? apt.status}
           </span>
@@ -473,12 +610,40 @@ export default function Appointments() {
 
   const [smsModules, setSmsModules] = useState<{ appointmentReminderSmsEnabled: boolean } | null>(null);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [editPatientId, setEditPatientId] = useState<number | null>(null);
+
+  const { data: editPatientFull } = useGetPatient(editPatientId ?? 0, {
+    query: { enabled: !!editPatientId },
+  });
+
+  const editPatient: EditPatient | null = editPatientId && editPatientFull ? {
+    id: editPatientFull.id,
+    firstName: editPatientFull.firstName,
+    lastName: editPatientFull.lastName,
+    phone: editPatientFull.phone ?? "",
+    email: editPatientFull.email ?? "",
+    whatsappNumber: editPatientFull.whatsappNumber ?? "",
+    dateOfBirth: editPatientFull.dateOfBirth ?? "",
+    gender: editPatientFull.gender ?? "",
+    patientId: (editPatientFull as unknown as { patientId?: string }).patientId ?? "",
+    notes: editPatientFull.notes ?? "",
+  } : null;
+
+  function handlePatientSaved() {
+    queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+  }
 
   useEffect(() => {
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setSmsModules({ appointmentReminderSmsEnabled: (data as Record<string, unknown>).appointmentReminderSmsEnabled as boolean }); });
+    fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
   }, [hospital?.token]);
 
   const handleSmsToggle = async (value: boolean) => {
@@ -570,6 +735,13 @@ export default function Appointments() {
 
   return (
     <Layout>
+      {editPatient && (
+        <EditPatientModal
+          patient={editPatient}
+          onClose={() => setEditPatientId(null)}
+          onSaved={handlePatientSaved}
+        />
+      )}
       <div className="space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -594,6 +766,9 @@ export default function Appointments() {
                 >
                   <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${smsModules.appointmentReminderSmsEnabled ? "translate-x-4" : "translate-x-0"}`} />
                 </button>
+                {smsModules.appointmentReminderSmsEnabled && walletBalance !== null && walletBalance < 7 && (
+                  <span className="text-amber-400 font-medium" title="SMS wallet is empty — reminders will fall back to email">⚠ wallet empty</span>
+                )}
               </div>
             )}
             {isReceptionist && (
@@ -658,7 +833,7 @@ export default function Appointments() {
                     Upcoming · {upcoming.length}
                   </p>
                   {upcoming.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} showActions={isReceptionist} />
+                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} onEdit={setEditPatientId} showActions={isReceptionist} />
                   ))}
                 </div>
               ) : (
@@ -684,7 +859,7 @@ export default function Appointments() {
                     <div className="flex-1 h-px bg-border" />
                   </div>
                   {past.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} showActions={isReceptionist} />
+                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} onEdit={setEditPatientId} showActions={isReceptionist} />
                   ))}
                 </div>
               )}
@@ -732,6 +907,7 @@ export default function Appointments() {
           prefillDate={bookPrefillDate}
           prefillTime={bookPrefillTime}
           onClose={() => setShowBook(false)}
+          smsWalletWarning={!!(smsModules?.appointmentReminderSmsEnabled && walletBalance !== null && walletBalance < 7)}
         />
       )}
 

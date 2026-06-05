@@ -256,6 +256,7 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
       parsed.data.message,
     );
 
+    const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
     await supabase.from("call_tasks").update({ action_type: "automated_message" }).eq("id", id);
     await supabase.from("activity").insert({
       type: "automated_message_sent",
@@ -265,6 +266,7 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
       patient_id: task.patient_id,
       patient_name: task.patient_name,
       metadata: parsed.data.message.slice(0, 200),
+      performed_by: performedBy,
     });
 
     res.json({ ok: true, sentViaSms, insufficientFunds });

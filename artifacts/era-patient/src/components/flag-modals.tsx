@@ -27,7 +27,7 @@ type ActionType = "manual_call" | "manual_email" | "automated_message";
 
 export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProps) {
   const { toast } = useToast();
-  const { hospital } = useAuth();
+  const { hospital, user } = useAuth();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   const [step, setStep] = useState<Step>("choose");
@@ -99,7 +99,11 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
         : { logOnly: true, reason: selfReason.trim(), callOutcome: callOutcome.trim() };
       const res = await fetch(apiUrl(`/api/patients/${patientId}/direct-message`), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        headers: {
+          "Content-Type": "application/json",
+          "x-hospital-token": hospital.token,
+          ...(user?.staffName ? { "x-performed-by": user.staffName } : {}),
+        },
         body: JSON.stringify(body),
       });
       const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean };

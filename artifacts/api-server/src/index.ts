@@ -171,6 +171,10 @@ async function migrateSystemFeedbackTable() {
       comment TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS feedback_broadcast (
+      id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+      triggered_at TIMESTAMPTZ NOT NULL
+    );
     NOTIFY pgrst, 'reload schema';
   `;
   try {

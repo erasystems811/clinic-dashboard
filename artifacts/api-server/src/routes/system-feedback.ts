@@ -45,4 +45,24 @@ router.get("/system-feedback", requireSuperAdmin, async (_req, res) => {
   res.json(data ?? []);
 });
 
+// Public — clients poll this to detect a broadcast trigger
+router.get("/system-feedback/broadcast", async (_req, res) => {
+  const { data } = await supabase
+    .from("feedback_broadcast")
+    .select("triggered_at")
+    .eq("id", 1)
+    .single();
+  res.json({ triggeredAt: (data?.triggered_at as string | null) ?? null });
+});
+
+// Super admin — sets broadcast timestamp; all clients will show popup within ~5 min
+router.post("/system-feedback/broadcast", requireSuperAdmin, async (_req, res) => {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("feedback_broadcast")
+    .upsert({ id: 1, triggered_at: now }, { onConflict: "id" });
+  if (error) { res.status(500).json({ error: "Failed to set broadcast" }); return; }
+  res.json({ ok: true, triggeredAt: now });
+});
+
 export default router;

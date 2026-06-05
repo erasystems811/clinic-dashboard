@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl, authHeader } from "@/lib/api";
 
 const COOLDOWN_MS = 6 * 24 * 60 * 60 * 1000;
-const SHOW_DELAY_MS = 10 * 60 * 1000; // 10 minutes into the session
+const NORMAL_DELAY_MS = 10 * 60 * 1000;    // 10 min into session
+const BROADCAST_DELAY_MS = 60 * 1000;       // 1 min after detecting a broadcast
+const POLL_INTERVAL_MS = 5 * 60 * 1000;    // check for broadcasts every 5 min
 
 const RATINGS = [
   { value: 1, emoji: "😫", label: "Terrible" },
@@ -12,6 +14,17 @@ const RATINGS = [
   { value: 4, emoji: "🙂", label: "Good" },
   { value: 5, emoji: "😍", label: "Amazing" },
 ];
+
+async function fetchBroadcastMs(): Promise<number> {
+  try {
+    const r = await fetch(apiUrl("/api/system-feedback/broadcast"));
+    if (!r.ok) return 0;
+    const d = await r.json();
+    return d.triggeredAt ? new Date(d.triggeredAt).getTime() : 0;
+  } catch {
+    return 0;
+  }
+}
 
 export default function SystemFeedbackPopup() {
   const { user, hospital } = useAuth();
@@ -22,15 +35,62 @@ export default function SystemFeedbackPopup() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  const scheduledRef = useRef(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const getKey = useCallback(
+    () => `era_sfb_v1_${hospital?.id}_${user?.username}`,
+    [hospital?.id, user?.username],
+  );
+
+  const schedule = useCallback((delayMs: number) => {
+    if (scheduledRef.current) return;
+    scheduledRef.current = true;
+    localStorage.setItem(getKey(), String(Date.now()));
+    timeoutRef.current = setTimeout(() => setOpen(true), delayMs);
+  }, [getKey]);
+
   useEffect(() => {
     if (!user || !hospital) return;
-    const key = `era_sfb_v1_${hospital.id}_${user.username}`;
-    const last = localStorage.getItem(key);
-    const shouldShow = !last || Date.now() - parseInt(last, 10) > COOLDOWN_MS;
-    if (!shouldShow) return;
-    localStorage.setItem(key, String(Date.now()));
-    const t = setTimeout(() => setOpen(true), SHOW_DELAY_MS);
-    return () => clearTimeout(t);
+
+    // ?test_feedback in the URL skips everything and shows in 2 s
+    if (new URLSearchParams(window.location.search).has("test_feedback")) {
+      schedule(2000);
+      return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); };
+    }
+
+    const lastShownMs = (() => {
+      const v = localStorage.getItem(getKey());
+      return v ? parseInt(v, 10) : 0;
+    })();
+
+    // Initial check on mount
+    fetchBroadcastMs().then(broadcastMs => {
+      if (broadcastMs > lastShownMs) {
+        schedule(BROADCAST_DELAY_MS);
+      } else if (!lastShownMs || Date.now() - lastShownMs > COOLDOWN_MS) {
+        schedule(NORMAL_DELAY_MS);
+      }
+    });
+
+    // Poll every 5 min so broadcast reaches currently logged-in users
+    const poll = setInterval(async () => {
+      if (scheduledRef.current) { clearInterval(poll); return; }
+      const broadcastMs = await fetchBroadcastMs();
+      const current = (() => {
+        const v = localStorage.getItem(getKey());
+        return v ? parseInt(v, 10) : 0;
+      })();
+      if (broadcastMs > current) {
+        schedule(BROADCAST_DELAY_MS);
+        clearInterval(poll);
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      clearInterval(poll);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, [user?.username, hospital?.id]);
 
   useEffect(() => {

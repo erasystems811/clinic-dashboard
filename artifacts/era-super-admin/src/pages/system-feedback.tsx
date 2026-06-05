@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import Layout from "@/components/layout";
-import { get } from "@/lib/api";
-import { Star, Loader2, RefreshCw, MessageSquare, AlertCircle } from "lucide-react";
+import { get, post } from "@/lib/api";
+import { Star, Loader2, RefreshCw, MessageSquare, AlertCircle, Send } from "lucide-react";
 import { formatDistanceToNow, parseISO, isThisMonth } from "date-fns";
+
+type BroadcastState = "idle" | "confirming" | "sending" | "sent" | "error";
 
 interface FeedbackEntry {
   id: number;
@@ -56,6 +58,8 @@ export default function SystemFeedbackPage() {
   const [entries, setEntries] = useState<FeedbackEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [broadcastState, setBroadcastState] = useState<BroadcastState>("idle");
+  const [broadcastMsg, setBroadcastMsg] = useState("");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -70,6 +74,20 @@ export default function SystemFeedbackPage() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleBroadcast = async () => {
+    setBroadcastState("sending");
+    try {
+      await post("/system-feedback/broadcast", {});
+      setBroadcastMsg("Popup queued — all logged-in users will see it within 5 minutes.");
+      setBroadcastState("sent");
+    } catch (e: unknown) {
+      setBroadcastMsg(e instanceof Error ? e.message : "Failed to send");
+      setBroadcastState("error");
+    } finally {
+      setTimeout(() => { setBroadcastState("idle"); setBroadcastMsg(""); }, 6000);
+    }
+  };
 
   const total = entries.length;
   const avg = total
@@ -93,15 +111,65 @@ export default function SystemFeedbackPage() {
           <h1 className="text-2xl font-bold text-foreground tracking-tight">System Feedback</h1>
           <p className="text-sm text-muted-foreground mt-1">Ratings from hospital staff across all accounts</p>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={loading}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+
+          {broadcastState === "confirming" ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card text-xs">
+              <span className="text-muted-foreground">Send to all now?</span>
+              <button
+                onClick={handleBroadcast}
+                className="font-semibold text-primary hover:opacity-80 transition-opacity"
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setBroadcastState("idle")}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => broadcastState === "idle" && setBroadcastState("confirming")}
+              disabled={broadcastState === "sending"}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                broadcastState === "sent"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                  : broadcastState === "error"
+                  ? "border-red-500/30 bg-red-500/10 text-red-400"
+                  : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
+              } disabled:opacity-50`}
+            >
+              {broadcastState === "sending" ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+              {broadcastState === "sent" ? "Sent!" : broadcastState === "error" ? "Failed" : "Push to all hospitals"}
+            </button>
+          )}
+        </div>
       </div>
+
+      {broadcastMsg && (
+        <div className={`flex items-center gap-2 text-sm mb-6 p-3 rounded-lg border ${
+          broadcastState === "error"
+            ? "text-red-400 bg-red-500/10 border-red-500/20"
+            : "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+        }`}>
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {broadcastMsg}
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-2 text-sm text-red-400 mb-6 p-3 rounded-lg bg-red-500/10 border border-red-500/20">

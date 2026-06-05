@@ -1667,13 +1667,32 @@ router.post("/super-admin/announcements/auto-draft", requireSuperAdmin, async (_
   const key = process.env.OPENAI_API_KEY;
   if (!key) { res.status(500).json({ error: "AI not configured" }); return; }
 
+  // Fetch commit history from GitHub API — reliable regardless of Railway's clone depth
+  const pat = process.env.GITHUB_PAT;
   let gitLog = "";
-  try {
-    const { stdout } = await execAsync("git log --no-merges -60 --oneline");
-    gitLog = stdout.trim();
-  } catch { /* no git */ }
+  if (pat) {
+    try {
+      const ghRes = await fetch("https://api.github.com/repos/erasystems811/clinic-dashboard/commits?per_page=60", {
+        headers: { Authorization: `token ${pat}`, Accept: "application/vnd.github.v3+json" },
+      });
+      if (ghRes.ok) {
+        const commits = await ghRes.json() as Array<{ sha: string; commit: { message: string } }>;
+        gitLog = commits
+          .map(c => `${c.sha.slice(0, 7)} ${c.commit.message.split("\n")[0]}`)
+          .join("\n");
+      }
+    } catch { /* fall through to local git */ }
+  }
 
-  if (!gitLog) { res.status(400).json({ error: "No git history found" }); return; }
+  // Fallback: try local git log (works in dev)
+  if (!gitLog) {
+    try {
+      const { stdout } = await execAsync("git log --no-merges -60 --oneline");
+      gitLog = stdout.trim();
+    } catch { /* no git */ }
+  }
+
+  if (!gitLog) { res.status(400).json({ error: "No git history found — ensure GITHUB_PAT is set" }); return; }
 
   const openai = new OpenAI({ apiKey: key });
 

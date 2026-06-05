@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { z } from "zod/v4";
+import OpenAI from "openai";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
@@ -1660,6 +1661,69 @@ router.delete("/super-admin/announcements/:id", requireSuperAdmin, async (req, r
   const id = parseInt(req.params.id, 10);
   await supabase.from("hospital_announcements").delete().eq("id", id);
   res.sendStatus(204);
+});
+
+router.post("/super-admin/announcements/auto-draft", requireSuperAdmin, async (_req, res): Promise<void> => {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) { res.status(500).json({ error: "AI not configured" }); return; }
+
+  let gitLog = "";
+  try {
+    const { stdout } = await execAsync("git log --no-merges -60 --format=\"%h %s\"");
+    gitLog = stdout.trim();
+  } catch { /* no git */ }
+
+  if (!gitLog) { res.status(400).json({ error: "No git history found" }); return; }
+
+  const openai = new OpenAI({ apiKey: key });
+
+  const systemPrompt = `You are helping Era Systems (a clinic management SaaS) write draft announcements for their hospital clients.
+
+Given recent git commits, identify hospital-facing changes and generate 2–5 draft announcements.
+
+Rules:
+- Only include changes hospitals care about: new features, workflow changes, important UX improvements
+- Skip: internal refactors, dependency bumps, debug fixes, super-admin-only tools
+- Plain language — no technical jargon
+- Group related commits into one announcement
+- Titles: 5–10 words
+- Messages: 2–3 sentences describing what changed and what the hospital can now do
+
+Return JSON only: { "announcements": [{ "title": "...", "message": "...", "type": "info"|"update"|"warning" }] }
+Use "update" for new/changed features, "info" for general notices, "warning" for things needing attention.`;
+
+  let drafts: Array<{ title: string; message: string; type: string }> = [];
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Recent commits:\n\n${gitLog}` },
+      ],
+      max_tokens: 900,
+      temperature: 0.3,
+      response_format: { type: "json_object" },
+    });
+    const raw = resp.choices[0]?.message?.content?.trim() ?? "{}";
+    const parsed = JSON.parse(raw) as { announcements?: typeof drafts };
+    drafts = Array.isArray(parsed.announcements) ? parsed.announcements : [];
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "AI failed" }); return;
+  }
+
+  if (!drafts.length) { res.status(200).json([]); return; }
+
+  const toInsert = drafts.map(d => ({
+    hospital_id: null,
+    title: d.title?.trim() ?? "Untitled",
+    message: d.message?.trim() ?? "",
+    type: ["info", "update", "warning"].includes(d.type) ? d.type : "info",
+    published: false,
+  }));
+
+  const { data, error } = await supabase.from("hospital_announcements").insert(toInsert).select();
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.status(201).json(data ?? []);
 });
 
 // ── Hospital-facing announcement routes ──────────────────────────────────────

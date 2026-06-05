@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Layout from "@/components/layout";
 import { get, post, del } from "@/lib/api";
-import { Info, TriangleAlert, RefreshCw, Plus, Trash2, Loader2, Building2, Radio, Check, Edit } from "lucide-react";
+import { Info, TriangleAlert, RefreshCw, Plus, Trash2, Loader2, Building2, Radio, Check, Edit, Sparkles } from "lucide-react";
 
 interface Announcement {
   id: number;
@@ -41,6 +41,8 @@ export default function Announcements() {
   const [publishNow, setPublishNow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -112,6 +114,25 @@ export default function Announcements() {
     setShowForm(true);
   };
 
+  const handleGenerate = async () => {
+    setGenerating(true); setGenError("");
+    try {
+      const res = await fetch("/api/super-admin/announcements/auto-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-super-admin-token": localStorage.getItem("era_super_admin_token") || "" },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? "Failed to generate");
+      }
+      load();
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const drafts = items.filter(a => !a.published);
   const published = items.filter(a => a.published);
 
@@ -125,13 +146,26 @@ export default function Announcements() {
               Push notices to hospital dashboards — feature updates, scheduled maintenance, policy changes.
             </p>
           </div>
-          <button
-            onClick={() => { setShowForm(v => !v); setSaveError(""); }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition"
-          >
-            <Plus className="w-4 h-4" /> New Notice
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-border bg-card text-sm font-semibold hover:bg-muted transition disabled:opacity-50"
+              title="Auto-generate draft announcements from recent code changes"
+            >
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {generating ? "Generating…" : "Auto-draft"}
+            </button>
+            <button
+              onClick={() => { setShowForm(v => !v); setSaveError(""); }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition"
+            >
+              <Plus className="w-4 h-4" /> New Notice
+            </button>
+          </div>
         </div>
+
+        {genError && <p className="text-xs text-destructive">{genError}</p>}
 
         {/* Create/Edit form */}
         {showForm && (

@@ -65,7 +65,13 @@ export default function Announcements() {
     setSaveError(""); setSaving(true);
     try {
       if (editingId) {
-        await patch(`/super-admin/announcements/${editingId}`, { title: title.trim(), message: message.trim(), type, expiresAt: expiresAt || null });
+        await patch(`/super-admin/announcements/${editingId}`, {
+          title: title.trim(),
+          message: message.trim(),
+          type,
+          expiresAt: expiresAt || null,
+          hospitalId: targetAll ? null : (hospitalId || null),
+        });
       } else {
         await post("/super-admin/announcements", {
           title: title.trim(),
@@ -102,6 +108,8 @@ export default function Announcements() {
     setMessage(a.message);
     setType(a.type);
     setExpiresAt(a.expiresAt ? a.expiresAt.split("T")[0] : "");
+    setTargetAll(a.hospitalId === null);
+    setHospitalId(a.hospitalId ?? "");
     setPublishNow(false);
     setShowForm(true);
   };

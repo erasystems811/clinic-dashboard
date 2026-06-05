@@ -587,6 +587,47 @@ function NurseHelp({ hospitalName }: { hospitalName: string }) {
         <Remember>General Outpatient follow-up is fully automatic — Day 1, 4, 7. All other departments need you to set the follow-up days manually. If you do nothing within 48 hours, no follow-up email will be sent to that patient.</Remember>
       </Section>
 
+      <Section emoji="🚩" title="Flag Patient for Follow-up" ci={3}>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          If you notice a patient who needs attention — missed a dose, not responding to treatment, you are worried about them, or they just need someone to check in — you can flag them from Medication View. This is at the <strong className="text-foreground">bottom of the page</strong>, under the Post-Treatment section.
+        </p>
+
+        <div className="space-y-3 pt-1">
+          <Step n={1}>Scroll to the bottom of <strong>Medication View</strong>. You will see a section called <strong>Flag Patient for Follow-up</strong>.</Step>
+          <Step n={2}>Type the patient's name or ID in the search box. Click their name to open the follow-up modal.</Step>
+          <Step n={3}>
+            A window will open asking: <strong>"Who will handle this follow-up?"</strong> You have two choices:
+            <div className="mt-2 space-y-1.5 pl-2">
+              <div className="flex gap-2 items-start">
+                <span className="text-xs font-bold bg-primary/10 text-primary border border-primary/20 rounded px-1.5 py-0.5 shrink-0 mt-px whitespace-nowrap">I'll handle it myself</span>
+                <p className="text-xs text-muted-foreground">You contact the patient directly right now. Choose Email (you write or AI generates a message, then you send it) or Phone Call (you call them and type what happened on the call to log it). Good for urgent matters where you want to act immediately.</p>
+              </div>
+              <div className="flex gap-2 items-start">
+                <span className="text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded px-1.5 py-0.5 shrink-0 mt-px whitespace-nowrap">Send to receptionist</span>
+                <p className="text-xs text-muted-foreground">You pass the task to the receptionist. Type the reason (e.g. "Missed last 2 medications — please call"), choose Phone Call or Email, and click Create Task. It will appear in the receptionist's Call Tasks list for them to action.</p>
+              </div>
+            </div>
+          </Step>
+        </div>
+
+        <div className="space-y-2 mt-2">
+          <p className="font-semibold text-sm text-foreground">If you choose "I'll handle it myself" — Email:</p>
+          <div className="space-y-1.5 pl-2">
+            <div className="flex gap-2 items-start"><span className="text-xs bg-muted rounded px-1.5 py-0.5 shrink-0">Step 1</span><p className="text-xs text-muted-foreground">Type a reason in the Reason box — even one sentence is fine (e.g. "Has not come in for check-up this week"). This is for your records.</p></div>
+            <div className="flex gap-2 items-start"><span className="text-xs bg-muted rounded px-1.5 py-0.5 shrink-0">Step 2</span><p className="text-xs text-muted-foreground">Either type your message directly in the message box, or click <strong className="text-foreground">AI Draft</strong> and the system will write a message for you based on the reason you typed. You can edit the AI draft before sending.</p></div>
+            <div className="flex gap-2 items-start"><span className="text-xs bg-muted rounded px-1.5 py-0.5 shrink-0">Step 3</span><p className="text-xs text-muted-foreground">Click <strong className="text-foreground">Send Email</strong>. If your clinic has SMS enabled and the wallet has credit, it goes as SMS (₦7). Otherwise it goes as a free email.</p></div>
+          </div>
+
+          <p className="font-semibold text-sm text-foreground pt-1">If you choose "I'll handle it myself" — Phone Call:</p>
+          <div className="pl-2">
+            <p className="text-xs text-muted-foreground">You call the patient yourself on the phone. After the call, come back and type what happened in the <strong className="text-foreground">Call outcome</strong> box (e.g. "Patient said she is recovering well and will come in on Friday"). Click <strong className="text-foreground">Log Call</strong> to save it to the patient's activity record.</p>
+          </div>
+        </div>
+
+        <Tip>Use <strong>Send to receptionist</strong> when you are busy with other patients and can't contact them right now. Use <strong>I'll handle it myself</strong> when it is urgent and you want it done immediately.</Tip>
+        <Remember>The AI Draft button only works after you have typed a reason. Fill in the reason first, then click AI Draft.</Remember>
+      </Section>
+
       <AutoMessagesSection role="nurse" />
     </div>
   );

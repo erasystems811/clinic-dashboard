@@ -14,7 +14,8 @@ router.get("/queue", async (req, res): Promise<void> => {
     .from("queue")
     .select("*")
     .eq("hospital_id", hospital.code)
-    .order("position", { ascending: true });
+    .order("position", { ascending: true })
+    .limit(500);
 
   if (error) { res.status(500).json({ error: error.message }); return; }
   if (!entries || entries.length === 0) { res.json([]); return; }

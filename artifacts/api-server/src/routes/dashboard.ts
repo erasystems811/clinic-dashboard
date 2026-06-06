@@ -76,17 +76,28 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   const patientIds = await getPatientIdsForHospital(hospital.code);
   const safePatientIds = patientIds.length ? patientIds : [-1];
 
+  const sixMonthsAgo = new Date(utcNow.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
+
   const [
     { count: totalPatients },
     { count: newThisMonth },
     { data: weekAppointments },
     { data: stages },
-    { data: allPatientStages },
-    { data: allFeedback },
+    // Stage counts: individual count queries instead of loading all 500k patient rows
+    { count: activeCount },
+    { count: dormantCount },
+    { count: postTreatmentCount },
+    { count: inCareCount },
+    { data: inCarePatientIds },
+    // Recent feedback only (last 6 months) — enough for a representative avg rating
+    { data: recentFeedback },
     { data: newsletters },
     { data: queuedPatients },
+    // Appointments capped to 6 months for no-show rate — accurate for current trends
     { data: allAppointments },
+    // Dequeue activity capped to 6 months for avg wait calculation
     { data: dequeuedActivity },
+    // Only active care plans matter for "In Care" badge
     { data: carePlanPatients },
   ] = await Promise.all([
     supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.code),
@@ -97,20 +108,25 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       .gte("scheduled_at", startOfWeek.toISOString())
       .lt("scheduled_at", endOfWeek.toISOString()),
     supabase.from("pipeline_stages").select("*").order("sort_order", { ascending: true }),
-    supabase.from("patients").select("id, stage").eq("hospital_id", hospital.code),
-    supabase.from("feedback").select("rating").eq("hospital_id", hospital.intId),
+    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.code).eq("stage", "Active"),
+    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.code).eq("stage", "Dormant"),
+    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.code).eq("stage", "Post Treatment"),
+    supabase.from("patients").select("*", { count: "exact", head: true }).eq("hospital_id", hospital.code).eq("stage", "In Care"),
+    supabase.from("patients").select("id").eq("hospital_id", hospital.code).eq("stage", "In Care"),
+    supabase.from("feedback").select("rating").eq("hospital_id", hospital.intId).gte("submitted_at", sixMonthsAgo),
     supabase.from("wellness_newsletter").select("last_sent_at").eq("hospital_id", hospital.intId).order("last_sent_at", { ascending: false }).limit(1),
     supabase.from("queue").select("patient_id, added_at").eq("hospital_id", hospital.code),
-    // All-time appointments for no-show rate calculation
-    supabase.from("appointments").select("status, scheduled_at").in("patient_id", safePatientIds),
-    // All-time dequeue events with stamped wait_minutes in metadata
+    // 6-month window for no-show rate — sufficient for current trend accuracy
+    supabase.from("appointments").select("status, scheduled_at").in("patient_id", safePatientIds).gte("scheduled_at", sixMonthsAgo),
+    // 6-month window for avg wait calculation
     supabase.from("activity")
       .select("metadata, created_at")
       .eq("hospital_id", hospital.intId)
       .eq("type", "dequeued")
-      .not("metadata", "is", null),
-    // Patients who have any care plan row (regardless of patients.stage value)
-    supabase.from("care_plans").select("patient_id").eq("hospital_id", hospital.code),
+      .not("metadata", "is", null)
+      .gte("created_at", sixMonthsAgo),
+    // Only active care plans matter for In Care badge
+    supabase.from("care_plans").select("patient_id").eq("hospital_id", hospital.code).eq("status", "active"),
   ]);
 
   const startOfDayISO = startOfDay.toISOString();
@@ -121,10 +137,13 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   ).length;
   const appointmentsThisWeek = (weekAppointments ?? []).length;
 
-  const countMap: Record<string, number> = {};
-  for (const p of allPatientStages ?? []) {
-    countMap[p.stage] = (countMap[p.stage] ?? 0) + 1;
-  }
+  // Stage counts come from individual DB count queries — no full table scan
+  const countMap: Record<string, number> = {
+    "Active":         activeCount ?? 0,
+    "Dormant":        dormantCount ?? 0,
+    "Post Treatment": postTreatmentCount ?? 0,
+    "In Care":        inCareCount ?? 0,
+  };
 
   // "Queued" and "Booked" are derived states — their counts come from queue/appointments tables,
   // not from patients.stage. All other stages (Active, In Care, Post Treatment, Dormant) use countMap.
@@ -140,14 +159,14 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   });
 
   // Distinct count: patients who are in queue OR currently in care (no double-counting).
-  // "In Care" = patients.stage is "In Care" OR patient has any care_plans row.
+  // "In Care" = patients.stage is "In Care" OR patient has any active care_plans row.
   const queuedIds = new Set((queuedPatients ?? []).map(q => q.patient_id as number));
-  const inCareByStage = new Set((allPatientStages ?? []).filter(p => p.stage === "In Care").map(p => (p as Record<string, unknown>).id as number));
+  const inCareByStage = new Set((inCarePatientIds ?? []).map(p => (p as Record<string, unknown>).id as number));
   const inCareByPlan = new Set((carePlanPatients ?? []).map(p => p.patient_id as number));
   const activePatientIds = new Set([...queuedIds, ...inCareByStage, ...inCareByPlan]);
   const criticalAlerts = activePatientIds.size;
 
-  const feedbackList = allFeedback ?? [];
+  const feedbackList = recentFeedback ?? [];
   const avgFeedbackRating = feedbackList.length > 0
     ? Math.round((feedbackList.reduce((s, f) => s + (f.rating ?? 0), 0) / feedbackList.length) * 10) / 10
     : 0;

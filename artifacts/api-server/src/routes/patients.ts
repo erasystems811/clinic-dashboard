@@ -461,6 +461,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
     // ── When treatment completes, clear the active plan so a new plan can be started fresh ──
     if (parsed.data.stage === "Post Treatment") {
       await supabase.from("patients").update({
+        post_treatment_started_at: new Date().toISOString(),
         treatment_plan: null,
         treatment_type: null,
         medication_timing: null,

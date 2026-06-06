@@ -15,7 +15,6 @@ import {
   sendCarePlanEmail,
   sendQueueLongWaitApology,
   sendBeneficiaryReminderEmail,
-  sendDepartmentalFollowupEmail,
   type InCareTimeSlot,
   type PregeneratedMessages,
 } from "./automation.js";
@@ -108,47 +107,38 @@ async function runAppointmentReminders() {
   }
 }
 
-// ── Post-Treatment Check-ins — runs daily — Day 1, 4, 7 emails only ───────────
-// Per-plan Day 1/4/7 check-ins for General Outpatient only.
-// Keyed on care_plans.ended_at so each plan triggers its own sequence independently —
-// a patient with multiple GenOut plans gets follow-ups for each one separately,
-// even if another plan is still active.
+// ── Post-Treatment Check-ins — runs daily — Day 1, 4, 7 emails ───────────────
+// Per-patient templated Day 1/4/7 check-ins for ALL departments.
+// Triggered once per patient when they enter Post Treatment stage, keyed on
+// patients.post_treatment_started_at so multiple ended care plans don't produce
+// duplicate sequences.
 async function runPostTreatmentCheckins() {
   try {
     const now = new Date();
 
     const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code, active");
     for (const h of hospitals ?? []) {
-      // Query ended GenOut care plans — patient stage is irrelevant here
-      const { data: plans } = await supabase
-        .from("care_plans")
-        .select("id, patient_id, ended_at")
+      // Query all patients currently in Post Treatment with a recorded start date
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, email, post_treatment_started_at")
         .eq("hospital_id", h.hospital_code)
-        .eq("department", "General Outpatient")
-        .eq("status", "ended")
-        .not("ended_at", "is", null);
+        .eq("stage", "Post Treatment")
+        .not("post_treatment_started_at", "is", null);
 
-      for (const plan of plans ?? []) {
-        if (!plan.ended_at) continue;
+      for (const patient of patients ?? []) {
+        if (!patient.post_treatment_started_at || !patient.email) continue;
 
-        const endDate = new Date(plan.ended_at as string);
-        const daysSinceEnd = Math.floor((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
-
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("id, first_name, last_name, email")
-          .eq("id", plan.patient_id as number)
-          .maybeSingle();
-
-        if (!patient?.email) continue;
+        const startDate = new Date(patient.post_treatment_started_at as string);
+        const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
         const patientName = `${patient.first_name} ${patient.last_name}`;
 
         for (const day of [1, 4, 7] as const) {
-          if (daysSinceEnd < day) continue;
-          if (daysSinceEnd > day + 30) continue; // 30-day catch-up window for patients queued late
+          if (daysSinceStart < day) continue;
+          if (daysSinceStart > day + 30) continue; // 30-day catch-up window
 
-          // Dedup key scoped to this plan so a second GenOut plan fires its own Day 1/4/7
-          const automationType = `post_treatment_plan${plan.id}_day${day}`;
+          // Dedup key per patient — one sequence per Post Treatment entry
+          const automationType = `post_treatment_patient${patient.id}_day${day}`;
           const { data: alreadySent } = await supabase
             .from("automation_log")
             .select("id")
@@ -160,7 +150,7 @@ async function runPostTreatmentCheckins() {
           if (alreadySent) continue;
 
           await sendPostTreatmentCheckinEmail(h.id, patient.id as number, patientName, patient.email as string, day);
-          log(`Post-treatment Day ${day} email → patient ${patient.id} (GenOut plan ${plan.id}, ${daysSinceEnd}d since ended)`);
+          log(`Post-treatment Day ${day} email → patient ${patient.id} (${daysSinceStart}d since Post Treatment start)`);
         }
       }
     }
@@ -171,8 +161,8 @@ async function runPostTreatmentCheckins() {
 }
 
 // ── Active Wellness Emails — runs daily at 6pm ────────────────────────────────
-// Sends a wellness nudge to Active/Post Care patients who haven't been queued
-// (checked in) in the last 30 days. Per-patient 30-day cooldown via automation_log.
+// Sends a wellness nudge to Active patients who haven't checked in within 30 days.
+// Uses bulk queries per hospital to eliminate per-patient N+1 patterns.
 async function runPostCareEmails() {
   try {
     const now = new Date();
@@ -190,41 +180,47 @@ async function runPostCareEmails() {
 
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, email, stage")
+        .select("id, first_name, last_name, email")
         .eq("hospital_id", hospital.hospital_code)
         .eq("stage", "Active")
         .not("email", "is", null);
 
-      for (const p of patients ?? []) {
-        if (!p.email) continue;
+      if (!patients?.length) continue;
+      const patientIds = patients.map(p => p.id as number);
 
-        // Find this patient's most recent check-in (ever).
-        // - No check-in at all → brand-new or never-visited patient → skip.
-        // - Last check-in within 30 days → still attending regularly → skip.
-        // - Last check-in older than 30 days → patient has lapsed → eligible.
-        const { data: lastCheckin } = await supabase
-          .from("activity")
-          .select("created_at")
-          .eq("patient_id", p.id)
-          .eq("type", "checkin")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      // Bulk: patient IDs that checked in within the last 30 days — skip these
+      const { data: recentCheckins } = await supabase
+        .from("activity")
+        .select("patient_id")
+        .eq("hospital_id", hospital.id)
+        .eq("type", "checkin")
+        .gte("created_at", cutoff30)
+        .in("patient_id", patientIds);
+      const recentlyCheckedIn = new Set((recentCheckins ?? []).map(r => r.patient_id as number));
 
-        if (!lastCheckin) continue; // never visited — not a lapsed patient
-        if (lastCheckin.created_at >= cutoff30) continue; // visited within 30 days
+      // Bulk: patient IDs that have ever checked in — skip never-visited patients
+      const { data: everCheckedIn } = await supabase
+        .from("activity")
+        .select("patient_id")
+        .eq("hospital_id", hospital.id)
+        .eq("type", "checkin")
+        .in("patient_id", patientIds);
+      const hasEverCheckedIn = new Set((everCheckedIn ?? []).map(r => r.patient_id as number));
 
-        // Per-patient 30-day cooldown — skip if already sent within last 30 days
-        const { data: recentSend } = await supabase
-          .from("automation_log")
-          .select("id")
-          .eq("patient_id", p.id)
-          .eq("automation_type", "post_care_email")
-          .eq("status", "sent")
-          .gte("created_at", cutoff30)
-          .maybeSingle();
+      // Bulk: patient IDs that already received a wellness email in the last 30 days
+      const { data: recentSends } = await supabase
+        .from("automation_log")
+        .select("patient_id")
+        .eq("automation_type", "post_care_email")
+        .eq("status", "sent")
+        .gte("created_at", cutoff30)
+        .in("patient_id", patientIds);
+      const alreadyEmailed = new Set((recentSends ?? []).map(r => r.patient_id as number));
 
-        if (recentSend) continue;
+      for (const p of patients) {
+        if (!hasEverCheckedIn.has(p.id as number)) continue; // never visited
+        if (recentlyCheckedIn.has(p.id as number)) continue;  // visited within 30 days
+        if (alreadyEmailed.has(p.id as number)) continue;     // already sent
 
         const patientName = `${p.first_name} ${p.last_name}`;
         await sendPostCareEmail(hospital.id, p.id as number, patientName, p.email as string);
@@ -392,7 +388,7 @@ async function runPostTreatmentTransitions() {
 
         if (!remainingActive || remainingActive.length === 0) {
           await supabase.from("patients")
-            .update({ stage: "Post Treatment", treatment_plan: null, treatment_type: null, medication_timing: null, updated_at: now })
+            .update({ stage: "Post Treatment", post_treatment_started_at: now, treatment_plan: null, treatment_type: null, medication_timing: null, updated_at: now })
             .eq("id", patient.id);
 
           await supabase.from("activity").insert({
@@ -429,7 +425,7 @@ async function runPostTreatmentTransitions() {
       for (const p of patients ?? []) {
         const nowIso = new Date().toISOString();
         await supabase.from("patients")
-          .update({ stage: "Active", updated_at: nowIso })
+          .update({ stage: "Active", post_treatment_started_at: null, updated_at: nowIso })
           .eq("id", p.id);
         await supabase.from("activity").insert({
           type: "stage_changed",
@@ -646,30 +642,30 @@ async function runBirthdayEmails() {
 
     const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code, active");
     for (const h of hospitals ?? []) {
+      // Filter by today's MM-DD directly in the DB — avoids loading all patients
       const { data: patients } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, email, date_of_birth")
+        .select("id, first_name, last_name, email")
         .eq("hospital_id", h.hospital_code)
         .not("email", "is", null)
-        .not("date_of_birth", "is", null);
+        .like("date_of_birth", `____-${todayMMDD}`);
 
-      for (const p of patients ?? []) {
-        const dob = p.date_of_birth as string;
-        if (!dob || dob.slice(5) !== todayMMDD) continue;
+      if (!patients?.length) continue;
 
-        // One per patient per calendar year
-        const { data: alreadySent } = await supabase
-          .from("automation_log")
-          .select("id")
-          .eq("hospital_id", h.id)
-          .eq("patient_id", p.id)
-          .eq("automation_type", "birthday_email")
-          .eq("status", "sent")
-          .gte("created_at", yearStart)
-          .maybeSingle();
+      // Batch dedup — one query for all birthday patients this year instead of one per patient
+      const patientIds = patients.map(p => p.id as number);
+      const { data: alreadySentRows } = await supabase
+        .from("automation_log")
+        .select("patient_id")
+        .eq("hospital_id", h.id)
+        .eq("automation_type", "birthday_email")
+        .eq("status", "sent")
+        .gte("created_at", yearStart)
+        .in("patient_id", patientIds);
+      const alreadySentIds = new Set((alreadySentRows ?? []).map(r => r.patient_id as number));
 
-        if (alreadySent) continue;
-
+      for (const p of patients) {
+        if (alreadySentIds.has(p.id as number)) continue;
         const patientName = `${p.first_name} ${p.last_name}`;
         await sendBirthdayEmail(h.id, p.id as number, patientName, p.email as string);
         log(`Birthday email → patient ${p.id}`);
@@ -825,6 +821,7 @@ async function runCarePlanCompletionDetection() {
 
           await supabase.from("patients").update({
             stage: "Post Treatment",
+            post_treatment_started_at: now,
             treatment_end_date: lastDate,
             treatment_plan: null,
             treatment_type: null,
@@ -849,75 +846,6 @@ async function runCarePlanCompletionDetection() {
   }
 }
 
-// ── Departmental Post-Treatment Follow-ups — runs daily ───────────────────────
-// Fires Claude-generated check-in emails on nurse-configured day offsets after
-// treatment_end_date. Only for departments that have a post_treatment_followup_plan.
-// Per-plan departmental follow-ups, keyed on care_plans.ended_at.
-// Fires independently per plan — a patient with multiple ended plans gets
-// follow-ups for each one, even if another plan is still active (patient still In Care).
-async function runDepartmentalFollowups() {
-  try {
-    const now = new Date();
-
-    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code, active");
-    for (const h of hospitals ?? []) {
-      // Query all follow-up plans whose care plan has ended — patient stage is irrelevant
-      const { data: followupPlans } = await supabase
-        .from("post_treatment_followup_plans")
-        .select("care_plan_id, patient_id, department, followup_days")
-        .eq("hospital_id", h.hospital_code);
-
-      for (const fp of followupPlans ?? []) {
-        const days = (fp.followup_days as number[]) ?? [];
-        if (!days.length) continue;
-
-        // Only fire for ended care plans — get the plan's ended_at timestamp
-        const { data: plan } = await supabase
-          .from("care_plans")
-          .select("id, ended_at, status")
-          .eq("id", fp.care_plan_id as number)
-          .maybeSingle();
-
-        if (!plan?.ended_at || plan.status !== "ended") continue;
-
-        const endDate = new Date(plan.ended_at as string);
-        const daysSinceEnd = Math.floor((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
-
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("id, first_name, last_name, email")
-          .eq("id", fp.patient_id as number)
-          .maybeSingle();
-
-        if (!patient?.email) continue;
-        const patientName = `${patient.first_name} ${patient.last_name}`;
-        const dept = fp.department as string;
-
-        for (const day of days) {
-          if (daysSinceEnd < day) continue;
-          if (daysSinceEnd > day + 30) continue;
-
-          const automationType = `dept_followup_plan${fp.care_plan_id}_day${day}`;
-          const { data: alreadySent } = await supabase
-            .from("automation_log")
-            .select("id")
-            .eq("patient_id", patient.id)
-            .eq("automation_type", automationType)
-            .eq("status", "sent")
-            .maybeSingle();
-
-          if (alreadySent) continue;
-
-          await sendDepartmentalFollowupEmail(h.id, patient.id as number, patientName, patient.email as string, dept, day);
-          log(`Departmental follow-up Day ${day} (${dept}, plan ${fp.care_plan_id as number}) → patient ${patient.id} (${daysSinceEnd}d since ended)`);
-        }
-      }
-    }
-  } catch (err) {
-    Sentry.captureException(err);
-    log(`Departmental follow-ups error: ${err}`);
-  }
-}
 
 export function startScheduler() {
   if (process.env.ENABLE_SCHEDULER !== "true") {
@@ -935,12 +863,11 @@ export function startScheduler() {
     await runQueueLongWaitCheck();
   });
 
-  // Daily at 7:00 AM WAT: pipeline transitions + post-treatment check-ins + dormant + birthdays + departmental follow-ups
+  // Daily at 7:00 AM WAT: pipeline transitions + post-treatment check-ins + dormant + birthdays
   cron.schedule("0 7 * * *", async () => {
     await runCarePlanCompletionDetection();
     await runPostTreatmentTransitions();
     await runPostTreatmentCheckins();
-    await runDepartmentalFollowups();
     await runDormantDetection();
     await runBirthdayEmails();
   }, TZ);
@@ -1097,6 +1024,15 @@ async function runCarePlanRemindersHourly() {
 
       if (!plans?.length) continue;
 
+      // Pre-fetch all patients for this hospital in one query — eliminates N per-plan lookups
+      const planPatientIds = [...new Set(plans.map(p => p.patient_id as number))];
+      const { data: patientRows } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, email, stage, treatment_end_date")
+        .eq("hospital_id", h.hospital_code)
+        .in("id", planPatientIds);
+      const patientMap = new Map((patientRows ?? []).map(p => [p.id as number, p]));
+
       for (const plan of plans) {
         const dept = plan.department as string;
         const td = (plan.template_data ?? {}) as Record<string, unknown>;
@@ -1104,12 +1040,7 @@ async function runCarePlanRemindersHourly() {
         const beneficiaryEmail = plan.beneficiary_email as string | null;
         const beneficiaryRelationship = plan.beneficiary_relationship as string | null;
 
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("id, first_name, last_name, email, stage, treatment_end_date")
-          .eq("id", plan.patient_id)
-          .eq("hospital_id", h.hospital_code)
-          .maybeSingle();
+        const patient = patientMap.get(plan.patient_id as number);
 
         if (!patient?.email) continue;
 

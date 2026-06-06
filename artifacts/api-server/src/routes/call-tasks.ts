@@ -76,7 +76,8 @@ router.get("/call-tasks", async (req, res): Promise<void> => {
     .select("*")
     .eq("hospital_id", hospital.intId)
     .order("completed_at", { ascending: true, nullsFirst: true })
-    .order("flagged_at", { ascending: true });
+    .order("flagged_at", { ascending: true })
+    .limit(200);
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 

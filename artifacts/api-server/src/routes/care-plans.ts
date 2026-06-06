@@ -282,6 +282,7 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
     // No active plans left — move patient to Post Treatment
     await supabase.from("patients").update({
       stage: "Post Treatment",
+      post_treatment_started_at: now.toISOString(),
       treatment_end_date: today,
       treatment_plan: null,
       treatment_type: null,

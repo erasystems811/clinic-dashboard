@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS patients (
   treatment_started_at      TEXT,
   last_checkin_sent_at      TIMESTAMPTZ,
   last_feedback_sent_at     TIMESTAMPTZ,
+  post_treatment_started_at TIMESTAMPTZ,
   created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -162,14 +163,44 @@ CREATE TABLE IF NOT EXISTS activity (
 
 -- ── Feedback ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS feedback (
-  id           SERIAL PRIMARY KEY,
-  patient_id   INTEGER,
-  patient_name TEXT,
-  hospital_id  TEXT,
-  rating       INTEGER NOT NULL,
-  comment      TEXT,
-  token        TEXT UNIQUE,
-  submitted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                       SERIAL PRIMARY KEY,
+  patient_id               INTEGER,
+  patient_name             TEXT,
+  hospital_id              TEXT,
+  rating                   INTEGER NOT NULL,
+  wait_time_rating         INTEGER,
+  staff_friendliness_rating INTEGER,
+  quality_of_care_rating   INTEGER,
+  would_recommend          BOOLEAN,
+  is_read                  BOOLEAN NOT NULL DEFAULT false,
+  comment                  TEXT,
+  token                    TEXT UNIQUE,
+  submitted_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Feedback Form Config ──────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS feedback_form_config (
+  id          SERIAL PRIMARY KEY,
+  hospital_id INTEGER NOT NULL UNIQUE REFERENCES hospitals(id) ON DELETE CASCADE,
+  questions   JSONB NOT NULL DEFAULT '[]',
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── System Feedback (staff ratings of the Era platform) ───────────────────────
+CREATE TABLE IF NOT EXISTS system_feedback (
+  id            SERIAL PRIMARY KEY,
+  hospital_id   INTEGER REFERENCES hospitals(id) ON DELETE SET NULL,
+  hospital_name TEXT,
+  user_role     TEXT NOT NULL,
+  rating        INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment       TEXT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ── Feedback Broadcast (super-admin trigger to show popup to all staff) ────────
+CREATE TABLE IF NOT EXISTS feedback_broadcast (
+  id          INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  triggered_at TIMESTAMPTZ NOT NULL
 );
 
 -- ── Wellness Newsletter ───────────────────────────────────────────────────────
@@ -249,6 +280,9 @@ ALTER TABLE departments                DISABLE ROW LEVEL SECURITY;
 ALTER TABLE appointments               DISABLE ROW LEVEL SECURITY;
 ALTER TABLE activity                   DISABLE ROW LEVEL SECURITY;
 ALTER TABLE feedback                   DISABLE ROW LEVEL SECURITY;
+ALTER TABLE feedback_form_config       DISABLE ROW LEVEL SECURITY;
+ALTER TABLE system_feedback            DISABLE ROW LEVEL SECURITY;
+ALTER TABLE feedback_broadcast         DISABLE ROW LEVEL SECURITY;
 ALTER TABLE wellness_newsletter        DISABLE ROW LEVEL SECURITY;
 ALTER TABLE automation_log             DISABLE ROW LEVEL SECURITY;
 
@@ -272,6 +306,10 @@ ALTER TABLE hospital_modules ADD COLUMN IF NOT EXISTS whatsapp_enabled BOOLEAN N
 -- patients scheduler columns
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS last_checkin_sent_at TIMESTAMPTZ;
 ALTER TABLE patients ADD COLUMN IF NOT EXISTS last_feedback_sent_at TIMESTAMPTZ;
+ALTER TABLE patients ADD COLUMN IF NOT EXISTS post_treatment_started_at TIMESTAMPTZ;
+
+-- Backfill: patients already in Post Treatment get a started_at approximated from updated_at
+UPDATE patients SET post_treatment_started_at = updated_at WHERE stage = 'Post Treatment' AND post_treatment_started_at IS NULL;
 
 -- call_tasks hospital scoping
 ALTER TABLE call_tasks ADD COLUMN IF NOT EXISTS hospital_id TEXT;
@@ -286,9 +324,17 @@ ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_2h_sent_at  TIMESTAMP
 -- activity hospital scoping
 ALTER TABLE activity ADD COLUMN IF NOT EXISTS hospital_id TEXT;
 
--- feedback hospital scoping + token
+-- feedback hospital scoping + token + extended fields
 ALTER TABLE feedback ADD COLUMN IF NOT EXISTS hospital_id TEXT;
 ALTER TABLE feedback ADD COLUMN IF NOT EXISTS token TEXT UNIQUE;
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS wait_time_rating INTEGER;
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS staff_friendliness_rating INTEGER;
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS quality_of_care_rating INTEGER;
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS would_recommend BOOLEAN;
+ALTER TABLE feedback ADD COLUMN IF NOT EXISTS is_read BOOLEAN NOT NULL DEFAULT false;
+
+-- hospitals feedback slug (public feedback form URL)
+ALTER TABLE hospitals ADD COLUMN IF NOT EXISTS feedback_slug TEXT UNIQUE;
 
 -- wellness_newsletter new columns
 ALTER TABLE wellness_newsletter ADD COLUMN IF NOT EXISTS hospital_id INTEGER REFERENCES hospitals(id) ON DELETE CASCADE;
@@ -340,3 +386,38 @@ CREATE INDEX IF NOT EXISTS wallet_tx_flw_ref_idx     ON wallet_transactions(flut
 -- Care plan archive columns — plans are never deleted, only marked ended
 ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS status    TEXT NOT NULL DEFAULT 'active';
 ALTER TABLE care_plans ADD COLUMN IF NOT EXISTS ended_at  TIMESTAMPTZ;
+
+-- ── Performance indexes for 500k+ patients per hospital ───────────────────────
+-- Run these once; safe to re-run (IF NOT EXISTS).
+CREATE INDEX IF NOT EXISTS patients_hospital_id_idx       ON patients(hospital_id);
+CREATE INDEX IF NOT EXISTS patients_stage_idx             ON patients(stage);
+CREATE INDEX IF NOT EXISTS patients_hospital_stage_idx    ON patients(hospital_id, stage);
+CREATE INDEX IF NOT EXISTS patients_created_at_idx        ON patients(created_at DESC);
+CREATE INDEX IF NOT EXISTS patients_dob_idx               ON patients(date_of_birth) WHERE date_of_birth IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS queue_hospital_id_idx          ON queue(hospital_id);
+CREATE INDEX IF NOT EXISTS queue_patient_id_idx           ON queue(patient_id);
+
+CREATE INDEX IF NOT EXISTS appointments_hospital_id_idx   ON appointments(hospital_id);
+CREATE INDEX IF NOT EXISTS appointments_patient_id_idx    ON appointments(patient_id);
+CREATE INDEX IF NOT EXISTS appointments_scheduled_at_idx  ON appointments(scheduled_at);
+CREATE INDEX IF NOT EXISTS appointments_status_idx        ON appointments(status);
+
+CREATE INDEX IF NOT EXISTS activity_hospital_id_idx       ON activity(hospital_id);
+CREATE INDEX IF NOT EXISTS activity_patient_id_idx        ON activity(patient_id);
+CREATE INDEX IF NOT EXISTS activity_type_idx              ON activity(type);
+CREATE INDEX IF NOT EXISTS activity_created_at_idx        ON activity(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS call_tasks_hospital_id_idx     ON call_tasks(hospital_id);
+CREATE INDEX IF NOT EXISTS call_tasks_patient_id_idx      ON call_tasks(patient_id);
+
+CREATE INDEX IF NOT EXISTS feedback_hospital_id_idx       ON feedback(hospital_id);
+CREATE INDEX IF NOT EXISTS feedback_submitted_at_idx      ON feedback(submitted_at DESC);
+
+-- Compound index for automation_log dedup — used on every scheduled send
+CREATE INDEX IF NOT EXISTS automation_log_dedup_idx       ON automation_log(hospital_id, patient_id, automation_type, status);
+CREATE INDEX IF NOT EXISTS automation_log_type_status_idx ON automation_log(automation_type, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS care_plans_hospital_id_idx     ON care_plans(hospital_id);
+CREATE INDEX IF NOT EXISTS care_plans_patient_id_idx      ON care_plans(patient_id);
+CREATE INDEX IF NOT EXISTS care_plans_status_idx          ON care_plans(status);

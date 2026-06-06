@@ -286,6 +286,33 @@ ALTER TABLE feedback_broadcast         DISABLE ROW LEVEL SECURITY;
 ALTER TABLE wellness_newsletter        DISABLE ROW LEVEL SECURITY;
 ALTER TABLE automation_log             DISABLE ROW LEVEL SECURITY;
 
+-- ── Hospital Announcements ────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS hospital_announcements (
+  id           SERIAL PRIMARY KEY,
+  hospital_id  INTEGER REFERENCES hospitals(id) ON DELETE CASCADE,
+  title        TEXT NOT NULL,
+  message      TEXT NOT NULL,
+  type         TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'warning', 'update')),
+  published    BOOLEAN NOT NULL DEFAULT false,
+  published_at TIMESTAMPTZ,
+  expires_at   TIMESTAMPTZ,
+  target_module TEXT CHECK (target_module IN ('appointments', 'feedback', 'wellness_newsletter', 'messages')),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS hospital_announcement_reads (
+  hospital_id     INTEGER NOT NULL,
+  announcement_id INTEGER NOT NULL REFERENCES hospital_announcements(id) ON DELETE CASCADE,
+  dismissed_at    TIMESTAMPTZ DEFAULT now(),
+  PRIMARY KEY (hospital_id, announcement_id)
+);
+
+ALTER TABLE hospital_announcements      DISABLE ROW LEVEL SECURITY;
+ALTER TABLE hospital_announcement_reads DISABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS hospital_announcements_hospital_id_idx ON hospital_announcements(hospital_id);
+CREATE INDEX IF NOT EXISTS hospital_announcements_published_idx   ON hospital_announcements(published, expires_at);
+
 -- ── Column additions for existing databases (run if upgrading) ────────────────
 -- hospital_settings new columns
 ALTER TABLE hospital_settings ADD COLUMN IF NOT EXISTS sending_email TEXT;

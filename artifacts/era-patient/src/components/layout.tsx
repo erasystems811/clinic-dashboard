@@ -62,10 +62,14 @@ function AnnouncementBanners({ token }: { token: string }) {
   const [items, setItems] = useState<Announcement[]>([]);
 
   useEffect(() => {
-    fetch(apiUrl("/api/hospital/announcements"), { headers: { "x-hospital-token": token } })
-      .then(r => r.ok ? r.json() : [])
-      .then(setItems)
-      .catch(() => {});
+    const load = () =>
+      fetch(apiUrl("/api/hospital/announcements"), { headers: { "x-hospital-token": token } })
+        .then(r => r.ok ? r.json() : [])
+        .then(setItems)
+        .catch(() => {});
+    load();
+    const interval = setInterval(load, 60_000);
+    return () => clearInterval(interval);
   }, [token]);
 
   const dismiss = async (id: number) => {

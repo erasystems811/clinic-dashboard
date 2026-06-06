@@ -1471,9 +1471,10 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   const emailTs   = new Map<number, number[]>();
   const smsTs     = new Map<number, number[]>();
 
-  for (const a of (allActivityRes.data ?? []) as { hospital_id: number | null; patient_id: number | null; created_at: string }[]) {
-    const id: number | undefined = a.hospital_id != null
-      ? a.hospital_id
+  for (const a of (allActivityRes.data ?? []) as { hospital_id: string | number | null; patient_id: number | null; created_at: string }[]) {
+    const parsedHid = a.hospital_id != null ? Number(a.hospital_id) : NaN;
+    const id: number | undefined = !isNaN(parsedHid)
+      ? parsedHid
       : (a.patient_id != null ? pidToHid.get(a.patient_id) : undefined);
     if (id === undefined) continue;
     const ts = new Date(a.created_at).getTime();
@@ -1726,13 +1727,24 @@ Use "update" for new/changed features, "info" for general tips, "warning" for th
 
   if (!drafts.length) { res.status(200).json([]); return; }
 
-  const toInsert = drafts.map(d => ({
-    hospital_id: null,
-    title: d.title?.trim() ?? "Untitled",
-    message: d.message?.trim() ?? "",
-    type: ["info", "update", "warning"].includes(d.type) ? d.type : "info",
-    published: false,
-  }));
+  // Fetch existing draft titles to avoid creating duplicates on repeated auto-draft calls
+  const { data: existingDrafts } = await supabase
+    .from("hospital_announcements")
+    .select("title")
+    .eq("published", false);
+  const existingTitles = new Set((existingDrafts ?? []).map(d => (d.title as string).toLowerCase().trim()));
+
+  const toInsert = drafts
+    .map(d => ({
+      hospital_id: null,
+      title: d.title?.trim() ?? "Untitled",
+      message: d.message?.trim() ?? "",
+      type: ["info", "update", "warning"].includes(d.type) ? d.type : "info",
+      published: false,
+    }))
+    .filter(d => !existingTitles.has(d.title.toLowerCase()));
+
+  if (!toInsert.length) { res.status(200).json([]); return; }
 
   const { data, error } = await supabase.from("hospital_announcements").insert(toInsert).select();
   if (error) { res.status(500).json({ error: error.message }); return; }

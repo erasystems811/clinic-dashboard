@@ -103,8 +103,14 @@ export default function Announcements() {
 
   const handleDelete = async (id: number) => {
     setDeleting(id);
-    try { await del(`/super-admin/announcements/${id}`); } catch { /* 204 no-content causes json parse throw — ignore */ }
-    finally { load(); setDeleting(null); }
+    try {
+      await del(`/super-admin/announcements/${id}`);
+      await load();
+    } catch {
+      await load();
+    } finally {
+      setDeleting(null);
+    }
   };
 
   const handlePublish = async (id: number) => {

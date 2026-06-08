@@ -327,7 +327,7 @@ export async function sendPostTreatmentCheckinEmail(
   day: 1 | 4 | 7,
 ): Promise<void> {
   const hCtx = await getHospitalContext(hospitalId);
-  const automationType = `post_treatment_day${day}`;
+  const automationType = `post_treatment_patient${patientId}_day${day}`;
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType,

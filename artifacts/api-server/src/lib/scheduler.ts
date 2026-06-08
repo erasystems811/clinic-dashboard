@@ -420,7 +420,8 @@ async function runPostTreatmentTransitions() {
         .select("id, first_name, last_name")
         .eq("stage", "Post Treatment")
         .eq("hospital_id", hospital.hospital_code)
-        .lt("updated_at", cutoff);
+        .not("post_treatment_started_at", "is", null)
+        .lt("post_treatment_started_at", cutoff);
 
       for (const p of patients ?? []) {
         const nowIso = new Date().toISOString();
@@ -866,8 +867,8 @@ export function startScheduler() {
   // Daily at 7:00 AM WAT: pipeline transitions + post-treatment check-ins + dormant + birthdays
   cron.schedule("0 7 * * *", async () => {
     await runCarePlanCompletionDetection();
-    await runPostTreatmentTransitions();
     await runPostTreatmentCheckins();
+    await runPostTreatmentTransitions();
     await runDormantDetection();
     await runBirthdayEmails();
   }, TZ);

@@ -238,4 +238,45 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
   res.json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled" });
 });
 
+// ── PATCH /api/appointments/:id/reassign — doctor reassigns appointment to another doctor ──
+router.patch("/appointments/:id/reassign", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { newDoctorId, note } = req.body ?? {};
+  if (!newDoctorId) { res.status(400).json({ error: "newDoctorId required" }); return; }
+
+  const { data: appt } = await supabase.from("appointments").select("*").eq("id", id).eq("hospital_id", hospital.intId).single();
+  if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+
+  const { data: newDoc } = await supabase.from("hospital_doctors").select("full_name").eq("id", newDoctorId).eq("hospital_id", hospital.intId).single();
+  if (!newDoc) { res.status(404).json({ error: "Doctor not found" }); return; }
+
+  const { data: updated, error } = await supabase.from("appointments").update({
+    doctor_id: newDoctorId,
+    doctor_name: newDoc.full_name,
+    reassigned_from_doctor_id: appt.doctor_id ?? null,
+    reassigned_from_doctor_name: appt.doctor_name ?? null,
+    reassignment_note: note ?? null,
+  }).eq("id", id).select().single();
+
+  if (error || !updated) { res.status(500).json({ error: "Reassign failed" }); return; }
+
+  const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
+  const fromNote = note ? ` — "${note}"` : "";
+  await supabase.from("activity").insert({
+    type: "appointment_reassigned",
+    description: `Appointment for ${appt.patient_name as string} reassigned from Dr. ${(appt.doctor_name as string) ?? "Unknown"} to Dr. ${newDoc.full_name as string}${fromNote}`,
+    patient_id: appt.patient_id as number,
+    patient_name: appt.patient_name as string,
+    hospital_id: hospital.intId,
+    performed_by: performedBy,
+  });
+
+  res.json({ ok: true });
+});
+
 export default router;

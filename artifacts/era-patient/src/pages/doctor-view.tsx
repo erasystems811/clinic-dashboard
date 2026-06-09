@@ -9,7 +9,7 @@ import type { Patient } from "@workspace/api-client-react";
 import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
   Clock, Users, Calendar, PhoneCall, ArrowRightLeft, AlertTriangle, CheckCircle2,
-  Loader2, RefreshCw, X, ClipboardList, Search,
+  Loader2, RefreshCw, X, ClipboardList, Search, CalendarPlus, Info,
 } from "lucide-react";
 
 interface QueueEntry {
@@ -26,11 +26,16 @@ interface QueueEntry {
 
 interface DoctorAppointment {
   id: number;
+  patientId: number;
   patientName: string;
   title: string;
   scheduledAt: string;
   durationMinutes?: number | null;
   status: string;
+  notes?: string | null;
+  reassignedFromDoctorId?: number | null;
+  reassignedFromDoctorName?: string | null;
+  reassignmentNote?: string | null;
 }
 
 interface Doctor {
@@ -116,6 +121,168 @@ function TransferModal({
 }
 
 
+// ── Book Follow-Up Appointment Modal ──────────────────────────────────────────
+function BookFollowUpModal({
+  patient, doctorId, doctorName, token, onClose, onBooked,
+}: {
+  patient: Patient; doctorId: number; doctorName: string; token: string; onClose: () => void; onBooked: () => void;
+}) {
+  const { toast } = useToast();
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [duration, setDuration] = useState("30");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleBook = async () => {
+    if (!date || !time) return;
+    setSaving(true);
+    try {
+      const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
+      const res = await fetch(apiUrl("/api/appointments"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token, "x-performed-by": `Dr. ${doctorName}` },
+        body: JSON.stringify({
+          patientId: patient.id,
+          title: `Follow-up appointment`,
+          scheduledAt,
+          durationMinutes: parseInt(duration) || 30,
+          notes: notes || undefined,
+          doctorId,
+          doctorName,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? "Booking failed");
+      }
+      toast({ title: "Appointment booked", description: `Follow-up for ${patient.firstName} ${patient.lastName} confirmed. Patient will receive an email.` });
+      onBooked();
+      onClose();
+    } catch (err: unknown) {
+      toast({ title: "Failed to book", description: (err as Error).message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  // Min date = today
+  const today = new Date().toISOString().split("T")[0];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-card border border-border rounded-xl w-full max-w-sm shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <p className="font-semibold text-sm flex items-center gap-2"><CalendarPlus className="w-4 h-4 text-primary" /> Book Follow-Up Appointment</p>
+          <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">
+            Patient: <strong>{patient.firstName} {patient.lastName}</strong>
+            <span className="text-xs text-muted-foreground block mt-0.5">Appointment will be assigned to you and patient will receive a confirmation email.</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Date</label>
+              <input type="date" min={today} value={date} onChange={e => setDate(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Time</label>
+              <input type="time" value={time} onChange={e => setTime(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Duration (minutes)</label>
+            <select value={duration} onChange={e => setDuration(e.target.value)}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+              {["15","20","30","45","60","90"].map(d => <option key={d} value={d}>{d} min</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Notes (optional)</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+              placeholder="e.g. follow up on blood pressure readings"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none" />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+            <Button size="sm" disabled={!date || !time || saving} onClick={handleBook} className="gap-1.5">
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarPlus className="w-3.5 h-3.5" />}
+              {saving ? "Booking…" : "Book Appointment"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Reassign Appointment Modal ────────────────────────────────────────────────
+function ReassignAppointmentModal({
+  appt, doctors, token, currentDoctorId, onClose, onReassigned,
+}: {
+  appt: DoctorAppointment; doctors: Doctor[]; token: string; currentDoctorId: number; onClose: () => void; onReassigned: () => void;
+}) {
+  const { toast } = useToast();
+  const [targetId, setTargetId] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const others = doctors.filter(d => d.id !== currentDoctorId);
+
+  const handleReassign = async () => {
+    if (!targetId) return;
+    setSaving(true);
+    try {
+      const res = await fetch(apiUrl(`/api/appointments/${appt.id}/reassign`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify({ newDoctorId: parseInt(targetId), note: note || undefined }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? "Reassign failed");
+      }
+      toast({ title: "Appointment reassigned", description: `${appt.patientName}'s appointment has been moved.` });
+      onReassigned();
+      onClose();
+    } catch (err: unknown) {
+      toast({ title: "Reassign failed", description: (err as Error).message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-card border border-border rounded-xl w-full max-w-sm shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <p className="font-semibold text-sm flex items-center gap-2"><ArrowRightLeft className="w-4 h-4" /> Reassign Appointment</p>
+          <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-sm text-muted-foreground">Reassign <strong>{appt.patientName}</strong>'s appointment to another doctor.</p>
+          <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+            value={targetId} onChange={e => setTargetId(e.target.value)}>
+            <option value="">Select doctor…</option>
+            {others.map(d => <option key={d.id} value={d.id}>Dr. {d.fullName}{d.specialty ? ` — ${d.specialty}` : ""}</option>)}
+          </select>
+          {others.length === 0 && <p className="text-xs text-amber-500">No other doctors available.</p>}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Note for new doctor (optional)</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
+              placeholder="e.g. Patient needs follow-up on cardiology referral"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none" />
+          </div>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+            <Button size="sm" disabled={!targetId || saving} onClick={handleReassign}>
+              {saving ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Reassigning…</> : "Reassign"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DoctorView() {
   const { hospital, hospitalConfig, user } = useAuth();
   const { toast } = useToast();
@@ -143,6 +310,8 @@ export default function DoctorView() {
   const [followUpCarePlans, setFollowUpCarePlans] = useState<DoctorCarePlan[]>([]);
   const [followUpCPLoading, setFollowUpCPLoading] = useState(false);
   const [flagPatient, setFlagPatient] = useState<{ name: string; id: number } | null>(null);
+  const [bookFollowUpPatient, setBookFollowUpPatient] = useState<Patient | null>(null);
+  const [reassignAppt, setReassignAppt] = useState<DoctorAppointment | null>(null);
 
   const fetchQueue = useCallback(async () => {
     if (!token || !doctorId) return;
@@ -267,6 +436,26 @@ export default function DoctorView() {
           onClose={() => setFlagPatient(null)}
         />
       )}
+      {bookFollowUpPatient && doctorId && (
+        <BookFollowUpModal
+          patient={bookFollowUpPatient}
+          doctorId={doctorId}
+          doctorName={doctorName}
+          token={token}
+          onClose={() => setBookFollowUpPatient(null)}
+          onBooked={fetchAppointments}
+        />
+      )}
+      {reassignAppt && doctorId && (
+        <ReassignAppointmentModal
+          appt={reassignAppt}
+          doctors={allDoctors}
+          token={token}
+          currentDoctorId={doctorId}
+          onClose={() => setReassignAppt(null)}
+          onReassigned={() => { fetchAppointments(); setReassignAppt(null); }}
+        />
+      )}
 
       <div className="space-y-6 max-w-2xl">
         {/* Doctor header */}
@@ -374,15 +563,32 @@ export default function DoctorView() {
             ) : (
               <div className="divide-y divide-border">
                 {appointments.map(appt => (
-                  <div key={appt.id} className="flex items-center gap-4 px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{appt.patientName}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{appt.title}</p>
+                  <div key={appt.id} className="px-4 py-3 space-y-1.5">
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm">{appt.patientName}</p>
+                        <p className="text-xs text-muted-foreground">{appt.title}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-medium">{formatApptTime(appt.scheduledAt)}</p>
+                        {appt.durationMinutes && <p className="text-xs text-muted-foreground">{appt.durationMinutes} min</p>}
+                      </div>
+                      <Button size="sm" variant="outline" className="gap-1 text-xs h-7 shrink-0" onClick={() => setReassignAppt(appt)}>
+                        <ArrowRightLeft className="w-3 h-3" /> Reassign
+                      </Button>
                     </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-medium">{formatApptTime(appt.scheduledAt)}</p>
-                      {appt.durationMinutes && <p className="text-xs text-muted-foreground">{appt.durationMinutes} min</p>}
-                    </div>
+                    {appt.reassignedFromDoctorName && (
+                      <div className="flex items-start gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2.5 py-1.5">
+                        <Info className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+                        <div className="text-xs text-amber-600 dark:text-amber-400">
+                          <span className="font-medium">Reassigned from Dr. {appt.reassignedFromDoctorName}</span>
+                          {appt.reassignmentNote && <span className="block text-amber-500/80 mt-0.5">"{appt.reassignmentNote}"</span>}
+                        </div>
+                      </div>
+                    )}
+                    {appt.notes && !appt.reassignedFromDoctorName && (
+                      <p className="text-xs text-muted-foreground italic px-0.5">{appt.notes}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -445,10 +651,14 @@ export default function DoctorView() {
                     <p className="font-semibold text-sm">{selectedFollowUpPatient.firstName} {selectedFollowUpPatient.lastName}</p>
                     <p className="text-xs text-muted-foreground">{selectedFollowUpPatient.phone || "No phone"}</p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button size="sm" className="gap-1.5 h-8 text-xs"
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                    <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
                       onClick={() => setFlagPatient({ name: `${selectedFollowUpPatient.firstName} ${selectedFollowUpPatient.lastName}`, id: selectedFollowUpPatient.id })}>
-                      <ClipboardList className="w-3.5 h-3.5" /> Flag Follow-Up
+                      <ClipboardList className="w-3.5 h-3.5" /> Flag Task
+                    </Button>
+                    <Button size="sm" className="gap-1.5 h-8 text-xs"
+                      onClick={() => setBookFollowUpPatient(selectedFollowUpPatient)}>
+                      <CalendarPlus className="w-3.5 h-3.5" /> Book Appointment
                     </Button>
                     <button onClick={() => { setSelectedFollowUpPatient(null); setFollowUpSearch(""); }}
                       className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition">

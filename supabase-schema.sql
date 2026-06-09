@@ -535,3 +535,8 @@ CREATE TABLE IF NOT EXISTS doctor_follow_ups (
 );
 ALTER TABLE doctor_follow_ups DISABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS doctor_follow_ups_doctor_id_idx ON doctor_follow_ups(doctor_id);
+
+-- ── Appointment reassignment tracking (doctor-to-doctor reassign with notes) ──
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reassigned_from_doctor_id   INTEGER REFERENCES hospital_doctors(id) ON DELETE SET NULL;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reassigned_from_doctor_name  TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reassignment_note            TEXT;

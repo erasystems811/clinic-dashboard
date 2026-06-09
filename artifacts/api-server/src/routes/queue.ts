@@ -102,7 +102,14 @@ router.get("/doctor/appointments", async (req, res): Promise<void> => {
     .limit(50);
 
   if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json((data ?? []).map(a => ({ ...camelize(a), duration: a.duration ?? a.duration_minutes ?? 30 })));
+  res.json((data ?? []).map(a => ({
+    ...camelize(a),
+    duration: a.duration ?? a.duration_minutes ?? 30,
+    patientId: a.patient_id,
+    reassignedFromDoctorId: a.reassigned_from_doctor_id ?? null,
+    reassignedFromDoctorName: a.reassigned_from_doctor_name ?? null,
+    reassignmentNote: a.reassignment_note ?? null,
+  })));
 });
 
 // ── POST /api/queue/:id/call-in — doctor calls patient in, sends SMS ────────

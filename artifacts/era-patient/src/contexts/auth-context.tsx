@@ -101,6 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
           setHospitalConfig(cfg);
+          if (cfg.hospitalName) {
+            setHospital(h => h && h.name !== cfg.hospitalName ? { ...h, name: cfg.hospitalName } : h);
+          }
         })
         .catch(() => {});
     };

@@ -368,6 +368,14 @@ router.patch("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): 
   if (error) { res.status(500).json({ error: error.message }); return; }
   if (!hospital) { res.status(404).json({ error: "Hospital not found" }); return; }
 
+  // Propagate name change to denormalized columns in other tables
+  if (name !== undefined) {
+    await Promise.all([
+      supabase.from("support_tickets").update({ hospital_name: name }).eq("hospital_id", id),
+      supabase.from("system_feedback").update({ hospital_name: name }).eq("hospital_id", id),
+    ]);
+  }
+
   res.json({ ...camelize(hospital), currentPassword: hospital.current_password ?? null });
 });
 
@@ -899,7 +907,7 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
   const hospitalId = token ? _verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { data: hospitalCheck } = await supabase.from("hospitals").select("active").eq("id", hospitalId).single();
+  const { data: hospitalCheck } = await supabase.from("hospitals").select("active, name").eq("id", hospitalId).single();
   if (!hospitalCheck || hospitalCheck.active === false) {
     res.status(403).json({ error: "Account suspended" });
     return;
@@ -911,6 +919,7 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
   ]);
 
   res.json({
+    hospitalName: hospitalCheck.name ?? null,
     departments: JSON.parse((settings?.departments as string) ?? "[]"),
     modules: {
       appointmentsEnabled: modules?.appointments_enabled ?? true,

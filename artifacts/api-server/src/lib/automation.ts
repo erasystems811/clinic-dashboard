@@ -633,10 +633,13 @@ export async function sendFeedbackEmail(
     const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
     const bookingUrl = hCtx.slug ? `${appUrl}/book/${hCtx.slug}` : null;
     const bookingHtml = bookingUrl ? `<p style="text-align:center;margin:16px 0 0"><a href="${bookingUrl}" style="color:#14b8a6;font-size:13px;text-decoration:none;">Book your next appointment online →</a></p>` : "";
+    const toParagraphs = (text: string) =>
+      text.split(/\n\n+/).map(p => `<p>${p.replace(/\n/g, "<br>")}</p>`).join("");
+
     const html = wrapHtml(
-      `<p>${intro.replace(/\n/g, "</p><p>")}</p>
+      `${toParagraphs(intro)}
        <p style="text-align:center"><a href="${feedbackUrl}" class="btn">Share Your Feedback →</a></p>
-       <p>${closing.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`,
+       ${toParagraphs(closing)}${bookingHtml}`,
       hCtx.hospitalName,
     );
 

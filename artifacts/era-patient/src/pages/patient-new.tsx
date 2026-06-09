@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useCreatePatient } from "@workspace/api-client-react";
-import { useAuth } from "@/contexts/auth-context";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,9 +21,6 @@ function calcAge(dob: string): number | undefined {
 export default function NewPatient() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { user } = useAuth();
-  const isReceptionist = user?.role === "receptionist";
-
   const createPatient = useCreatePatient();
 
   const [form, setForm] = useState({
@@ -82,7 +78,7 @@ export default function NewPatient() {
       {
         onSuccess: (result) => {
           toast({ title: "Patient created", description: "New patient record has been added." });
-          setLocation(isReceptionist ? "/queue" : `/patients/${result.id}/history`);
+          setLocation(`/patients/${result.id}/history`);
         },
         onError: (err: unknown) => {
           const msg =

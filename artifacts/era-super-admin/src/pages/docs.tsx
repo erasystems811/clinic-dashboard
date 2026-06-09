@@ -710,6 +710,27 @@ export default function DocsPage() {
           <p className="text-sm text-muted-foreground mt-1">Everything you need to run, understand, and support the platform.</p>
         </div>
 
+        <div className="mb-6 rounded-xl border border-border bg-card/50 divide-y divide-border">
+          <div className="px-4 py-2.5">
+            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-[0.25em]">Quick Links</p>
+          </div>
+          {[
+            { label: "Hospital Pricing Calculator", url: "https://admin.erasystems.com.ng/pricing", desc: "Share with hospitals to generate a quote" },
+            { label: "ERA Patient App", url: "https://app.erasystems.com.ng", desc: "Main hospital-facing application" },
+          ].map(link => (
+            <div key={link.url} className="px-4 py-3 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">{link.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{link.desc}</p>
+              </div>
+              <a href={link.url} target="_blank" rel="noopener noreferrer"
+                className="shrink-0 text-xs px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition font-mono">
+                {link.url}
+              </a>
+            </div>
+          ))}
+        </div>
+
         <div className="flex gap-1.5 p-1.5 rounded-2xl bg-muted/20 border border-border mb-8 flex-wrap">
           <Tab label="The Platform" emoji="🌟" active={tab === "platform"} onClick={() => setTab("platform")} />
           <Tab label="Automations" emoji="🤖" active={tab === "automations"} onClick={() => setTab("automations")} />

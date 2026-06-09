@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { format, parseISO } from "date-fns";
-import { useGetPatientHistory, useDeletePatient, useCheckinPatient, useDequeuePatient } from "@workspace/api-client-react";
+import { useGetPatientHistory, useDeletePatient, useDequeuePatient } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/api";
 import { getPatientStages } from "@/lib/utils";
@@ -122,6 +122,9 @@ export default function PatientHistory() {
 
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [doctors, setDoctors] = useState<{ id: number; full_name: string }[]>([]);
+  const [checkInDoctorId, setCheckInDoctorId] = useState<number | "">("");
+  const [checkingIn, setCheckingIn] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -185,17 +188,41 @@ export default function PatientHistory() {
   const phoneField = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setEditForm(f => ({ ...f, [key]: formatPhone(e.target.value) }));
 
-  const checkinPatient = useCheckinPatient();
   const dequeuePatient = useDequeuePatient();
 
-  const handleCheckIn = () => {
-    checkinPatient.mutate({ id }, {
-      onSuccess: () => {
-        toast({ title: "Patient checked in", description: "Patient moved to Queued." });
-        refetch();
-      },
-      onError: () => toast({ title: "Error", variant: "destructive" }),
-    });
+  useEffect(() => {
+    const token = hospital?.token;
+    if (!token) return;
+    fetch(apiUrl("/api/hospital/doctors"), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { id: number; full_name: string; unavailable?: boolean }[]) =>
+        setDoctors(data.filter(d => !d.unavailable))
+      )
+      .catch(() => {});
+  }, [hospital?.token]);
+
+  const handleCheckIn = async () => {
+    setCheckingIn(true);
+    try {
+      const token = hospital?.token;
+      const performedBy = user ? `${user.name ?? user.username}` : undefined;
+      const res = await fetch(apiUrl(`/api/patients/${id}/checkin`), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "x-hospital-token": token } : {}),
+          ...(performedBy ? { "x-performed-by": performedBy } : {}),
+        },
+        body: JSON.stringify({ doctorId: checkInDoctorId || undefined }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: "Patient checked in", description: "Patient added to queue." });
+      refetch();
+    } catch {
+      toast({ title: "Error checking in patient", variant: "destructive" });
+    } finally {
+      setCheckingIn(false);
+    }
   };
 
   const handleDequeue = () => {
@@ -344,10 +371,24 @@ export default function PatientHistory() {
                 {!editing && (
                   <div className="mt-3">
                     {!(patient as Record<string,unknown>).isInQueue ? (
-                      <Button size="sm" className="gap-1.5" onClick={handleCheckIn} disabled={checkinPatient.isPending}>
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        {checkinPatient.isPending ? "Checking in…" : "Check In to Queue"}
-                      </Button>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {doctors.length > 0 && (
+                          <select
+                            value={checkInDoctorId}
+                            onChange={e => setCheckInDoctorId(e.target.value ? Number(e.target.value) : "")}
+                            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                          >
+                            <option value="">Assign doctor (optional)</option>
+                            {doctors.map(d => (
+                              <option key={d.id} value={d.id}>{d.full_name}</option>
+                            ))}
+                          </select>
+                        )}
+                        <Button size="sm" className="gap-1.5" onClick={handleCheckIn} disabled={checkingIn}>
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {checkingIn ? "Checking in…" : "Check In to Queue"}
+                        </Button>
+                      </div>
                     ) : (
                       <div className="inline-flex items-center gap-2.5 px-3 py-2 rounded-lg border border-primary/30 bg-primary/5">
                         <Checkbox onCheckedChange={(checked) => { if (checked) handleDequeue(); }} />

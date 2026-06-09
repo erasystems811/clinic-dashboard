@@ -495,207 +495,146 @@ export default function HospitalDetail({ id }: Props) {
       {/* ── GENERAL TAB ── */}
       {tab === "general" && (
         <div className="space-y-4 max-w-lg">
-        {/* Credentials Card */}
-        {hospital && (
-          <div className="rounded-xl bg-card border border-border p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-foreground">Login Credentials</h2>
-              <button
-                type="button"
-                onClick={copyAllCredentials}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition"
-              >
+
+          {/* ── Links ── */}
+          <div className="rounded-xl bg-card border border-border divide-y divide-border overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3">
+              <h2 className="font-semibold text-sm text-foreground flex items-center gap-2"><Link className="w-4 h-4 text-muted-foreground" /> Links</h2>
+              <button type="button" onClick={copyAllCredentials}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition">
                 {allCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 {allCopied ? "Copied!" : "Copy All"}
               </button>
             </div>
-
-            {/* Login URL */}
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Link className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-semibold text-primary uppercase tracking-wider">Admin Login Link</span>
+            {/* Admin login link */}
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground mb-0.5">Admin Login</p>
+                <p className="text-xs font-mono text-foreground truncate">{eraPatientUrl}/?h={hospital.username}</p>
               </div>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-mono text-foreground break-all">{eraPatientUrl}/?h={hospital.username}</p>
-                <CopyBtn text={`${eraPatientUrl}/?h=${hospital.username}`} />
-              </div>
+              <CopyBtn text={`${eraPatientUrl}/?h=${hospital.username}`} />
             </div>
-
+            {/* Patient self-booking link */}
+            {hospital.slug && (
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-muted-foreground mb-0.5">Patient Self-Booking</p>
+                  <p className="text-xs font-mono text-foreground truncate">{eraPatientUrl}/book/{hospital.slug}</p>
+                </div>
+                <CopyBtn text={`${eraPatientUrl}/book/${hospital.slug}`} />
+              </div>
+            )}
             {/* Feedback link */}
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <MessageSquare className="w-3.5 h-3.5 text-teal-400" />
-                <span className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Patient Feedback Link</span>
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground mb-0.5">Patient Feedback</p>
+                {hospital.feedbackSlug
+                  ? <p className="text-xs font-mono text-foreground truncate">{eraPatientUrl}/feedback/h/{hospital.feedbackSlug}</p>
+                  : <p className="text-xs text-muted-foreground italic">Generated on first login</p>}
               </div>
-              {hospital.feedbackSlug ? (
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-mono text-foreground break-all">{eraPatientUrl}/feedback/h/{hospital.feedbackSlug}</p>
-                  <CopyBtn text={`${eraPatientUrl}/feedback/h/${hospital.feedbackSlug}`} />
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground italic">Not generated yet — will appear after the hospital first logs in.</p>
-              )}
+              {hospital.feedbackSlug && <CopyBtn text={`${eraPatientUrl}/feedback/h/${hospital.feedbackSlug}`} />}
             </div>
-
-            {/* Hospital code — internal identifier, never shown to hospital staff */}
-            {hospital.hospitalCode && (
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Shield className="w-3.5 h-3.5 text-violet-400" />
-                  <span className="text-xs font-semibold text-violet-400 uppercase tracking-wider">Internal Hospital Code</span>
-                  <span className="ml-auto text-xs text-muted-foreground italic">Read-only · not visible to hospital</span>
-                </div>
-                <CredRow label="Hospital Code (UUID)" value={hospital.hospitalCode} />
-              </div>
-            )}
-
-            {/* Admin creds */}
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Admin Credentials</span>
-              </div>
-              <CredRow label="Username" value={hospital.username} />
-              <div className="flex items-center justify-between gap-2 py-2">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs text-muted-foreground">Password</p>
-                  <p className="text-sm font-mono text-foreground">
-                    {hospital.currentPassword
-                      ? (showAdminPass ? hospital.currentPassword : "•".repeat(hospital.currentPassword.length))
-                      : <span className="text-muted-foreground italic text-xs">Not stored — use Regenerate</span>}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  {hospital.currentPassword && (
-                    <>
-                      <button type="button" onClick={() => setShowAdminPass(v => !v)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
-                        {showAdminPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                      <CopyBtn text={hospital.currentPassword} />
-                    </>
-                  )}
-                </div>
-              </div>
-              <div className="pt-2 border-t border-border">
-                <button
-                  type="button"
-                  onClick={handleRegenerate}
-                  disabled={regenerating}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 transition"
-                >
-                  {regenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                  {regenerating ? "Regenerating…" : "Regenerate Password"}
-                </button>
-              </div>
-            </div>
-
-            {/* Staff creds */}
-            {hospital.staffCredentials && (
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Users className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Staff Credentials</span>
-                </div>
-                <CredRow label="Nurse Username" value={hospital.staffCredentials.nurseUsername} />
-                <CredRow label="Nurse Password" value={hospital.staffCredentials.nursePlainPassword} />
-                <CredRow label="Receptionist Username" value={hospital.staffCredentials.receptionistUsername} />
-                <CredRow label="Receptionist Password" value={hospital.staffCredentials.receptionistPlainPassword} />
-                <p className="text-xs text-muted-foreground mt-2">Staff log in at {eraPatientUrl} using the Staff Login tab</p>
-              </div>
-            )}
           </div>
-        )}
 
-        <div className="rounded-xl bg-card border border-border p-6 space-y-5">
-          <h2 className="font-semibold text-foreground">Account Details</h2>
+          {/* ── Admin credentials ── */}
+          <div className="rounded-xl bg-card border border-border divide-y divide-border overflow-hidden">
+            <div className="px-4 py-3">
+              <h2 className="font-semibold text-sm text-foreground flex items-center gap-2"><KeyRound className="w-4 h-4 text-muted-foreground" /> Admin Credentials</h2>
+            </div>
+            <CredRow label="Username" value={hospital.username} />
+            <div className="flex items-center justify-between gap-2 px-4 py-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-muted-foreground">Password</p>
+                <p className="text-sm font-mono text-foreground">
+                  {hospital.currentPassword
+                    ? (showAdminPass ? hospital.currentPassword : "•".repeat(Math.min(hospital.currentPassword.length, 12)))
+                    : <span className="text-muted-foreground italic text-xs">Not stored — use Regenerate</span>}
+                </p>
+              </div>
+              <div className="flex items-center gap-1">
+                {hospital.currentPassword && (
+                  <>
+                    <button type="button" onClick={() => setShowAdminPass(v => !v)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                      {showAdminPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <CopyBtn text={hospital.currentPassword} />
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="px-4 py-3">
+              <button type="button" onClick={handleRegenerate} disabled={regenerating}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 transition">
+                {regenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                {regenerating ? "Regenerating…" : "Regenerate Password"}
+              </button>
+            </div>
+          </div>
 
-          <Field label="Hospital Name">
-            <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputCls()} />
-          </Field>
+          {/* ── Staff credentials ── */}
+          {hospital.staffCredentials && (
+            <div className="rounded-xl bg-card border border-border divide-y divide-border overflow-hidden">
+              <div className="px-4 py-3">
+                <h2 className="font-semibold text-sm text-foreground flex items-center gap-2"><Users className="w-4 h-4 text-muted-foreground" /> Staff Login (shared)</h2>
+              </div>
+              <CredRow label="Nurse Username" value={hospital.staffCredentials.nurseUsername} />
+              <CredRow label="Nurse Password" value={hospital.staffCredentials.nursePlainPassword} />
+              <CredRow label="Receptionist Username" value={hospital.staffCredentials.receptionistUsername} />
+              <CredRow label="Receptionist Password" value={hospital.staffCredentials.receptionistPlainPassword} />
+            </div>
+          )}
 
-          <Field label="Subscription Status">
-            <select
-              value={subStatus}
-              onChange={e => {
-                const val = e.target.value;
-                setSubStatus(val);
-                if (val === "inactive") setActive(false);
-                else setActive(true);
-              }}
-              className={inputCls()}
-            >
-              <option value="active">Active</option>
-              <option value="trial">Trial</option>
-              <option value="inactive">Suspended</option>
-            </select>
-          </Field>
+          {/* ── Account details ── */}
+          <div className="rounded-xl bg-card border border-border p-5 space-y-4">
+            <h2 className="font-semibold text-sm text-foreground">Account Details</h2>
 
-          <Field label="Subscription Expiry Date">
-            <input
-              type="date"
-              value={subscriptionExpiresAt}
-              onChange={e => setSubscriptionExpiresAt(e.target.value)}
-              className={inputCls()}
-            />
+            <Field label="Hospital Name">
+              <input type="text" value={name} onChange={e => setName(e.target.value)} className={inputCls()} />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Subscription">
+                <select value={subStatus} onChange={e => { const v = e.target.value; setSubStatus(v); setActive(v !== "inactive"); }} className={inputCls()}>
+                  <option value="active">Active</option>
+                  <option value="trial">Trial</option>
+                  <option value="inactive">Suspended</option>
+                </select>
+              </Field>
+              <Field label="Expiry Date">
+                <input type="date" value={subscriptionExpiresAt} onChange={e => setSubscriptionExpiresAt(e.target.value)} className={inputCls()} />
+              </Field>
+            </div>
             {subscriptionExpiresAt && (() => {
               const days = Math.ceil((new Date(subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-              if (days < 0) return <p className="text-xs text-red-400 mt-1">⚠️ Subscription expired {Math.abs(days)} day{Math.abs(days) !== 1 ? "s" : ""} ago</p>;
-              if (days <= 30) return <p className="text-xs text-amber-400 mt-1">⚠️ Expires in {days} day{days !== 1 ? "s" : ""}</p>;
-              return <p className="text-xs text-emerald-400 mt-1">Active for {days} more day{days !== 1 ? "s" : ""}</p>;
+              if (days < 0) return <p className="text-xs text-red-400">⚠️ Expired {Math.abs(days)} day{Math.abs(days) !== 1 ? "s" : ""} ago</p>;
+              if (days <= 30) return <p className="text-xs text-amber-400">⚠️ Expires in {days} day{days !== 1 ? "s" : ""}</p>;
+              return <p className="text-xs text-emerald-400">Active for {days} more day{days !== 1 ? "s" : ""}</p>;
             })()}
-          </Field>
 
-          <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted border border-border">
-            <div>
-              <p className="text-sm font-medium text-foreground">Account Active</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Suspended accounts cannot log in</p>
-            </div>
-            <Toggle
-              checked={active}
-              onChange={(val) => {
-                setActive(val);
-                if (!val) setSubStatus("inactive");
-                else if (subStatus === "inactive") setSubStatus("active");
-              }}
-            />
-          </div>
-
-          {/* CRM — your own records for this client */}
-          <div className="pt-4 border-t border-border space-y-3">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-0.5">Account Contact</p>
-              <p className="text-xs text-muted-foreground">Your private records for this client — not visible to the hospital. Stored for your own relationship management.</p>
-            </div>
-            <Field label="Contact Email">
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)}
-                  placeholder="admin@clienthospital.com"
-                  className={inputCls() + " pl-9"}
-                />
+            <div className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted border border-border">
+              <div>
+                <p className="text-sm font-medium">Account Active</p>
+                <p className="text-xs text-muted-foreground">Suspended accounts cannot log in</p>
               </div>
-            </Field>
-            <Field label="Contact Phone">
-              <div className="relative">
-                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text" value={contactPhone} onChange={e => setContactPhone(e.target.value)}
-                  placeholder="+2348000000000"
-                  className={inputCls() + " pl-9"}
-                />
-              </div>
-            </Field>
-          </div>
+              <Toggle checked={active} onChange={val => { setActive(val); if (!val) setSubStatus("inactive"); else if (subStatus === "inactive") setSubStatus("active"); }} />
+            </div>
 
-          <div className="flex justify-end items-center pt-2">
-            <button onClick={saveGeneral} disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? "Saving…" : "Save Changes"}
-            </button>
+            <div className="pt-2 border-t border-border grid grid-cols-2 gap-3">
+              <Field label="Your Contact Email" hint="Private — not visible to hospital">
+                <input type="email" value={contactEmail} onChange={e => setContactEmail(e.target.value)} placeholder="admin@client.com" className={inputCls()} />
+              </Field>
+              <Field label="Your Contact Phone" hint="Private — not visible to hospital">
+                <input type="text" value={contactPhone} onChange={e => setContactPhone(e.target.value)} placeholder="+23480…" className={inputCls()} />
+              </Field>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <button onClick={saveGeneral} disabled={saving} className="flex items-center gap-2 px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
           </div>
-        </div>
         </div>
       )}
 

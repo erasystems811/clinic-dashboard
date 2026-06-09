@@ -601,7 +601,7 @@ export default function CRMPage() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const S: Record<string, React.CSSProperties> = {
-  root:            { minHeight: "100vh", background: "#0D1117", fontFamily: "'DM Mono','Courier New',monospace", color: "#E2E8F0", paddingBottom: 60 },
+  root:            { minHeight: "100vh", background: "#0D1117", fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#E2E8F0", paddingBottom: 60 },
   center:          { minHeight: "100vh", background: "#0D1117", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 },
   spinner:         { width: 32, height: 32, borderRadius: "50%", border: "3px solid #C9A84C", borderTopColor: "transparent" },
   header:          { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px 14px", borderBottom: "1px solid #1F2937", flexWrap: "wrap", gap: 12 },

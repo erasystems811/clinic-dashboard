@@ -1919,4 +1919,80 @@ router.get("/support-ai/context", async (_req, res): Promise<void> => {
   });
 });
 
+// ── CRM ───────────────────────────────────────────────────────────────────────
+
+router.get("/super-admin/crm/leads", requireSuperAdmin, async (_req, res): Promise<void> => {
+  const { data: leads, error } = await supabase
+    .from("crm_leads")
+    .select("*, crm_requests(*)")
+    .order("created_at", { ascending: false });
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json(leads ?? []);
+});
+
+router.post("/super-admin/crm/leads", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { name, contact_person, stage, last_contacted, notes } = req.body ?? {};
+  if (!name?.trim()) { res.status(400).json({ error: "name is required" }); return; }
+  const { data, error } = await supabase
+    .from("crm_leads")
+    .insert({ name: name.trim(), contact_person: contact_person?.trim() ?? "", stage: stage ?? "identified", last_contacted: last_contacted || null, notes: notes?.trim() ?? "" })
+    .select("*, crm_requests(*)")
+    .single();
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.status(201).json(data);
+});
+
+router.patch("/super-admin/crm/leads/:id", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const { name, contact_person, stage, last_contacted, notes } = req.body ?? {};
+  const updates: Record<string, unknown> = {};
+  if (name !== undefined) updates.name = name.trim();
+  if (contact_person !== undefined) updates.contact_person = contact_person.trim();
+  if (stage !== undefined) updates.stage = stage;
+  if (last_contacted !== undefined) updates.last_contacted = last_contacted || null;
+  if (notes !== undefined) updates.notes = notes.trim();
+  const { data, error } = await supabase.from("crm_leads").update(updates).eq("id", id).select("*, crm_requests(*)").single();
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json(data);
+});
+
+router.delete("/super-admin/crm/leads/:id", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const { error } = await supabase.from("crm_leads").delete().eq("id", id);
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.status(204).end();
+});
+
+router.post("/super-admin/crm/leads/:id/requests", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const { text, date_added } = req.body ?? {};
+  if (!text?.trim()) { res.status(400).json({ error: "text is required" }); return; }
+  const { data, error } = await supabase
+    .from("crm_requests")
+    .insert({ lead_id: id, text: text.trim(), date_added: date_added ?? new Date().toISOString().split("T")[0] })
+    .select()
+    .single();
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.status(201).json(data);
+});
+
+router.patch("/super-admin/crm/requests/:id", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const { done, date_done, text } = req.body ?? {};
+  const updates: Record<string, unknown> = {};
+  if (done !== undefined) updates.done = done;
+  if (date_done !== undefined) updates.date_done = date_done;
+  if (text !== undefined) updates.text = text;
+  const { data, error } = await supabase.from("crm_requests").update(updates).eq("id", id).select().single();
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json(data);
+});
+
+router.delete("/super-admin/crm/requests/:id", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { id } = req.params;
+  const { error } = await supabase.from("crm_requests").delete().eq("id", id);
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.status(204).end();
+});
+
 export default router;

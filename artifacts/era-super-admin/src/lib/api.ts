@@ -218,4 +218,48 @@ export const api = {
 
   creditHospitalWallet: (id: number, amountNaira: number, description: string) =>
     post<{ ok: boolean; balanceKobo: number; balanceNaira: number }>(`/super-admin/hospitals/${id}/wallet/credit`, { amountNaira, description }),
+
+  // ── CRM ────────────────────────────────────────────────────────────────────
+  listCrmLeads: () =>
+    get<CrmLead[]>("/super-admin/crm/leads"),
+
+  createCrmLead: (data: { name: string; contact_person?: string; stage?: string; last_contacted?: string; notes?: string }) =>
+    post<CrmLead>("/super-admin/crm/leads", data),
+
+  updateCrmLead: (id: string, data: Partial<{ name: string; contact_person: string; stage: string; last_contacted: string; notes: string }>) =>
+    patch<CrmLead>(`/super-admin/crm/leads/${id}`, data),
+
+  deleteCrmLead: (id: string) =>
+    del<void>(`/super-admin/crm/leads/${id}`),
+
+  addCrmRequest: (leadId: string, text: string) =>
+    post<CrmRequest>(`/super-admin/crm/leads/${leadId}/requests`, { text, date_added: new Date().toISOString().split("T")[0] }),
+
+  updateCrmRequest: (id: string, data: Partial<{ done: boolean; date_done: string | null; text: string }>) =>
+    patch<CrmRequest>(`/super-admin/crm/requests/${id}`, data),
+
+  deleteCrmRequest: (id: string) =>
+    del<void>(`/super-admin/crm/requests/${id}`),
 };
+
+// ── CRM Types ─────────────────────────────────────────────────────────────────
+export interface CrmRequest {
+  id: string;
+  lead_id: string;
+  text: string;
+  date_added: string;
+  date_done: string | null;
+  done: boolean;
+  created_at: string;
+}
+
+export interface CrmLead {
+  id: string;
+  name: string;
+  contact_person: string;
+  stage: string;
+  last_contacted: string | null;
+  notes: string;
+  created_at: string;
+  crm_requests: CrmRequest[];
+}

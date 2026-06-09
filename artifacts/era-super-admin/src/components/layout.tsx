@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/auth";
 import {
   LogOut, ChevronRight, ShieldCheck, CheckCircle2,
   Loader2, BarChart2, Building2, Settings, Rocket, AlertCircle,
-  PanelLeftClose, PanelLeftOpen, Menu, X, FlaskConical, TrendingUp, Headphones, BookOpen, Bell, Star,
+  PanelLeftClose, PanelLeftOpen, Menu, X, FlaskConical, TrendingUp, Headphones, BookOpen, Bell, Star, Kanban,
 } from "lucide-react";
 import ChangePasswordModal from "@/components/change-password-modal";
 import { post } from "@/lib/api";
@@ -24,6 +24,7 @@ const NAV = [
   { icon: FlaskConical,  label: "Automation Tests",   href: "/automation-tests", sub: "Verify email delivery" },
   { icon: Headphones,    label: "Support",            href: "/support",          sub: "Hospital tickets" },
   { icon: Star,          label: "System Feedback",    href: "/feedback",         sub: "Hospital staff ratings" },
+  { icon: Kanban,        label: "CRM",                href: "/crm",              sub: "Sales pipeline & leads" },
   { icon: BookOpen,      label: "Docs & Settings",    href: "/docs",             sub: "Manual, config & reference" },
 ];
 

@@ -834,10 +834,40 @@ router.post("/auth/hospital-login", async (req, res): Promise<void> => {
   const { username, password } = req.body ?? {};
   if (!username || !password) { res.status(400).json({ error: "Missing credentials" }); return; }
 
+  // ── Check hospital_admins sub-account first ───────────────────────────────
+  const { data: subAdmin } = await supabase
+    .from("hospital_admins")
+    .select("*, hospitals(id, name, username, active, feedback_slug, slug)")
+    .ilike("username", (username as string).trim())
+    .eq("active", true)
+    .maybeSingle();
+
+  if (subAdmin) {
+    const [sSalt, sHash] = (subAdmin.password_hash as string).split(":");
+    if (hashPassword(password as string, sSalt) !== sHash) { res.status(401).json({ error: "Invalid credentials" }); return; }
+    const h = subAdmin.hospitals as Record<string, unknown>;
+    if (!h || !h.active) { res.status(403).json({ error: "Account inactive" }); return; }
+    let feedbackSlug = h.feedback_slug as string | null;
+    if (!feedbackSlug) {
+      feedbackSlug = crypto.randomUUID();
+      await supabase.from("hospitals").update({ feedback_slug: feedbackSlug }).eq("id", h.id as number);
+    }
+    res.json({
+      id: h.id, name: h.name, username: h.username,
+      feedbackSlug,
+      slug: (h.slug as string) || null,
+      token: signHospitalToken(h.id as number),
+      adminName: subAdmin.full_name as string,
+      adminUsername: subAdmin.username as string,
+    });
+    return;
+  }
+
+  // ── Fall back to master hospital login ────────────────────────────────────
   const { data: hospital } = await supabase
     .from("hospitals")
     .select("*")
-    .eq("username", username.toLowerCase())
+    .eq("username", (username as string).trim().toLowerCase())
     .single();
 
   if (!hospital) { res.status(401).json({ error: "Invalid credentials" }); return; }

@@ -1340,6 +1340,197 @@ export async function sendInCareAIReminder(
 // Used by the scheduler when pregenerated_messages exist on the care plan.
 // Identical delivery path to sendInCareAIReminder but skips AI generation.
 
+// ── Doctor: new appointment assigned notification ─────────────────────────────
+export async function sendDoctorAppointmentAssignedEmail(
+  doctorEmail: string,
+  doctorFullName: string,
+  hospitalName: string,
+  patientName: string,
+  appointmentTitle: string,
+  scheduledAt: string,
+  durationMinutes: number | null,
+  notes: string | null,
+): Promise<void> {
+  const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
+  const fromEmail = process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev";
+  const fromName = process.env.PLATFORM_FROM_NAME ?? "Era Systems";
+
+  const scheduledDate = new Date(scheduledAt);
+  const timeStr = scheduledDate.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Africa/Lagos" });
+  const dateStr = scheduledDate.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Lagos" });
+  const durationRow = durationMinutes
+    ? `<tr><td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;width:110px;vertical-align:top">Duration</td><td style="padding:8px 0;color:#c9d1d9;font-size:14px">${durationMinutes} minutes</td></tr>`
+    : "";
+  const notesRow = notes?.trim()
+    ? `<tr><td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;vertical-align:top">Notes</td><td style="padding:8px 0;color:#c9d1d9;font-size:14px;font-style:italic">${notes.trim()}</td></tr>`
+    : "";
+
+  const subject = `New Appointment — ${patientName} — ${hospitalName}`;
+  const body = `
+    <p style="font-size:15px;color:#c9d1d9;margin:0 0 20px">Hi <strong style="color:#e6edf3">Dr. ${doctorFullName}</strong>,</p>
+    <p style="font-size:15px;color:#c9d1d9;margin:0 0 20px">
+      A new appointment has been scheduled and assigned to you.
+    </p>
+    <div style="background:#0d1117;border-radius:10px;padding:20px;margin-bottom:24px;border:1px solid #30363d">
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;width:110px;vertical-align:top">Patient</td>
+          <td style="padding:8px 0;color:#e6edf3;font-size:15px;font-weight:700">${patientName}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;vertical-align:top">Appointment</td>
+          <td style="padding:8px 0;color:#c9d1d9;font-size:14px">${appointmentTitle}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;vertical-align:top">Date &amp; Time</td>
+          <td style="padding:8px 0;font-size:14px">
+            <span style="color:#e6edf3;font-weight:700">${timeStr}</span>
+            <span style="color:#8b949e;font-size:13px"> · ${dateStr}</span>
+          </td>
+        </tr>
+        ${durationRow}
+        ${notesRow}
+      </table>
+    </div>
+    <div style="text-align:center;margin-bottom:8px">
+      <a href="${appUrl}/login" style="display:inline-block;padding:11px 28px;background:#14b8a6;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">View Your Schedule →</a>
+    </div>
+    <p style="font-size:12px;color:#8b949e;text-align:center;margin:12px 0 0">This is an automated notification. Please do not reply to this email.</p>
+  `;
+
+  await sendEmail({ to: doctorEmail, from: `${fromName} <${fromEmail}>`, subject, html: wrapHtml(body, hospitalName) });
+}
+
+// ── Doctor: appointment reassigned to them notification ───────────────────────
+export async function sendDoctorAppointmentReassignedEmail(
+  doctorEmail: string,
+  doctorFullName: string,
+  hospitalName: string,
+  patientName: string,
+  appointmentTitle: string,
+  scheduledAt: string,
+  durationMinutes: number | null,
+  reassignedFromDoctorName: string,
+  note: string | null,
+): Promise<void> {
+  const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
+  const fromEmail = process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev";
+  const fromName = process.env.PLATFORM_FROM_NAME ?? "Era Systems";
+
+  const scheduledDate = new Date(scheduledAt);
+  const timeStr = scheduledDate.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Africa/Lagos" });
+  const dateStr = scheduledDate.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Lagos" });
+  const durationRow = durationMinutes
+    ? `<tr><td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;width:110px;vertical-align:top">Duration</td><td style="padding:8px 0;color:#c9d1d9;font-size:14px">${durationMinutes} minutes</td></tr>`
+    : "";
+  const noteBlock = note?.trim()
+    ? `<div style="margin-bottom:20px;padding:14px 16px;background:#0d1117;border-left:3px solid #f59e0b;border-radius:0 8px 8px 0">
+        <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#f59e0b;text-transform:uppercase;letter-spacing:0.06em">Reason for reassignment</p>
+        <p style="margin:0;font-size:14px;color:#c9d1d9;font-style:italic">"${note.trim()}"</p>
+       </div>`
+    : "";
+
+  const subject = `Appointment Reassigned to You — ${patientName} — ${hospitalName}`;
+  const body = `
+    <p style="font-size:15px;color:#c9d1d9;margin:0 0 20px">Hi <strong style="color:#e6edf3">Dr. ${doctorFullName}</strong>,</p>
+    <p style="font-size:15px;color:#c9d1d9;margin:0 0 20px">
+      An appointment has been reassigned to you by <strong style="color:#e6edf3">Dr. ${reassignedFromDoctorName}</strong>.
+    </p>
+    ${noteBlock}
+    <div style="background:#0d1117;border-radius:10px;padding:20px;margin-bottom:24px;border:1px solid #30363d">
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;width:120px;vertical-align:top">Patient</td>
+          <td style="padding:8px 0;color:#e6edf3;font-size:15px;font-weight:700">${patientName}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;vertical-align:top">Appointment</td>
+          <td style="padding:8px 0;color:#c9d1d9;font-size:14px">${appointmentTitle}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;vertical-align:top">Date &amp; Time</td>
+          <td style="padding:8px 0;font-size:14px">
+            <span style="color:#e6edf3;font-weight:700">${timeStr}</span>
+            <span style="color:#8b949e;font-size:13px"> · ${dateStr}</span>
+          </td>
+        </tr>
+        ${durationRow}
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;vertical-align:top">Reassigned by</td>
+          <td style="padding:8px 0;color:#c9d1d9;font-size:14px">Dr. ${reassignedFromDoctorName}</td>
+        </tr>
+      </table>
+    </div>
+    <div style="text-align:center;margin-bottom:8px">
+      <a href="${appUrl}/login" style="display:inline-block;padding:11px 28px;background:#14b8a6;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">View Your Schedule →</a>
+    </div>
+    <p style="font-size:12px;color:#8b949e;text-align:center;margin:12px 0 0">This is an automated notification. Please do not reply to this email.</p>
+  `;
+
+  await sendEmail({ to: doctorEmail, from: `${fromName} <${fromEmail}>`, subject, html: wrapHtml(body, hospitalName) });
+}
+
+// ── Doctor appointment reminder — sent 3 hours before the appointment ─────────
+// This goes to the doctor's own email, not the patient.
+export async function sendDoctorAppointmentReminderEmail(
+  doctorEmail: string,
+  doctorFullName: string,
+  hospitalName: string,
+  patientName: string,
+  appointmentTitle: string,
+  scheduledAt: string,
+): Promise<void> {
+  const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
+  const fromEmail = process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev";
+  const fromName = process.env.PLATFORM_FROM_NAME ?? "Era Systems";
+
+  const scheduledDate = new Date(scheduledAt);
+  const timeStr = scheduledDate.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Africa/Lagos" });
+  const dateStr = scheduledDate.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Lagos" });
+
+  const subject = `Appointment in 3 hours — ${patientName} — ${hospitalName}`;
+
+  const body = `
+    <p style="font-size:15px;color:#c9d1d9;margin:0 0 20px">Hi <strong style="color:#e6edf3">Dr. ${doctorFullName}</strong>,</p>
+    <p style="font-size:15px;color:#c9d1d9;margin:0 0 20px">
+      You have an appointment coming up in approximately <strong style="color:#e6edf3">3 hours</strong>.
+      Please ensure you are available and prepared for the session.
+    </p>
+
+    <div style="background:#0d1117;border-radius:10px;padding:20px;margin-bottom:24px;border:1px solid #30363d">
+      <table style="width:100%;border-collapse:collapse">
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;width:110px;vertical-align:top">Patient</td>
+          <td style="padding:8px 0;color:#e6edf3;font-size:15px;font-weight:700">${patientName}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;vertical-align:top">Appointment</td>
+          <td style="padding:8px 0;color:#c9d1d9;font-size:14px">${appointmentTitle}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;vertical-align:top">Date &amp; Time</td>
+          <td style="padding:8px 0;font-size:14px">
+            <span style="color:#e6edf3;font-weight:700">${timeStr}</span>
+            <span style="color:#8b949e;font-size:13px"> · ${dateStr}</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:8px 16px 8px 0;color:#8b949e;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;vertical-align:top">Hospital</td>
+          <td style="padding:8px 0;color:#c9d1d9;font-size:14px">${hospitalName}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="text-align:center;margin-bottom:8px">
+      <a href="${appUrl}/login" style="display:inline-block;padding:11px 28px;background:#14b8a6;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">View Your Schedule →</a>
+    </div>
+    <p style="font-size:12px;color:#8b949e;text-align:center;margin:12px 0 0">This is an automated reminder. Please do not reply to this email.</p>
+  `;
+
+  const html = wrapHtml(body, hospitalName);
+  await sendEmail({ to: doctorEmail, from: `${fromName} <${fromEmail}>`, subject, html });
+}
+
 export async function sendStoredCarePlanReminder(
   hospitalId: number,
   patientId: number,

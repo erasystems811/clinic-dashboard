@@ -139,7 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? await cfgRes.json()
       : { departments: [], modules: { appointmentsEnabled: true, feedbackEnabled: true } }
     );
-    setUser({ username: "admin", role: "admin", displayName: "Admin" });
+    const adminName: string = (data.adminName as string | undefined) ?? "Admin";
+    setUser({ username: (data.adminUsername as string | undefined) ?? "admin", role: "admin", displayName: adminName, staffName: adminName });
     sessionStorage.setItem("era_tour_pending", "1");
   };
 

@@ -6,6 +6,8 @@ import {
   sendAppointmentConfirmationEmail as sendAppointmentConfirmation,
   sendAppointmentRescheduleEmail as sendAppointmentReschedule,
   sendAppointmentNoShowEmail as sendAppointmentNoShowFollowUp,
+  sendDoctorAppointmentAssignedEmail,
+  sendDoctorAppointmentReassignedEmail,
 } from "../lib/automation.js";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 
@@ -106,11 +108,15 @@ router.post("/appointments", async (req, res): Promise<void> => {
     .single();
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
 
-  // Resolve doctor name if doctorId provided
+  // Resolve doctor name + email if doctorId provided
   let resolvedDoctorName = parsed.data.doctorName ?? null;
-  if (parsed.data.doctorId && !resolvedDoctorName) {
-    const { data: doc } = await supabase.from("hospital_doctors").select("full_name").eq("id", parsed.data.doctorId).single();
-    resolvedDoctorName = (doc?.full_name as string) ?? null;
+  let resolvedDoctorEmail: string | null = null;
+  if (parsed.data.doctorId) {
+    const { data: doc } = await supabase.from("hospital_doctors").select("full_name, email").eq("id", parsed.data.doctorId).single();
+    if (doc) {
+      resolvedDoctorName = resolvedDoctorName ?? (doc.full_name as string);
+      resolvedDoctorEmail = (doc.email as string) ?? null;
+    }
   }
 
   const { data: appt, error } = await supabase.from("appointments").insert({
@@ -134,11 +140,28 @@ router.post("/appointments", async (req, res): Promise<void> => {
     performed_by: performedBy,
   });
 
+  // Patient confirmation email
   if (patient?.email) {
     sendAppointmentConfirmation(hospital.intId, parsed.data.patientId, patientName, patient.email as string, appt.scheduled_at)
       .catch((err) => console.error("[appt-confirm-email] unhandled error:", err));
   } else {
     console.warn("[appt-confirm-email] skipped — patient", parsed.data.patientId, "has no email address");
+  }
+
+  // Doctor assignment notification email
+  if (resolvedDoctorEmail && resolvedDoctorName) {
+    const { data: hosp } = await supabase.from("hospitals").select("name").eq("id", hospital.intId).maybeSingle();
+    const hospitalName = (hosp?.name as string) ?? "Your Hospital";
+    sendDoctorAppointmentAssignedEmail(
+      resolvedDoctorEmail,
+      resolvedDoctorName,
+      hospitalName,
+      patientName,
+      appt.title as string,
+      appt.scheduled_at as string,
+      (appt.duration_minutes as number | null) ?? null,
+      (appt.notes as string | null) ?? null,
+    ).catch((err) => console.error("[doctor-appt-assigned-email] unhandled error:", err));
   }
 
   res.status(201).json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled" });
@@ -252,7 +275,7 @@ router.patch("/appointments/:id/reassign", async (req, res): Promise<void> => {
   const { data: appt } = await supabase.from("appointments").select("*").eq("id", id).eq("hospital_id", hospital.intId).single();
   if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
 
-  const { data: newDoc } = await supabase.from("hospital_doctors").select("full_name").eq("id", newDoctorId).eq("hospital_id", hospital.intId).single();
+  const { data: newDoc } = await supabase.from("hospital_doctors").select("full_name, email").eq("id", newDoctorId).eq("hospital_id", hospital.intId).single();
   if (!newDoc) { res.status(404).json({ error: "Doctor not found" }); return; }
 
   const { data: updated, error } = await supabase.from("appointments").update({
@@ -275,6 +298,23 @@ router.patch("/appointments/:id/reassign", async (req, res): Promise<void> => {
     hospital_id: hospital.intId,
     performed_by: performedBy,
   });
+
+  // Notify the new doctor by email
+  if (newDoc.email && appt.doctor_name) {
+    const { data: hosp } = await supabase.from("hospitals").select("name").eq("id", hospital.intId).maybeSingle();
+    const hospitalName = (hosp?.name as string) ?? "Your Hospital";
+    sendDoctorAppointmentReassignedEmail(
+      newDoc.email as string,
+      newDoc.full_name as string,
+      hospitalName,
+      appt.patient_name as string,
+      appt.title as string,
+      appt.scheduled_at as string,
+      (appt.duration_minutes as number | null) ?? null,
+      appt.doctor_name as string,
+      (note as string | null) ?? null,
+    ).catch((err) => console.error("[doctor-appt-reassigned-email] unhandled error:", err));
+  }
 
   res.json({ ok: true });
 });

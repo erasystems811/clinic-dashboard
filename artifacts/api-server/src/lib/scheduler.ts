@@ -15,6 +15,7 @@ import {
   sendCarePlanEmail,
   sendQueueLongWaitApology,
   sendBeneficiaryReminderEmail,
+  sendDoctorAppointmentReminderEmail,
   type InCareTimeSlot,
   type PregeneratedMessages,
 } from "./automation.js";
@@ -136,29 +137,16 @@ async function runAppointmentReminders() {
         .from("hospitals").select("name").eq("id", appt.hospital_id as number).maybeSingle();
       const hospitalName = (hosp?.name as string) ?? "Your Hospital";
 
-      const scheduledAt = new Date(appt.scheduled_at as string);
-      const timeStr = scheduledAt.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" });
-      const dateStr = scheduledAt.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Lagos" });
-
-      const doctorFirstName = (doctor.full_name as string).split(" ")[0] ?? "Doctor";
-      const subject = `Appointment in 3 hours — ${appt.patient_name}`;
-      const html = wrapHtml(`
-        <p>Hi Dr. <strong>${doctor.full_name}</strong>,</p>
-        <p>This is a reminder that you have an appointment in approximately 3 hours.</p>
-        <table style="margin:12px 0;border-collapse:collapse;">
-          <tr><td style="padding:4px 16px 4px 0;color:#888;font-size:14px;">Patient</td><td style="font-weight:bold;font-size:14px;">${appt.patient_name}</td></tr>
-          <tr><td style="padding:4px 16px 4px 0;color:#888;font-size:14px;">Appointment</td><td style="font-size:14px;">${appt.title}</td></tr>
-          <tr><td style="padding:4px 16px 4px 0;color:#888;font-size:14px;">Date &amp; Time</td><td style="font-weight:bold;font-size:14px;">${dateStr} at ${timeStr}</td></tr>
-        </table>
-        <p style="font-size:13px;color:#888;">Please ensure you are available and prepared for this session.</p>
-      `, hospitalName);
-
-      const fromEmail = process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev";
-      const fromName = process.env.PLATFORM_FROM_NAME ?? "Era Systems";
-      await sendEmail({ to: doctor.email as string, from: `${fromName} <${fromEmail}>`, subject, html })
-        .catch(err => log(`Doctor 3h reminder email error: ${err}`));
+      await sendDoctorAppointmentReminderEmail(
+        doctor.email as string,
+        doctor.full_name as string,
+        hospitalName,
+        appt.patient_name as string,
+        appt.title as string,
+        appt.scheduled_at as string,
+      ).catch(err => log(`Doctor 3h reminder email error: ${err}`));
       await supabase.from("appointments").update({ reminder_3h_doctor_sent_at: now.toISOString() }).eq("id", appt.id as number);
-      log(`Sent 3h doctor reminder for appt ${appt.id as number} → Dr. ${doctorFirstName}`);
+      log(`Sent 3h doctor reminder for appt ${appt.id as number} → Dr. ${(doctor.full_name as string).split(" ")[0]}`);
     }
 
   } catch (err) {

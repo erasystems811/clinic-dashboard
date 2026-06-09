@@ -122,7 +122,7 @@ export default function PatientHistory() {
 
   const [showFollowUp, setShowFollowUp] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [doctors, setDoctors] = useState<{ id: number; full_name: string }[]>([]);
+  const [doctors, setDoctors] = useState<{ id: number; fullName: string }[]>([]);
   const [checkInDoctorId, setCheckInDoctorId] = useState<number | "">("");
   const [checkingIn, setCheckingIn] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -195,7 +195,7 @@ export default function PatientHistory() {
     if (!token) return;
     fetch(apiUrl("/api/hospital/doctors"), { headers: { "x-hospital-token": token } })
       .then(r => r.ok ? r.json() : [])
-      .then((data: { id: number; full_name: string; unavailable?: boolean }[]) =>
+      .then((data: { id: number; fullName: string; unavailable?: boolean }[]) =>
         setDoctors(data.filter(d => !d.unavailable))
       )
       .catch(() => {});
@@ -380,7 +380,7 @@ export default function PatientHistory() {
                           >
                             <option value="">Assign doctor (optional)</option>
                             {doctors.map(d => (
-                              <option key={d.id} value={d.id}>{d.full_name}</option>
+                              <option key={d.id} value={d.id}>{d.fullName}</option>
                             ))}
                           </select>
                         )}

@@ -136,15 +136,12 @@ router.post("/queue/:id/call-in", async (req, res): Promise<void> => {
     deliverMobileMessage(channel, phone, msg).catch(() => {});
   }
 
-  // Remove from queue and move patient to In Care
-  await supabase.from("queue").delete().eq("id", id);
-  await supabase.from("patients")
-    .update({ stage: "In Care", updated_at: now })
-    .eq("id", entry.patient_id as number);
+  // Remove from queue — stage is NOT changed here (queue membership is separate from lifecycle stage)
+  await supabase.from("queue").delete().eq("patient_id", entry.patient_id as number).eq("hospital_id", hospital.code);
 
   await supabase.from("activity").insert({
     type: "called_in",
-    description: `${entry.patient_name as string} called in${entry.doctor_name ? ` by Dr. ${entry.doctor_name as string}` : ""} — moved to In Care`,
+    description: `${entry.patient_name as string} called in${entry.doctor_name ? ` by Dr. ${entry.doctor_name as string}` : ""} and removed from queue`,
     patient_id: entry.patient_id as number,
     patient_name: entry.patient_name as string,
     hospital_id: hospital.intId,

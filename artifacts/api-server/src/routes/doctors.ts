@@ -23,6 +23,23 @@ function fromAddress(): string {
   return `${name} <${email}>`;
 }
 
+async function sendAdminInviteEmail(adminEmail: string, adminName: string, hospitalName: string, username: string, password: string): Promise<void> {
+  const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
+  const body = `Hi ${adminName},\n\nYou have been added as an Admin for ${hospitalName} on Era Systems.\n\nYour login credentials:\nUsername: ${username}\nPassword: ${password}\n\nLog in at: ${appUrl}/login\n\nIf you did not expect this email, contact your hospital owner.\n\nWarm regards,\nEra Systems`;
+  const html = wrapHtml(`
+    <p>Hi <strong>${adminName}</strong>,</p>
+    <p>You have been added as an <strong>Admin</strong> for <strong>${hospitalName}</strong> on Era Systems.</p>
+    <p>Your login credentials:</p>
+    <table style="margin:12px 0;border-collapse:collapse;">
+      <tr><td style="padding:4px 16px 4px 0;color:#888;font-size:14px;">Username</td><td style="font-weight:bold;font-family:monospace;font-size:14px;">${username}</td></tr>
+      <tr><td style="padding:4px 16px 4px 0;color:#888;font-size:14px;">Password</td><td style="font-weight:bold;font-family:monospace;font-size:14px;">${password}</td></tr>
+    </table>
+    <p>Log in at: <a href="${appUrl}/login">${appUrl}/login</a></p>
+    <p style="font-size:13px;color:#888;">If you did not expect this, contact your hospital owner.</p>
+  `, hospitalName);
+  await sendEmail({ to: adminEmail, from: fromAddress(), subject: `Your Era Systems admin login — ${hospitalName}`, html, text: body });
+}
+
 async function sendDoctorInviteEmail(doctorEmail: string, doctorName: string, hospitalName: string, username: string, password: string): Promise<void> {
   const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
   const body = `Hi Dr. ${doctorName},\n\nYou have been added to ${hospitalName}'s clinical team on Era Systems.\n\nYour login credentials:\nUsername: ${username}\nPassword: ${password}\n\nLog in at: ${appUrl}/login\n\nIf you did not expect this email, contact your hospital administrator.\n\nWarm regards,\nEra Systems`;
@@ -121,7 +138,7 @@ router.patch("/hospital/doctors/:id", async (req: Request, res: Response): Promi
   const hospitalId = token ? verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -162,7 +179,7 @@ router.delete("/hospital/doctors/:id", async (req: Request, res: Response): Prom
   const hospitalId = token ? verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const { count: queueCount } = await supabase
@@ -221,7 +238,7 @@ router.post("/queue/:id/transfer", async (req: Request, res: Response): Promise<
   const ctx = await getHospitalFromRequest(req);
   if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const queueId = parseInt(req.params.id, 10);
+  const queueId = parseInt(req.params.id as string, 10);
   if (isNaN(queueId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const { doctorId, performedBy, note } = (req.body ?? {}) as Record<string, unknown>;
@@ -262,6 +279,122 @@ router.post("/queue/:id/transfer", async (req: Request, res: Response): Promise<
   });
 
   res.json({ ok: true });
+});
+
+// ── Admin accounts CRUD ───────────────────────────────────────────────────────
+
+router.get("/hospital/admins", async (req: Request, res: Response): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data, error } = await supabase
+    .from("hospital_admins")
+    .select("id, full_name, email, username, active, created_at")
+    .eq("hospital_id", hospitalId)
+    .order("created_at", { ascending: true });
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json((data ?? []).map(a => ({
+    id: a.id as number,
+    fullName: a.full_name as string,
+    email: a.email as string,
+    username: a.username as string,
+    active: a.active as boolean,
+    createdAt: a.created_at as string,
+  })));
+});
+
+router.post("/hospital/admins", async (req: Request, res: Response): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { fullName, email } = (req.body ?? {}) as Record<string, string>;
+  if (!fullName?.trim() || !email?.trim()) {
+    res.status(400).json({ error: "fullName and email are required" }); return;
+  }
+
+  const { data: hospital } = await supabase.from("hospitals").select("name, active").eq("id", hospitalId).single();
+  if (!hospital?.active) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  // Auto-generate username: ADMIN.FIRSTNAME.LASTNAME
+  const nameParts = fullName.trim().toUpperCase().replace(/[^A-Z0-9 ]/g, "").split(" ").filter(Boolean);
+  let username = `ADMIN.${nameParts.join(".")}`;
+  let suffix = 1;
+  while (true) {
+    const { data: existing } = await supabase.from("hospital_admins").select("id").ilike("username", username).maybeSingle();
+    if (!existing) break;
+    username = `ADMIN.${nameParts.join(".")}.${suffix++}`;
+  }
+
+  const plainPassword = generatePassword();
+  const salt = crypto.randomBytes(16).toString("hex");
+  const passwordHash = `${salt}:${hashPassword(plainPassword, salt)}`;
+
+  const { data: admin, error } = await supabase
+    .from("hospital_admins")
+    .insert({ hospital_id: hospitalId, full_name: fullName.trim(), email: email.trim(), username, password_hash: passwordHash })
+    .select("id, full_name, email, username, active, created_at")
+    .single();
+
+  if (error || !admin) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
+
+  sendAdminInviteEmail(email.trim(), fullName.trim(), hospital.name as string, username, plainPassword)
+    .catch(err => console.error("[admin-invite]", err));
+
+  res.status(201).json({
+    id: admin.id as number,
+    fullName: admin.full_name as string,
+    email: admin.email as string,
+    username: admin.username as string,
+    active: admin.active as boolean,
+    createdAt: admin.created_at as string,
+  });
+});
+
+router.patch("/hospital/admins/:id", async (req: Request, res: Response): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const updates: Record<string, unknown> = {};
+  if (typeof body.fullName === "string") updates.full_name = (body.fullName as string).trim();
+  if (typeof body.email === "string") updates.email = (body.email as string).trim();
+  if (typeof body.active === "boolean") updates.active = body.active;
+  if (typeof body.password === "string" && body.password) {
+    const salt = crypto.randomBytes(16).toString("hex");
+    updates.password_hash = `${salt}:${hashPassword(body.password as string, salt)}`;
+  }
+
+  if (Object.keys(updates).length === 0) { res.status(400).json({ error: "No valid fields" }); return; }
+
+  const { data, error } = await supabase
+    .from("hospital_admins")
+    .update(updates)
+    .eq("id", id)
+    .eq("hospital_id", hospitalId)
+    .select("id, full_name, email, username, active, created_at")
+    .single();
+
+  if (error || !data) { res.status(404).json({ error: "Admin not found" }); return; }
+  res.json({ id: data.id, fullName: data.full_name, email: data.email, username: data.username, active: data.active, createdAt: data.created_at });
+});
+
+router.delete("/hospital/admins/:id", async (req: Request, res: Response): Promise<void> => {
+  const token = req.headers["x-hospital-token"] as string;
+  const hospitalId = token ? verifyHospitalToken(token) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await supabase.from("hospital_admins").delete().eq("id", id).eq("hospital_id", hospitalId);
+  res.sendStatus(204);
 });
 
 // ── Doctor follow-ups ─────────────────────────────────────────────────────────
@@ -331,7 +464,7 @@ router.get("/doctor/follow-ups", async (req: Request, res: Response): Promise<vo
 });
 
 router.patch("/doctor/follow-ups/:id/complete", async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   const ctx = await getHospitalFromRequest(req);
   if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
 

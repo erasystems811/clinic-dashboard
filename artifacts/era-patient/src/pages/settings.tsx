@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader2, Eye, EyeOff, UserPlus, Pencil, Users, Wallet, AlertCircle, Stethoscope, Trash2, Clock, Plus, Link2, Check } from "lucide-react";
+import { Loader2, Eye, EyeOff, UserPlus, Pencil, Users, Wallet, AlertCircle, Stethoscope, Trash2, Clock, Plus, Link2, Check, Shield } from "lucide-react";
 
 interface StaffCreds {
   nurseUsername: string;
@@ -30,6 +30,15 @@ interface TimeBlock {
   slotMinutes: number;
 }
 
+interface AdminMember {
+  id: number;
+  fullName: string;
+  email: string;
+  username: string;
+  active: boolean;
+  createdAt: string;
+}
+
 interface DoctorMember {
   id: number;
   fullName: string;
@@ -45,6 +54,83 @@ const ROLE_LABEL: Record<string, string> = { nurse: "Nurse", receptionist: "Rece
 export default function Settings() {
   const { hospital } = useAuth();
   const token = hospital?.token ?? "";
+
+  // ── Admin accounts ────────────────────────────────────────────────────────
+  const [admins, setAdmins] = useState<AdminMember[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(true);
+  const [showAddAdminForm, setShowAddAdminForm] = useState(false);
+  const [newAdminName, setNewAdminName] = useState("");
+  const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [addAdminError, setAddAdminError] = useState("");
+  const [addAdminSaving, setAddAdminSaving] = useState(false);
+  const [deletingAdminId, setDeletingAdminId] = useState<number | null>(null);
+  const [editingAdminId, setEditingAdminId] = useState<number | null>(null);
+  const [editAdminName, setEditAdminName] = useState("");
+  const [editAdminEmail, setEditAdminEmail] = useState("");
+  const [editAdminPassword, setEditAdminPassword] = useState("");
+  const [editAdminSaving, setEditAdminSaving] = useState(false);
+  const [editAdminError, setEditAdminError] = useState("");
+
+  const loadAdmins = () => {
+    if (!token) return;
+    setLoadingAdmins(true);
+    fetch(apiUrl("/api/hospital/admins"), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: AdminMember[]) => setAdmins(data))
+      .finally(() => setLoadingAdmins(false));
+  };
+
+  useEffect(() => { loadAdmins(); }, [token]);
+
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAdminName.trim() || !newAdminEmail.trim()) return;
+    setAddAdminError(""); setAddAdminSaving(true);
+    try {
+      const res = await fetch(apiUrl("/api/hospital/admins"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify({ fullName: newAdminName.trim(), email: newAdminEmail.trim() }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setNewAdminName(""); setNewAdminEmail("");
+      setShowAddAdminForm(false);
+      loadAdmins();
+    } catch (err: unknown) {
+      setAddAdminError(err instanceof Error ? err.message : "Failed to add admin.");
+    } finally { setAddAdminSaving(false); }
+  };
+
+  const handleDeleteAdmin = async (id: number) => {
+    setDeletingAdminId(id);
+    await fetch(apiUrl(`/api/hospital/admins/${id}`), { method: "DELETE", headers: { "x-hospital-token": token } });
+    setDeletingAdminId(null);
+    loadAdmins();
+  };
+
+  const startEditAdmin = (a: AdminMember) => {
+    setEditingAdminId(a.id); setEditAdminName(a.fullName); setEditAdminEmail(a.email); setEditAdminPassword(""); setEditAdminError("");
+  };
+
+  const handleEditAdmin = async (id: number) => {
+    setEditAdminError(""); setEditAdminSaving(true);
+    try {
+      const body: Record<string, unknown> = { fullName: editAdminName, email: editAdminEmail };
+      if (editAdminPassword) body.password = editAdminPassword;
+      const res = await fetch(apiUrl(`/api/hospital/admins/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setEditingAdminId(null);
+      loadAdmins();
+    } catch (err: unknown) {
+      setEditAdminError(err instanceof Error ? err.message : "Failed to update.");
+    } finally { setEditAdminSaving(false); }
+  };
 
   // ── Legacy shared credentials ─────────────────────────────────────────────
   const [creds, setCreds] = useState<StaffCreds | null>(null);
@@ -404,6 +490,119 @@ export default function Settings() {
           <h1 className="text-2xl font-bold">Settings</h1>
           <p className="text-muted-foreground text-sm mt-1">Manage staff accounts and login credentials</p>
         </div>
+
+        {/* ── Admin Accounts ── */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Shield className="w-4 h-4" /> Admin Accounts
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Add additional admin logins for your hospital. Each admin gets their own username and password — their name appears in activity logs so you can see who did what.
+                </CardDescription>
+              </div>
+              <Button size="sm" className="gap-1.5 shrink-0" onClick={() => { setShowAddAdminForm(true); setAddAdminError(""); }}>
+                <UserPlus className="w-3.5 h-3.5" />
+                Add Admin
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {showAddAdminForm && (
+              <form onSubmit={handleAddAdmin} className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+                <p className="text-sm font-semibold">New Admin Account</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">Full Name *</Label>
+                    <Input value={newAdminName} onChange={e => setNewAdminName(e.target.value)} placeholder="e.g. Grace Okonkwo" required />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <Label className="text-xs">Email Address *</Label>
+                    <Input type="email" value={newAdminEmail} onChange={e => setNewAdminEmail(e.target.value)} placeholder="admin@example.com" required />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground">A username and password will be auto-generated and emailed to them.</p>
+                {addAdminError && <p className="text-xs text-destructive">{addAdminError}</p>}
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowAddAdminForm(false)}>Cancel</Button>
+                  <Button type="submit" size="sm" disabled={addAdminSaving}>
+                    {addAdminSaving ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Adding…</> : "Add Admin"}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {loadingAdmins ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+              </div>
+            ) : admins.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">No additional admin accounts yet. The master admin login from your ERA Systems setup still works.</p>
+            ) : (
+              <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+                {admins.map(a => (
+                  <div key={a.id} className={`px-4 py-3 ${!a.active ? "opacity-50" : ""}`}>
+                    {editingAdminId === a.id ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1 col-span-2">
+                            <Label className="text-xs">Full Name</Label>
+                            <Input value={editAdminName} onChange={e => setEditAdminName(e.target.value)} />
+                          </div>
+                          <div className="space-y-1 col-span-2">
+                            <Label className="text-xs">Email</Label>
+                            <Input type="email" value={editAdminEmail} onChange={e => setEditAdminEmail(e.target.value)} />
+                          </div>
+                          <div className="space-y-1 col-span-2">
+                            <Label className="text-xs">New Password <span className="text-muted-foreground font-normal">(leave blank to keep current)</span></Label>
+                            <Input type="password" value={editAdminPassword} onChange={e => setEditAdminPassword(e.target.value)} placeholder="Leave blank to keep" />
+                          </div>
+                        </div>
+                        {editAdminError && <p className="text-xs text-destructive">{editAdminError}</p>}
+                        <div className="flex gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setEditingAdminId(null)}>Cancel</Button>
+                          <Button size="sm" disabled={editAdminSaving} onClick={() => handleEditAdmin(a.id)}>
+                            {editAdminSaving ? "Saving…" : "Save"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-violet-500/10 text-violet-400 font-bold text-sm flex items-center justify-center shrink-0">
+                          {a.fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{a.fullName}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs font-mono text-muted-foreground">{a.username}</span>
+                            <span className="text-xs px-1.5 py-px rounded bg-violet-500/10 text-violet-400">Admin</span>
+                            {!a.active && <span className="text-xs text-destructive">Inactive</span>}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{a.email}</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => startEditAdmin(a)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition" title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteAdmin(a.id)}
+                            disabled={deletingAdminId === a.id}
+                            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition disabled:opacity-40"
+                            title="Remove admin"
+                          >
+                            {deletingAdminId === a.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* ── Individual Staff Accounts ── */}
         <Card>

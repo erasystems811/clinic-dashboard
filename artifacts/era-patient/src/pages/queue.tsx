@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useListQueue,
   useListPatients,
-  useCheckinPatient,
   useDequeuePatient,
   useUpdatePatient,
   getListQueueQueryKey,
@@ -16,9 +15,17 @@ import {
   getListAppointmentsQueryKey,
 } from "@workspace/api-client-react";
 
-import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star, Pencil, X } from "lucide-react";
+import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star, Pencil, X, Stethoscope } from "lucide-react";
 import { getPatientStages } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import { apiUrl } from "@/lib/api";
+
+interface Doctor {
+  id: number;
+  fullName: string;
+  specialty?: string | null;
+  unavailable: boolean;
+}
 
 interface EditPatient {
   id: number;
@@ -153,9 +160,10 @@ function waitTime(addedAt: string) {
 }
 
 export default function QueueManagement() {
-  const { hospitalConfig } = useAuth();
+  const { hospitalConfig, hospital } = useAuth();
   const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
   const queueEnabled = hospitalConfig?.modules?.feedbackEnabled ?? true;
+  const token = hospital?.token ?? "";
 
   if (!queueEnabled) {
     return (
@@ -173,6 +181,8 @@ export default function QueueManagement() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [editPatient, setEditPatient] = useState<EditPatient | null>(null);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | "">("");
 
   const { data: queue = [], refetch: refetchQueue, isLoading: queueLoading, isFetching: queueFetching } = useListQueue({
     query: { refetchInterval: 5000 },
@@ -182,18 +192,37 @@ export default function QueueManagement() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     { query: { enabled: search.trim().length >= 2 } as any }
   );
-  const checkin = useCheckinPatient({
-    mutation: {
-      onSuccess: (patient) => {
-        toast({ title: "Added to queue", description: `${patient.firstName} ${patient.lastName} is now queued.` });
-        queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
-        setSearch("");
-      },
-      onError: () => toast({ title: "Failed to add to queue", variant: "destructive" }),
-    },
-  });
+
+  // Load doctors list for queue assignment
+  useEffect(() => {
+    if (!token) return;
+    fetch(apiUrl("/api/hospital/doctors"), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: Doctor[]) => setDoctors(data.filter(d => d.unavailable === false)));
+  }, [token]);
+
+  const [checkingIn, setCheckingIn] = useState(false);
+  const handleCheckin = async (patientId: number, patientName: string) => {
+    setCheckingIn(true);
+    try {
+      const body: Record<string, unknown> = { doctorId: selectedDoctorId || undefined };
+      const res = await fetch(apiUrl(`/api/patients/${patientId}/checkin`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: "Added to queue", description: `${patientName} is now queued.` });
+      queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
+      setSearch("");
+    } catch {
+      toast({ title: "Failed to add to queue", variant: "destructive" });
+    } finally {
+      setCheckingIn(false);
+    }
+  };
 
   const dequeue = useDequeuePatient({
     mutation: {
@@ -277,8 +306,13 @@ export default function QueueManagement() {
                     <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-muted-foreground">
                       {entry.patientCode && <span className="font-mono">ID: {entry.patientCode}</span>}
                       {entry.department && <span>{entry.department}</span>}
+                      {(entry as unknown as { doctorName?: string }).doctorName && (
+                        <span className="flex items-center gap-1 text-primary/80">
+                          <Stethoscope className="w-3 h-3" />
+                          Dr. {(entry as unknown as { doctorName?: string }).doctorName}
+                        </span>
+                      )}
                       {entry.email && <span>{entry.email}</span>}
-                      {entry.whatsappNumber && <span>WA: {entry.whatsappNumber}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
@@ -331,6 +365,21 @@ export default function QueueManagement() {
             <p className="text-xs text-muted-foreground">
               Search for an existing patient, or register a new file for first-time visitors.
             </p>
+            {doctors.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Stethoscope className="w-4 h-4 text-muted-foreground shrink-0" />
+                <select
+                  className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={selectedDoctorId}
+                  onChange={e => setSelectedDoctorId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  <option value="">Assign to doctor (optional)</option>
+                  {doctors.map(d => (
+                    <option key={d.id} value={d.id}>Dr. {d.fullName}{d.specialty ? ` — ${d.specialty}` : ""}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="relative">
               <Input
                 placeholder="Search by name or ID..."
@@ -389,10 +438,10 @@ export default function QueueManagement() {
                           ) : (
                             <Button
                               size="sm"
-                              onClick={() => checkin.mutate({ id: patient.id })}
-                              disabled={checkin.isPending}
+                              onClick={() => handleCheckin(patient.id, `${patient.firstName} ${patient.lastName}`)}
+                              disabled={checkingIn}
                             >
-                              Add to Queue
+                              {checkingIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Add to Queue"}
                             </Button>
                           )}
                         </div>

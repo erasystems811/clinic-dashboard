@@ -23,6 +23,8 @@ import WellnessAdmin from "@/pages/wellness-admin";
 import Settings from "@/pages/settings";
 import PatientImport from "@/pages/patient-import";
 import HelpPage from "@/pages/help";
+import DoctorView from "@/pages/doctor-view";
+import BookingPage from "@/pages/book";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,16 +43,22 @@ function PatientRedirect() {
 function defaultPathForRole(role: Role): string {
   if (role === "receptionist") return "/queue";
   if (role === "nurse") return "/nurse-station";
+  if (role === "doctor") return "/doctor-view";
   return "/";
 }
 
 function ProtectedRouter() {
   const [matchesFeedback, feedbackParams] = useRoute("/feedback/:token");
   const [matchesFeedbackH, feedbackHParams] = useRoute("/feedback/h/:slug");
+  const [matchesBook, bookParams] = useRoute("/book/:slug");
   const { hospital, user, hospitalConfig } = useAuth();
 
   if (matchesFeedbackH) {
     return <FeedbackForm hospitalSlug={feedbackHParams?.slug ?? ""} />;
+  }
+
+  if (matchesBook) {
+    return <BookingPage hospitalSlug={bookParams?.slug ?? ""} />;
   }
 
   if (matchesFeedback) {
@@ -112,6 +120,10 @@ function ProtectedRouter() {
       {role === "nurse" && <Route path="/nurse-station" component={NurseStation} />}
       {role === "nurse" && <Route path="/call-tasks" component={CallTasks} />}
       {role === "nurse" && <Route path="/help" component={HelpPage} />}
+
+      {/* Doctor routes */}
+      {role === "doctor" && <Route path="/doctor-view" component={DoctorView} />}
+      {role === "doctor" && <Route path="/help" component={HelpPage} />}
 
       {/* Default redirect */}
       <Route>

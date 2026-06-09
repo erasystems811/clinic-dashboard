@@ -19,6 +19,8 @@ import followupPlansRouter from "./followup-plans";
 import supportRouter from "./support";
 import walletRouter from "./wallet";
 import systemFeedbackRouter from "./system-feedback";
+import doctorsRouter from "./doctors";
+import selfBookingRouter from "./self-booking";
 
 const router: IRouter = Router();
 
@@ -42,5 +44,7 @@ router.use(followupPlansRouter);
 router.use(supportRouter);
 router.use(walletRouter);
 router.use(systemFeedbackRouter);
+router.use(doctorsRouter);
+router.use(selfBookingRouter);
 
 export default router;

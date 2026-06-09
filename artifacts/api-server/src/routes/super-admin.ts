@@ -599,6 +599,46 @@ router.post("/staff/login", async (req, res): Promise<void> => {
     return;
   }
 
+  // ── Try doctor account ──────────────────────────────────────────────────────
+  const { data: doctorAccount } = await supabase
+    .from("hospital_doctors")
+    .select("*, hospitals(id, name, username, active)")
+    .ilike("username", usernameUpper)
+    .eq("active", true)
+    .maybeSingle();
+
+  if (doctorAccount) {
+    if (!doctorAccount.password_hash) { res.status(401).json({ error: "Invalid credentials" }); return; }
+    const [dSalt, dHash] = (doctorAccount.password_hash as string).split(":");
+    if (!crypto.timingSafeEqual(Buffer.from(hashPassword(password as string, dSalt), "hex"), Buffer.from(dHash, "hex"))) {
+      res.status(401).json({ error: "Invalid credentials" }); return;
+    }
+    const dHospital = (doctorAccount as Record<string, unknown>).hospitals as Record<string, unknown>;
+    if (!dHospital || !dHospital.active) { res.status(403).json({ error: "Hospital account is suspended" }); return; }
+    const dHospitalId = dHospital.id as number;
+    const [{ data: dSettings }, { data: dModules }] = await Promise.all([
+      supabase.from("hospital_settings").select("departments").eq("hospital_id", dHospitalId).single(),
+      supabase.from("hospital_modules").select("appointments_enabled, feedback_enabled, wellness_newsletter_enabled").eq("hospital_id", dHospitalId).single(),
+    ]);
+    res.json({
+      role: "doctor",
+      token: signHospitalToken(dHospitalId),
+      doctorId: doctorAccount.id as number,
+      staffName: doctorAccount.full_name as string,
+      staffUsername: doctorAccount.username as string,
+      specialty: (doctorAccount.specialty as string | null) ?? null,
+      hospital: { id: dHospital.id, name: dHospital.name, username: dHospital.username },
+      departments: JSON.parse((dSettings?.departments as string) ?? "[]"),
+      modules: {
+        appointmentsEnabled: (dModules?.appointments_enabled as boolean) ?? true,
+        feedbackEnabled: (dModules?.feedback_enabled as boolean) ?? true,
+        wellnessNewsletterEnabled: (dModules?.wellness_newsletter_enabled as boolean) ?? true,
+        messagesEnabled: false,
+      },
+    });
+    return;
+  }
+
   // ── Fall back to shared legacy credentials ──────────────────────────────────
   const { data: allCreds } = await supabase.from("hospital_staff_credentials").select("*");
   let matchedCreds: Record<string, unknown> | null = null;

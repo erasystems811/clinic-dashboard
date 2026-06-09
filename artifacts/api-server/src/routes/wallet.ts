@@ -112,7 +112,24 @@ router.post("/wallet/webhook", async (req: Request, res: Response): Promise<void
 
   const data = event.data as Record<string, unknown>;
   const txRef = data?.tx_ref as string | undefined;
-  const hospitalId = (data?.meta as Record<string, unknown> | undefined)?.hospital_id as number | undefined;
+
+  // Flutterwave may return meta as a plain object OR as [{metaname, metavalue}] array
+  const rawMeta = data?.meta;
+  let hospitalId: number | undefined;
+  if (Array.isArray(rawMeta)) {
+    const entry = (rawMeta as Array<{ metaname: string; metavalue: unknown }>).find(m => m.metaname === "hospital_id");
+    hospitalId = entry ? Number(entry.metavalue) : undefined;
+  } else if (rawMeta && typeof rawMeta === "object") {
+    hospitalId = (rawMeta as Record<string, unknown>).hospital_id as number | undefined;
+  }
+  // Fallback: parse from tx_ref "era-wallet-{id}-{timestamp}"
+  if (!hospitalId && txRef) {
+    const parts = txRef.split("-");
+    if (parts.length >= 4 && parts[0] === "era" && parts[1] === "wallet") {
+      const parsed = parseInt(parts[2], 10);
+      if (!isNaN(parsed)) hospitalId = parsed;
+    }
+  }
 
   if (!txRef || !hospitalId) { res.json({ ok: true }); return; }
 
@@ -150,6 +167,21 @@ router.get("/wallet/transactions", async (req: Request, res: Response): Promise<
     .limit(50);
 
   res.json(data ?? []);
+});
+
+// ── POST /api/super-admin/hospitals/:id/wallet/credit — super admin manually credits wallet ──
+router.post("/super-admin/hospitals/:id/wallet/credit", requireSuperAdmin, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const amountNaira = Number(req.body?.amountNaira);
+  const description = (req.body?.description as string | undefined)?.trim() || "Manual credit by admin";
+  if (!amountNaira || amountNaira <= 0) { res.status(400).json({ error: "Invalid amount" }); return; }
+
+  const amountKobo = Math.round(amountNaira * 100);
+  await creditWallet(id, amountKobo, description);
+  const { data } = await supabase.from("hospitals").select("wallet_balance_kobo").eq("id", id).single();
+  res.json({ ok: true, balanceKobo: data?.wallet_balance_kobo, balanceNaira: (data?.wallet_balance_kobo as number) / 100 });
 });
 
 // ── GET /api/super-admin/hospitals/:id/wallet — super admin views wallet ──────

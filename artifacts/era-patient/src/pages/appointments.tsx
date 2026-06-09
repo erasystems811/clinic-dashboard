@@ -182,6 +182,13 @@ function EditPatientModal({ patient, onClose, onSaved }: { patient: EditPatient;
   );
 }
 
+interface ApptDoctor {
+  id: number;
+  fullName: string;
+  specialty: string | null;
+  unavailable: boolean;
+}
+
 /* ──────────────────────────────────────────────
    Book Appointment Modal (shared)
 ────────────────────────────────────────────── */
@@ -196,6 +203,7 @@ function BookModal({
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { hospital } = useAuth();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
   const [selectedPatient, setSelectedPatient] = useState<{ id: number; name: string } | null>(null);
@@ -203,7 +211,18 @@ function BookModal({
   const [date, setDate] = useState(prefillDate ?? "");
   const [time, setTime] = useState(prefillTime ?? "");
   const [duration, setDuration] = useState("30");
+  const [doctorId, setDoctorId] = useState<number | "">("");
+  const [doctors, setDoctors] = useState<ApptDoctor[]>([]);
   const [showWalletDialog, setShowWalletDialog] = useState(false);
+
+  // Load doctors list
+  const token = hospital?.token ?? "";
+  useEffect(() => {
+    if (!token) return;
+    fetch(apiUrl("/api/hospital/doctors"), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: ApptDoctor[]) => setDoctors(data.filter(d => d.unavailable === false)));
+  }, [token]);
 
   const { data: results = [], isFetching } = useListPatients(
     { search },
@@ -224,13 +243,17 @@ function BookModal({
 
   const doBook = () => {
     if (!selectedPatient || !title || !date || !time) return;
+    const durationMins = parseInt(duration) || 30;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     create.mutate({
       data: {
         patientId: selectedPatient.id,
         title,
         scheduledAt: `${date}T${time}:00+01:00`, // WAT (Africa/Lagos = UTC+1)
-        duration: parseInt(duration) || 30,
-      },
+        duration: durationMins,
+        durationMinutes: durationMins,
+        ...(doctorId ? { doctorId } : {}),
+      } as never,
     });
   };
 
@@ -334,19 +357,36 @@ function BookModal({
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Duration</label>
-          <select
-            className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={duration}
-            onChange={e => setDuration(e.target.value)}
-          >
-            <option value="15">15 min</option>
-            <option value="30">30 min</option>
-            <option value="45">45 min</option>
-            <option value="60">1 hour</option>
-            <option value="90">1.5 hours</option>
-          </select>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Duration</label>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+              value={duration}
+              onChange={e => setDuration(e.target.value)}
+            >
+              <option value="15">15 min</option>
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+            </select>
+          </div>
+          {doctors.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Assign Doctor</label>
+              <select
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={doctorId}
+                onChange={e => setDoctorId(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">No doctor assigned</option>
+                {doctors.map(d => (
+                  <option key={d.id} value={d.id}>Dr. {d.fullName}{d.specialty ? ` (${d.specialty})` : ""}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Automation hint */}
@@ -645,6 +685,111 @@ function CalendarView({
 }
 
 /* ──────────────────────────────────────────────
+   Self Booking Confirm Modal
+────────────────────────────────────────────── */
+interface SelfBooking {
+  id: number;
+  patientName: string;
+  patientPhone: string;
+  patientEmail?: string | null;
+  reason: string;
+  requestedAt: string;
+  status: string;
+  doctorId?: number | null;
+  durationMinutes?: number | null;
+}
+
+function SelfBookingConfirmModal({
+  booking,
+  doctors,
+  token,
+  onClose,
+  onDone,
+}: {
+  booking: SelfBooking;
+  doctors: ApptDoctor[];
+  token: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { toast } = useToast();
+  const [doctorId, setDoctorId] = useState<number | "">("");
+  const [duration, setDuration] = useState("30");
+  const [saving, setSaving] = useState(false);
+
+  const handleConfirm = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch(apiUrl(`/api/hospital/self-bookings/${booking.id}/confirm`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify({ doctorId: doctorId || undefined, durationMinutes: parseInt(duration) || 30 }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? "Confirm failed");
+      }
+      toast({ title: "Booking confirmed", description: `${booking.patientName} has been confirmed. Confirmation email sent.` });
+      onDone();
+      onClose();
+    } catch (err: unknown) {
+      toast({ title: "Could not confirm", description: (err as Error).message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-card border border-border rounded-xl w-full max-w-md shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <p className="font-semibold text-sm">Confirm Booking</p>
+          <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="rounded-lg bg-muted/30 border border-border p-3 space-y-1">
+            <p className="text-sm font-medium">{booking.patientName}</p>
+            <p className="text-xs text-muted-foreground">{booking.patientPhone}{booking.patientEmail ? ` · ${booking.patientEmail}` : ""}</p>
+            <p className="text-xs text-muted-foreground mt-1">{booking.reason}</p>
+            <p className="text-xs font-medium mt-1">{new Date(booking.requestedAt).toLocaleString("en-NG", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" })}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Duration</label>
+              <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={duration} onChange={e => setDuration(e.target.value)}>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">1 hour</option>
+                <option value="90">1.5 hours</option>
+              </select>
+            </div>
+            {doctors.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Assign Doctor</label>
+                <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={doctorId} onChange={e => setDoctorId(e.target.value ? Number(e.target.value) : "")}>
+                  <option value="">No doctor</option>
+                  {doctors.map(d => (
+                    <option key={d.id} value={d.id}>Dr. {d.fullName}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">Confirming will create an appointment and send a confirmation email to the patient.</p>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+            <Button size="sm" disabled={saving} onClick={handleConfirm}>
+              {saving ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Confirming…</> : "Confirm & Notify Patient"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────
    Page
 ────────────────────────────────────────────── */
 export default function Appointments() {
@@ -658,6 +803,10 @@ export default function Appointments() {
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [editPatientId, setEditPatientId] = useState<number | null>(null);
+  const [selfBookings, setSelfBookings] = useState<SelfBooking[]>([]);
+  const [confirmBooking, setConfirmBooking] = useState<SelfBooking | null>(null);
+  const [allDoctors, setAllDoctors] = useState<ApptDoctor[]>([]);
+  const [cancellingBookingId, setCancellingBookingId] = useState<number | null>(null);
 
   const { data: editPatientFull } = useGetPatient(editPatientId ?? 0, {
     query: { enabled: !!editPatientId },
@@ -681,6 +830,35 @@ export default function Appointments() {
     queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
     queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
   }
+
+  const loadSelfBookings = () => {
+    if (!hospital?.token) return;
+    fetch(apiUrl("/api/hospital/self-bookings"), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: SelfBooking[]) => setSelfBookings(data.filter(b => b.status === "pending")));
+  };
+
+  useEffect(() => {
+    if (!hospital?.token) return;
+    // Load doctors for confirm modal
+    fetch(apiUrl("/api/hospital/doctors"), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: ApptDoctor[]) => setAllDoctors(data.filter(d => !d.unavailable)));
+    // Load pending self-bookings
+    loadSelfBookings();
+  }, [hospital?.token]);
+
+  const handleCancelSelfBooking = async (id: number) => {
+    if (!hospital?.token) return;
+    setCancellingBookingId(id);
+    try {
+      await fetch(apiUrl(`/api/hospital/self-bookings/${id}/cancel`), {
+        method: "PATCH",
+        headers: { "x-hospital-token": hospital.token },
+      });
+      loadSelfBookings();
+    } finally { setCancellingBookingId(null); }
+  };
 
   useEffect(() => {
     if (!hospital?.token) return;
@@ -788,6 +966,15 @@ export default function Appointments() {
           onSaved={handlePatientSaved}
         />
       )}
+      {confirmBooking && hospital?.token && (
+        <SelfBookingConfirmModal
+          booking={confirmBooking}
+          doctors={allDoctors}
+          token={hospital.token}
+          onClose={() => setConfirmBooking(null)}
+          onDone={() => { loadSelfBookings(); queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() }); }}
+        />
+      )}
       <div className="space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -869,6 +1056,44 @@ export default function Appointments() {
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Pending online bookings */}
+              {isReceptionist && selfBookings.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold text-amber-500 uppercase tracking-wide flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse inline-block" />
+                    Online Booking Requests · {selfBookings.length}
+                  </p>
+                  {selfBookings.map(b => (
+                    <div key={b.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border border-amber-500/30 rounded-lg bg-amber-500/5">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm">{b.patientName}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{b.patientPhone}{b.patientEmail ? ` · ${b.patientEmail}` : ""}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{b.reason}</p>
+                        <p className="text-xs font-medium text-amber-400 mt-1">
+                          Requested: {new Date(b.requestedAt).toLocaleString("en-NG", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" })}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-destructive hover:text-destructive border-destructive/30"
+                          disabled={cancellingBookingId === b.id}
+                          onClick={() => handleCancelSelfBooking(b.id)}
+                        >
+                          {cancellingBookingId === b.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                          Decline
+                        </Button>
+                        <Button size="sm" className="gap-1.5" onClick={() => setConfirmBooking(b)}>
+                          <CalendarPlus className="w-3.5 h-3.5" />
+                          Confirm
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Upcoming */}
               {upcoming.length > 0 ? (
                 <div className="space-y-3">

@@ -215,4 +215,7 @@ export const api = {
 
   getHospitalWallet: (id: number) =>
     get<WalletInfo>(`/super-admin/hospitals/${id}/wallet`),
+
+  creditHospitalWallet: (id: number, amountNaira: number, description: string) =>
+    post<{ ok: boolean; balanceKobo: number; balanceNaira: number }>(`/super-admin/hospitals/${id}/wallet/credit`, { amountNaira, description }),
 };

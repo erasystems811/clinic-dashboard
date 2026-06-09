@@ -645,18 +645,35 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
     }
   }
 
-  const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true }).eq("hospital_id", existing.hospital_id);
-  const queueSize = currentCount ?? 0;
+  // Doctor assignment from request body
+  const doctorId = req.body?.doctorId ? Number(req.body.doctorId) : null;
+  const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
 
+  // Fetch doctor name if assigned
+  let doctorName: string | null = null;
+  if (doctorId) {
+    const { data: doc } = await supabase.from("hospital_doctors").select("full_name").eq("id", doctorId).single();
+    doctorName = (doc?.full_name as string) ?? null;
+  }
+
+  // Position is per-doctor if doctor assigned, otherwise global
   let position: number;
-  if (hasTimedAppointment && queueSize > 0) {
-    const { data: existingQueue } = await supabase.from("queue").select("id, position").eq("hospital_id", existing.hospital_id).order("position", { ascending: true });
-    for (const entry of existingQueue ?? []) {
-      await supabase.from("queue").update({ position: entry.position + 1 }).eq("id", entry.id);
-    }
-    position = 1;
+  if (doctorId) {
+    const { count: doctorCount } = await supabase.from("queue").select("*", { count: "exact", head: true })
+      .eq("hospital_id", existing.hospital_id).eq("doctor_id", doctorId);
+    position = (doctorCount ?? 0) + 1;
   } else {
-    position = queueSize + 1;
+    const { count: currentCount } = await supabase.from("queue").select("*", { count: "exact", head: true }).eq("hospital_id", existing.hospital_id);
+    const queueSize = currentCount ?? 0;
+    if (hasTimedAppointment && queueSize > 0) {
+      const { data: existingQueue } = await supabase.from("queue").select("id, position").eq("hospital_id", existing.hospital_id).order("position", { ascending: true });
+      for (const entry of existingQueue ?? []) {
+        await supabase.from("queue").update({ position: entry.position + 1 }).eq("id", entry.id);
+      }
+      position = 1;
+    } else {
+      position = queueSize + 1;
+    }
   }
 
   await supabase.from("queue").insert({
@@ -669,19 +686,23 @@ router.post("/patients/:id/checkin", async (req, res): Promise<void> => {
     stage: existing.stage,
     position,
     appointment_id: matchedAppointmentId,
+    doctor_id: doctorId,
+    doctor_name: doctorName,
   });
 
   // ── Automation: send queue join WhatsApp ──
   const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
 
   const priorityNote = hasTimedAppointment ? " (priority — appointment time)" : "";
+  const doctorNote = doctorName ? ` — assigned to Dr. ${doctorName}` : "";
   await supabase.from("activity").insert({
     type: "checkin",
-    description: `${patientName} checked in — added to queue at position ${position}${priorityNote}`,
+    description: `${patientName} checked in — added to queue at position ${position}${priorityNote}${doctorNote}`,
     patient_id: patient.id,
     patient_name: patientName,
     hospital_id: hospitalIntId ?? null,
     metadata: nowIso,
+    performed_by: performedBy,
   });
   if (hospitalIntId) {
     const phone = (patient.whatsapp_number as string) || (patient.phone as string);

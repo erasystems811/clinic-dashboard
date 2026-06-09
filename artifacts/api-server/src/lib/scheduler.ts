@@ -1,7 +1,7 @@
 import cron from "node-cron";
 import * as Sentry from "@sentry/node";
 import { supabase } from "./supabase.js";
-import { sendEmail } from "./email.js";
+import { sendEmail, wrapHtml } from "./email.js";
 import {
   sendPostTreatmentCheckinEmail,
   sendPostCareEmail,
@@ -40,6 +40,8 @@ async function runAppointmentReminders() {
     const in2hPlus15   = new Date(in2h.getTime()  + 15 * 60 * 1000);
     // Catch-up floor: at least 15 min in the future (no point reminding < 15 min out)
     const in15min      = new Date(now.getTime() + 15 * 60 * 1000);
+    const in3h         = new Date(now.getTime() +  3 * 60 * 60 * 1000);
+    const in3hPlus15   = new Date(in3h.getTime()  + 15 * 60 * 1000);
 
     // Helper: resolve hospital int id + module check for an appointment's patient
     async function resolveHospital(patient: Record<string, unknown>) {
@@ -101,6 +103,64 @@ async function runAppointmentReminders() {
       await supabase.from("appointments").update({ reminder_2h_sent_at: now.toISOString() }).eq("id", appt.id);
       log(`Sent 2h email reminder for appt ${appt.id}`);
     }
+    // ── 3-hour doctor reminder ──────────────────────────────────────────────────
+    const [{ data: appts3hDocNormal }, { data: appts3hDocCatchUp }] = await Promise.all([
+      supabase.from("appointments")
+        .select("id, title, scheduled_at, patient_name, doctor_id, hospital_id")
+        .not("doctor_id", "is", null)
+        .is("reminder_3h_doctor_sent_at", null)
+        .not("status", "in", '("cancelled","no_show","completed")')
+        .gte("scheduled_at", in3h.toISOString()).lt("scheduled_at", in3hPlus15.toISOString()),
+      supabase.from("appointments")
+        .select("id, title, scheduled_at, patient_name, doctor_id, hospital_id")
+        .not("doctor_id", "is", null)
+        .is("reminder_3h_doctor_sent_at", null)
+        .not("status", "in", '("cancelled","no_show","completed")')
+        .gte("scheduled_at", in15min.toISOString()).lt("scheduled_at", in3h.toISOString()),
+    ]);
+
+    const seen3hDoc = new Set<number>();
+    for (const appt of [...(appts3hDocNormal ?? []), ...(appts3hDocCatchUp ?? [])]) {
+      if (seen3hDoc.has(appt.id as number)) continue;
+      seen3hDoc.add(appt.id as number);
+
+      const { data: doctor } = await supabase
+        .from("hospital_doctors")
+        .select("email, full_name")
+        .eq("id", appt.doctor_id as number)
+        .eq("active", true)
+        .maybeSingle();
+      if (!doctor?.email) continue;
+
+      const { data: hosp } = await supabase
+        .from("hospitals").select("name").eq("id", appt.hospital_id as number).maybeSingle();
+      const hospitalName = (hosp?.name as string) ?? "Your Hospital";
+
+      const scheduledAt = new Date(appt.scheduled_at as string);
+      const timeStr = scheduledAt.toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" });
+      const dateStr = scheduledAt.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Lagos" });
+
+      const doctorFirstName = (doctor.full_name as string).split(" ")[0] ?? "Doctor";
+      const subject = `Appointment in 3 hours — ${appt.patient_name}`;
+      const html = wrapHtml(`
+        <p>Hi Dr. <strong>${doctor.full_name}</strong>,</p>
+        <p>This is a reminder that you have an appointment in approximately 3 hours.</p>
+        <table style="margin:12px 0;border-collapse:collapse;">
+          <tr><td style="padding:4px 16px 4px 0;color:#888;font-size:14px;">Patient</td><td style="font-weight:bold;font-size:14px;">${appt.patient_name}</td></tr>
+          <tr><td style="padding:4px 16px 4px 0;color:#888;font-size:14px;">Appointment</td><td style="font-size:14px;">${appt.title}</td></tr>
+          <tr><td style="padding:4px 16px 4px 0;color:#888;font-size:14px;">Date &amp; Time</td><td style="font-weight:bold;font-size:14px;">${dateStr} at ${timeStr}</td></tr>
+        </table>
+        <p style="font-size:13px;color:#888;">Please ensure you are available and prepared for this session.</p>
+      `, hospitalName);
+
+      const fromEmail = process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev";
+      const fromName = process.env.PLATFORM_FROM_NAME ?? "Era Systems";
+      await sendEmail({ to: doctor.email as string, from: `${fromName} <${fromEmail}>`, subject, html })
+        .catch(err => log(`Doctor 3h reminder email error: ${err}`));
+      await supabase.from("appointments").update({ reminder_3h_doctor_sent_at: now.toISOString() }).eq("id", appt.id as number);
+      log(`Sent 3h doctor reminder for appt ${appt.id as number} → Dr. ${doctorFirstName}`);
+    }
+
   } catch (err) {
     Sentry.captureException(err);
     log(`Appointment reminders error: ${err}`);

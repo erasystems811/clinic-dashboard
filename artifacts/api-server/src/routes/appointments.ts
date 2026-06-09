@@ -22,8 +22,11 @@ const CreateAppointmentBody = z.object({
   title: z.string().min(1),
   scheduledAt: z.string().min(1),
   duration: z.number().int().optional(),
+  durationMinutes: z.number().int().optional(),
   department: z.string().optional(),
   notes: z.string().optional(),
+  doctorId: z.number().int().optional(),
+  doctorName: z.string().optional(),
 });
 
 const UpdateAppointmentBody = z.object({
@@ -32,6 +35,9 @@ const UpdateAppointmentBody = z.object({
   title: z.string().optional(),
   department: z.string().optional(),
   notes: z.string().optional(),
+  doctorId: z.number().int().optional(),
+  doctorName: z.string().optional(),
+  durationMinutes: z.number().int().optional(),
 });
 
 async function resolveHospitalIntId(hospitalCodeOrNull: string | null): Promise<number | null> {
@@ -100,11 +106,20 @@ router.post("/appointments", async (req, res): Promise<void> => {
     .single();
   const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
 
+  // Resolve doctor name if doctorId provided
+  let resolvedDoctorName = parsed.data.doctorName ?? null;
+  if (parsed.data.doctorId && !resolvedDoctorName) {
+    const { data: doc } = await supabase.from("hospital_doctors").select("full_name").eq("id", parsed.data.doctorId).single();
+    resolvedDoctorName = (doc?.full_name as string) ?? null;
+  }
+
   const { data: appt, error } = await supabase.from("appointments").insert({
     ...snakify(parsed.data as Record<string, unknown>),
     patient_name: patientName,
     status: "scheduled",
     hospital_id: hospital.intId,
+    doctor_name: resolvedDoctorName,
+    duration_minutes: parsed.data.durationMinutes ?? parsed.data.duration ?? null,
   }).select().single();
 
   if (error || !appt) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }

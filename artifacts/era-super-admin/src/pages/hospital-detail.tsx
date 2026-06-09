@@ -6,7 +6,7 @@ import {
   Building2, Save, Loader2, AlertCircle, ChevronLeft,
   Settings, Puzzle, Shield, ToggleLeft, ToggleRight, RefreshCw,
   Eye, EyeOff, KeyRound, Plus, X, Zap, CheckCircle2, XCircle,
-  Clock, RotateCcw, Mail, MessageSquare, Filter, Copy, Check, Link, Users, Phone,
+  Clock, RotateCcw, Mail, MessageSquare, Filter, Copy, Check, Link, Users, Phone, Wallet,
 } from "lucide-react";
 
 
@@ -38,7 +38,7 @@ function CredRow({ label, value }: { label: string; value: string }) {
 
 interface Props { id: number; }
 
-type Tab = "general" | "settings" | "modules" | "automations";
+type Tab = "general" | "settings" | "modules" | "automations" | "wallet";
 
 const PREDEFINED_DEPARTMENTS = [
   "General Outpatient",
@@ -378,7 +378,38 @@ export default function HospitalDetail({ id }: Props) {
     { key: "settings", label: "Settings", icon: Settings },
     { key: "modules", label: "Modules", icon: Puzzle },
     { key: "automations", label: "Automations", icon: Zap },
+    { key: "wallet", label: "Wallet", icon: Wallet },
   ];
+
+  // ── Wallet state ──────────────────────────────────────────────────────────
+  const [walletInfo, setWalletInfo] = useState<{ balanceKobo: number; balanceNaira: number; transactions: { id: number; type: string; amount_kobo: number; description: string; flutterwave_ref: string | null; created_at: string }[] } | null>(null);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [creditAmount, setCreditAmount] = useState("");
+  const [creditDesc, setCreditDesc] = useState("");
+  const [crediting, setCrediting] = useState(false);
+  const [creditError, setCreditError] = useState("");
+  const [creditSuccess, setCreditSuccess] = useState("");
+
+  const loadWallet = async () => {
+    setWalletLoading(true);
+    try { setWalletInfo(await api.getHospitalWallet(id)); } catch { /* ignore */ } finally { setWalletLoading(false); }
+  };
+
+  useEffect(() => { if (tab === "wallet") loadWallet(); }, [tab]);
+
+  const handleCredit = async () => {
+    setCreditError(""); setCreditSuccess("");
+    const amount = parseFloat(creditAmount);
+    if (!amount || amount <= 0) { setCreditError("Enter a valid amount"); return; }
+    setCrediting(true);
+    try {
+      const res = await api.creditHospitalWallet(id, amount, creditDesc || "Manual credit by admin");
+      setCreditSuccess(`Credited ₦${amount.toLocaleString()} — new balance: ₦${res.balanceNaira.toLocaleString()}`);
+      setCreditAmount(""); setCreditDesc("");
+      await loadWallet();
+    } catch (e: unknown) { setCreditError(e instanceof Error ? e.message : "Failed"); }
+    finally { setCrediting(false); }
+  };
 
   if (loading) {
     return (
@@ -1074,6 +1105,79 @@ export default function HospitalDetail({ id }: Props) {
             <span className="flex items-center gap-1"><Filter className="w-3 h-3" />Showing {automations.length} records</span>
             <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-400" />Sent</span>
             <span className="flex items-center gap-1"><XCircle className="w-3 h-3 text-red-400" />Failed</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── WALLET TAB ── */}
+      {tab === "wallet" && (
+        <div className="space-y-4 max-w-lg">
+          {/* Balance */}
+          <div className="rounded-xl bg-card border border-border p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-foreground flex items-center gap-2"><Wallet className="w-4 h-4" /> SMS Wallet</h2>
+              <button onClick={loadWallet} disabled={walletLoading} className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                <RefreshCw className={`w-4 h-4 ${walletLoading ? "animate-spin" : ""}`} />
+              </button>
+            </div>
+            <div className="flex items-center justify-between rounded-lg bg-muted/40 border border-border px-4 py-3">
+              <span className="text-sm text-muted-foreground">Current balance</span>
+              <span className={`text-xl font-bold tabular-nums ${!walletInfo ? "text-muted-foreground" : walletInfo.balanceNaira === 0 ? "text-red-400" : walletInfo.balanceNaira < 100 ? "text-amber-400" : "text-emerald-400"}`}>
+                {walletLoading ? "…" : walletInfo ? `₦${walletInfo.balanceNaira.toLocaleString()}` : "—"}
+              </span>
+            </div>
+
+            {/* Manual credit form */}
+            <div className="space-y-3 pt-2 border-t border-border">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Manual Credit</p>
+              <div className="flex gap-2">
+                <input
+                  type="number" min={1} placeholder="Amount (₦)" value={creditAmount}
+                  onChange={e => setCreditAmount(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                <input
+                  type="text" placeholder="Note (optional)" value={creditDesc}
+                  onChange={e => setCreditDesc(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+              {creditError && <p className="text-xs text-red-400">{creditError}</p>}
+              {creditSuccess && <p className="text-xs text-emerald-400">{creditSuccess}</p>}
+              <button
+                onClick={handleCredit} disabled={crediting || !creditAmount}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition"
+              >
+                {crediting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Credit Wallet
+              </button>
+            </div>
+          </div>
+
+          {/* Transaction history */}
+          <div className="rounded-xl bg-card border border-border overflow-hidden">
+            <div className="px-5 py-3 border-b border-border">
+              <h3 className="text-sm font-semibold">Transaction History</h3>
+            </div>
+            {walletLoading ? (
+              <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+            ) : !walletInfo || walletInfo.transactions.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">No transactions yet</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {walletInfo.transactions.map(tx => (
+                  <div key={tx.id} className="px-5 py-3 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm">{tx.description}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{formatDate(tx.created_at)}{tx.flutterwave_ref ? ` · ref: ${tx.flutterwave_ref}` : ""}</p>
+                    </div>
+                    <span className={`text-sm font-bold tabular-nums shrink-0 ${tx.type === "credit" ? "text-emerald-400" : "text-red-400"}`}>
+                      {tx.type === "credit" ? "+" : "−"}₦{(tx.amount_kobo / 100).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

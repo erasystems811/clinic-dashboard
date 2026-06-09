@@ -448,3 +448,75 @@ CREATE INDEX IF NOT EXISTS automation_log_type_status_idx ON automation_log(auto
 CREATE INDEX IF NOT EXISTS care_plans_hospital_id_idx     ON care_plans(hospital_id);
 CREATE INDEX IF NOT EXISTS care_plans_patient_id_idx      ON care_plans(patient_id);
 CREATE INDEX IF NOT EXISTS care_plans_status_idx          ON care_plans(status);
+
+-- ── Doctors ───────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS hospital_doctors (
+  id            SERIAL PRIMARY KEY,
+  hospital_id   INTEGER NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  full_name     TEXT NOT NULL,
+  email         TEXT NOT NULL,
+  specialty     TEXT,
+  username      TEXT NOT NULL UNIQUE,
+  password_hash TEXT,
+  active        BOOLEAN NOT NULL DEFAULT true,
+  unavailable   BOOLEAN NOT NULL DEFAULT false,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE hospital_doctors DISABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS hospital_doctors_hospital_id_idx ON hospital_doctors(hospital_id);
+
+-- ── Appointment time blocks (recurring weekly schedule for self-booking) ───────
+CREATE TABLE IF NOT EXISTS appointment_time_blocks (
+  id           SERIAL PRIMARY KEY,
+  hospital_id  INTEGER NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  day_of_week  INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+  start_time   TEXT NOT NULL,
+  end_time     TEXT NOT NULL,
+  slot_minutes INTEGER NOT NULL DEFAULT 30,
+  active       BOOLEAN NOT NULL DEFAULT true,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE appointment_time_blocks DISABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS time_blocks_hospital_id_idx ON appointment_time_blocks(hospital_id);
+
+-- ── Self bookings (patient self-booked, pending receptionist confirmation) ─────
+CREATE TABLE IF NOT EXISTS self_bookings (
+  id               SERIAL PRIMARY KEY,
+  hospital_id      INTEGER NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  patient_name     TEXT NOT NULL,
+  patient_phone    TEXT NOT NULL,
+  patient_email    TEXT,
+  reason           TEXT NOT NULL,
+  requested_at     TIMESTAMPTZ NOT NULL,
+  status           TEXT NOT NULL DEFAULT 'pending',
+  doctor_id        INTEGER REFERENCES hospital_doctors(id) ON DELETE SET NULL,
+  appointment_id   INTEGER REFERENCES appointments(id) ON DELETE SET NULL,
+  duration_minutes INTEGER,
+  confirmed_by     TEXT,
+  confirmed_at     TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE self_bookings DISABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS self_bookings_hospital_id_idx ON self_bookings(hospital_id);
+CREATE INDEX IF NOT EXISTS self_bookings_status_idx      ON self_bookings(status);
+
+-- ── Add doctor columns to queue ───────────────────────────────────────────────
+ALTER TABLE queue ADD COLUMN IF NOT EXISTS doctor_id    INTEGER REFERENCES hospital_doctors(id) ON DELETE SET NULL;
+ALTER TABLE queue ADD COLUMN IF NOT EXISTS doctor_name  TEXT;
+ALTER TABLE queue ADD COLUMN IF NOT EXISTS called_in_at TIMESTAMPTZ;
+
+-- ── Add doctor + duration columns to appointments ─────────────────────────────
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_id                   INTEGER REFERENCES hospital_doctors(id) ON DELETE SET NULL;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_name                 TEXT;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS duration_minutes            INTEGER;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_3h_doctor_sent_at TIMESTAMPTZ;
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS confirmed_by                TEXT;
+
+-- ── Add performed_by + staff_role to activity ─────────────────────────────────
+ALTER TABLE activity ADD COLUMN IF NOT EXISTS performed_by TEXT;
+ALTER TABLE activity ADD COLUMN IF NOT EXISTS staff_role   TEXT;
+
+-- ── Doctor-related indexes ────────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS queue_doctor_id_idx        ON queue(doctor_id) WHERE doctor_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS appointments_doctor_id_idx ON appointments(doctor_id) WHERE doctor_id IS NOT NULL;

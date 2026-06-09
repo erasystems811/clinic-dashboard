@@ -24,10 +24,16 @@ export default function Dashboard() {
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   useEffect(() => {
     if (!hospital?.token) return;
-    fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setWalletBalance(d.balanceNaira as number); })
-      .catch(() => {});
+    const token = hospital.token;
+    const fetchBalance = () => {
+      fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": token } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setWalletBalance(d.balanceNaira as number); })
+        .catch(() => {});
+    };
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 30000);
+    return () => clearInterval(interval);
   }, [hospital?.token]);
 
   const { data: summary, isLoading } = useGetDashboardSummary({

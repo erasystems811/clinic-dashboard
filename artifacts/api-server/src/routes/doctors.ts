@@ -224,7 +224,7 @@ router.post("/queue/:id/transfer", async (req: Request, res: Response): Promise<
   const queueId = parseInt(req.params.id, 10);
   if (isNaN(queueId)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { doctorId, performedBy } = (req.body ?? {}) as Record<string, unknown>;
+  const { doctorId, performedBy, note } = (req.body ?? {}) as Record<string, unknown>;
   if (!doctorId) { res.status(400).json({ error: "doctorId required" }); return; }
 
   const { data: doctor } = await supabase
@@ -252,9 +252,10 @@ router.post("/queue/:id/transfer", async (req: Request, res: Response): Promise<
 
   if (error || !entry) { res.status(404).json({ error: "Queue entry not found" }); return; }
 
+  const noteStr = typeof note === "string" && note.trim() ? ` — "${note.trim()}"` : "";
   await supabase.from("activity").insert({
     type: "patient_transferred",
-    description: `${entry.patient_name} transferred to Dr. ${doctor.full_name}`,
+    description: `${entry.patient_name} reassigned to Dr. ${doctor.full_name}${noteStr}`,
     hospital_id: ctx.intId,
     performed_by: (performedBy as string) ?? null,
     staff_role: "doctor",

@@ -65,6 +65,7 @@ function TransferModal({
 }) {
   const { toast } = useToast();
   const [targetId, setTargetId] = useState("");
+  const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const others = doctors.filter(d => d.id !== entry.doctorId && !d.unavailable);
 
@@ -75,13 +76,13 @@ function TransferModal({
       const res = await fetch(apiUrl(`/api/queue/${entry.id}/transfer`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": token },
-        body: JSON.stringify({ doctorId: parseInt(targetId) }),
+        body: JSON.stringify({ doctorId: parseInt(targetId), note: note || undefined }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(d.error ?? "Transfer failed");
+        throw new Error(d.error ?? "Reassign failed");
       }
-      toast({ title: `${entry.patientName} transferred` });
+      toast({ title: `${entry.patientName} reassigned` });
       onTransferred();
       onClose();
     } catch (err: unknown) {
@@ -99,7 +100,7 @@ function TransferModal({
           <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
         </div>
         <div className="p-5 space-y-4">
-          <p className="text-sm text-muted-foreground">Transfer <strong>{entry.patientName}</strong> to another doctor:</p>
+          <p className="text-sm text-muted-foreground">Reassign <strong>{entry.patientName}</strong> to another doctor:</p>
           <select className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
             value={targetId} onChange={e => setTargetId(e.target.value)}>
             <option value="">Select doctor…</option>
@@ -108,10 +109,16 @@ function TransferModal({
             ))}
           </select>
           {others.length === 0 && <p className="text-xs text-amber-500">No other available doctors.</p>}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Reason / note (optional)</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
+              placeholder="e.g. Patient needs specialist review"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none" />
+          </div>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
             <Button size="sm" disabled={!targetId || saving} onClick={handleTransfer}>
-              {saving ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Transferring…</> : "Transfer"}
+              {saving ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Reassigning…</> : "Reassign"}
             </Button>
           </div>
         </div>
@@ -381,8 +388,9 @@ export default function DoctorView() {
         method: "POST", headers: { "x-hospital-token": token },
       });
       if (!res.ok) throw new Error("Failed");
-      toast({ title: "Patient notified", description: `${entry.patientName} has been called in.` });
-      fetchQueue();
+      toast({ title: "Patient notified", description: `${entry.patientName} has been called in and moved to In Care.` });
+      // Remove immediately from local state
+      setQueue(prev => prev.filter(q => q.id !== entry.id));
     } catch {
       toast({ title: "Failed to call in patient", variant: "destructive" });
     } finally { setCallingIn(null); }

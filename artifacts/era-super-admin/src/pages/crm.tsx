@@ -70,7 +70,7 @@ function DatePickerField({ value, onChange, buttonStyle }: { value: string; onCh
         {!buttonStyle && <span style={{ fontSize: 12, color: "#6B7280" }}>📅</span>}
       </button>
       {open && (
-        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 200, background: "#1A2035", border: "1px solid #1F2937", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 200, background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
           <Calendar
             mode="single"
             selected={selected}
@@ -403,7 +403,7 @@ export default function CRMPage() {
         <div style={S.board}>
           {STAGES.map(stage => (
             <div key={stage.id}
-              style={{ ...S.column, borderTop: `3px solid ${stage.color}`, background: dragOver === stage.id ? "#1a2340" : "#111827" }}
+              style={{ ...S.column, borderTop: `3px solid ${stage.color}`, background: dragOver === stage.id ? "hsl(var(--accent))" : "hsl(var(--background))" }}
               onDragOver={e => { e.preventDefault(); setDragOver(stage.id); }}
               onDrop={e => handleDrop(e, stage.id)}
               onDragLeave={() => setDragOver(null)}
@@ -600,73 +600,82 @@ export default function CRMPage() {
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
+const bg      = "hsl(var(--background))";
+const card    = "hsl(var(--card))";
+const accent  = "hsl(var(--accent))";
+const border  = "hsl(var(--border))";
+const input   = "hsl(var(--input))";
+const fg      = "hsl(var(--foreground))";
+const muted   = "hsl(var(--muted-foreground))";
+const gold    = "hsl(var(--gold))";
+
 const S: Record<string, React.CSSProperties> = {
-  root:            { minHeight: "100vh", background: "#0D1117", fontFamily: "'Plus Jakarta Sans', sans-serif", color: "#E2E8F0", paddingBottom: 60 },
-  center:          { minHeight: "100vh", background: "#0D1117", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 },
-  spinner:         { width: 32, height: 32, borderRadius: "50%", border: "3px solid #C9A84C", borderTopColor: "transparent" },
-  header:          { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px 14px", borderBottom: "1px solid #1F2937", flexWrap: "wrap", gap: 12 },
+  root:            { minHeight: "100vh", background: bg, fontFamily: "'Plus Jakarta Sans', sans-serif", color: fg, paddingBottom: 60 },
+  center:          { minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 },
+  spinner:         { width: 32, height: 32, borderRadius: "50%", border: `3px solid ${gold}`, borderTopColor: "transparent" },
+  header:          { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 28px 14px", borderBottom: `1px solid ${border}`, flexWrap: "wrap", gap: 12 },
   logoRow:         { display: "flex", alignItems: "baseline", gap: 6, marginBottom: 3 },
-  logo:            { fontSize: 20, fontWeight: 700, color: "#C9A84C", letterSpacing: 4 },
-  logoSub:         { fontSize: 10, color: "#6B7280", letterSpacing: 3 },
-  headerSub:       { fontSize: 11, color: "#9CA3AF", letterSpacing: 2, textTransform: "uppercase" },
+  logo:            { fontSize: 20, fontWeight: 700, color: gold, letterSpacing: 4 },
+  logoSub:         { fontSize: 10, color: muted, letterSpacing: 3 },
+  headerSub:       { fontSize: 11, color: muted, letterSpacing: 2, textTransform: "uppercase" },
   headerRight:     { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  savingTag:       { fontSize: 11, color: "#6B7280", letterSpacing: 1 },
+  savingTag:       { fontSize: 11, color: muted, letterSpacing: 1 },
   badge:           { background: "#E53E3E", color: "#fff", borderRadius: 10, fontSize: 10, padding: "1px 6px", marginLeft: 6 },
-  tabBtn:          { background: "transparent", border: "1px solid #1F2937", color: "#9CA3AF", padding: "8px 14px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center" },
-  tabActive:       { background: "#1F2937", color: "#E2E8F0", borderColor: "#374151" },
-  goldBtn:         { background: "#C9A84C", color: "#0D1117", border: "none", padding: "9px 18px", borderRadius: 6, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" },
-  ghostBtn:        { background: "transparent", border: "1px solid #374151", color: "#9CA3AF", padding: "9px 16px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" },
-  dangerBtn:       { background: "transparent", border: "1px solid #FC8181", color: "#FC8181", padding: "9px 16px", borderRadius: 6, fontSize: 12, cursor: "pointer", fontFamily: "inherit" },
-  statsBar:        { display: "flex", alignItems: "center", padding: "12px 28px", borderBottom: "1px solid #1F2937", background: "#111827", flexWrap: "wrap" },
+  tabBtn:          { background: "transparent", border: `1px solid ${border}`, color: muted, padding: "8px 14px", borderRadius: 6, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center" },
+  tabActive:       { background: accent, color: fg, borderColor: border },
+  goldBtn:         { background: gold, color: bg, border: "none", padding: "9px 18px", borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  ghostBtn:        { background: "transparent", border: `1px solid ${border}`, color: muted, padding: "9px 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  dangerBtn:       { background: "transparent", border: "1px solid #FC8181", color: "#FC8181", padding: "9px 16px", borderRadius: 6, fontSize: 13, cursor: "pointer", fontFamily: "inherit" },
+  statsBar:        { display: "flex", alignItems: "center", padding: "12px 28px", borderBottom: `1px solid ${border}`, background: card, flexWrap: "wrap" },
   statGroup:       { display: "flex", alignItems: "center" },
   stat:            { display: "flex", flexDirection: "column", alignItems: "center", padding: "0 24px" },
   statNum:         { fontSize: 26, fontWeight: 700, lineHeight: "1" },
-  statLabel:       { fontSize: 9, color: "#6B7280", letterSpacing: 1.5, textTransform: "uppercase", marginTop: 3 },
-  statDivider:     { width: 1, height: 32, background: "#1F2937" },
+  statLabel:       { fontSize: 9, color: muted, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 3 },
+  statDivider:     { width: 1, height: 32, background: border },
   actionsWrap:     { maxWidth: 680, margin: "28px auto", padding: "0 20px", display: "flex", flexDirection: "column", gap: 24 },
-  section:         { background: "#111827", border: "1px solid #1F2937", borderRadius: 10, padding: "20px" },
+  section:         { background: card, border: `1px solid ${border}`, borderRadius: 10, padding: "20px" },
   sectionHeader:   { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  sectionTitle:    { fontSize: 12, fontWeight: 700, color: "#C9A84C", letterSpacing: 2, textTransform: "uppercase" },
-  sectionCount:    { fontSize: 11, color: "#6B7280" },
-  addTaskBtn:      { background: "transparent", border: "1px solid #C9A84C", color: "#C9A84C", padding: "5px 12px", borderRadius: 5, fontSize: 11, cursor: "pointer", fontFamily: "inherit" },
+  sectionTitle:    { fontSize: 12, fontWeight: 700, color: gold, letterSpacing: 2, textTransform: "uppercase" },
+  sectionCount:    { fontSize: 11, color: muted },
+  addTaskBtn:      { background: "transparent", border: `1px solid ${gold}`, color: gold, padding: "5px 12px", borderRadius: 5, fontSize: 12, cursor: "pointer", fontFamily: "inherit" },
   inlineInput:     { display: "flex", gap: 8, marginBottom: 14, alignItems: "center", flexWrap: "wrap" },
-  emptyMsg:        { color: "#4B5563", fontSize: 12, padding: "10px 0", textAlign: "center" },
-  completedHeader: { fontSize: 10, color: "#4B5563", letterSpacing: 2, textTransform: "uppercase", margin: "14px 0 8px" },
-  actionRow:       { display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 0", borderBottom: "1px solid #1A2035" },
-  checkbox:        { width: 20, height: 20, borderRadius: 4, border: "1.5px solid #374151", flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, marginTop: 2 },
+  emptyMsg:        { color: muted, fontSize: 13, padding: "10px 0", textAlign: "center" },
+  completedHeader: { fontSize: 10, color: muted, letterSpacing: 2, textTransform: "uppercase", margin: "14px 0 8px" },
+  actionRow:       { display: "flex", alignItems: "flex-start", gap: 12, padding: "10px 0", borderBottom: `1px solid ${border}` },
+  checkbox:        { width: 20, height: 20, borderRadius: 4, border: `1.5px solid ${border}`, flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, marginTop: 2 },
   checkboxDone:    { background: "#276749", border: "none", color: "#fff" },
   actionText:      { display: "flex", flexDirection: "column", gap: 3, flex: 1 },
-  actionHospital:  { fontSize: 10, color: "#C9A84C", letterSpacing: 1, textTransform: "uppercase" },
-  actionReq:       { fontSize: 13, color: "#D1D5DB" },
-  actionDate:      { fontSize: 10, color: "#6B7280" },
-  deleteSmall:     { background: "transparent", border: "none", color: "#4B5563", cursor: "pointer", fontSize: 14, padding: 2, fontFamily: "inherit" },
+  actionHospital:  { fontSize: 10, color: gold, letterSpacing: 1, textTransform: "uppercase" },
+  actionReq:       { fontSize: 13, color: fg },
+  actionDate:      { fontSize: 11, color: muted },
+  deleteSmall:     { background: "transparent", border: "none", color: muted, cursor: "pointer", fontSize: 14, padding: 2, fontFamily: "inherit" },
   board:           { display: "flex", gap: 10, padding: "20px 16px", overflowX: "auto", alignItems: "flex-start" },
-  column:          { minWidth: 195, maxWidth: 210, borderRadius: 8, padding: "12px 10px", flexShrink: 0, transition: "background 0.15s" },
+  column:          { minWidth: 200, maxWidth: 215, borderRadius: 8, padding: "12px 10px", flexShrink: 0, transition: "background 0.15s" },
   colHeader:       { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  colTitle:        { fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase" },
-  colCount:        { background: "#1F2937", color: "#6B7280", fontSize: 10, borderRadius: 10, padding: "1px 7px" },
+  colTitle:        { fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" },
+  colCount:        { background: accent, color: muted, fontSize: 11, borderRadius: 10, padding: "1px 7px" },
   cards:           { display: "flex", flexDirection: "column", gap: 8, minHeight: 50 },
-  emptyCol:        { border: "1px dashed #1F2937", borderRadius: 6, padding: "12px", textAlign: "center", color: "#374151", fontSize: 10 },
-  card:            { background: "#1A2035", borderRadius: 6, padding: "10px", cursor: "grab" },
-  cardName:        { fontSize: 12, fontWeight: 700, color: "#E2E8F0", marginBottom: 5 },
-  cardMeta:        { fontSize: 10, color: "#9CA3AF", marginBottom: 2 },
+  emptyCol:        { border: `1px dashed ${border}`, borderRadius: 6, padding: "12px", textAlign: "center", color: muted, fontSize: 11 },
+  card:            { background: card, borderRadius: 6, padding: "10px", cursor: "grab" },
+  cardName:        { fontSize: 13, fontWeight: 600, color: fg, marginBottom: 5 },
+  cardMeta:        { fontSize: 11, color: muted, marginBottom: 2 },
   cardBottom:      { display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8, gap: 4 },
-  pendingPill:     { background: "#7B341E", color: "#FEB2B2", fontSize: 9, padding: "2px 7px", borderRadius: 10 },
-  logBtn:          { background: "transparent", border: "1px solid #374151", color: "#9CA3AF", fontSize: 9, padding: "3px 8px", borderRadius: 4, cursor: "pointer", fontFamily: "inherit" },
+  pendingPill:     { background: "#7B341E", color: "#FEB2B2", fontSize: 10, padding: "2px 7px", borderRadius: 10 },
+  logBtn:          { background: "transparent", border: `1px solid ${border}`, color: muted, fontSize: 10, padding: "3px 8px", borderRadius: 4, cursor: "pointer", fontFamily: "inherit" },
   overlay:         { position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 },
-  modal:           { background: "#111827", border: "1px solid #1F2937", borderRadius: 10, width: "100%", maxWidth: 500, maxHeight: "90vh", overflowY: "auto" },
-  modalHead:       { display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "18px 22px 14px", borderBottom: "1px solid #1F2937" },
-  modalName:       { fontSize: 16, fontWeight: 700, color: "#E2E8F0", marginBottom: 6 },
-  stagePill:       { display: "inline-block", padding: "3px 10px", borderRadius: 12, fontSize: 10, color: "#fff", fontWeight: 600 },
-  closeBtn:        { background: "transparent", border: "none", color: "#6B7280", fontSize: 18, cursor: "pointer", fontFamily: "inherit", padding: 2 },
+  modal:           { background: card, border: `1px solid ${border}`, borderRadius: 10, width: "100%", maxWidth: 500, maxHeight: "90vh", overflowY: "auto" },
+  modalHead:       { display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "18px 22px 14px", borderBottom: `1px solid ${border}` },
+  modalName:       { fontSize: 17, fontWeight: 700, color: fg, marginBottom: 6 },
+  stagePill:       { display: "inline-block", padding: "3px 10px", borderRadius: 12, fontSize: 11, color: "#fff", fontWeight: 600 },
+  closeBtn:        { background: "transparent", border: "none", color: muted, fontSize: 18, cursor: "pointer", fontFamily: "inherit", padding: 2 },
   modalBody:       { padding: "14px 22px", display: "flex", flexDirection: "column", gap: 14 },
-  modalFoot:       { display: "flex", gap: 10, padding: "14px 22px", borderTop: "1px solid #1F2937" },
+  modalFoot:       { display: "flex", gap: 10, padding: "14px 22px", borderTop: `1px solid ${border}` },
   detailRow:       { display: "flex", flexDirection: "column", gap: 3 },
-  detailLabel:     { fontSize: 9, color: "#6B7280", letterSpacing: 2, textTransform: "uppercase", marginBottom: 4 },
-  detailVal:       { fontSize: 13, color: "#D1D5DB" },
+  detailLabel:     { fontSize: 10, color: muted, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 4 },
+  detailVal:       { fontSize: 14, color: fg },
   stageGrid:       { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4, marginBottom: 6 },
-  stageMoveBtn:    { padding: "5px 10px", borderRadius: 5, fontSize: 10, color: "#fff", cursor: "pointer", fontWeight: 600, fontFamily: "inherit" },
+  stageMoveBtn:    { padding: "5px 10px", borderRadius: 5, fontSize: 11, color: "#fff", cursor: "pointer", fontWeight: 600, fontFamily: "inherit" },
   reqHeader:       { display: "flex", justifyContent: "space-between", alignItems: "center" },
   formGroup:       { display: "flex", flexDirection: "column", gap: 6 },
-  input:           { background: "#1A2035", border: "1px solid #1F2937", borderRadius: 6, padding: "9px 12px", color: "#E2E8F0", fontSize: 13, fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" },
+  input:           { background: input, border: `1px solid ${border}`, borderRadius: 6, padding: "9px 12px", color: fg, fontSize: 14, fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" },
 };

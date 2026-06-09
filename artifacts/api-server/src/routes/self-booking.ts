@@ -354,4 +354,118 @@ router.patch("/hospital/self-bookings/:id/cancel", async (req: Request, res: Res
   res.json({ ok: true });
 });
 
+// ── GET /public/book/:slug/my-bookings — patient looks up their confirmed bookings ─
+router.get("/public/book/:slug/my-bookings", async (req: Request, res: Response): Promise<void> => {
+  const { slug } = req.params;
+  const email = req.query.email as string | undefined;
+  const phone = req.query.phone as string | undefined;
+
+  if (!email && !phone) { res.status(400).json({ error: "email or phone required" }); return; }
+
+  const { data: hospital } = await supabase
+    .from("hospitals").select("id").eq("slug", slug).eq("active", true).single();
+  if (!hospital) { res.status(404).json({ error: "Hospital not found" }); return; }
+
+  const hospitalId = hospital.id as number;
+  const now = new Date().toISOString();
+
+  let q = supabase.from("self_bookings")
+    .select("id, patient_name, reason, requested_at")
+    .eq("hospital_id", hospitalId)
+    .eq("status", "confirmed")
+    .gt("requested_at", now)
+    .order("requested_at", { ascending: true });
+
+  if (email && phone) {
+    q = q.or(`patient_email.eq.${email},patient_phone.eq.${phone}`);
+  } else if (email) {
+    q = q.eq("patient_email", email);
+  } else {
+    q = q.eq("patient_phone", phone!);
+  }
+
+  const { data, error } = await q;
+  if (error) { res.status(500).json({ error: error.message }); return; }
+
+  res.json((data ?? []).map(b => ({
+    id: b.id as number,
+    patientName: b.patient_name as string,
+    reason: b.reason as string,
+    requestedAt: b.requested_at as string,
+  })));
+});
+
+// ── POST /public/book/:slug/reschedule — patient requests a reschedule ────────
+router.post("/public/book/:slug/reschedule", async (req: Request, res: Response): Promise<void> => {
+  const { slug } = req.params;
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const { bookingId, newRequestedAt, patientEmail, patientPhone } = body;
+
+  if (!bookingId || !newRequestedAt || (!patientEmail && !patientPhone)) {
+    res.status(400).json({ error: "bookingId, newRequestedAt, and email or phone required" }); return;
+  }
+
+  const { data: hospital } = await supabase
+    .from("hospitals").select("id").eq("slug", slug).eq("active", true).single();
+  if (!hospital) { res.status(404).json({ error: "Hospital not found" }); return; }
+
+  const hospitalId = hospital.id as number;
+
+  const { data: booking } = await supabase.from("self_bookings")
+    .select("*").eq("id", Number(bookingId)).eq("hospital_id", hospitalId).eq("status", "confirmed").single();
+  if (!booking) { res.status(404).json({ error: "Booking not found" }); return; }
+
+  // Identity check — submitted email or phone must match what's on the booking
+  const emailMatch = patientEmail && booking.patient_email === patientEmail;
+  const phoneMatch = patientPhone && booking.patient_phone === patientPhone;
+  if (!emailMatch && !phoneMatch) {
+    res.status(403).json({ error: "Details do not match our records. Please check your email or phone number." }); return;
+  }
+
+  const newRequestedAtIso = new Date(newRequestedAt as string).toISOString();
+
+  // Check new slot is available
+  const [{ count: apptCount }, { count: bookCount }] = await Promise.all([
+    supabase.from("appointments").select("*", { count: "exact", head: true })
+      .eq("hospital_id", hospitalId).eq("scheduled_at", newRequestedAtIso)
+      .not("status", "in", '("cancelled","no_show")'),
+    supabase.from("self_bookings").select("*", { count: "exact", head: true })
+      .eq("hospital_id", hospitalId).eq("requested_at", newRequestedAtIso)
+      .in("status", ["pending", "confirmed"]),
+  ]);
+  if ((apptCount ?? 0) > 0 || (bookCount ?? 0) > 0) {
+    res.status(409).json({ error: "This slot is no longer available. Please choose another time." }); return;
+  }
+
+  // Cancel the original booking and its confirmed appointment
+  const originalApptId = booking.appointment_id as number | null;
+  await supabase.from("self_bookings").update({ status: "cancelled" }).eq("id", Number(bookingId));
+  if (originalApptId) {
+    await supabase.from("appointments").update({ status: "cancelled" }).eq("id", originalApptId);
+  }
+
+  // Build note showing the original date
+  const oldDateStr = new Date(booking.requested_at as string).toLocaleString("en-GB", {
+    weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
+  });
+
+  // Create new pending booking so receptionist re-confirms
+  const { data: newBooking, error } = await supabase.from("self_bookings").insert({
+    hospital_id: hospitalId,
+    patient_name: booking.patient_name as string,
+    patient_phone: booking.patient_phone as string,
+    patient_email: (booking.patient_email as string | null) ?? null,
+    reason: `${booking.reason as string} (Reschedule — was: ${oldDateStr})`,
+    requested_at: newRequestedAtIso,
+    status: "pending",
+  }).select("id").single();
+
+  if (error || !newBooking) { res.status(500).json({ error: "Failed to create reschedule request" }); return; }
+
+  res.status(201).json({
+    id: newBooking.id as number,
+    message: "Your reschedule request has been received. The clinic will confirm your new appointment shortly.",
+  });
+});
+
 export default router;

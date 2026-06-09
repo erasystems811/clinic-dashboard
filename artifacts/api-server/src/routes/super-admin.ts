@@ -344,7 +344,19 @@ router.patch("/super-admin/hospitals/:id", requireSuperAdmin, async (req, res): 
 
   const { password, name, active, subscriptionStatus, subscriptionExpiresAt, contactEmail, contactPhone } = parsed.data;
   const updates: Record<string, unknown> = {};
-  if (name !== undefined) updates.name = name;
+  if (name !== undefined) {
+    updates.name = name;
+    // Regenerate booking slug from new name, ensuring uniqueness across other hospitals
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "hospital";
+    let candidate = base;
+    let suffix = 2;
+    while (true) {
+      const { data: clash } = await supabase.from("hospitals").select("id").eq("slug", candidate).neq("id", id).maybeSingle();
+      if (!clash) break;
+      candidate = `${base}-${suffix++}`;
+    }
+    updates.slug = candidate;
+  }
   if (active !== undefined) updates.active = active;
   if (subscriptionStatus !== undefined) updates.subscription_status = subscriptionStatus;
   if (subscriptionExpiresAt !== undefined) updates.subscription_expires_at = subscriptionExpiresAt;
@@ -907,7 +919,7 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
   const hospitalId = token ? _verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { data: hospitalCheck } = await supabase.from("hospitals").select("active, name").eq("id", hospitalId).single();
+  const { data: hospitalCheck } = await supabase.from("hospitals").select("active, name, slug").eq("id", hospitalId).single();
   if (!hospitalCheck || hospitalCheck.active === false) {
     res.status(403).json({ error: "Account suspended" });
     return;
@@ -920,6 +932,7 @@ router.get("/hospital/config", async (req, res): Promise<void> => {
 
   res.json({
     hospitalName: hospitalCheck.name ?? null,
+    hospitalSlug: (hospitalCheck.slug as string) ?? null,
     departments: JSON.parse((settings?.departments as string) ?? "[]"),
     modules: {
       appointmentsEnabled: modules?.appointments_enabled ?? true,

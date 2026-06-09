@@ -101,8 +101,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return;
           }
           setHospitalConfig(cfg);
-          if (cfg.hospitalName) {
-            setHospital(h => h && h.name !== cfg.hospitalName ? { ...h, name: cfg.hospitalName } : h);
+          if (cfg.hospitalName || cfg.hospitalSlug) {
+            setHospital(h => {
+              if (!h) return h;
+              const nameChanged = cfg.hospitalName && h.name !== cfg.hospitalName;
+              const slugChanged = cfg.hospitalSlug !== undefined && h.slug !== cfg.hospitalSlug;
+              return (nameChanged || slugChanged)
+                ? { ...h, ...(cfg.hospitalName ? { name: cfg.hospitalName } : {}), ...(cfg.hospitalSlug !== undefined ? { slug: cfg.hospitalSlug } : {}) }
+                : h;
+            });
           }
         })
         .catch(() => {});

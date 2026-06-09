@@ -263,4 +263,83 @@ router.post("/queue/:id/transfer", async (req: Request, res: Response): Promise<
   res.json({ ok: true });
 });
 
+// ── Doctor follow-ups ─────────────────────────────────────────────────────────
+
+router.post("/doctor/follow-ups", async (req: Request, res: Response): Promise<void> => {
+  const ctx = await getHospitalFromRequest(req);
+  if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { doctorId, patientName, phone, reason, assignTo } = req.body ?? {};
+  if (!doctorId || !patientName || !reason) {
+    res.status(400).json({ error: "doctorId, patientName, reason are required" }); return;
+  }
+
+  if (assignTo === "receptionist") {
+    // Create a regular call task so the receptionist sees it in their Call Tasks page
+    const { error } = await supabase.from("call_tasks").insert({
+      patient_id: 0,
+      patient_name: patientName,
+      phone: phone ?? "",
+      hospital_id: ctx.code,
+      reason,
+      task_type: "doctor_referral",
+      action_type: "manual_call",
+    });
+    if (error) { res.status(500).json({ error: error.message }); return; }
+  } else {
+    // Store as doctor's own follow-up
+    const { error } = await supabase.from("doctor_follow_ups").insert({
+      doctor_id: Number(doctorId),
+      hospital_id: ctx.intId,
+      patient_name: patientName,
+      phone: phone ?? null,
+      reason,
+      status: "pending",
+    });
+    if (error) { res.status(500).json({ error: error.message }); return; }
+  }
+
+  res.status(201).json({ ok: true });
+});
+
+router.get("/doctor/follow-ups", async (req: Request, res: Response): Promise<void> => {
+  const ctx = await getHospitalFromRequest(req);
+  if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const doctorId = parseInt(req.query.doctorId as string, 10);
+  if (!doctorId) { res.status(400).json({ error: "doctorId required" }); return; }
+
+  const { data, error } = await supabase
+    .from("doctor_follow_ups")
+    .select("id, patient_name, phone, reason, status, created_at")
+    .eq("doctor_id", doctorId)
+    .eq("hospital_id", ctx.intId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+
+  res.json((data ?? []).map(r => ({
+    id: r.id,
+    patientName: r.patient_name,
+    phone: r.phone,
+    reason: r.reason,
+    status: r.status,
+    createdAt: r.created_at,
+  })));
+});
+
+router.patch("/doctor/follow-ups/:id/complete", async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  const ctx = await getHospitalFromRequest(req);
+  if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  await supabase.from("doctor_follow_ups")
+    .update({ status: "completed", completed_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("hospital_id", ctx.intId);
+
+  res.json({ ok: true });
+});
+
 export default router;

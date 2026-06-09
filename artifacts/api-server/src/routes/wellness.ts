@@ -5,6 +5,8 @@ import { z } from "zod/v4";
 import { verifyHospitalToken } from "./super-admin.js";
 import { generateWellnessNewsletter, sendWellnessNewsletterEmails, getHospitalContext } from "../lib/automation.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
+import { deliverMobileMessage } from "../lib/messaging.js";
+import { deductSmsFromWallet } from "../lib/wallet.js";
 
 const router: IRouter = Router();
 
@@ -578,6 +580,58 @@ router.post("/wellness/bulk-email", async (req, res): Promise<void> => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: msg });
+  }
+});
+
+// ── Bulk SMS — custom SMS to all patients with a phone number ─────────────────
+const BulkSmsBody = z.object({
+  message:        z.string().min(1).max(160),
+  includeDormant: z.boolean().optional().default(false),
+});
+
+router.post("/wellness/bulk-sms", async (req, res): Promise<void> => {
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const parsed = BulkSmsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "message is required (max 160 chars)" }); return; }
+
+  try {
+    const hCtx = await getHospitalContext(hospitalId);
+    const stages = ["Active", "Post Treatment", "In Care"];
+    if (parsed.data.includeDormant) stages.push("Dormant");
+
+    const { data: patients } = await supabase
+      .from("patients")
+      .select("id, first_name, last_name, phone")
+      .eq("hospital_id", hCtx.hospitalCode)
+      .in("stage", stages)
+      .not("phone", "is", null);
+
+    let sent = 0;
+    let failed = 0;
+    let skippedNoFunds = 0;
+
+    for (const patient of patients ?? []) {
+      if (!patient.phone) continue;
+      const deduction = await deductSmsFromWallet(hospitalId, `Bulk SMS — ${patient.first_name} ${patient.last_name}`);
+      if (!deduction.ok) {
+        if (deduction.insufficientFunds) { skippedNoFunds++; break; }
+        failed++;
+        continue;
+      }
+      try {
+        await deliverMobileMessage("sms", patient.phone as string, parsed.data.message);
+        sent++;
+      } catch {
+        failed++;
+      }
+    }
+
+    res.json({ sent, failed, skippedNoFunds, total: (patients ?? []).length });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 

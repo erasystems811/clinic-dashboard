@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader2, CheckCircle2, Eye, EyeOff, UserPlus, Pencil, UserX, Users, Wallet, AlertCircle, Stethoscope, Trash2, Clock, Plus } from "lucide-react";
+import { Loader2, Eye, EyeOff, UserPlus, Pencil, Users, Wallet, AlertCircle, Stethoscope, Trash2, Clock, Plus } from "lucide-react";
 
 interface StaffCreds {
   nurseUsername: string;
@@ -492,15 +492,6 @@ export default function Settings() {
                           <button onClick={() => startEdit(s)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition" title="Edit">
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          {s.active ? (
-                            <button onClick={() => handleDeactivate(s.id)} className="p-1.5 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-500 transition" title="Deactivate">
-                              <UserX className="w-3.5 h-3.5" />
-                            </button>
-                          ) : (
-                            <button onClick={() => handleReactivate(s.id)} className="p-1.5 rounded hover:bg-green-500/10 text-muted-foreground hover:text-green-500 transition" title="Reactivate">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
                           <button
                             onClick={() => handleDeleteStaff(s.id)}
                             disabled={deletingStaffId === s.id}

@@ -520,3 +520,18 @@ ALTER TABLE activity ADD COLUMN IF NOT EXISTS staff_role   TEXT;
 -- ── Doctor-related indexes ────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS queue_doctor_id_idx        ON queue(doctor_id) WHERE doctor_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS appointments_doctor_id_idx ON appointments(doctor_id) WHERE doctor_id IS NOT NULL;
+
+-- ── Doctor follow-ups (doctor's personal patient follow-up list) ──────────────
+CREATE TABLE IF NOT EXISTS doctor_follow_ups (
+  id           SERIAL PRIMARY KEY,
+  doctor_id    INTEGER NOT NULL REFERENCES hospital_doctors(id) ON DELETE CASCADE,
+  hospital_id  INTEGER NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  patient_name TEXT NOT NULL,
+  phone        TEXT,
+  reason       TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'pending',
+  completed_at TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE doctor_follow_ups DISABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS doctor_follow_ups_doctor_id_idx ON doctor_follow_ups(doctor_id);

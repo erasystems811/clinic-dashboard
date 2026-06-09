@@ -361,25 +361,50 @@ function AdminHelp({ hospitalName, modules }: { hospitalName: string; modules: {
       </Section>
 
       <Section emoji="👥" title="Managing Your Staff" ci={8}>
-        <p className="text-sm text-muted-foreground">Add nurses and receptionists, change passwords, and deactivate accounts from Settings.</p>
+        <p className="text-sm text-muted-foreground">Add nurses, receptionists, and doctors — each with their own login — from Settings.</p>
         <div className="space-y-3">
           <Step n={1}>Click <strong>Settings</strong> at the very bottom of the sidebar.</Step>
-          <Step n={2}>The <strong>Staff Accounts</strong> section lists all your staff members.</Step>
-          <Step n={3}>To add someone — click <strong>Add Staff</strong>, fill in their name, username, password, and role, then save.</Step>
-          <Step n={4}>To reset a password — click the staff member's row, change the password, and save.</Step>
-          <Step n={5}>To deactivate someone who has left — toggle their <strong>Active</strong> switch off. They won't be able to log in.</Step>
-          <Step n={6}>The <strong>SMS Wallet</strong> shows your current balance. Top it up here so SMS messages can go out (₦7 per SMS).</Step>
+          <Step n={2}><strong>Staff Accounts</strong> — add nurses and receptionists here. Each gets their own username, password, and role. To remove someone, click the trash icon next to their name.</Step>
+          <Step n={3}><strong>Doctors</strong> — add doctors here. The system auto-generates a username (e.g. DR.JAMES.OKAFOR) and a temporary password, then emails their login details to them. Doctors cannot be edited after creation — delete and re-add if details change.</Step>
+          <Step n={4}><strong>Online Booking Schedule</strong> — set the days and hours patients can self-book online. Add time blocks per day of the week with a slot duration (e.g. every 30 minutes on Mondays 9am–1pm).</Step>
+          <Step n={5}>The <strong>SMS Wallet</strong> shows your current balance. Top it up here so SMS messages can go out (₦7 per SMS).</Step>
         </div>
-        <Remember>Usernames cannot be changed after they are created. Choose carefully.</Remember>
+        <Remember>Usernames cannot be changed after they are created. Choose carefully. Doctor login uses the Staff Login tab on the login page.</Remember>
       </Section>
 
-      <Section emoji="💳" title="SMS Wallet — What Gets Charged" ci={9}>
+      <Section emoji="🩺" title="Doctors — How They Work" ci={9}>
+        <p className="text-sm text-muted-foreground">Each doctor gets their own login and private view showing only their assigned patients.</p>
+        <div className="space-y-3">
+          <Step n={1}>Add doctors in <strong>Settings → Doctors</strong>. They receive their username and password by email automatically.</Step>
+          <Step n={2}>When checking a patient into the queue, the receptionist can assign them to a specific doctor. The patient appears in that doctor's queue.</Step>
+          <Step n={3}>In the doctor's view — they see their queue, can <strong>Call In</strong> a patient (sends SMS to the patient), and can <strong>Transfer</strong> to another available doctor.</Step>
+          <Step n={4}>Doctors can mark themselves <strong>Unavailable</strong> — the receptionist is notified and will stop assigning new patients to them.</Step>
+          <Step n={5}>Doctors can create <strong>Follow-Ups</strong> for patients — either handle themselves (appears in their own Follow-Ups tab) or send to the receptionist (becomes a Call Task for the front desk).</Step>
+          <Step n={6}>Doctors receive a reminder email 3 hours before each scheduled appointment.</Step>
+        </div>
+        <Tip>The doctor sees specialty shown in brackets on the receptionist's doctor dropdown — so patients being triaged can be sent to the right specialist.</Tip>
+      </Section>
+
+      <Section emoji="🌐" title="Online Self-Booking" ci={10}>
+        <p className="text-sm text-muted-foreground">Patients can book their own appointments online without calling the clinic.</p>
+        <div className="space-y-3">
+          <Step n={1}>First set up time blocks in <strong>Settings → Online Booking Schedule</strong>. Each block defines a recurring weekly window (e.g. Mondays 9am–1pm, every 30 minutes).</Step>
+          <Step n={2}>Share your booking link with patients: <strong>https://[your-app-link]/book/[your-clinic-slug]</strong>. You can put it on your WhatsApp status, website, or print it as a QR code.</Step>
+          <Step n={3}>Patients fill in their name, phone, reason, and pick a slot. They receive a message saying their request is under review.</Step>
+          <Step n={4}>The receptionist sees pending bookings on the <strong>Appointments</strong> page under <em>Pending Online Bookings</em>. They confirm, assign a doctor and duration, and the patient receives a confirmation email.</Step>
+        </div>
+        <Remember>If no time blocks are set up, the booking page will show "No available slots" to patients. Set your schedule in Settings first.</Remember>
+      </Section>
+
+      <Section emoji="💳" title="SMS Wallet — What Gets Charged" ci={11}>
         <p className="text-sm text-muted-foreground">Most messages the system sends are <strong className="text-foreground">free emails</strong>. Only a few specific actions send an SMS, and each SMS costs <strong className="text-foreground">₦7</strong> from your wallet. Here is exactly which ones cost money:</p>
         <div className="space-y-2 mt-1">
           {[
             { label: "Appointment reminder SMS", desc: "If you have turned on SMS reminders for appointments — the 24h and 2h reminders go via SMS instead of email. Each one costs ₦7." },
             { label: "Call task message (if SMS is enabled)", desc: "When the receptionist sends a message from a Call Task — if SMS is enabled for your account, it goes via SMS (₦7). Otherwise it sends as a free email." },
             { label: "Flag for Follow-up SMS", desc: "When a patient is flagged for follow-up — if SMS is enabled, the follow-up message goes via SMS. Each one costs ₦7." },
+            { label: "Doctor Call-In SMS", desc: "When a doctor clicks 'Call In' for a patient in their queue — the patient receives an SMS notification. Each one costs ₦7." },
+            { label: "Bulk SMS", desc: "When you send a bulk SMS from Wellness → Bulk SMS. Each patient message costs ₦7. Sending stops automatically if the wallet runs out." },
           ].map(item => (
             <div key={item.label} className="rounded-lg border border-border bg-card/50 px-4 py-3 flex gap-3 items-start">
               <span className="text-base shrink-0">📱</span>
@@ -415,9 +440,10 @@ function ReceptionistHelp({ hospitalName, modules }: { hospitalName: string; mod
         <div className="space-y-3">
           <Step n={1}>Click <strong>Queue Management</strong> in the sidebar. You see two sections: <strong>Current Queue</strong> (patients checked in today) and <strong>Add Patient to Queue</strong> (for new arrivals).</Step>
           <Step n={2}>When a patient arrives — go to <strong>Add Patient to Queue</strong>, type their name or ID (at least 2 characters), and click <strong>Add to Queue</strong>.</Step>
-          <Step n={3}>When a patient is called in to see the doctor — tick the checkbox next to their name in <strong>Current Queue</strong>. This removes them from the queue.</Step>
-          <Step n={4}>To edit a patient's details — click the pencil icon next to their name.</Step>
-          <Step n={5}>If the patient is not found in search — click <strong>Register New Patient</strong> to add them first.</Step>
+          <Step n={3}>If doctors are set up, you will see a <strong>doctor dropdown</strong> when adding a patient. Assign the patient to the right doctor — the specialty is shown in brackets to help you decide. The patient will appear in that doctor's personal queue.</Step>
+          <Step n={4}>When a patient is called in to see the doctor — tick the checkbox next to their name in <strong>Current Queue</strong>. This removes them from the queue.</Step>
+          <Step n={5}>To edit a patient's details — click the pencil icon next to their name.</Step>
+          <Step n={6}>If the patient is not found in search — click <strong>Register New Patient</strong> to add them first.</Step>
         </div>
         <AutoBox>
           <p className="font-semibold">When you add a patient to the queue, the system sends:</p>
@@ -442,11 +468,11 @@ function ReceptionistHelp({ hospitalName, modules }: { hospitalName: string; mod
       </Section>
 
       {modules.appointmentsEnabled && <Section emoji="📅" title="Booking Appointments" ci={2}>
-        <p className="text-sm text-muted-foreground">For scheduling a patient's visit in advance.</p>
+        <p className="text-sm text-muted-foreground">For scheduling a patient's visit in advance — either you book it directly, or you confirm a patient's own online request.</p>
         <div className="space-y-3">
           <Step n={1}>Click <strong>Appointments</strong> in the sidebar.</Step>
-          <Step n={2}>You see a weekly calendar with 30-minute slots from 8am to 6pm.</Step>
-          <Step n={3}>Click any empty slot, search for the patient, add a title, and click <strong>Confirm Booking</strong>.</Step>
+          <Step n={2}>You see a weekly calendar. Click any empty slot, search for the patient, assign a doctor and duration, and click <strong>Confirm Booking</strong>.</Step>
+          <Step n={3}><strong>Pending Online Bookings</strong> — at the top of the Appointments page you will see any self-bookings submitted by patients online. Click <strong>Confirm</strong> to review, assign a doctor and duration, and send the patient a confirmation email. Or click <strong>Cancel</strong> to decline.</Step>
         </div>
         <AutoBox>
           <p className="font-semibold">After booking, the patient automatically receives:</p>
@@ -454,12 +480,12 @@ function ReceptionistHelp({ hospitalName, modules }: { hospitalName: string; mod
           <p>📧 24h reminder: <em>"This is a friendly reminder that your appointment is tomorrow [date]."</em></p>
           <p>📧 2h reminder: <em>"Just a quick reminder that your appointment is in 2 hours at [time]."</em></p>
         </AutoBox>
-        <Remember>Do not call patients to confirm or remind them. They receive 3 emails automatically.</Remember>
+        <Remember>Do not call patients to confirm or remind them. They receive 3 emails automatically. The assigned doctor also receives a reminder 3 hours before the appointment.</Remember>
       </Section>}
 
       <Section emoji="📞" title="Call Tasks — Following Up on Flagged Patients" ci={3}>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          When a nurse flags a patient who needs follow-up — for example a missed medication or a patient they are worried about — a task is created here for you to action. Click <strong className="text-foreground">Call Tasks</strong> in the sidebar.
+          Tasks appear here when a nurse flags a patient for follow-up, or when a doctor sends a follow-up to the receptionist. Click <strong className="text-foreground">Call Tasks</strong> in the sidebar.
         </p>
 
         <p className="text-sm text-muted-foreground leading-relaxed">

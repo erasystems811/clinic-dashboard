@@ -159,12 +159,16 @@ export default function WellnessAdmin() {
   const { data: newsletters = [], isLoading } = useListWellnessNewsletters({});
   const currentNewsletter = newsletters.find(n => n.weekOf === currentWeekOf);
 
-  const [activeTab, setActiveTab] = useState<"compose" | "history" | "bulk">("compose");
+  const [activeTab, setActiveTab] = useState<"compose" | "history" | "bulk" | "bulk-sms">("compose");
   const [bulkSubject, setBulkSubject] = useState("");
   const [bulkMessage, setBulkMessage] = useState("");
   const [bulkSending, setBulkSending] = useState(false);
   const [bulkIncludeDormant, setBulkIncludeDormant] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ sent: number; failed: number; total: number } | null>(null);
+  const [bulkSmsMessage, setBulkSmsMessage] = useState("");
+  const [bulkSmsSending, setBulkSmsSending] = useState(false);
+  const [bulkSmsIncludeDormant, setBulkSmsIncludeDormant] = useState(false);
+  const [bulkSmsResult, setBulkSmsResult] = useState<{ sent: number; failed: number; skippedNoFunds: number; total: number } | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState("");
@@ -352,6 +356,17 @@ export default function WellnessAdmin() {
           >
             <Mail className="w-3.5 h-3.5" />
             Bulk Email
+          </button>
+          <button
+            onClick={() => setActiveTab("bulk-sms")}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activeTab === "bulk-sms"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Mail className="w-3.5 h-3.5" />
+            Bulk SMS
           </button>
           <button
             onClick={() => setActiveTab("history")}
@@ -667,6 +682,67 @@ export default function WellnessAdmin() {
                 >
                   {bulkSending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send to All Patients</>}
                 </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Bulk SMS tab ── */}
+        {activeTab === "bulk-sms" && (
+          <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div>
+              <p className="text-sm font-semibold">Send a Bulk SMS to All Patients</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Sends to all Active, Post Treatment, and In Care patients with a phone number. Each SMS costs <strong>₦7</strong> from your wallet.</p>
+            </div>
+            {bulkSmsResult ? (
+              <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-2">
+                <p className="text-sm font-semibold text-green-400">SMS sent</p>
+                <p className="text-sm text-muted-foreground">{bulkSmsResult.sent} of {bulkSmsResult.total} patients received the SMS{bulkSmsResult.failed > 0 ? ` · ${bulkSmsResult.failed} failed` : ""}{bulkSmsResult.skippedNoFunds > 0 ? ` · stopped early (wallet empty)` : ""}.</p>
+                <button onClick={() => { setBulkSmsResult(null); setBulkSmsMessage(""); setBulkSmsIncludeDormant(false); }} className="text-xs text-primary hover:underline">Send another</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Message <span className="text-muted-foreground font-normal">(max 160 characters)</span></label>
+                  <textarea
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Type your SMS message here…"
+                    maxLength={160}
+                    value={bulkSmsMessage}
+                    onChange={e => setBulkSmsMessage(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground text-right">{bulkSmsMessage.length}/160</p>
+                </div>
+                <label className="flex items-center gap-2.5 cursor-pointer select-none py-1">
+                  <input type="checkbox" className="w-4 h-4 accent-primary cursor-pointer"
+                    checked={bulkSmsIncludeDormant} onChange={e => setBulkSmsIncludeDormant(e.target.checked)} />
+                  <span className="text-sm text-muted-foreground">Also send to <strong className="text-foreground">Dormant</strong> patients</span>
+                </label>
+                <button
+                  className="w-full py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+                  disabled={bulkSmsSending || !bulkSmsMessage.trim()}
+                  onClick={async () => {
+                    if (!hospital?.token) return;
+                    setBulkSmsSending(true);
+                    try {
+                      const res = await fetch(apiUrl("/api/wellness/bulk-sms"), {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+                        body: JSON.stringify({ message: bulkSmsMessage.trim(), includeDormant: bulkSmsIncludeDormant }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error ?? "Send failed");
+                      setBulkSmsResult(data);
+                    } catch (err: unknown) {
+                      toast({ title: "Send failed", description: err instanceof Error ? err.message : "Try again", variant: "destructive" });
+                    } finally {
+                      setBulkSmsSending(false);
+                    }
+                  }}
+                >
+                  {bulkSmsSending ? <><Loader2 className="w-4 h-4 animate-spin" />Sending…</> : <><Send className="w-4 h-4" />Send SMS to All Patients</>}
+                </button>
+                <p className="text-xs text-center text-muted-foreground">Sending will stop automatically if your wallet runs out.</p>
               </div>
             )}
           </div>

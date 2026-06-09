@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl, authHeader } from "@/lib/api";
 
-const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const NORMAL_DELAY_MS = 10 * 60 * 1000;    // 10 min into session
 const BROADCAST_DELAY_MS = 60 * 1000;       // 1 min after detecting a broadcast
 const POLL_INTERVAL_MS = 5 * 60 * 1000;    // check for broadcasts every 5 min

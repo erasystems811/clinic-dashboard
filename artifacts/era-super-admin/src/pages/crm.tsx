@@ -3,14 +3,16 @@ import { api, type CrmLead, type CrmRequest } from "@/lib/api";
 import { Calendar } from "@/components/ui/calendar";
 
 const STAGES = [
-  { id: "identified",    label: "Identified",    color: "#4A5568" },
-  { id: "visited",       label: "Visited",        color: "#2B6CB0" },
-  { id: "proposal_sent", label: "Proposal Sent",  color: "#6B46C1" },
-  { id: "follow_up",     label: "Follow Up",      color: "#C05621" },
-  { id: "responded",     label: "Responded",      color: "#2C7A7B" },
-  { id: "approved",      label: "Approved",       color: "#276749" },
-  { id: "declined",      label: "Declined",       color: "#9B2C2C" },
-  { id: "paid",          label: "Paid",           color: "#1A365D" },
+  { id: "identified",       label: "Identified",        color: "#4A5568" },
+  { id: "visited",          label: "Visited",            color: "#2B6CB0" },
+  { id: "proposal_sent",    label: "Proposal Sent",      color: "#6B46C1" },
+  { id: "follow_up",        label: "Follow Up",          color: "#C05621" },
+  { id: "responded",        label: "Responded",          color: "#2C7A7B" },
+  { id: "approved",         label: "Approved",           color: "#276749" },
+  { id: "pending_payment",  label: "Pending Payment",    color: "#B7791F" },
+  { id: "paid",             label: "Paid",               color: "#1A365D" },
+  { id: "expired_suspended",label: "Expired / Suspended",color: "#9B2C2C" },
+  { id: "declined",         label: "Declined",           color: "#718096" },
 ];
 
 const EMPTY_FORM = { name: "", contact_person: "", last_contacted: "", stage: "identified", notes: "" };
@@ -312,10 +314,11 @@ export default function CRMPage() {
       {/* Stats */}
       <div style={S.statsBar}>
         {[
-          { label: "Total Leads",     val: leads.length },
-          { label: "Approved",        val: leads.filter(l => l.stage === "approved").length },
-          { label: "Paid",            val: leads.filter(l => l.stage === "paid").length },
-          { label: "Pending Actions", val: totalPending, warn: totalPending > 0 },
+          { label: "Total Leads",       val: leads.length },
+          { label: "Approved",          val: leads.filter(l => l.stage === "approved").length },
+          { label: "Pending Payment",   val: leads.filter(l => l.stage === "pending_payment").length, warn: leads.filter(l => l.stage === "pending_payment").length > 0 },
+          { label: "Paid",              val: leads.filter(l => l.stage === "paid").length },
+          { label: "Pending Actions",   val: totalPending, warn: totalPending > 0 },
         ].map((s, i) => (
           <div key={i} style={S.statGroup}>
             {i > 0 && <div style={S.statDivider} />}

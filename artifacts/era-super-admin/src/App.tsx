@@ -12,6 +12,7 @@ import DocsPage from "@/pages/docs";
 import Announcements from "@/pages/announcements";
 import SystemFeedbackPage from "@/pages/system-feedback";
 import CRMPage from "@/pages/crm";
+import PricingPage from "@/pages/pricing";
 
 const queryClient = new QueryClient();
 
@@ -19,7 +20,12 @@ function AppRoutes() {
   const { isAuthed } = useAuth();
 
   if (!isAuthed) {
-    return <LoginPage />;
+    return (
+      <Switch>
+        <Route path="/pricing" component={PricingPage} />
+        <Route component={LoginPage} />
+      </Switch>
+    );
   }
 
   return (
@@ -37,6 +43,7 @@ function AppRoutes() {
       <Route path="/feedback" component={SystemFeedbackPage} />
       <Route path="/crm" component={CRMPage} />
       <Route path="/docs" component={DocsPage} />
+      <Route path="/pricing" component={PricingPage} />
       <Route>
         <div className="flex items-center justify-center min-h-screen text-muted-foreground text-sm">
           404 — Page not found

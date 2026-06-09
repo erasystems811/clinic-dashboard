@@ -515,15 +515,16 @@ export default function CallTasks() {
     } finally { setSmsToggleSaving(false); }
   };
 
+  const [activeTab, setActiveTab] = useState<"open" | "completed">("open");
+
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-5">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Call Tasks</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              All follow-up tasks — open and completed
-            </p>
+            <p className="text-muted-foreground text-sm mt-0.5">Follow-up tasks for your patients</p>
           </div>
           {smsModules !== null && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -535,7 +536,7 @@ export default function CallTasks() {
                 className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${smsModules.callTaskSmsEnabled ? "bg-primary" : "bg-muted-foreground/30"} disabled:opacity-50`}
                 role="switch"
                 aria-checked={smsModules.callTaskSmsEnabled}
-                title={smsModules.callTaskSmsEnabled ? "SMS messages on — click to disable" : "SMS messages off — click to enable"}
+                title={smsModules.callTaskSmsEnabled ? "SMS on — click to disable" : "SMS off — click to enable"}
               >
                 <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${smsModules.callTaskSmsEnabled ? "translate-x-4" : "translate-x-0"}`} />
               </button>
@@ -543,61 +544,79 @@ export default function CallTasks() {
           )}
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+          <button
+            onClick={() => setActiveTab("open")}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "open" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Open
+            {openTasks.length > 0 && (
+              <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-destructive/15 text-destructive font-semibold">
+                {openTasks.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("completed")}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${activeTab === "completed" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Completed
+            {completedTasks.length > 0 && (
+              <span className="ml-2 px-1.5 py-0.5 text-xs rounded-full bg-muted-foreground/20 text-muted-foreground font-semibold">
+                {completedTasks.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Content */}
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
-        ) : tasks.length === 0 ? (
-          <div className="py-16 text-center text-muted-foreground">
-            <Phone className="w-8 h-8 mx-auto mb-3 opacity-40" />
-            <p className="text-sm">No tasks yet — all clear!</p>
-          </div>
+        ) : activeTab === "open" ? (
+          openTasks.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">
+              <CheckCircle className="w-8 h-8 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-medium">All clear — no open tasks</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {openTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  aiUsedToday={aiUsedToday}
+                  aiDailyLimit={aiDailyLimit}
+                  onAiUsed={setAiUsedToday}
+                  smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
+                  walletBalance={walletBalance}
+                />
+              ))}
+            </div>
+          )
         ) : (
-          <div className="space-y-6">
-            {/* Open tasks */}
-            {openTasks.length > 0 && (
-              <div className="space-y-4">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Open · {openTasks.length}
-                </p>
-                {openTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    aiUsedToday={aiUsedToday}
-                    aiDailyLimit={aiDailyLimit}
-                    onAiUsed={setAiUsedToday}
-                    smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
-                    walletBalance={walletBalance}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Completed tasks */}
-            {completedTasks.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-px bg-border" />
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
-                    Completed · {completedTasks.length}
-                  </p>
-                  <div className="flex-1 h-px bg-border" />
-                </div>
-                {completedTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    aiUsedToday={aiUsedToday}
-                    aiDailyLimit={aiDailyLimit}
-                    onAiUsed={setAiUsedToday}
-                    smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
-                    walletBalance={walletBalance}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          completedTasks.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">
+              <Phone className="w-8 h-8 mx-auto mb-3 opacity-40" />
+              <p className="text-sm font-medium">No completed tasks yet</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {completedTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  aiUsedToday={aiUsedToday}
+                  aiDailyLimit={aiDailyLimit}
+                  onAiUsed={setAiUsedToday}
+                  smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
+                  walletBalance={walletBalance}
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
     </Layout>

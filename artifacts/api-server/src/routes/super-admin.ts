@@ -858,6 +858,7 @@ router.post("/auth/hospital-login", async (req, res): Promise<void> => {
     name: hospital.name,
     username: hospital.username,
     feedbackSlug,
+    slug: (hospital.slug as string) || null,
     token: signHospitalToken(hospital.id),
   });
 });

@@ -14,7 +14,7 @@ import {
 import type { CallTask } from "@workspace/api-client-react";
 import {
   Phone, CheckCircle, Clock, Loader2, PhoneCall,
-  Send, ChevronDown, ChevronUp, Flag, MessageSquare, Sparkles, Mail, Wallet,
+  Send, ChevronDown, ChevronUp, Flag, MessageSquare, Sparkles, Mail, Wallet, Trash2,
 } from "lucide-react";
 import {
   AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle,
@@ -278,8 +278,29 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, walle
   task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (n: number) => void;
   smsEnabled: boolean; walletBalance: number | null;
 }) {
+  const { hospital, user } = useAuth();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showMethodPicker, setShowMethodPicker] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete the follow-up task for ${task.patientName}? This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      const headers: Record<string, string> = { "x-hospital-token": hospital?.token ?? "" };
+      if (user?.staffName) headers["x-performed-by"] = user.staffName;
+      const res = await fetch(apiUrl(`/api/call-tasks/${task.id}`), { method: "DELETE", headers });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? "Delete failed");
+      }
+      toast({ title: "Task deleted" });
+      queryClient.invalidateQueries({ queryKey: getListCallTasksQueryKey() });
+    } catch (err: unknown) {
+      toast({ title: "Failed to delete", description: (err as Error).message, variant: "destructive" });
+    } finally { setDeleting(false); }
+  };
 
   const updateAction = useUpdateCallTaskActionType({
     mutation: {
@@ -320,8 +341,18 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, walle
             )}
           </div>
         </div>
-        <div className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
-          <Clock className="w-3 h-3" />{formatDate(task.flaggedAt)}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="text-xs text-muted-foreground flex items-center gap-1">
+            <Clock className="w-3 h-3" />{formatDate(task.flaggedAt)}
+          </div>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition disabled:opacity-40"
+            title="Delete task"
+          >
+            {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+          </button>
         </div>
       </div>
 

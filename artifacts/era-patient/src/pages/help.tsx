@@ -365,8 +365,8 @@ function AdminHelp({ hospitalName, modules }: { hospitalName: string; modules: {
         <div className="space-y-3">
           <Step n={1}>Click <strong>Settings</strong> at the very bottom of the sidebar.</Step>
           <Step n={2}><strong>Staff Accounts</strong> — add nurses and receptionists here. Each gets their own username, password, and role. To remove someone, click the trash icon next to their name.</Step>
-          <Step n={3}><strong>Doctors</strong> — add doctors here. The system auto-generates a username (e.g. DR.JAMES.OKAFOR) and a temporary password, then emails their login details to them. Doctors cannot be edited after creation — delete and re-add if details change.</Step>
-          <Step n={4}><strong>Online Booking Schedule</strong> — set the days and hours patients can self-book online. Add time blocks per day of the week with a slot duration (e.g. every 30 minutes on Mondays 9am–1pm).</Step>
+          <Step n={3}><strong>Doctors</strong> — add doctors here. The system auto-generates a username (e.g. DR.JAMES.OKAFOR) and a temporary password, then emails their login details. You can edit a doctor's name, email, or specialty later using the pencil icon. To remove a doctor, click the trash icon.</Step>
+          <Step n={4}><strong>Online Booking Schedule</strong> — set the days and hours patients can self-book online. Add time blocks per day of the week with a slot duration (e.g. every 30 minutes on Mondays 9am–1pm). Your patient booking link is shown at the top of this section — copy and share it.</Step>
           <Step n={5}>The <strong>SMS Wallet</strong> shows your current balance. Top it up here so SMS messages can go out (₦7 per SMS).</Step>
         </div>
         <Remember>Usernames cannot be changed after they are created. Choose carefully. Doctor login uses the Staff Login tab on the login page.</Remember>
@@ -379,7 +379,7 @@ function AdminHelp({ hospitalName, modules }: { hospitalName: string; modules: {
           <Step n={2}>When checking a patient into the queue, the receptionist can assign them to a specific doctor. The patient appears in that doctor's queue.</Step>
           <Step n={3}>In the doctor's view — they see their queue, can <strong>Call In</strong> a patient (sends SMS to the patient), and can <strong>Transfer</strong> to another available doctor.</Step>
           <Step n={4}>Doctors can mark themselves <strong>Unavailable</strong> — the receptionist is notified and will stop assigning new patients to them.</Step>
-          <Step n={5}>Doctors can create <strong>Follow-Ups</strong> for patients — either handle themselves (appears in their own Follow-Ups tab) or send to the receptionist (becomes a Call Task for the front desk).</Step>
+          <Step n={5}>The <strong>Follow-Ups tab</strong> works like the nurse station — search any patient, view their active care plan, and flag them for follow-up. The doctor can handle it themselves (send email or log a call) or send it to the receptionist as a Call Task. From the queue, the clipboard icon next to each patient also opens the same follow-up flow.</Step>
           <Step n={6}>Doctors receive a reminder email 3 hours before each scheduled appointment.</Step>
         </div>
         <Tip>The doctor sees specialty shown in brackets on the receptionist's doctor dropdown — so patients being triaged can be sent to the right specialist.</Tip>
@@ -389,7 +389,7 @@ function AdminHelp({ hospitalName, modules }: { hospitalName: string; modules: {
         <p className="text-sm text-muted-foreground">Patients can book their own appointments online without calling the clinic.</p>
         <div className="space-y-3">
           <Step n={1}>First set up time blocks in <strong>Settings → Online Booking Schedule</strong>. Each block defines a recurring weekly window (e.g. Mondays 9am–1pm, every 30 minutes).</Step>
-          <Step n={2}>Share your booking link with patients: <strong>https://[your-app-link]/book/[your-clinic-slug]</strong>. You can put it on your WhatsApp status, website, or print it as a QR code.</Step>
+          <Step n={2}>Your booking link is shown in <strong>Settings → Online Booking Schedule</strong> at the top — click <em>Copy</em> to copy it. Share it via WhatsApp, your website, or as a QR code. The link looks like: <strong>https://[your-app]/book/[your-clinic-name]</strong>.</Step>
           <Step n={3}>Patients fill in their name, phone, reason, and pick a slot. They receive a message saying their request is under review.</Step>
           <Step n={4}>The receptionist sees pending bookings on the <strong>Appointments</strong> page under <em>Pending Online Bookings</em>. They confirm, assign a doctor and duration, and the patient receives a confirmation email.</Step>
         </div>

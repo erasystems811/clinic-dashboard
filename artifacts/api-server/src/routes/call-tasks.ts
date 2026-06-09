@@ -104,12 +104,15 @@ router.patch("/call-tasks/:id/outcome", async (req, res): Promise<void> => {
 
   if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
 
+  const performedByOutcome = (req.headers["x-performed-by"] as string | undefined) || null;
   await supabase.from("activity").insert({
     type: "call_task_completed",
-    description: `Call task completed for ${task.patient_name} (${task.action_type}): ${parsed.data.outcome}`,
+    description: `${performedByOutcome ?? "Staff"} completed a follow-up task for ${task.patient_name}`,
     patient_id: task.patient_id,
     patient_name: task.patient_name,
+    hospital_id: hospital.intId,
     metadata: parsed.data.outcome,
+    performed_by: performedByOutcome,
   });
 
   res.json(camelize(task));
@@ -135,12 +138,15 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
 
   if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
 
+  const performedByAction = (req.headers["x-performed-by"] as string | undefined) || null;
   await supabase.from("activity").insert({
     type: "call_task_action_updated",
-    description: `Follow-up method changed to ${parsed.data.actionType} for ${task.patient_name}`,
+    description: `${performedByAction ?? "Staff"} changed follow-up method to ${parsed.data.actionType} for ${task.patient_name}`,
     patient_id: task.patient_id,
     patient_name: task.patient_name,
+    hospital_id: hospital.intId,
     metadata: parsed.data.actionType,
+    performed_by: performedByAction,
   });
 
   res.json(camelize(task));
@@ -316,13 +322,16 @@ router.post("/call-tasks/:id/send-manual-email", async (req, res): Promise<void>
       parsed.data.message,
     );
 
+    const performedByEmail = (req.headers["x-performed-by"] as string | undefined) || null;
     await supabase.from("call_tasks").update({ action_type: "manual_text" }).eq("id", id);
     await supabase.from("activity").insert({
       type: "manual_email_sent",
-      description: `Important email sent to ${task.patient_name} (manual call task message)`,
+      description: `${performedByEmail ? `${performedByEmail} sent an important email to` : "Important email sent to"} ${task.patient_name}`,
       patient_id: task.patient_id,
       patient_name: task.patient_name,
+      hospital_id: hospitalId,
       metadata: parsed.data.message.slice(0, 200),
+      performed_by: performedByEmail,
     });
 
     res.json({ ok: true });
@@ -330,6 +339,37 @@ router.post("/call-tasks/:id/send-manual-email", async (req, res): Promise<void>
     const msg = err instanceof Error ? err.message : "Send failed";
     res.status(500).json({ error: msg });
   }
+});
+
+router.delete("/call-tasks/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: task } = await supabase
+    .from("call_tasks")
+    .select("patient_id, patient_name")
+    .eq("id", id)
+    .eq("hospital_id", hospital.intId)
+    .single();
+
+  if (!task) { res.status(404).json({ error: "Call task not found" }); return; }
+
+  await supabase.from("call_tasks").delete().eq("id", id).eq("hospital_id", hospital.intId);
+
+  const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
+  await supabase.from("activity").insert({
+    type: "call_task_deleted",
+    description: `${performedBy ?? "Staff"} deleted a follow-up task for ${task.patient_name}`,
+    patient_id: task.patient_id,
+    patient_name: task.patient_name,
+    hospital_id: hospital.intId,
+    performed_by: performedBy,
+  });
+
+  res.sendStatus(204);
 });
 
 export default router;

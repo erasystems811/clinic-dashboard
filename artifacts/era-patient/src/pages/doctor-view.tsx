@@ -4,9 +4,12 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
+import { useListPatients } from "@workspace/api-client-react";
+import type { Patient } from "@workspace/api-client-react";
+import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
   Clock, Users, Calendar, PhoneCall, ArrowRightLeft, AlertTriangle, CheckCircle2,
-  Loader2, RefreshCw, X, ClipboardList, Plus, Send, UserCheck,
+  Loader2, RefreshCw, X, ClipboardList, Search,
 } from "lucide-react";
 
 interface QueueEntry {
@@ -37,13 +40,10 @@ interface Doctor {
   unavailable: boolean;
 }
 
-interface FollowUp {
+interface DoctorCarePlan {
   id: number;
-  patientName: string;
-  phone?: string | null;
-  reason: string;
-  status: string;
-  createdAt: string;
+  department: string;
+  summary: string;
 }
 
 function waitTime(addedAt: string) {
@@ -115,99 +115,6 @@ function TransferModal({
   );
 }
 
-function FollowUpModal({
-  token, doctorId, onClose, onCreated,
-  prefillName, prefillPhone,
-}: {
-  token: string; doctorId: number; onClose: () => void; onCreated: () => void;
-  prefillName?: string; prefillPhone?: string | null;
-}) {
-  const { toast } = useToast();
-  const [patientName, setPatientName] = useState(prefillName ?? "");
-  const [phone, setPhone] = useState(prefillPhone ?? "");
-  const [reason, setReason] = useState("");
-  const [assignTo, setAssignTo] = useState<"self" | "receptionist">("self");
-  const [saving, setSaving] = useState(false);
-
-  const handleSubmit = async () => {
-    if (!patientName.trim() || !reason.trim()) return;
-    setSaving(true);
-    try {
-      const res = await fetch(apiUrl("/api/doctor/follow-ups"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-hospital-token": token },
-        body: JSON.stringify({ doctorId, patientName: patientName.trim(), phone: phone.trim() || undefined, reason: reason.trim(), assignTo }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(d.error ?? "Failed");
-      }
-      toast({ title: assignTo === "receptionist" ? "Sent to receptionist" : "Follow-up saved", description: assignTo === "receptionist" ? "The receptionist will see this in their Call Tasks." : "You can view it in your Follow-Ups tab." });
-      onCreated();
-      onClose();
-    } catch (err: unknown) {
-      toast({ title: "Could not save follow-up", description: (err as Error).message, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-card border border-border rounded-xl w-full max-w-sm shadow-xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <p className="font-semibold text-sm">New Follow-Up</p>
-          <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
-        </div>
-        <div className="p-5 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Patient Name *</label>
-            <input className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="e.g. Ada Okafor" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Phone (optional)</label>
-            <input className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g. 08012345678" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Reason / Note *</label>
-            <textarea className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[72px] resize-none"
-              value={reason} onChange={e => setReason(e.target.value)} placeholder="What needs to be followed up?" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Who handles this?</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setAssignTo("self")}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition ${assignTo === "self" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-border/80"}`}
-              >
-                <UserCheck className="w-4 h-4 shrink-0" /> I'll handle it
-              </button>
-              <button
-                type="button"
-                onClick={() => setAssignTo("receptionist")}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition ${assignTo === "receptionist" ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-border/80"}`}
-              >
-                <Send className="w-4 h-4 shrink-0" /> Receptionist
-              </button>
-            </div>
-            {assignTo === "receptionist" && (
-              <p className="text-xs text-muted-foreground">This will appear as a Call Task for the receptionist to action.</p>
-            )}
-          </div>
-          <div className="flex gap-2 justify-end pt-1">
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" disabled={saving || !patientName.trim() || !reason.trim()} onClick={handleSubmit}>
-              {saving ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Saving…</> : "Save Follow-Up"}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function DoctorView() {
   const { hospital, hospitalConfig, user } = useAuth();
@@ -221,19 +128,21 @@ export default function DoctorView() {
 
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [appointments, setAppointments] = useState<DoctorAppointment[]>([]);
-  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [allDoctors, setAllDoctors] = useState<Doctor[]>([]);
   const [unavailable, setUnavailable] = useState(false);
   const [queueLoading, setQueueLoading] = useState(true);
   const [apptLoading, setApptLoading] = useState(true);
-  const [followUpLoading, setFollowUpLoading] = useState(true);
   const [toggleLoading, setToggleLoading] = useState(false);
   const [callingIn, setCallingIn] = useState<number | null>(null);
   const [transferEntry, setTransferEntry] = useState<QueueEntry | null>(null);
-  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
-  const [followUpPrefill, setFollowUpPrefill] = useState<{ name: string; phone?: string | null } | null>(null);
-  const [completingFollowUp, setCompletingFollowUp] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"queue" | "appointments" | "followups">("queue");
+
+  // Follow-up tab — nurse-style patient search
+  const [followUpSearch, setFollowUpSearch] = useState("");
+  const [selectedFollowUpPatient, setSelectedFollowUpPatient] = useState<Patient | null>(null);
+  const [followUpCarePlans, setFollowUpCarePlans] = useState<DoctorCarePlan[]>([]);
+  const [followUpCPLoading, setFollowUpCPLoading] = useState(false);
+  const [flagPatient, setFlagPatient] = useState<{ name: string; id: number } | null>(null);
 
   const fetchQueue = useCallback(async () => {
     if (!token || !doctorId) return;
@@ -251,14 +160,6 @@ export default function DoctorView() {
     } finally { setApptLoading(false); }
   }, [token, doctorId]);
 
-  const fetchFollowUps = useCallback(async () => {
-    if (!token || !doctorId) return;
-    try {
-      const r = await fetch(apiUrl(`/api/doctor/follow-ups?doctorId=${doctorId}`), { headers: { "x-hospital-token": token } });
-      if (r.ok) setFollowUps(await r.json() as FollowUp[]);
-    } finally { setFollowUpLoading(false); }
-  }, [token, doctorId]);
-
   const fetchDoctors = useCallback(async () => {
     if (!token) return;
     const r = await fetch(apiUrl("/api/hospital/doctors"), { headers: { "x-hospital-token": token } });
@@ -270,12 +171,34 @@ export default function DoctorView() {
     }
   }, [token, doctorId]);
 
+  // Patient search for Follow-Ups tab
+  const { data: followUpSearchResults = [], isFetching: followUpSearching } = useListPatients(
+    { search: followUpSearch },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: followUpSearch.trim().length >= 2 } as any },
+  );
+
+  const fetchFollowUpCarePlans = useCallback(async (patientId: number) => {
+    if (!token) return;
+    setFollowUpCPLoading(true);
+    try {
+      const r = await fetch(apiUrl(`/api/patients/${patientId}/care-plans`), { headers: { "x-hospital-token": token } });
+      if (r.ok) setFollowUpCarePlans(await r.json() as DoctorCarePlan[]);
+      else setFollowUpCarePlans([]);
+    } catch { setFollowUpCarePlans([]); }
+    finally { setFollowUpCPLoading(false); }
+  }, [token]);
+
+  useEffect(() => {
+    if (selectedFollowUpPatient) fetchFollowUpCarePlans(selectedFollowUpPatient.id);
+    else setFollowUpCarePlans([]);
+  }, [selectedFollowUpPatient, fetchFollowUpCarePlans]);
+
   useEffect(() => {
     fetchQueue();
     fetchAppointments();
-    fetchFollowUps();
     fetchDoctors();
-  }, [fetchQueue, fetchAppointments, fetchFollowUps, fetchDoctors]);
+  }, [fetchQueue, fetchAppointments, fetchDoctors]);
 
   useEffect(() => {
     const t = setInterval(fetchQueue, 15_000);
@@ -316,19 +239,6 @@ export default function DoctorView() {
     } finally { setToggleLoading(false); }
   };
 
-  const handleCompleteFollowUp = async (id: number) => {
-    setCompletingFollowUp(id);
-    try {
-      await fetch(apiUrl(`/api/doctor/follow-ups/${id}/complete`), {
-        method: "PATCH", headers: { "x-hospital-token": token },
-      });
-      setFollowUps(prev => prev.filter(f => f.id !== id));
-      toast({ title: "Follow-up marked as done" });
-    } catch {
-      toast({ title: "Could not complete follow-up", variant: "destructive" });
-    } finally { setCompletingFollowUp(null); }
-  };
-
   const formatApptTime = (iso: string) => {
     const d = new Date(iso);
     const today = new Date();
@@ -341,11 +251,6 @@ export default function DoctorView() {
     return `${d.toLocaleDateString("en-NG", { weekday: "short", day: "numeric", month: "short", timeZone: "Africa/Lagos" })} at ${time}`;
   };
 
-  const openFollowUp = (name?: string, phone?: string | null) => {
-    setFollowUpPrefill(name ? { name, phone } : null);
-    setShowFollowUpModal(true);
-  };
-
   return (
     <Layout>
       {transferEntry && (
@@ -355,13 +260,11 @@ export default function DoctorView() {
           onTransferred={() => { fetchQueue(); setTransferEntry(null); }}
         />
       )}
-      {showFollowUpModal && doctorId && (
-        <FollowUpModal
-          token={token} doctorId={doctorId}
-          prefillName={followUpPrefill?.name}
-          prefillPhone={followUpPrefill?.phone}
-          onClose={() => { setShowFollowUpModal(false); setFollowUpPrefill(null); }}
-          onCreated={fetchFollowUps}
+      {flagPatient && (
+        <FollowUpFlagModal
+          patientName={flagPatient.name}
+          patientId={flagPatient.id}
+          onClose={() => setFlagPatient(null)}
         />
       )}
 
@@ -404,7 +307,6 @@ export default function DoctorView() {
             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "followups" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
             <span className="flex items-center gap-1.5">
               <ClipboardList className="w-3.5 h-3.5" /> Follow-Ups
-              {followUps.length > 0 && <span className="ml-0.5 bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-px rounded-full">{followUps.length}</span>}
             </span>
           </button>
         </div>
@@ -436,8 +338,8 @@ export default function DoctorView() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => openFollowUp(entry.patientName, entry.phone)}
-                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition" title="Create follow-up">
+                        <button onClick={() => setFlagPatient({ name: entry.patientName, id: entry.patientId })}
+                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition" title="Flag for follow-up">
                           <ClipboardList className="w-3.5 h-3.5" />
                         </button>
                         <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setTransferEntry(entry)}>
@@ -477,15 +379,9 @@ export default function DoctorView() {
                       <p className="font-medium text-sm">{appt.patientName}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">{appt.title}</p>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{formatApptTime(appt.scheduledAt)}</p>
-                        {appt.durationMinutes && <p className="text-xs text-muted-foreground">{appt.durationMinutes} min</p>}
-                      </div>
-                      <button onClick={() => openFollowUp(appt.patientName)}
-                        className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition" title="Create follow-up">
-                        <ClipboardList className="w-3.5 h-3.5" />
-                      </button>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-medium">{formatApptTime(appt.scheduledAt)}</p>
+                      {appt.durationMinutes && <p className="text-xs text-muted-foreground">{appt.durationMinutes} min</p>}
                     </div>
                   </div>
                 ))}
@@ -496,40 +392,91 @@ export default function DoctorView() {
 
         {/* Follow-ups tab */}
         {activeTab === "followups" && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">Your personal follow-up list. Only you see this.</p>
-              <Button size="sm" className="gap-1.5" onClick={() => openFollowUp()}>
-                <Plus className="w-3.5 h-3.5" /> New Follow-Up
-              </Button>
-            </div>
-            <div className="rounded-lg border border-border bg-card">
-              {followUpLoading ? (
-                <div className="flex items-center justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-              ) : followUps.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground text-sm">No pending follow-ups</div>
-              ) : (
-                <div className="divide-y divide-border">
-                  {followUps.map(f => (
-                    <div key={f.id} className="flex items-start gap-3 px-4 py-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{f.patientName}</p>
-                        {f.phone && <p className="text-xs text-muted-foreground font-mono">{f.phone}</p>}
-                        <p className="text-xs text-muted-foreground mt-1">{f.reason}</p>
-                      </div>
-                      <button
-                        onClick={() => handleCompleteFollowUp(f.id)}
-                        disabled={completingFollowUp === f.id}
-                        className="mt-0.5 p-1.5 rounded hover:bg-emerald-500/10 text-muted-foreground hover:text-emerald-500 transition shrink-0"
-                        title="Mark as done"
-                      >
-                        {completingFollowUp === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  ))}
-                </div>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Search a patient to view their active care plan and flag them for follow-up.</p>
+
+            {/* Patient search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                className="w-full h-10 rounded-md border border-input bg-background pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="Search patient name or ID… (min 2 characters)"
+                value={followUpSearch}
+                onChange={e => { setFollowUpSearch(e.target.value); setSelectedFollowUpPatient(null); }}
+              />
+              {followUpSearching && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
               )}
             </div>
+
+            {/* Search results */}
+            {followUpSearch.trim().length >= 2 && !selectedFollowUpPatient && followUpSearchResults.length > 0 && (
+              <div className="rounded-lg border border-border bg-card divide-y divide-border">
+                {followUpSearchResults.map(p => (
+                  <button
+                    key={p.id}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-muted/50 transition"
+                    onClick={() => { setSelectedFollowUpPatient(p); setFollowUpSearch(`${p.firstName} ${p.lastName}`); }}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0">
+                      {`${p.firstName[0] ?? ""}${p.lastName[0] ?? ""}`.toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{p.firstName} {p.lastName}</p>
+                      <p className="text-xs text-muted-foreground">{p.phone || "No phone"}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {followUpSearch.trim().length >= 2 && !selectedFollowUpPatient && !followUpSearching && followUpSearchResults.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No patients found</p>
+            )}
+
+            {/* Selected patient card */}
+            {selectedFollowUpPatient && (
+              <div className="rounded-lg border border-border bg-card overflow-hidden">
+                <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+                  <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-sm flex items-center justify-center shrink-0">
+                    {`${selectedFollowUpPatient.firstName[0] ?? ""}${selectedFollowUpPatient.lastName[0] ?? ""}`.toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm">{selectedFollowUpPatient.firstName} {selectedFollowUpPatient.lastName}</p>
+                    <p className="text-xs text-muted-foreground">{selectedFollowUpPatient.phone || "No phone"}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button size="sm" className="gap-1.5 h-8 text-xs"
+                      onClick={() => setFlagPatient({ name: `${selectedFollowUpPatient.firstName} ${selectedFollowUpPatient.lastName}`, id: selectedFollowUpPatient.id })}>
+                      <ClipboardList className="w-3.5 h-3.5" /> Flag Follow-Up
+                    </Button>
+                    <button onClick={() => { setSelectedFollowUpPatient(null); setFollowUpSearch(""); }}
+                      className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Care plans */}
+                <div className="px-4 py-3">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Active Care Plans</p>
+                  {followUpCPLoading ? (
+                    <div className="flex items-center gap-2 text-muted-foreground text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
+                  ) : followUpCarePlans.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No active care plans on record.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {followUpCarePlans.map(cp => (
+                        <div key={cp.id} className="rounded-md bg-muted/40 px-3 py-2">
+                          <p className="text-xs font-semibold text-primary mb-0.5">{cp.department}</p>
+                          <p className="text-sm">{cp.summary}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

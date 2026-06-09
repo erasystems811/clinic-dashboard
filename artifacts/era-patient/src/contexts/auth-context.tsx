@@ -10,6 +10,7 @@ export interface HospitalSession {
   username: string;
   token: string; // empty for staff (nurse/receptionist)
   feedbackSlug?: string | null;
+  slug?: string | null;
   loginAt?: number; // Unix ms when this session was created — used to detect module changes
 }
 
@@ -129,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(err.error ?? "Invalid credentials");
     }
     const data = await res.json();
-    setHospital({ id: data.id, name: data.name, username: data.username, token: data.token, feedbackSlug: data.feedbackSlug ?? null, loginAt: Date.now() });
+    setHospital({ id: data.id, name: data.name, username: data.username, token: data.token, feedbackSlug: data.feedbackSlug ?? null, slug: data.slug ?? null, loginAt: Date.now() });
 
     const cfgRes = await fetch(apiUrl("/api/hospital/config"), {
       headers: { "x-hospital-token": data.token },

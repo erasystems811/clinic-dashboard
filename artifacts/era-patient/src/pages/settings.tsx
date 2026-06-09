@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader2, Eye, EyeOff, UserPlus, Pencil, Users, Wallet, AlertCircle, Stethoscope, Trash2, Clock, Plus } from "lucide-react";
+import { Loader2, Eye, EyeOff, UserPlus, Pencil, Users, Wallet, AlertCircle, Stethoscope, Trash2, Clock, Plus, Link2, Check } from "lucide-react";
 
 interface StaffCreds {
   nurseUsername: string;
@@ -207,6 +207,12 @@ export default function Settings() {
   const [addDoctorSaving, setAddDoctorSaving] = useState(false);
   const [deletingDoctorId, setDeletingDoctorId] = useState<number | null>(null);
   const [deleteDoctorError, setDeleteDoctorError] = useState<Record<number, string>>({});
+  const [editingDoctorId, setEditingDoctorId] = useState<number | null>(null);
+  const [editDoctorName, setEditDoctorName] = useState("");
+  const [editDoctorEmail, setEditDoctorEmail] = useState("");
+  const [editDoctorSpecialty, setEditDoctorSpecialty] = useState("");
+  const [editDoctorSaving, setEditDoctorSaving] = useState(false);
+  const [editDoctorError, setEditDoctorError] = useState("");
 
   const loadDoctors = () => {
     if (!token) return;
@@ -255,6 +261,31 @@ export default function Settings() {
     } catch (err: unknown) {
       setDeleteDoctorError(prev => ({ ...prev, [id]: err instanceof Error ? err.message : "Delete failed" }));
     } finally { setDeletingDoctorId(null); }
+  };
+
+  const startEditDoctor = (d: DoctorMember) => {
+    setEditingDoctorId(d.id);
+    setEditDoctorName(d.fullName);
+    setEditDoctorEmail(d.email);
+    setEditDoctorSpecialty(d.specialty ?? "");
+    setEditDoctorError("");
+  };
+
+  const handleEditDoctor = async (id: number) => {
+    setEditDoctorError(""); setEditDoctorSaving(true);
+    try {
+      const res = await fetch(apiUrl(`/api/hospital/doctors/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify({ fullName: editDoctorName.trim(), email: editDoctorEmail.trim(), specialty: editDoctorSpecialty.trim() || null }),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setEditingDoctorId(null);
+      loadDoctors();
+    } catch (err: unknown) {
+      setEditDoctorError(err instanceof Error ? err.message : "Failed to update.");
+    } finally { setEditDoctorSaving(false); }
   };
 
   // ── Online Booking Time Blocks ────────────────────────────────────────────────
@@ -312,6 +343,7 @@ export default function Settings() {
 
   // ── Wallet ───────────────────────────────────────────────────────────────────
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
   const [fundAmount, setFundAmount] = useState("1000");
   const [fundingUrl, setFundingUrl] = useState<string | null>(null);
   const [fundingLoading, setFundingLoading] = useState(false);
@@ -567,31 +599,62 @@ export default function Settings() {
               <div className="divide-y divide-border rounded-lg border border-border overflow-hidden">
                 {doctors.map(d => (
                   <div key={d.id} className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-sm flex items-center justify-center shrink-0">
-                        {d.fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">Dr. {d.fullName}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-xs font-mono text-muted-foreground">{d.username}</span>
-                          {d.specialty && <span className="text-xs px-1.5 py-px rounded bg-muted text-muted-foreground">{d.specialty}</span>}
-                          {d.unavailable && <span className="text-xs text-amber-500">Unavailable</span>}
+                    {editingDoctorId === d.id ? (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1 col-span-2">
+                            <Label className="text-xs">Full Name</Label>
+                            <Input value={editDoctorName} onChange={e => setEditDoctorName(e.target.value)} placeholder="e.g. James Okafor" />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Email</Label>
+                            <Input type="email" value={editDoctorEmail} onChange={e => setEditDoctorEmail(e.target.value)} />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Specialty</Label>
+                            <Input value={editDoctorSpecialty} onChange={e => setEditDoctorSpecialty(e.target.value)} placeholder="e.g. Cardiology" />
+                          </div>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{d.email}</p>
-                        {deleteDoctorError[d.id] && (
-                          <p className="text-xs text-destructive mt-1">{deleteDoctorError[d.id]}</p>
-                        )}
+                        {editDoctorError && <p className="text-xs text-destructive">{editDoctorError}</p>}
+                        <div className="flex gap-2">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setEditingDoctorId(null)}>Cancel</Button>
+                          <Button size="sm" disabled={editDoctorSaving} onClick={() => handleEditDoctor(d.id)}>
+                            {editDoctorSaving ? "Saving…" : "Save Changes"}
+                          </Button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => handleDeleteDoctor(d.id)}
-                        disabled={deletingDoctorId === d.id}
-                        className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition disabled:opacity-50"
-                        title="Remove doctor"
-                      >
-                        {deletingDoctorId === d.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-sm flex items-center justify-center shrink-0">
+                          {d.fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">Dr. {d.fullName}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs font-mono text-muted-foreground">{d.username}</span>
+                            {d.specialty && <span className="text-xs px-1.5 py-px rounded bg-muted text-muted-foreground">{d.specialty}</span>}
+                            {d.unavailable && <span className="text-xs text-amber-500">Unavailable</span>}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{d.email}</p>
+                          {deleteDoctorError[d.id] && (
+                            <p className="text-xs text-destructive mt-1">{deleteDoctorError[d.id]}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => startEditDoctor(d)} className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition" title="Edit">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDoctor(d.id)}
+                            disabled={deletingDoctorId === d.id}
+                            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition disabled:opacity-50"
+                            title="Remove doctor"
+                          >
+                            {deletingDoctorId === d.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -618,6 +681,25 @@ export default function Settings() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {hospital?.slug && (
+              <div className="rounded-lg bg-muted/40 border border-border px-3 py-2.5 flex items-center gap-3">
+                <Link2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mb-0.5">Patient booking link</p>
+                  <p className="text-xs font-mono truncate">{`${window.location.origin}/book/${hospital.slug}`}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(`${window.location.origin}/book/${hospital.slug}`);
+                    setBookingLinkCopied(true);
+                    setTimeout(() => setBookingLinkCopied(false), 2000);
+                  }}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
+                >
+                  {bookingLinkCopied ? <><Check className="w-3 h-3" />Copied</> : "Copy"}
+                </button>
+              </div>
+            )}
             {showAddBlockForm && (
               <form onSubmit={handleAddTimeBlock} className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
                 <p className="text-sm font-semibold">New Availability Window</p>

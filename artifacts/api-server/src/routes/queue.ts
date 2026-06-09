@@ -124,8 +124,9 @@ router.post("/queue/:id/call-in", async (req, res): Promise<void> => {
     .from("queue").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!entry) { res.status(404).json({ error: "Queue entry not found" }); return; }
 
-  await supabase.from("queue").update({ called_in_at: new Date().toISOString() }).eq("id", id);
+  const now = new Date().toISOString();
 
+  // Send SMS/WhatsApp first
   const phone = (entry.whatsapp_number as string) || (entry.phone as string);
   if (phone) {
     const doctorPart = entry.doctor_name ? ` with Dr. ${entry.doctor_name as string}` : "";
@@ -134,9 +135,15 @@ router.post("/queue/:id/call-in", async (req, res): Promise<void> => {
     deliverMobileMessage(channel, phone, msg).catch(() => {});
   }
 
+  // Remove from queue and move patient to In Care
+  await supabase.from("queue").delete().eq("id", id);
+  await supabase.from("patients")
+    .update({ stage: "In Care", updated_at: now })
+    .eq("id", entry.patient_id as number);
+
   await supabase.from("activity").insert({
     type: "called_in",
-    description: `${entry.patient_name as string} called in${entry.doctor_name ? ` by Dr. ${entry.doctor_name as string}` : ""}`,
+    description: `${entry.patient_name as string} called in${entry.doctor_name ? ` by Dr. ${entry.doctor_name as string}` : ""} — moved to In Care`,
     patient_id: entry.patient_id as number,
     patient_name: entry.patient_name as string,
     hospital_id: hospital.intId,
@@ -144,7 +151,7 @@ router.post("/queue/:id/call-in", async (req, res): Promise<void> => {
     staff_role: "doctor",
   });
 
-  res.json({ ok: true, calledInAt: new Date().toISOString() });
+  res.json({ ok: true, calledInAt: now });
 });
 
 export default router;

@@ -212,7 +212,7 @@ export default function BookingPage({ hospitalSlug }: { hospitalSlug: string }) 
         )}
 
         <p className="text-center text-xs text-muted-foreground">
-          Powered by <strong>Era Systems</strong>
+          ERA Patient by <strong>ERA Systems</strong>
         </p>
       </div>
     </div>

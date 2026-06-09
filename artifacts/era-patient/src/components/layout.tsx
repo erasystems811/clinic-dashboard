@@ -133,6 +133,9 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
       { icon: HelpCircle, label: "Help & Guide", href: "/help" },
     ];
   }
+  if (role === "doctor") {
+    return [];
+  }
   const items: NavItem[] = [
     { icon: Home, label: "Dashboard", href: "/" },
     { icon: Users, label: "Patients", href: "/patients" },
@@ -155,6 +158,7 @@ const ROLE_LABELS: Record<Role, string> = {
   receptionist: "Receptionist",
   nurse: "Medication View",
   admin: "Admin",
+  doctor: "Doctor",
 };
 
 function RestartTourButton() {

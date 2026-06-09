@@ -527,12 +527,8 @@ export default function DoctorView() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => setFlagPatient({ name: entry.patientName, id: entry.patientId })}
-                          className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition" title="Flag for follow-up">
-                          <ClipboardList className="w-3.5 h-3.5" />
-                        </button>
                         <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setTransferEntry(entry)}>
-                          <ArrowRightLeft className="w-3 h-3" /> Transfer
+                          <ArrowRightLeft className="w-3 h-3" /> Reassign
                         </Button>
                         <Button size="sm" className="gap-1.5 text-xs h-8"
                           disabled={callingIn === entry.id || !!entry.calledInAt} onClick={() => handleCallIn(entry)}>

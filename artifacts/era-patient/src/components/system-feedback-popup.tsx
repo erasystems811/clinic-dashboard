@@ -46,9 +46,8 @@ export default function SystemFeedbackPopup() {
   const schedule = useCallback((delayMs: number) => {
     if (scheduledRef.current) return;
     scheduledRef.current = true;
-    localStorage.setItem(getKey(), String(Date.now()));
     timeoutRef.current = setTimeout(() => setOpen(true), delayMs);
-  }, [getKey]);
+  }, []);
 
   useEffect(() => {
     if (!user || !hospital) return;
@@ -98,7 +97,10 @@ export default function SystemFeedbackPopup() {
     else setVisible(false);
   }, [open]);
 
-  const handleSkip = () => setOpen(false);
+  const handleSkip = () => {
+    localStorage.setItem(getKey(), String(Date.now()));
+    setOpen(false);
+  };
 
   const handleSubmit = async () => {
     if (!rating || !user) return;
@@ -113,6 +115,7 @@ export default function SystemFeedbackPopup() {
       // silent — feedback failure shouldn't interrupt the user
     } finally {
       setSubmitting(false);
+      localStorage.setItem(getKey(), String(Date.now()));
       setDone(true);
       setTimeout(() => setOpen(false), 2500);
     }

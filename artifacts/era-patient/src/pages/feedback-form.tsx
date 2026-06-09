@@ -366,7 +366,7 @@ export default function FeedbackForm({ token, hospitalSlug, previewQuestions }: 
         </div>
 
         <p className="text-center text-[11px] text-muted-foreground/40 pt-2 tracking-wide">
-          Powered by <span className="font-semibold">Era Patient</span>
+          ERA Patient by <strong>ERA Systems</strong>
         </p>
       </div>
     </div>

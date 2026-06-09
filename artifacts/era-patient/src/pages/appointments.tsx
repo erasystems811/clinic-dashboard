@@ -694,7 +694,9 @@ interface SelfBooking {
   requestedAt: string;
   status: string;
   doctorId?: number | null;
+  doctorName?: string | null;
   durationMinutes?: number | null;
+  confirmedAt?: string | null;
 }
 
 function SelfBookingConfirmModal({
@@ -803,6 +805,8 @@ export default function Appointments() {
   const [confirmBooking, setConfirmBooking] = useState<SelfBooking | null>(null);
   const [allDoctors, setAllDoctors] = useState<ApptDoctor[]>([]);
   const [cancellingBookingId, setCancellingBookingId] = useState<number | null>(null);
+  const [bannerReassignDocId, setBannerReassignDocId] = useState<Record<number, number | "">>({});
+  const [bannerReassigningId, setBannerReassigningId] = useState<number | null>(null);
 
   const { data: editPatientFull } = useGetPatient(editPatientId ?? 0, {
     query: { enabled: !!editPatientId },
@@ -831,7 +835,7 @@ export default function Appointments() {
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/self-bookings"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : [])
-      .then((data: SelfBooking[]) => setSelfBookings(data.filter(b => b.status === "pending")));
+      .then((data: SelfBooking[]) => setSelfBookings(data.filter(b => b.status !== "cancelled")));
   };
 
   useEffect(() => {
@@ -839,7 +843,7 @@ export default function Appointments() {
     // Load doctors for confirm modal
     fetch(apiUrl("/api/hospital/doctors"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : [])
-      .then((data: ApptDoctor[]) => setAllDoctors(data.filter(d => !d.unavailable)));
+      .then((data: ApptDoctor[]) => setAllDoctors(data));
     // Load pending self-bookings
     loadSelfBookings();
   }, [hospital?.token]);
@@ -891,7 +895,7 @@ export default function Appointments() {
     );
   }
 
-  const [tab, setTab] = useState<"list" | "calendar">("list");
+  const [tab, setTab] = useState<"list" | "online" | "calendar">("list");
   const [showBook, setShowBook] = useState(false);
   const [bookPrefillDate, setBookPrefillDate] = useState("");
   const [bookPrefillTime, setBookPrefillTime] = useState("");
@@ -945,6 +949,26 @@ export default function Appointments() {
     setShowBook(true);
   };
 
+  const pendingBookings = selfBookings.filter(b => b.status === "pending");
+  const confirmedBookings = selfBookings.filter(b => b.status === "confirmed");
+
+  const unavailableApptDoctors = allDoctors.filter(d => d.unavailable);
+  const flaggedAppointments = (appointments as unknown as Array<{ id: number; patientName: string; title: string; scheduledAt: string; status: string; doctorId?: number | null; doctorName?: string | null }>)
+    .filter(a => (a.status === "scheduled" || a.status === "rescheduled") && a.doctorId && unavailableApptDoctors.some(d => d.id === a.doctorId));
+
+  const handleReassignAppointment = async (aptId: number, newDoctorId: number, patientName: string) => {
+    setBannerReassigningId(aptId);
+    try {
+      await updateAppointment.mutateAsync({ id: aptId, data: { doctorId: newDoctorId } as never });
+      toast({ title: "Appointment reassigned", description: `${patientName}'s appointment moved to new doctor.` });
+      setBannerReassignDocId(prev => { const n = { ...prev }; delete n[aptId]; return n; });
+    } catch {
+      toast({ title: "Reassignment failed", variant: "destructive" });
+    } finally {
+      setBannerReassigningId(null);
+    }
+  };
+
   const upcoming = appointments
     .filter(a => a.status === "scheduled" || (a.status === "rescheduled" && new Date(a.scheduledAt) >= new Date()))
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
@@ -965,7 +989,7 @@ export default function Appointments() {
       {confirmBooking && hospital?.token && (
         <SelfBookingConfirmModal
           booking={confirmBooking}
-          doctors={allDoctors}
+          doctors={allDoctors.filter(d => !d.unavailable)}
           token={hospital.token}
           onClose={() => setConfirmBooking(null)}
           onDone={() => { loadSelfBookings(); queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() }); }}
@@ -1015,6 +1039,20 @@ export default function Appointments() {
           >
             All Appointments
           </button>
+          {isReceptionist && (
+            <button
+              type="button"
+              onClick={() => setTab("online")}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 ${tab === "online" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Online Bookings
+              {pendingBookings.length > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold leading-none">
+                  {pendingBookings.length}
+                </span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setTab("calendar")}
@@ -1024,6 +1062,58 @@ export default function Appointments() {
             Calendar
           </button>
         </div>
+
+        {/* Unavailable doctor alert — reassign affected appointments */}
+        {isReceptionist && flaggedAppointments.length > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-400">
+                  {unavailableApptDoctors.map(d => `Dr. ${d.fullName}`).join(", ")} {unavailableApptDoctors.length === 1 ? "is" : "are"} unavailable
+                </p>
+                <p className="text-xs text-amber-400/70 mt-0.5">
+                  {flaggedAppointments.length} upcoming appointment{flaggedAppointments.length !== 1 ? "s" : ""} {flaggedAppointments.length !== 1 ? "need" : "needs"} reassignment
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {flaggedAppointments.map(apt => {
+                const pickedDoc = bannerReassignDocId[apt.id] ?? "";
+                return (
+                  <div key={apt.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md bg-card border border-border p-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{apt.patientName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {apt.title} · {new Date(apt.scheduledAt).toLocaleString("en-NG", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" })}
+                        {apt.doctorName ? ` · Dr. ${apt.doctorName} (unavailable)` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                        value={pickedDoc}
+                        onChange={ev => setBannerReassignDocId(prev => ({ ...prev, [apt.id]: ev.target.value ? Number(ev.target.value) : "" }))}
+                      >
+                        <option value="">Pick doctor…</option>
+                        {allDoctors.filter(d => !d.unavailable).map(d => (
+                          <option key={d.id} value={d.id}>Dr. {d.fullName}{d.specialty ? ` — ${d.specialty}` : ""}</option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        disabled={!pickedDoc || bannerReassigningId === apt.id}
+                        onClick={() => pickedDoc && handleReassignAppointment(apt.id, Number(pickedDoc), apt.patientName)}
+                      >
+                        {bannerReassigningId === apt.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Reassign"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── LIST TAB ── */}
         {tab === "list" && (
@@ -1039,96 +1129,141 @@ export default function Appointments() {
                 </div>
               ))}
             </div>
-          ) : appointments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-              <Calendar className="w-10 h-10 mb-3 opacity-20" />
-              <p className="text-sm mb-4">No appointments yet</p>
-              {isReceptionist && (
-                <Button variant="outline" className="gap-2" onClick={() => openBook()}>
-                  <CalendarPlus className="w-4 h-4" />
-                  Book First Appointment
-                </Button>
-              )}
-            </div>
           ) : (
             <div className="space-y-6">
-              {/* Pending online bookings */}
-              {isReceptionist && selfBookings.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold text-amber-500 uppercase tracking-wide flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse inline-block" />
-                    Online Booking Requests · {selfBookings.length}
-                  </p>
-                  {selfBookings.map(b => (
-                    <div key={b.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border border-amber-500/30 rounded-lg bg-amber-500/5">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm">{b.patientName}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{b.patientPhone}{b.patientEmail ? ` · ${b.patientEmail}` : ""}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{b.reason}</p>
-                        <p className="text-xs font-medium text-amber-400 mt-1">
-                          Requested: {new Date(b.requestedAt).toLocaleString("en-NG", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" })}
-                        </p>
-                      </div>
-                      <div className="flex gap-2 shrink-0">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-1.5 text-destructive hover:text-destructive border-destructive/30"
-                          disabled={cancellingBookingId === b.id}
-                          onClick={() => handleCancelSelfBooking(b.id)}
-                        >
-                          {cancellingBookingId === b.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
-                          Decline
-                        </Button>
-                        <Button size="sm" className="gap-1.5" onClick={() => setConfirmBooking(b)}>
-                          <CalendarPlus className="w-3.5 h-3.5" />
-                          Confirm
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Upcoming */}
-              {upcoming.length > 0 ? (
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Upcoming · {upcoming.length}
-                  </p>
-                  {upcoming.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} onEdit={setEditPatientId} showActions={isReceptionist} />
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-                  <Calendar className="w-8 h-8 mb-3 opacity-20" />
-                  <p className="text-sm">No upcoming appointments</p>
+              {/* Appointments */}
+              {appointments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                  <Calendar className="w-10 h-10 mb-3 opacity-20" />
+                  <p className="text-sm mb-4">No appointments yet</p>
                   {isReceptionist && (
-                    <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => openBook()}>
-                      <CalendarPlus className="w-4 h-4" />Book Appointment
+                    <Button variant="outline" className="gap-2" onClick={() => openBook()}>
+                      <CalendarPlus className="w-4 h-4" />
+                      Book First Appointment
                     </Button>
                   )}
                 </div>
-              )}
+              ) : (
+                <>
+                  {/* Upcoming */}
+                  {upcoming.length > 0 ? (
+                    <div className="space-y-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Upcoming · {upcoming.length}
+                      </p>
+                      {upcoming.map(apt => (
+                        <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} onEdit={setEditPatientId} showActions={isReceptionist} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                      <Calendar className="w-8 h-8 mb-3 opacity-20" />
+                      <p className="text-sm">No upcoming appointments</p>
+                      {isReceptionist && (
+                        <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => openBook()}>
+                          <CalendarPlus className="w-4 h-4" />Book Appointment
+                        </Button>
+                      )}
+                    </div>
+                  )}
 
-              {/* Past — permanent ledger */}
-              {past.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px bg-border" />
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
-                      History · {past.length}
-                    </p>
-                    <div className="flex-1 h-px bg-border" />
-                  </div>
-                  {past.map(apt => (
-                    <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} onEdit={setEditPatientId} showActions={isReceptionist} />
-                  ))}
-                </div>
+                  {/* Past — permanent ledger */}
+                  {past.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-px bg-border" />
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide shrink-0">
+                          History · {past.length}
+                        </p>
+                        <div className="flex-1 h-px bg-border" />
+                      </div>
+                      {past.map(apt => (
+                        <AppointmentCard key={apt.id} apt={apt} onCancel={handleCancel} onReschedule={setRescheduleTarget} onNoShow={handleNoShow} onEdit={setEditPatientId} showActions={isReceptionist} />
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )
+        )}
+
+        {/* ── ONLINE BOOKINGS TAB ── */}
+        {tab === "online" && (
+          <div className="space-y-6">
+            {/* Pending — need action */}
+            {pendingBookings.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-amber-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse inline-block" />
+                  Awaiting Confirmation · {pendingBookings.length}
+                </p>
+                {pendingBookings.map(b => (
+                  <div key={b.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border border-amber-500/30 rounded-lg bg-amber-500/5">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm">{b.patientName}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{b.patientPhone}{b.patientEmail ? ` · ${b.patientEmail}` : ""}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{b.reason}</p>
+                      <p className="text-xs font-medium text-amber-400 mt-1">
+                        Requested: {new Date(b.requestedAt).toLocaleString("en-NG", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" })}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 text-destructive hover:text-destructive border-destructive/30"
+                        disabled={cancellingBookingId === b.id}
+                        onClick={() => handleCancelSelfBooking(b.id)}
+                      >
+                        {cancellingBookingId === b.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                        Decline
+                      </Button>
+                      <Button size="sm" className="gap-1.5" onClick={() => setConfirmBooking(b)}>
+                        <CalendarPlus className="w-3.5 h-3.5" />
+                        Confirm
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Confirmed — reference only */}
+            {confirmedBookings.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wide">
+                  Confirmed · {confirmedBookings.length}
+                </p>
+                {confirmedBookings.map(b => (
+                  <div key={b.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border border-emerald-500/30 rounded-lg bg-emerald-500/5">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm">{b.patientName}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{b.patientPhone}{b.patientEmail ? ` · ${b.patientEmail}` : ""}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{b.reason}</p>
+                      <p className="text-xs font-medium text-emerald-400 mt-1">
+                        {new Date(b.requestedAt).toLocaleString("en-NG", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" })}
+                        {b.doctorName ? ` · Dr. ${b.doctorName}` : ""}
+                        {b.durationMinutes ? ` · ${b.durationMinutes} min` : ""}
+                      </p>
+                    </div>
+                    <span className="shrink-0 inline-flex items-center gap-1 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-2.5 py-1">
+                      Confirmed
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {pendingBookings.length === 0 && confirmedBookings.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                <Calendar className="w-10 h-10 mb-3 opacity-20" />
+                <p className="text-sm">No online bookings yet</p>
+                <p className="text-xs mt-1 opacity-60">Patients who book via your clinic link will appear here</p>
+              </div>
+            )}
+          </div>
         )}
 
         {/* ── CALENDAR TAB ── */}

@@ -17,16 +17,17 @@ interface AutomationTest {
 
 const AUTOMATIONS: AutomationTest[] = [
   // Appointments — email
-  { type: "appointment_confirmation",  label: "Appointment Confirmation",              description: "Sent when a nurse books an appointment",            category: "Appointments",    channel: "email" },
-  { type: "appointment_reminder_24h",  label: "Appointment Reminder (24h)",            description: "Sent 24 hours before scheduled appointment",        category: "Appointments",    channel: "email" },
+  { type: "appointment_confirmation",  label: "Appointment Confirmation",              description: "Sent when a receptionist books or confirms an appointment", category: "Appointments", channel: "email" },
+  { type: "appointment_rescheduled",   label: "Appointment Rescheduled",               description: "Sent to patient when their appointment is rescheduled",    category: "Appointments", channel: "email" },
+  { type: "appointment_reminder_24h",  label: "Appointment Reminder (24h)",            description: "Sent 24 hours before scheduled appointment — includes reschedule booking link", category: "Appointments", channel: "email" },
   { type: "appointment_reminder_2h",   label: "Appointment Reminder (2h)",             description: "Sent 2 hours before scheduled appointment",         category: "Appointments",    channel: "email" },
-  { type: "no_show_followup",          label: "No-Show Follow-up",                     description: "Sent ~75 minutes after a missed appointment",       category: "Appointments",    channel: "email" },
+  { type: "no_show_followup",          label: "No-Show Follow-up",                     description: "Sent ~75 minutes after a missed appointment — includes booking link", category: "Appointments", channel: "email" },
   // Post-treatment — email
-  { type: "post_treatment_day1",       label: "Post-Treatment Day 1 Check-in",         description: "Sent the day after treatment ends",                 category: "Post-Treatment",  channel: "email" },
-  { type: "post_treatment_day4",       label: "Post-Treatment Day 4 Check-in",         description: "Sent 4 days after treatment ends",                  category: "Post-Treatment",  channel: "email" },
-  { type: "post_treatment_day7",       label: "Post-Treatment Day 7 Check-in",         description: "Sent 7 days after treatment ends",                  category: "Post-Treatment",  channel: "email" },
+  { type: "post_treatment_day1",       label: "Post-Treatment Day 1 Check-in",         description: "Sent the day after treatment ends — includes booking link",  category: "Post-Treatment",  channel: "email" },
+  { type: "post_treatment_day4",       label: "Post-Treatment Day 4 Check-in",         description: "Sent 4 days after treatment ends — includes booking link",   category: "Post-Treatment",  channel: "email" },
+  { type: "post_treatment_day7",       label: "Post-Treatment Day 7 Check-in",         description: "Sent 7 days after treatment ends — includes booking link",   category: "Post-Treatment",  channel: "email" },
   // Patient care — email
-  { type: "post_care_email",           label: "Active Wellness Nudge (30-day)",        description: "Sent when Active patient has had no queue check-in for 30+ days", category: "Patient Care", channel: "email" },
+  { type: "post_care_email",           label: "Active Wellness Nudge (30-day)",        description: "Sent when Active patient has had no queue check-in for 30+ days — includes booking link", category: "Patient Care", channel: "email" },
   { type: "birthday_email",            label: "Birthday Email",                        description: "Sent on the patient's birthday each year",          category: "Patient Care",    channel: "email" },
   { type: "feedback_email",            label: "Feedback Request",                      description: "Sent the day after a queue visit",                  category: "Patient Care",    channel: "email" },
   // AI-generated emails
@@ -38,6 +39,10 @@ const AUTOMATIONS: AutomationTest[] = [
   { type: "call_task_automated",       label: "AI-Drafted Follow-up (reviewed)",       description: "AI-written message reviewed and confirmed by receptionist", category: "Manual",  channel: "email" },
   { type: "departmental_followup",     label: "Departmental Follow-up (AI — Claude)",  description: "Claude-written post-treatment follow-up for specialist depts (e.g. Cardiology Day 7)", category: "AI Emails", channel: "email" },
   { type: "beneficiary_reminder",      label: "Beneficiary / Family Reminder",         description: "Sent to a named family contact when patient has a care plan action due", category: "Patient Care", channel: "email" },
+  // Doctor notifications — email (goes to doctor's email, not patient)
+  { type: "doctor_appointment_assigned",    label: "Doctor: New Appointment Assigned",    description: "Sent to doctor when a new appointment is booked and assigned to them",       category: "Doctor Notifications", channel: "email" },
+  { type: "doctor_appointment_reassigned",  label: "Doctor: Appointment Reassigned",      description: "Sent to doctor when an appointment is reassigned to them from another doctor", category: "Doctor Notifications", channel: "email" },
+  { type: "doctor_appointment_reminder",    label: "Doctor: 3h Appointment Reminder",     description: "Sent to doctor 3 hours before each scheduled appointment",                   category: "Doctor Notifications", channel: "email" },
   // SMS / WhatsApp
   { type: "queue_join",                label: "Queue Join",                            description: "Sent when a patient is checked into the queue",     category: "SMS / WhatsApp",  channel: "sms" },
   { type: "queue_next_in_line",        label: "Queue — Next in Line",                  description: "Sent when patient moves to position 1 in queue",    category: "SMS / WhatsApp",  channel: "sms" },
@@ -46,7 +51,7 @@ const AUTOMATIONS: AutomationTest[] = [
   { type: "care_plan_notification",    label: "Care Plan Created",                     description: "Sent when a nurse creates a new care plan",         category: "SMS / WhatsApp",  channel: "sms" },
 ];
 
-const CATEGORIES = ["Appointments", "Post-Treatment", "Patient Care", "AI Emails", "Manual", "SMS / WhatsApp"];
+const CATEGORIES = ["Appointments", "Post-Treatment", "Patient Care", "AI Emails", "Manual", "Doctor Notifications", "SMS / WhatsApp"];
 // Note: "departmental_followup" is in AI Emails, "beneficiary_reminder" in Patient Care, "call_task_automated" in Manual
 
 interface TestResult {

@@ -358,9 +358,9 @@ router.patch("/hospital/self-bookings/:id/cancel", async (req: Request, res: Res
 router.get("/public/book/:slug/my-bookings", async (req: Request, res: Response): Promise<void> => {
   const { slug } = req.params;
   const email = req.query.email as string | undefined;
-  const phone = req.query.phone as string | undefined;
+  const patientIdParam = req.query.patientId as string | undefined;
 
-  if (!email && !phone) { res.status(400).json({ error: "email or phone required" }); return; }
+  if (!email && !patientIdParam) { res.status(400).json({ error: "email or patientId required" }); return; }
 
   const { data: hospital } = await supabase
     .from("hospitals").select("id").eq("slug", slug).eq("active", true).single();
@@ -376,12 +376,18 @@ router.get("/public/book/:slug/my-bookings", async (req: Request, res: Response)
     .gt("requested_at", now)
     .order("requested_at", { ascending: true });
 
-  if (email && phone) {
-    q = q.or(`patient_email.eq.${email},patient_phone.eq.${phone}`);
-  } else if (email) {
+  if (email) {
     q = q.eq("patient_email", email);
   } else {
-    q = q.eq("patient_phone", phone!);
+    // Look up the patient's contact info by their hospital patient ID
+    const { data: patient } = await supabase
+      .from("patients").select("email, phone").eq("hospital_id", hospitalId).eq("patient_id", patientIdParam!).maybeSingle();
+    if (!patient) { res.json([]); return; }
+    if (patient.email) {
+      q = q.eq("patient_email", patient.email as string);
+    } else if (patient.phone) {
+      q = q.eq("patient_phone", patient.phone as string);
+    } else { res.json([]); return; }
   }
 
   const { data, error } = await q;
@@ -399,10 +405,10 @@ router.get("/public/book/:slug/my-bookings", async (req: Request, res: Response)
 router.post("/public/book/:slug/reschedule", async (req: Request, res: Response): Promise<void> => {
   const { slug } = req.params;
   const body = (req.body ?? {}) as Record<string, unknown>;
-  const { bookingId, newRequestedAt, patientEmail, patientPhone } = body;
+  const { bookingId, newRequestedAt, patientEmail, patientId: patientIdBody } = body;
 
-  if (!bookingId || !newRequestedAt || (!patientEmail && !patientPhone)) {
-    res.status(400).json({ error: "bookingId, newRequestedAt, and email or phone required" }); return;
+  if (!bookingId || !newRequestedAt || (!patientEmail && !patientIdBody)) {
+    res.status(400).json({ error: "bookingId, newRequestedAt, and email or patientId required" }); return;
   }
 
   const { data: hospital } = await supabase
@@ -415,11 +421,21 @@ router.post("/public/book/:slug/reschedule", async (req: Request, res: Response)
     .select("*").eq("id", Number(bookingId)).eq("hospital_id", hospitalId).eq("status", "confirmed").single();
   if (!booking) { res.status(404).json({ error: "Booking not found" }); return; }
 
-  // Identity check — submitted email or phone must match what's on the booking
-  const emailMatch = patientEmail && booking.patient_email === patientEmail;
-  const phoneMatch = patientPhone && booking.patient_phone === patientPhone;
-  if (!emailMatch && !phoneMatch) {
-    res.status(403).json({ error: "Details do not match our records. Please check your email or phone number." }); return;
+  // Identity check — submitted email or patient ID must match booking records
+  const emailMatch = !!(patientEmail && booking.patient_email === patientEmail);
+  let idMatch = false;
+  if (!emailMatch && patientIdBody) {
+    const { data: patient } = await supabase
+      .from("patients").select("email, phone").eq("hospital_id", hospitalId).eq("patient_id", patientIdBody as string).maybeSingle();
+    if (patient) {
+      idMatch = !!(
+        (patient.email && booking.patient_email === patient.email) ||
+        (patient.phone && booking.patient_phone === patient.phone)
+      );
+    }
+  }
+  if (!emailMatch && !idMatch) {
+    res.status(403).json({ error: "Details do not match our records. Please check your email or patient ID." }); return;
   }
 
   const newRequestedAtIso = new Date(newRequestedAt as string).toISOString();

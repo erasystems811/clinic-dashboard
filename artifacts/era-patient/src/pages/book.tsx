@@ -41,7 +41,7 @@ export default function BookingPage({ hospitalSlug }: { hospitalSlug: string }) 
 
   // ── Reschedule tab ──
   const [rescheduleSearch, setRescheduleSearch] = useState("");
-  const [rescheduleSearchType, setRescheduleSearchType] = useState<"email" | "phone">("email");
+  const [rescheduleSearchType, setRescheduleSearchType] = useState<"email" | "patientId">("email");
   const [rescheduleSearching, setRescheduleSearching] = useState(false);
   const [rescheduleResults, setRescheduleResults] = useState<ExistingBooking[] | null>(null);
   const [rescheduleSearchError, setRescheduleSearchError] = useState("");
@@ -105,7 +105,7 @@ export default function BookingPage({ hospitalSlug }: { hospitalSlug: string }) 
     try {
       const param = rescheduleSearchType === "email"
         ? `email=${encodeURIComponent(rescheduleSearch.trim())}`
-        : `phone=${encodeURIComponent(rescheduleSearch.trim())}`;
+        : `patientId=${encodeURIComponent(rescheduleSearch.trim())}`;
       const res = await fetch(apiUrl(`/api/public/book/${hospitalSlug}/my-bookings?${param}`));
       if (!res.ok) throw new Error("Lookup failed");
       const data = await res.json() as ExistingBooking[];
@@ -123,7 +123,7 @@ export default function BookingPage({ hospitalSlug }: { hospitalSlug: string }) 
     try {
       const payload: Record<string, unknown> = { bookingId: rescheduleSelectedId, newRequestedAt: rescheduleSlot };
       if (rescheduleSearchType === "email") payload.patientEmail = rescheduleSearchInput;
-      else payload.patientPhone = rescheduleSearchInput;
+      else payload.patientId = rescheduleSearchInput;
 
       const res = await fetch(apiUrl(`/api/public/book/${hospitalSlug}/reschedule`), {
         method: "POST",
@@ -278,7 +278,7 @@ export default function BookingPage({ hospitalSlug }: { hospitalSlug: string }) 
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email <span className="text-muted-foreground font-normal">(optional — for confirmation)</span></Label>
+                <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your@email.com" />
               </div>
 
@@ -289,7 +289,7 @@ export default function BookingPage({ hospitalSlug }: { hospitalSlug: string }) 
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none"
                   value={reason}
                   onChange={e => setReason(e.target.value)}
-                  placeholder="Briefly describe your symptoms or reason for visit…"
+                  placeholder="Reason for your visit"
                   required
                 />
               </div>
@@ -317,7 +317,7 @@ export default function BookingPage({ hospitalSlug }: { hospitalSlug: string }) 
           <div className="rounded-lg border border-border bg-card p-6 space-y-5">
             <div>
               <p className="text-sm font-semibold mb-1">Find Your Booking</p>
-              <p className="text-xs text-muted-foreground">Enter the email or phone number you used when you booked.</p>
+              <p className="text-xs text-muted-foreground">Enter your email address or the patient ID on your clinic card.</p>
             </div>
 
             <form onSubmit={handleRescheduleSearch} className="space-y-3">
@@ -331,15 +331,15 @@ export default function BookingPage({ hospitalSlug }: { hospitalSlug: string }) 
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setRescheduleSearchType("phone"); setRescheduleSearch(""); }}
-                  className={`px-3 py-2 text-xs font-medium border-r border-input transition-colors shrink-0 ${rescheduleSearchType === "phone" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                  onClick={() => { setRescheduleSearchType("patientId"); setRescheduleSearch(""); }}
+                  className={`px-3 py-2 text-xs font-medium border-r border-input transition-colors shrink-0 ${rescheduleSearchType === "patientId" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
                 >
-                  Phone
+                  Patient ID
                 </button>
                 <input
-                  type={rescheduleSearchType === "email" ? "email" : "tel"}
+                  type={rescheduleSearchType === "email" ? "email" : "text"}
                   className="flex-1 px-3 py-2 text-sm bg-background outline-none min-w-0"
-                  placeholder={rescheduleSearchType === "email" ? "your@email.com" : "08012345678"}
+                  placeholder={rescheduleSearchType === "email" ? "your@email.com" : "Your hospital patient ID"}
                   value={rescheduleSearch}
                   onChange={e => setRescheduleSearch(e.target.value)}
                   required
@@ -355,7 +355,7 @@ export default function BookingPage({ hospitalSlug }: { hospitalSlug: string }) 
 
             {rescheduleResults !== null && rescheduleResults.length === 0 && (
               <div className="text-center py-4 text-muted-foreground text-sm space-y-1">
-                <p>No upcoming confirmed bookings found for that {rescheduleSearchType}.</p>
+                <p>No upcoming confirmed bookings found{rescheduleSearchType === "email" ? " for that email" : " for that patient ID"}.</p>
                 <p className="text-xs opacity-70">Only confirmed bookings can be rescheduled. Contact the clinic if you need help.</p>
               </div>
             )}

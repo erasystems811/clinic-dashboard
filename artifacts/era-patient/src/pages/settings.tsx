@@ -381,7 +381,6 @@ export default function Settings() {
   const [newBlockDay, setNewBlockDay] = useState("1");
   const [newBlockStart, setNewBlockStart] = useState("09:00");
   const [newBlockEnd, setNewBlockEnd] = useState("17:00");
-  const [newBlockSlot, setNewBlockSlot] = useState("30");
   const [addBlockError, setAddBlockError] = useState("");
   const [addBlockSaving, setAddBlockSaving] = useState(false);
   const [deletingBlockId, setDeletingBlockId] = useState<number | null>(null);
@@ -406,7 +405,7 @@ export default function Settings() {
       const res = await fetch(apiUrl("/api/hospital/time-blocks"), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": token },
-        body: JSON.stringify({ dayOfWeek: parseInt(newBlockDay), startTime: newBlockStart, endTime: newBlockEnd, slotMinutes: parseInt(newBlockSlot) }),
+        body: JSON.stringify({ dayOfWeek: parseInt(newBlockDay), startTime: newBlockStart, endTime: newBlockEnd, slotMinutes: 30 }),
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed");
@@ -918,17 +917,6 @@ export default function Settings() {
                     <Label className="text-xs">End Time *</Label>
                     <Input type="time" value={newBlockEnd} onChange={e => setNewBlockEnd(e.target.value)} required />
                   </div>
-                  <div className="space-y-1 col-span-2">
-                    <Label className="text-xs">Slot Duration (minutes) *</Label>
-                    <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                      value={newBlockSlot} onChange={e => setNewBlockSlot(e.target.value)}>
-                      <option value="15">15 min</option>
-                      <option value="20">20 min</option>
-                      <option value="30">30 min</option>
-                      <option value="45">45 min</option>
-                      <option value="60">1 hour</option>
-                    </select>
-                  </div>
                 </div>
                 {addBlockError && <p className="text-xs text-destructive">{addBlockError}</p>}
                 <div className="flex gap-2">
@@ -952,7 +940,7 @@ export default function Settings() {
                   <div key={b.id} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{DAY_NAMES[b.dayOfWeek]}</p>
-                      <p className="text-xs text-muted-foreground">{b.startTime} – {b.endTime} · {b.slotMinutes} min slots</p>
+                      <p className="text-xs text-muted-foreground">{b.startTime} – {b.endTime}</p>
                     </div>
                     <button
                       onClick={() => handleDeleteTimeBlock(b.id)}

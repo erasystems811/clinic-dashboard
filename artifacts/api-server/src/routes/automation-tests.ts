@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { supabase } from "../lib/supabase.js";
 import {
   sendAppointmentConfirmationEmail,
+  sendAppointmentRescheduleEmail,
   sendAppointmentReminderEmail,
   sendAppointmentNoShowEmail,
   sendPostTreatmentCheckinEmail,
@@ -18,6 +19,9 @@ import {
   sendCallTaskConfirmedMessage,
   sendDepartmentalFollowupEmail,
   sendBeneficiaryReminderEmail,
+  sendDoctorAppointmentAssignedEmail,
+  sendDoctorAppointmentReassignedEmail,
+  sendDoctorAppointmentReminderEmail,
   sendQueueJoinMessage,
   sendQueueNextInLine,
   sendQueueYourTurn,
@@ -95,6 +99,10 @@ router.post("/super-admin/automation-test", auth, async (req: Request, res: Resp
         if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
         await sendAppointmentConfirmationEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail, in2h);
         break;
+      case "appointment_rescheduled":
+        if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
+        await sendAppointmentRescheduleEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail, in24h);
+        break;
       case "appointment_reminder_24h":
         if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
         await sendAppointmentReminderEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toEmail, in24h, 24);
@@ -165,7 +173,21 @@ router.post("/super-admin/automation-test", auth, async (req: Request, res: Resp
         await sendBeneficiaryReminderEmail(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, "Test Family Member", toEmail, "take their 9am medication", "wife");
         break;
 
-      // ── SMS / WhatsApp automations ─────────────────────────────────────
+      // ── Doctor notification emails ─────────────────────────────────────────
+      case "doctor_appointment_assigned":
+        if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
+        await sendDoctorAppointmentAssignedEmail(toEmail, "Test Doctor", hospital.name as string, TEST_PATIENT_NAME, "Follow-up Consultation", in24h, 30, null);
+        break;
+      case "doctor_appointment_reassigned":
+        if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
+        await sendDoctorAppointmentReassignedEmail(toEmail, "Test Doctor", hospital.name as string, TEST_PATIENT_NAME, "Follow-up Consultation", in24h, 30, "Dr. James Okafor", "Patient requested specialist opinion");
+        break;
+      case "doctor_appointment_reminder":
+        if (!toEmail) return void res.status(400).json({ error: "toEmail required" });
+        await sendDoctorAppointmentReminderEmail(toEmail, "Test Doctor", hospital.name as string, TEST_PATIENT_NAME, "Follow-up Consultation", in2h);
+        break;
+
+      // ── SMS / WhatsApp automations ─────────────────────────────────────────
       case "queue_join":
         if (!toPhone) return void res.status(400).json({ error: "toPhone required" });
         await sendQueueJoinMessage(hId, TEST_PATIENT_ID, TEST_PATIENT_NAME, toPhone, 3);

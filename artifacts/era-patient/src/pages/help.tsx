@@ -93,9 +93,9 @@ function AutoMessagesSection({ role, modules }: { role: "admin" | "nurse" | "rec
   const appointmentRows: Row[] = [
     { icon: "📅", trigger: "You book an appointment", what: "Confirms the appointment date and time, asks them to arrive early", channel: "Email — immediately", doNotDo: "Do not call to confirm — they already got this email" },
     { icon: "🔄", trigger: "Appointment is rescheduled", what: "Informs them of the new date and time", channel: "Email" },
-    { icon: "⏰", trigger: "24 hours before appointment", what: "Reminds them their appointment is tomorrow", channel: "Email" },
+    { icon: "⏰", trigger: "24 hours before appointment", what: "Reminds them their appointment is tomorrow — includes a reschedule booking link if online booking is set up for your clinic", channel: "Email" },
     { icon: "⏰", trigger: "2 hours before appointment", what: "Reminds them their appointment is in 2 hours", channel: "Email", doNotDo: "Do not call to remind — 3 emails are already sent automatically" },
-    { icon: "😟", trigger: "Patient does not show up for appointment", what: "Checks in on the patient and invites them to rebook", channel: "Email", doNotDo: "Do not follow up manually — this email goes out automatically" },
+    { icon: "😟", trigger: "Patient does not show up for appointment", what: "Checks in on the patient and invites them to rebook — includes an online booking link if your clinic has self-booking set up", channel: "Email", doNotDo: "Do not follow up manually — this email goes out automatically" },
   ];
 
   const carePlanRows: Row[] = [
@@ -136,13 +136,13 @@ function AutoMessagesSection({ role, modules }: { role: "admin" | "nurse" | "rec
   ];
 
   const postTreatmentRows: Row[] = [
-    { icon: "🏥", trigger: "Care plan end date passes — Day 1 after treatment ends", what: "Checks in, wishes them a good recovery, says the team is thinking of them", channel: "Email — automatic, no action needed from you" },
-    { icon: "🏥", trigger: "Day 4 after treatment ends", what: "Checks in again, encourages them, says the team is rooting for them", channel: "Email — automatic" },
-    { icon: "🏥", trigger: "Day 7 after treatment ends", what: "One-week check-in, congratulates their progress", channel: "Email — automatic", doNotDo: "Do not add manual follow-ups — Day 1, 4, and 7 emails are sent automatically when the plan ends" },
+    { icon: "🏥", trigger: "Care plan end date passes — Day 1 after treatment ends", what: "Checks in, wishes them a good recovery — includes a follow-up booking link if online booking is set up", channel: "Email — automatic, no action needed from you" },
+    { icon: "🏥", trigger: "Day 4 after treatment ends", what: "Checks in again, encourages them — includes a follow-up booking link if online booking is set up", channel: "Email — automatic" },
+    { icon: "🏥", trigger: "Day 7 after treatment ends", what: "One-week check-in, congratulates their progress — includes a follow-up booking link if online booking is set up", channel: "Email — automatic", doNotDo: "Do not add manual follow-ups — Day 1, 4, and 7 emails are sent automatically when the plan ends" },
   ];
 
   const adminOnlyRows: Row[] = [
-    { icon: "💌", trigger: "Active patient — no queue check-in for 30+ days (wellness re-engagement)", what: "A warm 'thinking of you' email. Repeats every 30 days until they visit again or go dormant. Fires before the patient becomes dormant.", channel: "Email (free) — runs daily at 6 PM", example: "Hi Ada, it has been a little while since we last saw you at City Clinic and we just wanted to check in and see how you are doing. We hope you are feeling well and taking good care of yourself. We are always here when you need us." },
+    { icon: "💌", trigger: "Active patient — no queue check-in for 30+ days (wellness re-engagement)", what: "A warm 'thinking of you' email. Repeats every 30 days until they visit again or go dormant. Includes an online booking link if set up.", channel: "Email (free) — runs daily at 6 PM", example: "Hi Ada, it has been a little while since we last saw you at City Clinic and we just wanted to check in and see how you are doing. We hope you are feeling well and taking good care of yourself. We are always here when you need us." },
     { icon: "🎂", trigger: "Patient's birthday (every year)", what: "A warm, personalised birthday email written by AI — unique to your clinic's personality", channel: "Email" },
     { icon: "⭐", trigger: "After a patient visit", what: "Asks them to rate their experience and share feedback via a link", channel: "Email" },
     { icon: "💌", trigger: "Admin sends from Wellness Newsletter page", what: "Weekly health education email sent to all active patients", channel: "Email" },
@@ -377,9 +377,9 @@ function AdminHelp({ hospitalName, modules }: { hospitalName: string; modules: {
         <div className="space-y-3">
           <Step n={1}>Add doctors in <strong>Settings → Doctors</strong>. They receive their username and password by email automatically.</Step>
           <Step n={2}>When checking a patient into the queue, the receptionist can assign them to a specific doctor. The patient appears in that doctor's queue.</Step>
-          <Step n={3}>In the doctor's view — they see their queue, can <strong>Call In</strong> a patient (sends SMS to the patient), and can <strong>Transfer</strong> to another available doctor.</Step>
+          <Step n={3}>In the doctor's view — they see their queue, can <strong>Call In</strong> a patient (sends SMS to the patient), and can <strong>Reassign</strong> to another available doctor.</Step>
           <Step n={4}>Doctors can mark themselves <strong>Unavailable</strong> — the receptionist is notified and will stop assigning new patients to them.</Step>
-          <Step n={5}>The <strong>Follow-Ups tab</strong> works like the nurse station — search any patient, view their active care plan, and flag them for follow-up. The doctor can handle it themselves (send email or log a call) or send it to the receptionist as a Call Task. From the queue, the clipboard icon next to each patient also opens the same follow-up flow.</Step>
+          <Step n={5}>The <strong>Follow-Ups tab</strong> lets the doctor search any patient, view their active care plan, and take action: <strong>Flag Task</strong> (creates a call task for the receptionist to contact the patient) or <strong>Book Appointment</strong> (books a follow-up directly — appears on the receptionist's Appointments page too).</Step>
           <Step n={6}>Doctors receive a reminder email 3 hours before each scheduled appointment.</Step>
         </div>
         <Tip>The doctor sees specialty shown in brackets on the receptionist's doctor dropdown — so patients being triaged can be sent to the right specialist.</Tip>
@@ -704,12 +704,73 @@ function NurseHelp({ hospitalName }: { hospitalName: string }) {
   );
 }
 
+/* ── doctor ────────────────────────────────────────────────────────────────── */
+
+function DoctorHelp({ hospitalName, appointmentsEnabled }: { hospitalName: string; appointmentsEnabled: boolean }) {
+  return (
+    <div className="space-y-3">
+
+      <Section emoji="🪑" title="Your Queue" defaultOpen ci={0}>
+        <p className="text-sm text-muted-foreground">The Queue tab shows all patients currently assigned to you. It refreshes automatically every 15 seconds.</p>
+        <div className="space-y-3">
+          <Step n={1}>When a patient is ready to see you — click <strong>Call In</strong>. The patient receives an SMS telling them it is their turn and to proceed to the consultation room. They are removed from your queue.</Step>
+          <Step n={2}>If you need to pass a patient to another doctor — click <strong>Reassign</strong>, pick the doctor, add an optional note, and confirm. The patient moves to that doctor's queue with an amber <strong>From Dr. [Your Name]</strong> label so they know the context.</Step>
+          <Step n={3}>The amber <strong>From Dr. [Name]</strong> tag on a patient means they were transferred to you from another doctor.</Step>
+        </div>
+        <AutoBox>
+          <p className="font-semibold">When you click Call In:</p>
+          <p>📱 SMS to patient: <em>"It's your turn! Please proceed to the consultation room with Dr. [Your Name]."</em></p>
+        </AutoBox>
+        <Tip>The refresh icon next to "My Queue" forces an immediate update — useful if you think a patient was just added.</Tip>
+        <Remember>Clicking "Call In" removes the patient from your queue. You do not need to do anything else — the SMS is sent automatically.</Remember>
+      </Section>
+
+      {appointmentsEnabled && <Section emoji="📅" title="Your Appointments" ci={1}>
+        <p className="text-sm text-muted-foreground">The Appointments tab shows upcoming appointments assigned or reassigned to you.</p>
+        <div className="space-y-3">
+          <Step n={1}>Each card shows the patient name, appointment type, scheduled time, and duration.</Step>
+          <Step n={2}>If an appointment was reassigned to you from another doctor, you will see an amber box showing who it came from and any note they left.</Step>
+          <Step n={3}>Click <strong>Reassign</strong> on any appointment to move it to another doctor. Add an optional note so they understand the context.</Step>
+        </div>
+        <AutoBox>
+          <p className="font-semibold">You receive emails automatically from the system:</p>
+          <p>📧 New appointment assigned to you: <em>"New Appointment — [Patient] — {hospitalName}"</em></p>
+          <p>📧 Appointment reassigned to you: <em>"Appointment Reassigned to You — [Patient] — {hospitalName}"</em></p>
+          <p>📧 3 hours before each appointment: <em>"Appointment in 3 hours — [Patient] — {hospitalName}"</em></p>
+        </AutoBox>
+      </Section>}
+
+      <Section emoji="📋" title="Follow-Ups" ci={2}>
+        <p className="text-sm text-muted-foreground">The Follow-Ups tab lets you look up any patient in the system, read their active care plan, and take action.</p>
+        <div className="space-y-3">
+          <Step n={1}>Type the patient's name or ID in the search box — at least 2 characters. Click their name to select them.</Step>
+          <Step n={2}>You will see their <strong>Active Care Plans</strong> — the department and treatment summary the nurse recorded.</Step>
+          <Step n={3}>Click <strong>Flag Task</strong> to create a follow-up call task for the receptionist. It will appear in their Call Tasks list and they will contact the patient.</Step>
+          <Step n={4}>Click <strong>Book Appointment</strong> to schedule a follow-up directly. Pick the date, time, and duration — the patient receives a confirmation email automatically and the appointment appears in your Appointments tab and in the receptionist's Appointments page.</Step>
+        </div>
+        <Tip>Appointments you book from the Follow-Ups tab appear in the receptionist's Appointments page — they can see all appointments regardless of who created them.</Tip>
+      </Section>
+
+      <Section emoji="🔴" title="Marking Yourself Unavailable" ci={3}>
+        <p className="text-sm text-muted-foreground">Use the <strong>Mark Unavailable</strong> button (top-right of your screen) when you cannot take new patients.</p>
+        <div className="space-y-3">
+          <Step n={1}>Click <strong>Mark Unavailable</strong>. The receptionist is notified and your name is greyed out in their doctor dropdown — they will stop assigning new patients to you.</Step>
+          <Step n={2}>Click <strong>Mark Available</strong> when you are ready again. The receptionist will see you as available immediately.</Step>
+        </div>
+        <Remember>Patients already in your queue are not affected — only new check-ins will stop being assigned to you while you are unavailable.</Remember>
+      </Section>
+
+    </div>
+  );
+}
+
 /* ── main page ─────────────────────────────────────────────────────────────── */
 
 const GREETINGS: Record<string, { emoji: string; title: string; subtitle: string }> = {
   admin:        { emoji: "👋", title: "Welcome, Admin!",        subtitle: "Your full guide to running the system. Everything is here — step by step, in plain English." },
   receptionist: { emoji: "👋", title: "Welcome, Receptionist!", subtitle: "Everything you need to know — from checking patients in to booking appointments." },
   nurse:        { emoji: "👋", title: "Welcome, Nurse!",        subtitle: "Your guide to creating care plans, reading schedules, and understanding what the system sends to patients." },
+  doctor:       { emoji: "🩺", title: "Welcome, Doctor!",       subtitle: "Your guide to managing your queue, appointments, and patient follow-ups." },
 };
 
 export default function HelpPage() {
@@ -740,6 +801,7 @@ export default function HelpPage() {
         {role === "admin"        && <AdminHelp        hospitalName={hospitalName} modules={modules} />}
         {role === "receptionist" && <ReceptionistHelp hospitalName={hospitalName} modules={modules} />}
         {role === "nurse"        && <NurseHelp        hospitalName={hospitalName} />}
+        {role === "doctor"       && <DoctorHelp       hospitalName={hospitalName} appointmentsEnabled={modules.appointmentsEnabled} />}
 
         <div className="rounded-xl border border-border bg-card p-4 flex gap-3 items-start">
           <Mail className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />

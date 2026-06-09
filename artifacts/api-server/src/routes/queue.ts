@@ -81,7 +81,13 @@ router.get("/doctor/queue", async (req, res): Promise<void> => {
     .order("position", { ascending: true });
 
   if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json((entries ?? []).map(e => ({ ...camelize(e), patientId: e.patient_id, doctorId: e.doctor_id, doctorName: e.doctor_name })));
+  res.json((entries ?? []).map(e => ({
+    ...camelize(e),
+    patientId: e.patient_id,
+    doctorId: e.doctor_id,
+    doctorName: e.doctor_name,
+    transferredFromDoctorName: (e.transferred_from_doctor_name as string | null) ?? null,
+  })));
 });
 
 // ── GET /api/doctor/appointments — doctor sees their upcoming appointments ─────

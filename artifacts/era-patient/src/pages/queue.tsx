@@ -15,7 +15,7 @@ import {
   getListAppointmentsQueryKey,
 } from "@workspace/api-client-react";
 
-import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star, Pencil, X, Stethoscope } from "lucide-react";
+import { Users, Clock, Search, UserPlus, Loader2, RefreshCw, Star, Pencil, X, Stethoscope, AlertTriangle } from "lucide-react";
 import { getPatientStages } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
@@ -160,7 +160,7 @@ function waitTime(addedAt: string) {
 }
 
 export default function QueueManagement() {
-  const { hospitalConfig, hospital } = useAuth();
+  const { hospitalConfig, hospital, user } = useAuth();
   const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
   const queueEnabled = hospitalConfig?.modules?.feedbackEnabled ?? true;
   const token = hospital?.token ?? "";
@@ -181,8 +181,11 @@ export default function QueueManagement() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
   const [editPatient, setEditPatient] = useState<EditPatient | null>(null);
+  const [allDoctors, setAllDoctors] = useState<Doctor[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | "">("");
+  const [reassignDocId, setReassignDocId] = useState<Record<number, number | "">>({});
+  const [reassigningQueueId, setReassigningQueueId] = useState<number | null>(null);
 
   const { data: queue = [], refetch: refetchQueue, isLoading: queueLoading, isFetching: queueFetching } = useListQueue({
     query: { refetchInterval: 5000 },
@@ -198,8 +201,39 @@ export default function QueueManagement() {
     if (!token) return;
     fetch(apiUrl("/api/hospital/doctors"), { headers: { "x-hospital-token": token } })
       .then(r => r.ok ? r.json() : [])
-      .then((data: Doctor[]) => setDoctors(data.filter(d => d.unavailable === false)));
+      .then((data: Doctor[]) => {
+        setAllDoctors(data);
+        setDoctors(data.filter(d => !d.unavailable));
+      });
   }, [token]);
+
+  const unavailableDoctors = allDoctors.filter(d => d.unavailable);
+  const flaggedQueueEntries = queue.filter(entry => {
+    const e = entry as unknown as { doctorId?: number | null };
+    return e.doctorId && unavailableDoctors.some(d => d.id === e.doctorId);
+  });
+
+  const handleReassignQueue = async (queueId: number, newDoctorId: number, patientName: string) => {
+    setReassigningQueueId(queueId);
+    try {
+      const res = await fetch(apiUrl(`/api/queue/${queueId}/transfer`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify({ doctorId: newDoctorId, performedBy: user?.fullName ?? "Receptionist" }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: "Patient reassigned", description: `${patientName} moved to new doctor.` });
+      refetchQueue();
+      // Reload doctors to get fresh unavailability state
+      fetch(apiUrl("/api/hospital/doctors"), { headers: { "x-hospital-token": token } })
+        .then(r => r.ok ? r.json() : [])
+        .then((data: Doctor[]) => { setAllDoctors(data); setDoctors(data.filter(d => !d.unavailable)); });
+    } catch {
+      toast({ title: "Reassignment failed", variant: "destructive" });
+    } finally {
+      setReassigningQueueId(null);
+    }
+  };
 
   const [checkingIn, setCheckingIn] = useState(false);
   const handleCheckin = async (patientId: number, patientName: string) => {
@@ -264,6 +298,56 @@ export default function QueueManagement() {
             </Button>
           </div>
         </div>
+
+        {/* Unavailable doctor alert — reassign affected queue patients */}
+        {flaggedQueueEntries.length > 0 && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-400">
+                  {unavailableDoctors.map(d => `Dr. ${d.fullName}`).join(", ")} {unavailableDoctors.length === 1 ? "is" : "are"} unavailable
+                </p>
+                <p className="text-xs text-amber-400/70 mt-0.5">
+                  {flaggedQueueEntries.length} patient{flaggedQueueEntries.length !== 1 ? "s" : ""} in queue {flaggedQueueEntries.length !== 1 ? "need" : "needs"} reassignment
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {flaggedQueueEntries.map(entry => {
+                const e = entry as unknown as { doctorId?: number; doctorName?: string };
+                const pickedDoc = reassignDocId[entry.id] ?? "";
+                return (
+                  <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-md bg-card border border-border p-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{entry.patientName}</p>
+                      <p className="text-xs text-muted-foreground">Currently: Dr. {e.doctorName} (unavailable)</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <select
+                        className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                        value={pickedDoc}
+                        onChange={ev => setReassignDocId(prev => ({ ...prev, [entry.id]: ev.target.value ? Number(ev.target.value) : "" }))}
+                      >
+                        <option value="">Pick doctor…</option>
+                        {doctors.map(d => (
+                          <option key={d.id} value={d.id}>Dr. {d.fullName}{d.specialty ? ` — ${d.specialty}` : ""}</option>
+                        ))}
+                      </select>
+                      <Button
+                        size="sm"
+                        disabled={!pickedDoc || reassigningQueueId === entry.id}
+                        onClick={() => pickedDoc && handleReassignQueue(entry.id, Number(pickedDoc), entry.patientName ?? "")}
+                      >
+                        {reassigningQueueId === entry.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Reassign"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Live Queue */}
         <div className="rounded-lg border border-border bg-card">

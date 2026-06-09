@@ -283,9 +283,9 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, walle
   const queryClient = useQueryClient();
   const [showMethodPicker, setShowMethodPicker] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const handleDelete = async () => {
-    if (!window.confirm(`Delete the follow-up task for ${task.patientName}? This cannot be undone.`)) return;
+  const doDelete = async () => {
     setDeleting(true);
     try {
       const headers: Record<string, string> = { "x-hospital-token": hospital?.token ?? "" };
@@ -345,14 +345,33 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, walle
           <div className="text-xs text-muted-foreground flex items-center gap-1">
             <Clock className="w-3 h-3" />{formatDate(task.flaggedAt)}
           </div>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition disabled:opacity-40"
-            title="Delete task"
-          >
-            {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-          </button>
+          <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <button
+              onClick={() => setConfirmOpen(true)}
+              disabled={deleting}
+              className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition disabled:opacity-40"
+              title="Delete task"
+            >
+              {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            </button>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete follow-up task?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete the follow-up task for <strong>{task.patientName}</strong>. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={doDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

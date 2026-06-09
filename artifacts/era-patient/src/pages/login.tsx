@@ -5,7 +5,7 @@ import { Activity, Loader2, Building2, ArrowLeft, Eye, EyeOff, Lock } from "luci
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Mode = "nurse" | "receptionist" | "admin";
+type Mode = "staff" | "admin";
 
 interface PreloadedHospital {
   name: string;
@@ -13,9 +13,8 @@ interface PreloadedHospital {
 }
 
 const MODES: { id: Mode; label: string; description: string }[] = [
-  { id: "nurse",        label: "Medication View", description: "Clinical care" },
-  { id: "receptionist", label: "Receptionist",  description: "Front desk" },
-  { id: "admin",        label: "Admin",         description: "Hospital admin" },
+  { id: "staff", label: "Staff Login",  description: "Nurse · Receptionist · Doctor" },
+  { id: "admin", label: "Admin Login",  description: "Hospital admin" },
 ];
 
 const MODE_STYLES: Record<Mode, {
@@ -24,13 +23,7 @@ const MODE_STYLES: Record<Mode, {
   ring: string;
   dot: string;
 }> = {
-  nurse: {
-    active: "bg-blue-900/55 text-blue-200 ring-1 ring-blue-600/40",
-    btn: "bg-blue-700 hover:bg-blue-600 text-white",
-    ring: "focus:ring-blue-500/40 focus:border-blue-500/50",
-    dot: "bg-blue-400",
-  },
-  receptionist: {
+  staff: {
     active: "bg-emerald-900/40 text-emerald-200 ring-1 ring-emerald-600/40",
     btn: "bg-emerald-700 hover:bg-emerald-600 text-white",
     ring: "focus:ring-emerald-500/40 focus:border-emerald-500/50",
@@ -46,7 +39,7 @@ const MODE_STYLES: Record<Mode, {
 
 export default function Login() {
   const { loginAdmin, loginStaff } = useAuth();
-  const [mode, setMode] = useState<Mode>("nurse");
+  const [mode, setMode] = useState<Mode>("staff");
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -90,7 +83,7 @@ export default function Login() {
     const url = new URL(window.location.href);
     url.searchParams.delete("h");
     window.history.replaceState({}, "", url.toString());
-    reset("nurse");
+    reset("staff");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,8 +98,8 @@ export default function Login() {
       } else {
         await loginStaff(username, password);
       }
-    } catch (err: any) {
-      setError(err.message ?? "Invalid credentials");
+    } catch (err: unknown) {
+      setError((err as Error).message ?? "Invalid credentials");
     } finally {
       setLoading(false);
     }
@@ -186,10 +179,9 @@ export default function Login() {
           </>
         )}
 
-        {/* Normal 3-tab login */}
+        {/* 2-tab login */}
         {!preloadLoading && !preloadError && !preloaded && (
           <>
-            {/* 3 role tabs */}
             <div className="flex rounded-xl border border-border bg-muted/15 p-1 mb-6 gap-1">
               {MODES.map(m => {
                 const active = mode === m.id;
@@ -217,7 +209,7 @@ export default function Login() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="username">{mode === "admin" ? "Hospital Username" : "Username"}</Label>
                 <Input id="username" autoComplete="username" value={username}
                   onChange={e => setUsername(e.target.value)} placeholder="Enter your username" required />
               </div>
@@ -242,7 +234,7 @@ export default function Login() {
                 className={`w-full py-2.5 rounded-lg text-sm font-semibold transition flex items-center justify-center gap-2 disabled:opacity-60 ${styles.btn}`}>
                 {loading
                   ? <><Loader2 className="w-4 h-4 animate-spin" />Signing in…</>
-                  : `Sign in as ${MODES.find(m => m.id === mode)?.label}`}
+                  : `Sign in`}
               </button>
             </form>
           </>

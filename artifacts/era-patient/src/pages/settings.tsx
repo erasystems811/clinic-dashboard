@@ -104,6 +104,7 @@ export default function Settings() {
   const [editRole, setEditRole] = useState<"nurse" | "receptionist">("receptionist");
   const [editError, setEditError] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [deletingStaffId, setDeletingStaffId] = useState<number | null>(null);
 
   const loadStaff = () => {
     if (!token) return;
@@ -181,6 +182,17 @@ export default function Settings() {
       headers: { "Content-Type": "application/json", "x-hospital-token": token },
       body: JSON.stringify({ active: true }),
     });
+    loadStaff();
+  };
+
+  const handleDeleteStaff = async (id: number) => {
+    if (!window.confirm("Remove this staff member? This cannot be undone.")) return;
+    setDeletingStaffId(id);
+    await fetch(apiUrl(`/api/hospital/staff/${id}`), {
+      method: "DELETE",
+      headers: { "x-hospital-token": token },
+    });
+    setDeletingStaffId(null);
     loadStaff();
   };
 
@@ -481,7 +493,7 @@ export default function Settings() {
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           {s.active ? (
-                            <button onClick={() => handleDeactivate(s.id)} className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition" title="Deactivate">
+                            <button onClick={() => handleDeactivate(s.id)} className="p-1.5 rounded hover:bg-amber-500/10 text-muted-foreground hover:text-amber-500 transition" title="Deactivate">
                               <UserX className="w-3.5 h-3.5" />
                             </button>
                           ) : (
@@ -489,6 +501,14 @@ export default function Settings() {
                               <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
                           )}
+                          <button
+                            onClick={() => handleDeleteStaff(s.id)}
+                            disabled={deletingStaffId === s.id}
+                            className="p-1.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition disabled:opacity-40"
+                            title="Remove staff member"
+                          >
+                            {deletingStaffId === s.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
                       </div>
                     )}

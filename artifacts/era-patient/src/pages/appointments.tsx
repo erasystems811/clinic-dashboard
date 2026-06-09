@@ -372,21 +372,19 @@ function BookModal({
               <option value="90">1.5 hours</option>
             </select>
           </div>
-          {doctors.length > 0 && (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Assign Doctor</label>
-              <select
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                value={doctorId}
-                onChange={e => setDoctorId(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">No doctor assigned</option>
-                {doctors.map(d => (
-                  <option key={d.id} value={d.id}>Dr. {d.fullName}{d.specialty ? ` (${d.specialty})` : ""}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Assign Doctor</label>
+            <select
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+              value={doctorId}
+              onChange={e => setDoctorId(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">No doctor assigned</option>
+              {doctors.map(d => (
+                <option key={d.id} value={d.id}>Dr. {d.fullName}{d.specialty ? ` (${d.specialty})` : ""}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Automation hint */}
@@ -763,18 +761,16 @@ function SelfBookingConfirmModal({
                 <option value="90">1.5 hours</option>
               </select>
             </div>
-            {doctors.length > 0 && (
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">Assign Doctor</label>
-                <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                  value={doctorId} onChange={e => setDoctorId(e.target.value ? Number(e.target.value) : "")}>
-                  <option value="">No doctor</option>
-                  {doctors.map(d => (
-                    <option key={d.id} value={d.id}>Dr. {d.fullName}</option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Assign Doctor</label>
+              <select className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={doctorId} onChange={e => setDoctorId(e.target.value ? Number(e.target.value) : "")}>
+                <option value="">No doctor</option>
+                {doctors.map(d => (
+                  <option key={d.id} value={d.id}>Dr. {d.fullName}{d.specialty ? ` (${d.specialty})` : ""}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">Confirming will create an appointment and send a confirmation email to the patient.</p>
           <div className="flex gap-2 justify-end">

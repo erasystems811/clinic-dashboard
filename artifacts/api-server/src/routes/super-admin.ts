@@ -765,7 +765,7 @@ router.delete("/hospital/staff/:id", async (req, res): Promise<void> => {
   const hospitalId = token ? _verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  await supabase.from("hospital_staff").update({ active: false }).eq("id", id).eq("hospital_id", hospitalId);
+  await supabase.from("hospital_staff").delete().eq("id", id).eq("hospital_id", hospitalId);
   res.sendStatus(204);
 });
 

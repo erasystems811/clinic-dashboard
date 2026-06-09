@@ -25,7 +25,7 @@ function fromAddress(): string {
 
 async function sendDoctorInviteEmail(doctorEmail: string, doctorName: string, hospitalName: string, username: string, password: string): Promise<void> {
   const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
-  const body = `Hi Dr. ${doctorName},\n\nYou have been added to ${hospitalName}'s clinical team on Era Systems.\n\nYour login credentials:\nUsername: ${username}\nPassword: ${password}\n\nLog in at: ${appUrl}/login\n\nPlease change your password after first login. If you did not expect this email, contact your hospital administrator.\n\nWarm regards,\nEra Systems`;
+  const body = `Hi Dr. ${doctorName},\n\nYou have been added to ${hospitalName}'s clinical team on Era Systems.\n\nYour login credentials:\nUsername: ${username}\nPassword: ${password}\n\nLog in at: ${appUrl}/login\n\nIf you did not expect this email, contact your hospital administrator.\n\nWarm regards,\nEra Systems`;
   const html = wrapHtml(`
     <p>Hi <strong>Dr. ${doctorName}</strong>,</p>
     <p>You have been added to <strong>${hospitalName}</strong>'s clinical team on Era Systems.</p>
@@ -35,7 +35,7 @@ async function sendDoctorInviteEmail(doctorEmail: string, doctorName: string, ho
       <tr><td style="padding:4px 16px 4px 0;color:#888;font-size:14px;">Password</td><td style="font-weight:bold;font-family:monospace;font-size:14px;">${password}</td></tr>
     </table>
     <p>Log in at: <a href="${appUrl}/login">${appUrl}/login</a></p>
-    <p style="font-size:13px;color:#888;">Please change your password after first login. If you did not expect this, contact your hospital administrator.</p>
+    <p style="font-size:13px;color:#888;">If you did not expect this, contact your hospital administrator.</p>
   `, hospitalName);
   await sendEmail({ to: doctorEmail, from: fromAddress(), subject: `Your Era Systems login — ${hospitalName}`, html, text: body });
 }

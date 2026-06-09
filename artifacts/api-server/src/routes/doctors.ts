@@ -252,6 +252,11 @@ router.post("/queue/:id/transfer", async (req: Request, res: Response): Promise<
     .single();
   if (!doctor) { res.status(404).json({ error: "Doctor not found" }); return; }
 
+  // Fetch existing entry to capture the current doctor before overwriting
+  const { data: existing } = await supabase.from("queue")
+    .select("patient_name, doctor_name").eq("id", queueId).eq("hospital_id", ctx.code).single();
+  if (!existing) { res.status(404).json({ error: "Queue entry not found" }); return; }
+
   // Get current position count for destination doctor to place at end
   const { count: destCount } = await supabase
     .from("queue").select("*", { count: "exact", head: true })
@@ -260,14 +265,18 @@ router.post("/queue/:id/transfer", async (req: Request, res: Response): Promise<
 
   const newPosition = (destCount ?? 0) + 1;
 
-  const { data: entry, error } = await supabase
+  const { error } = await supabase
     .from("queue")
-    .update({ doctor_id: Number(doctorId), doctor_name: doctor.full_name as string, position: newPosition })
-    .eq("id", queueId)
-    .select("patient_name")
-    .single();
+    .update({
+      doctor_id: Number(doctorId),
+      doctor_name: doctor.full_name as string,
+      position: newPosition,
+      transferred_from_doctor_name: (existing.doctor_name as string | null) ?? null,
+    })
+    .eq("id", queueId);
 
-  if (error || !entry) { res.status(404).json({ error: "Queue entry not found" }); return; }
+  if (error) { res.status(500).json({ error: "Transfer failed" }); return; }
+  const entry = existing;
 
   const noteStr = typeof note === "string" && note.trim() ? ` — "${note.trim()}"` : "";
   await supabase.from("activity").insert({

@@ -22,6 +22,7 @@ interface QueueEntry {
   doctorId?: number | null;
   doctorName?: string | null;
   calledInAt?: string | null;
+  transferredFromDoctorName?: string | null;
 }
 
 interface DoctorAppointment {
@@ -531,6 +532,7 @@ export default function DoctorView() {
                         <p className="font-medium text-sm">{entry.patientName}</p>
                         <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
                           <Clock className="w-3 h-3" /><span>{waitTime(entry.addedAt)}</span>
+                          {entry.transferredFromDoctorName && <span className="text-amber-500 font-medium">· From Dr. {entry.transferredFromDoctorName}</span>}
                           {entry.calledInAt && <span className="text-emerald-500 font-medium">· Called in</span>}
                         </div>
                       </div>

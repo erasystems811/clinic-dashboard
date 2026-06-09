@@ -45,7 +45,7 @@ function saveGeneralTasks(tasks: GeneralTask[]) {
   try { localStorage.setItem(GENERAL_KEY, JSON.stringify(tasks)); } catch { /**/ }
 }
 
-function DatePickerField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function DatePickerField({ value, onChange, buttonStyle }: { value: string; onChange: (v: string) => void; buttonStyle?: React.CSSProperties }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -62,12 +62,12 @@ function DatePickerField({ value, onChange }: { value: string; onChange: (v: str
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" style={{ ...S.input, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+      <button type="button" style={{ ...S.input, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", ...buttonStyle }}
         onClick={() => setOpen(v => !v)}>
-        <span style={{ color: value ? "#E2E8F0" : "#4B5563" }}>
-          {value ? formatDate(value) : "Pick a date"}
+        <span style={{ color: value ? "inherit" : "#4B5563" }}>
+          {value ? `🗓 ${formatDate(value)}` : "🗓 Set date"}
         </span>
-        <span style={{ fontSize: 12, color: "#6B7280" }}>📅</span>
+        {!buttonStyle && <span style={{ fontSize: 12, color: "#6B7280" }}>📅</span>}
       </button>
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 200, background: "#1A2035", border: "1px solid #1F2937", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
@@ -195,6 +195,15 @@ export default function CRMPage() {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage } : l));
     try {
       await api.updateCrmLead(leadId, { stage });
+    } catch {
+      await load();
+    }
+  }
+
+  async function updateLastContacted(leadId: string, date: string) {
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, last_contacted: date || null } : l));
+    try {
+      await api.updateCrmLead(leadId, { last_contacted: date || undefined });
     } catch {
       await load();
     }
@@ -417,12 +426,14 @@ export default function CRMPage() {
                     >
                       <div style={S.cardName}>{lead.name}</div>
                       {lead.contact_person && <div style={S.cardMeta}>👤 {lead.contact_person}</div>}
-                      {lead.last_contacted && (
-                        <div style={S.cardMeta}>
-                          🗓 {formatDate(lead.last_contacted)}
-                          {days !== null && <span style={{ color: days > 7 ? "#FC8181" : "#68D391", marginLeft: 4 }}>({days}d ago)</span>}
-                        </div>
-                      )}
+                      <div style={S.cardMeta} onClick={e => e.stopPropagation()}>
+                        <DatePickerField
+                          value={lead.last_contacted ?? ""}
+                          onChange={v => updateLastContacted(lead.id, v)}
+                          buttonStyle={{ background: "transparent", border: "none", padding: "0", fontSize: 10, color: lead.last_contacted ? "#9CA3AF" : "#4B5563", height: "auto", borderRadius: 0, width: "auto" }}
+                        />
+                        {days !== null && <span style={{ color: days > 7 ? "#FC8181" : "#68D391", marginLeft: 4, fontSize: 10 }}>({days}d ago)</span>}
+                      </div>
                       <div style={S.cardBottom}>
                         {pending > 0 && <span style={S.pendingPill}>{pending} pending</span>}
                         <button style={S.logBtn} onClick={e => { e.stopPropagation(); setShowRequestModal(lead.id); setRequestText(""); }}>

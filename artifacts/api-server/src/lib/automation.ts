@@ -298,11 +298,8 @@ export async function sendCarePlanEmail(
       350,
     );
 
-    const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
-    const bookingUrl = hCtx.slug ? `${appUrl}/book/${hCtx.slug}` : null;
-    const bookingHtml = bookingUrl ? `<p style="text-align:center;margin:20px 0 0"><a href="${bookingUrl}" style="color:#14b8a6;font-size:13px;text-decoration:none;">Book a follow-up appointment online →</a></p>` : "";
     const html = wrapHtml(
-      `<p>${emailBody.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`,
+      `<p>${emailBody.replace(/\n/g, "</p><p>")}</p>`,
       hCtx.hospitalName,
     );
 
@@ -311,7 +308,7 @@ export async function sendCarePlanEmail(
       from: hCtx.fromAddress,
       subject: `Your care plan has started — ${hCtx.hospitalName}`,
       html,
-      text: bookingUrl ? `${emailBody}\n\nBook a follow-up appointment online: ${bookingUrl}` : emailBody,
+      text: emailBody,
     });
 
     await updateAutomationLog(logId, "sent", `Care plan email → ${patientEmail}`);
@@ -827,11 +824,8 @@ export async function sendCallTaskConfirmedMessage(
 
     const contact = contactLine(hCtx.phoneNumber);
     const body = `${message}\n\nIf you have any questions please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
-    const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
-    const bookingUrl = hCtx.slug ? `${appUrl}/book/${hCtx.slug}` : null;
-    const bookingHtml = bookingUrl ? `<p style="text-align:center;margin:20px 0 0"><a href="${bookingUrl}" style="color:#14b8a6;font-size:13px;text-decoration:none;">Book an appointment online →</a></p>` : "";
-    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`, hCtx.hospitalName);
-    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject: `IMPORTANT - ${hCtx.hospitalName}`, html, text: bookingUrl ? `${body}\n\nBook an appointment online: ${bookingUrl}` : body });
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject: `IMPORTANT - ${hCtx.hospitalName}`, html, text: body });
     await updateAutomationLog(logId, "sent", message);
     return { sentViaSms: false, insufficientFunds };
   } catch (err) {
@@ -865,16 +859,13 @@ export async function sendCallTaskManualEmail(
     const subject = `Important message from ${hCtx.hospitalName}`;
     const body = `Hi ${patientName},\n\nWe are reaching out from ${hCtx.hospitalName} regarding your care.\n\n${customMessage}\n\nIf you have any questions please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
 
-    const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
-    const bookingUrl = hCtx.slug ? `${appUrl}/book/${hCtx.slug}` : null;
-    const bookingHtml = bookingUrl ? `<p style="text-align:center;margin:20px 0 0"><a href="${bookingUrl}" style="color:#14b8a6;font-size:13px;text-decoration:none;">Book an appointment online →</a></p>` : "";
-    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`, hCtx.hospitalName);
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({
       to: patientEmail,
       from: hCtx.fromAddress,
       subject,
       html,
-      text: bookingUrl ? `${body}\n\nBook an appointment online: ${bookingUrl}` : body,
+      text: body,
     });
 
     await updateAutomationLog(logId, "sent", `Manual email → ${patientEmail}`);

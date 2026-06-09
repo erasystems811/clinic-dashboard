@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api, type CrmLead, type CrmRequest } from "@/lib/api";
+import { Calendar } from "@/components/ui/calendar";
 
 const STAGES = [
   { id: "identified",    label: "Identified",    color: "#4A5568" },
@@ -42,6 +43,60 @@ function loadGeneralTasks(): GeneralTask[] {
 }
 function saveGeneralTasks(tasks: GeneralTask[]) {
   try { localStorage.setItem(GENERAL_KEY, JSON.stringify(tasks)); } catch { /**/ }
+}
+
+function DatePickerField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const selected = value ? new Date(value + "T00:00:00") : undefined;
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" style={{ ...S.input, textAlign: "left", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between" }}
+        onClick={() => setOpen(v => !v)}>
+        <span style={{ color: value ? "#E2E8F0" : "#4B5563" }}>
+          {value ? formatDate(value) : "Pick a date"}
+        </span>
+        <span style={{ fontSize: 12, color: "#6B7280" }}>📅</span>
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 200, background: "#1A2035", border: "1px solid #1F2937", borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.5)" }}>
+          <Calendar
+            mode="single"
+            selected={selected}
+            onSelect={day => {
+              if (day) {
+                const iso = day.toLocaleDateString("en-CA"); // YYYY-MM-DD
+                onChange(iso);
+                setOpen(false);
+              }
+            }}
+            captionLayout="dropdown"
+            fromYear={2020}
+            toYear={new Date().getFullYear() + 1}
+          />
+          {value && (
+            <div style={{ borderTop: "1px solid #1F2937", padding: "8px 12px" }}>
+              <button type="button" style={{ background: "none", border: "none", color: "#FC8181", fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}
+                onClick={() => { onChange(""); setOpen(false); }}>
+                Clear date
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function CRMPage() {
@@ -508,8 +563,10 @@ export default function CRMPage() {
               </div>
               <div style={S.formGroup}>
                 <label style={S.detailLabel}>Last Contacted</label>
-                <input style={S.input} type="date" value={leadForm.last_contacted}
-                  onChange={e => setLeadForm(prev => ({ ...prev, last_contacted: e.target.value }))} />
+                <DatePickerField
+                  value={leadForm.last_contacted}
+                  onChange={v => setLeadForm(prev => ({ ...prev, last_contacted: v }))}
+                />
               </div>
               <div style={S.formGroup}>
                 <label style={S.detailLabel}>Notes</label>

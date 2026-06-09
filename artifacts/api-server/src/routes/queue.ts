@@ -77,6 +77,7 @@ router.get("/doctor/queue", async (req, res): Promise<void> => {
     .select("*")
     .eq("hospital_id", hospital.code)
     .eq("doctor_id", doctorId)
+    .is("called_in_at", null)
     .order("position", { ascending: true });
 
   if (error) { res.status(500).json({ error: error.message }); return; }

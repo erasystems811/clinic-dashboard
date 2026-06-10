@@ -548,10 +548,20 @@ export async function sendAppointmentReminderEmail(
       const smsBody = hoursAway === 24
         ? `Hi ${patientName}, reminder: your appointment at ${hCtx.hospitalName} is tomorrow ${dateStr}. To reschedule call ${hCtx.phoneNumber ?? hCtx.hospitalName}.`
         : `Hi ${patientName}, your appointment at ${hCtx.hospitalName} is in 2 hours at ${timeStr}. To reschedule call ${hCtx.phoneNumber ?? hCtx.hospitalName} immediately.`;
-      await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
-      await deductSmsFromWallet(hospitalId, `Appointment reminder SMS (${hoursAway}h) — ${patientName}`);
-      await updateAutomationLog(logId, "sent", `Appointment reminder SMS (${hoursAway}h) → ${phone}`);
-      return;
+      try {
+        await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
+        await deductSmsFromWallet(hospitalId, `Appointment reminder SMS (${hoursAway}h) — ${patientName}`);
+        await updateAutomationLog(logId, "sent", `Appointment reminder SMS (${hoursAway}h) → ${phone}`);
+        return;
+      } catch (smsErr) {
+        const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
+        if (smsMsg.startsWith("DND_BLOCKED:")) {
+          console.log(`[sendAppointmentReminderEmail] DND blocked for ${phone} — falling back to email for hospital ${hospitalId}`);
+          // Fall through to email below
+        } else {
+          throw smsErr;
+        }
+      }
     }
 
     const body = hoursAway === 24

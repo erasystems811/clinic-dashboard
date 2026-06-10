@@ -72,6 +72,8 @@ export interface HospitalContext {
   feedbackEnabled: boolean;
   /** Hospital booking slug — used to build public booking link in patient emails. Null if not configured. */
   slug: string | null;
+  /** Hospital admin contact email — used to notify about configuration issues. */
+  contactEmail: string | null;
 }
 
 export async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
@@ -799,7 +801,7 @@ export async function sendCallTaskConfirmedMessage(
   patientName: string,
   patientEmail: string,
   message: string,
-): Promise<{ sentViaSms: boolean; insufficientFunds: boolean }> {
+): Promise<{ sentViaSms: boolean; insufficientFunds: boolean; senderIdMissing: boolean }> {
   const hCtx = await getHospitalContext(hospitalId);
 
   const { data: modules } = await supabase.from("hospital_modules").select("call_task_sms_enabled").eq("hospital_id", hospitalId).maybeSingle();
@@ -807,10 +809,11 @@ export async function sendCallTaskConfirmedMessage(
 
   let useSms = false;
   let insufficientFunds = false;
+  let senderIdMissing = false;
   if (smsFlipEnabled) {
     const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || !!hCtx.termiiSenderId;
     if (!smsReady) {
-      console.log(`[sendCallTaskConfirmedMessage] No SMS provider configured (no AT or Termii sender ID) — falling back to email for hospital ${hospitalId}`);
+      senderIdMissing = true;
     } else {
       useSms = await hasSufficientSmsBalance(hospitalId);
       insufficientFunds = !useSms;
@@ -823,7 +826,7 @@ export async function sendCallTaskConfirmedMessage(
     automationType: "call_task_automated",
     channel: useSms ? "sms" : "email",
   };
-  if (await skipIfSuspended(hCtx, ctx)) return { sentViaSms: false, insufficientFunds };
+  if (await skipIfSuspended(hCtx, ctx)) return { sentViaSms: false, insufficientFunds, senderIdMissing };
   const logId = await logAutomation(ctx, "queued");
   try {
     if (useSms) {
@@ -833,7 +836,7 @@ export async function sendCallTaskConfirmedMessage(
       await deliverMobileMessage("sms", phone, message, { senderId: hCtx.termiiSenderId });
       await deductSmsFromWallet(hospitalId, `Call task SMS — ${patientName}`);
       await updateAutomationLog(logId, "sent", `SMS → ${phone}`);
-      return { sentViaSms: true, insufficientFunds: false };
+      return { sentViaSms: true, insufficientFunds: false, senderIdMissing: false };
     }
 
     const contact = contactLine(hCtx.phoneNumber);
@@ -841,7 +844,7 @@ export async function sendCallTaskConfirmedMessage(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject: `IMPORTANT - ${hCtx.hospitalName}`, html, text: body });
     await updateAutomationLog(logId, "sent", message);
-    return { sentViaSms: false, insufficientFunds };
+    return { sentViaSms: false, insufficientFunds, senderIdMissing };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendCallTaskConfirmedMessage] failed:", msg, { hospitalId, patientId, patientEmail });

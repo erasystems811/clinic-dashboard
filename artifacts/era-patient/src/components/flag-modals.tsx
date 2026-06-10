@@ -55,6 +55,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [showWalletDialog, setShowWalletDialog] = useState(false);
+  const [showSenderIdDialog, setShowSenderIdDialog] = useState(false);
   const skipInsufficientToast = useRef(false);
 
   const handleGenerateDraft = async () => {
@@ -81,6 +82,11 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
     const isEmail = selfMethod === "email";
     if (isEmail && !emailBody.trim()) return;
     if (!isEmail && !callOutcome.trim()) return;
+    // Pre-flight: if SMS is on but sender ID not configured, prompt before sending
+    if (isEmail && smsEnabled && !smsReady) {
+      setShowSenderIdDialog(true);
+      return;
+    }
     // Pre-flight: if SMS is on and wallet is empty, prompt the user before sending
     if (isEmail && smsEnabled && walletBalance !== null && walletBalance < 7) {
       setShowWalletDialog(true);
@@ -106,11 +112,13 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
         },
         body: JSON.stringify(body),
       });
-      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean };
+      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean; senderIdMissing?: boolean };
       if (!res.ok) throw new Error(data.error ?? "Failed");
       setSent(true);
       if (!isEmail) {
         toast({ title: "Call logged" });
+      } else if (data.senderIdMissing) {
+        toast({ title: "Sent via email — SMS sender ID not set", description: "Your Termii Sender ID is not configured. Go to Settings → Notification Channel to set it up so messages can be delivered via SMS." });
       } else if (data.sentViaSms) {
         toast({ title: "SMS sent", description: `Message delivered via SMS (₦7 deducted from wallet).` });
       } else if (data.insufficientFunds && !skipInsufficientToast.current) {
@@ -131,6 +139,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   };
 
   const [smsEnabled, setSmsEnabled] = useState<boolean | null>(null);
+  const [smsReady, setSmsReady] = useState<boolean>(true);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
@@ -138,7 +147,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setSmsEnabled((data as Record<string, unknown>).followupSmsEnabled as boolean); });
+      .then(data => { if (data) { setSmsEnabled((data as Record<string, unknown>).followupSmsEnabled as boolean); setSmsReady((data as Record<string, unknown>).smsReady as boolean ?? true); } });
     fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
@@ -380,6 +389,29 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
           </div>
         )}
       </div>
+
+      <AlertDialog open={showSenderIdDialog} onOpenChange={setShowSenderIdDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>SMS sender ID not active</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your hospital's SMS Sender ID has not been configured yet. SMS messages cannot be delivered until it is set up in Settings → Notification Channel. You can still send this message via email at no cost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Don't send</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowSenderIdDialog(false);
+                skipInsufficientToast.current = true;
+                void doSendSelf();
+              }}
+            >
+              Send via Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={showWalletDialog} onOpenChange={setShowWalletDialog}>
         <AlertDialogContent>

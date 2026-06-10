@@ -207,16 +207,18 @@ router.get("/hospital/sms-modules", async (req: Request, res: Response): Promise
   const ctx = await getHospitalFromRequest(req);
   if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { data } = await supabase
-    .from("hospital_modules")
-    .select("call_task_sms_enabled, followup_sms_enabled, appointment_reminder_sms_enabled")
-    .eq("hospital_id", ctx.intId)
-    .maybeSingle();
+  const [{ data }, { data: settings }] = await Promise.all([
+    supabase.from("hospital_modules").select("call_task_sms_enabled, followup_sms_enabled, appointment_reminder_sms_enabled").eq("hospital_id", ctx.intId).maybeSingle(),
+    supabase.from("hospital_settings").select("termii_sender_id").eq("hospital_id", ctx.intId).maybeSingle(),
+  ]);
+
+  const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || !!(settings?.termii_sender_id as string | null)?.trim();
 
   res.json({
     callTaskSmsEnabled: (data?.call_task_sms_enabled as boolean | null) ?? false,
     followupSmsEnabled: (data?.followup_sms_enabled as boolean | null) ?? false,
     appointmentReminderSmsEnabled: (data?.appointment_reminder_sms_enabled as boolean | null) ?? false,
+    smsReady,
   });
 });
 

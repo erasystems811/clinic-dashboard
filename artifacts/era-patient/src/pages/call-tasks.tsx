@@ -49,9 +49,9 @@ const ACTION_TYPES = [
 ] as const;
 
 /* ── Action Panel ── */
-function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, walletBalance }: {
+function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, walletBalance }: {
   task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (newCount: number) => void;
-  smsEnabled: boolean; walletBalance: number | null;
+  smsEnabled: boolean; smsReady: boolean; walletBalance: number | null;
 }) {
   const { toast } = useToast();
   const { hospital, user } = useAuth();
@@ -66,6 +66,7 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, wa
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
   const [showWalletDialog, setShowWalletDialog] = useState(false);
+  const [showSenderIdDialog, setShowSenderIdDialog] = useState(false);
   const skipInsufficientToast = useRef(false);
 
   const logOutcome = useLogCallOutcome({
@@ -164,6 +165,11 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, wa
       toast({ title: "Not authenticated", description: "Please log in again and retry.", variant: "destructive" });
       return;
     }
+    // Pre-flight: if SMS is on but sender ID not configured, prompt before sending
+    if (smsEnabled && !smsReady) {
+      setShowSenderIdDialog(true);
+      return;
+    }
     // Pre-flight: if SMS is on and wallet is empty, prompt the user before sending
     if (smsEnabled && walletBalance !== null && walletBalance < 7) {
       setShowWalletDialog(true);
@@ -185,9 +191,11 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, wa
         },
         body: JSON.stringify({ message: textMsg }),
       });
-      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean };
+      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean; senderIdMissing?: boolean };
       if (!res.ok) throw new Error(data.error ?? "Send failed");
-      if (data.insufficientFunds && !skipInsufficientToast.current) {
+      if (data.senderIdMissing) {
+        toast({ title: "Sent via email — SMS sender ID not set", description: "Your Termii Sender ID is not configured. Go to Settings → Notification Channel to set it up so messages can be delivered via SMS.", variant: "default" });
+      } else if (data.insufficientFunds && !skipInsufficientToast.current) {
         toast({ title: "Sent via email — wallet empty", description: "Your SMS wallet has insufficient funds. Top up in Settings → SMS Wallet to enable SMS delivery.", variant: "default" });
       } else if (data.sentViaSms) {
         toast({ title: "SMS sent", description: "Message delivered via SMS (₦7 deducted from wallet)." });
@@ -242,6 +250,32 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, wa
         </Button>
       </div>
 
+      <AlertDialog open={showSenderIdDialog} onOpenChange={setShowSenderIdDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5 text-amber-400" />
+              SMS sender ID not active
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Your hospital's SMS Sender ID has not been configured yet. SMS messages cannot be delivered until it is set up in Settings → Notification Channel. You can still send this message via email at no cost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Don't send</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowSenderIdDialog(false);
+                skipInsufficientToast.current = true;
+                void doSend();
+              }}
+            >
+              Send via Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={showWalletDialog} onOpenChange={setShowWalletDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -274,9 +308,9 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, wa
 }
 
 /* ── Task Card ── */
-function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, walletBalance }: {
+function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, walletBalance }: {
   task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (n: number) => void;
-  smsEnabled: boolean; walletBalance: number | null;
+  smsEnabled: boolean; smsReady: boolean; walletBalance: number | null;
 }) {
   const { hospital, user } = useAuth();
   const { toast } = useToast();
@@ -436,7 +470,7 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, walle
             </div>
           )}
 
-          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} smsEnabled={smsEnabled} walletBalance={walletBalance} />
+          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} smsEnabled={smsEnabled} smsReady={smsReady} walletBalance={walletBalance} />
         </div>
       )}
 
@@ -464,7 +498,7 @@ export default function CallTasks() {
   const { hospital } = useAuth();
   const [aiUsedToday, setAiUsedToday] = useState(0);
   const [aiDailyLimit, setAiDailyLimit] = useState(20);
-  const [smsModules, setSmsModules] = useState<{ callTaskSmsEnabled: boolean } | null>(null);
+  const [smsModules, setSmsModules] = useState<{ callTaskSmsEnabled: boolean; smsReady: boolean } | null>(null);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
@@ -496,7 +530,7 @@ export default function CallTasks() {
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setSmsModules({ callTaskSmsEnabled: (data as Record<string, unknown>).callTaskSmsEnabled as boolean }); });
+      .then(data => { if (data) setSmsModules({ callTaskSmsEnabled: (data as Record<string, unknown>).callTaskSmsEnabled as boolean, smsReady: (data as Record<string, unknown>).smsReady as boolean }); });
     fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
@@ -591,6 +625,7 @@ export default function CallTasks() {
                   aiDailyLimit={aiDailyLimit}
                   onAiUsed={setAiUsedToday}
                   smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
+                  smsReady={smsModules?.smsReady ?? true}
                   walletBalance={walletBalance}
                 />
               ))}
@@ -612,6 +647,7 @@ export default function CallTasks() {
                   aiDailyLimit={aiDailyLimit}
                   onAiUsed={setAiUsedToday}
                   smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
+                  smsReady={smsModules?.smsReady ?? true}
                   walletBalance={walletBalance}
                 />
               ))}

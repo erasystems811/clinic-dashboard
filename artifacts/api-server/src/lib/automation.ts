@@ -74,13 +74,15 @@ export interface HospitalContext {
   slug: string | null;
   /** Hospital admin contact email — used to notify about configuration issues. */
   contactEmail: string | null;
+  /** Whether the Termii Sender ID has been approved by Termii (set by super admin). */
+  senderIdApproved: boolean;
 }
 
 export async function getHospitalContext(hospitalId: number): Promise<HospitalContext> {
   const [{ data: hospital }, { data: settings }, { data: mods }] = await Promise.all([
     supabase.from("hospitals").select("id, name, username, hospital_code, slug, active").eq("id", hospitalId).single(),
     supabase.from("hospital_settings")
-      .select("sender_name, notification_channel, phone_number, tone, termii_sender_id, language, clinic_description")
+      .select("sender_name, notification_channel, phone_number, tone, termii_sender_id, sms_sender_id_approved, language, clinic_description")
       .eq("hospital_id", hospitalId).maybeSingle(),
     supabase.from("hospital_modules").select("feedback_enabled, wellness_newsletter_enabled").eq("hospital_id", hospitalId).maybeSingle(),
   ]);
@@ -103,6 +105,7 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
     notificationChannel: (settings?.notification_channel as "whatsapp" | "sms") ?? "sms",
     phoneNumber: (settings?.phone_number as string) ?? null,
     termiiSenderId: (settings?.termii_sender_id as string) ?? null,
+    senderIdApproved: (settings?.sms_sender_id_approved as boolean | null) ?? false,
     language: (settings?.language as string | null) ?? null,
     tone,
     clinicDescription: (settings?.clinic_description as string | null) ?? null,
@@ -517,7 +520,7 @@ export async function sendAppointmentReminderEmail(
 
   let useSms = false;
   if (smsFlipEnabled) {
-    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || !!hCtx.termiiSenderId;
+    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || (!!hCtx.termiiSenderId && hCtx.senderIdApproved);
     if (!smsReady) {
       console.log(`[sendAppointmentReminderEmail] No SMS provider configured (no AT or Termii sender ID) — falling back to email for hospital ${hospitalId}`);
     } else {
@@ -811,7 +814,7 @@ export async function sendCallTaskConfirmedMessage(
   let insufficientFunds = false;
   let senderIdMissing = false;
   if (smsFlipEnabled) {
-    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || !!hCtx.termiiSenderId;
+    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || (!!hCtx.termiiSenderId && hCtx.senderIdApproved);
     if (!smsReady) {
       senderIdMissing = true;
     } else {
@@ -1083,7 +1086,7 @@ export async function sendDepartmentalFollowupEmail(
 
   let useSms = false;
   if (smsFlipEnabled) {
-    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || !!hCtx.termiiSenderId;
+    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || (!!hCtx.termiiSenderId && hCtx.senderIdApproved);
     if (!smsReady) {
       console.log(`[sendDepartmentalFollowupEmail] No SMS provider configured (no AT or Termii sender ID) — falling back to email for hospital ${hospitalId}`);
     } else {

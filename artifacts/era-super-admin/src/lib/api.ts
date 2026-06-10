@@ -92,6 +92,7 @@ export interface HospitalSettings {
   notificationChannel: "whatsapp" | "sms" | null;
   phoneNumber: string | null;
   termiiSenderId: string | null;
+  senderIdApproved: boolean;
   callTaskAiDailyLimit: number | null;
   callTaskAiUsedToday: number;
 }

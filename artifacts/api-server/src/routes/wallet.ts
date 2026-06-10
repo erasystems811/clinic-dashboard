@@ -209,16 +209,21 @@ router.get("/hospital/sms-modules", async (req: Request, res: Response): Promise
 
   const [{ data }, { data: settings }] = await Promise.all([
     supabase.from("hospital_modules").select("call_task_sms_enabled, followup_sms_enabled, appointment_reminder_sms_enabled").eq("hospital_id", ctx.intId).maybeSingle(),
-    supabase.from("hospital_settings").select("termii_sender_id").eq("hospital_id", ctx.intId).maybeSingle(),
+    supabase.from("hospital_settings").select("termii_sender_id, sms_sender_id_approved").eq("hospital_id", ctx.intId).maybeSingle(),
   ]);
 
-  const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || !!(settings?.termii_sender_id as string | null)?.trim();
+  const hasSenderId = !!(settings?.termii_sender_id as string | null)?.trim();
+  const isApproved = !!(settings?.sms_sender_id_approved as boolean | null);
+  const hasAt = !!process.env.AFRICAS_TALKING_API_KEY;
+  const smsReady = hasAt || (hasSenderId && isApproved);
+  const senderIdPending = !hasAt && hasSenderId && !isApproved;
 
   res.json({
     callTaskSmsEnabled: (data?.call_task_sms_enabled as boolean | null) ?? false,
     followupSmsEnabled: (data?.followup_sms_enabled as boolean | null) ?? false,
     appointmentReminderSmsEnabled: (data?.appointment_reminder_sms_enabled as boolean | null) ?? false,
     smsReady,
+    senderIdPending,
   });
 });
 

@@ -49,9 +49,9 @@ const ACTION_TYPES = [
 ] as const;
 
 /* ── Action Panel ── */
-function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, walletBalance }: {
+function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, senderIdPending, walletBalance }: {
   task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (newCount: number) => void;
-  smsEnabled: boolean; smsReady: boolean; walletBalance: number | null;
+  smsEnabled: boolean; smsReady: boolean; senderIdPending: boolean; walletBalance: number | null;
 }) {
   const { toast } = useToast();
   const { hospital, user } = useAuth();
@@ -258,7 +258,9 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
               SMS sender ID not active
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Your hospital's SMS Sender ID has not been configured yet. SMS messages cannot be delivered until it is set up in Settings → Notification Channel. You can still send this message via email at no cost.
+              {senderIdPending
+                ? "Your SMS Sender ID has been submitted and is awaiting Termii approval. SMS cannot be delivered yet. You can send via email now at no cost, or wait until approval comes through."
+                : "Your hospital's SMS Sender ID has not been configured yet. Contact your administrator to set it up. You can still send this message via email at no cost."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -308,9 +310,9 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
 }
 
 /* ── Task Card ── */
-function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, walletBalance }: {
+function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, senderIdPending, walletBalance }: {
   task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (n: number) => void;
-  smsEnabled: boolean; smsReady: boolean; walletBalance: number | null;
+  smsEnabled: boolean; smsReady: boolean; senderIdPending: boolean; walletBalance: number | null;
 }) {
   const { hospital, user } = useAuth();
   const { toast } = useToast();
@@ -470,7 +472,7 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsRe
             </div>
           )}
 
-          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} smsEnabled={smsEnabled} smsReady={smsReady} walletBalance={walletBalance} />
+          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} smsEnabled={smsEnabled} smsReady={smsReady} senderIdPending={senderIdPending} walletBalance={walletBalance} />
         </div>
       )}
 
@@ -498,7 +500,7 @@ export default function CallTasks() {
   const { hospital } = useAuth();
   const [aiUsedToday, setAiUsedToday] = useState(0);
   const [aiDailyLimit, setAiDailyLimit] = useState(20);
-  const [smsModules, setSmsModules] = useState<{ callTaskSmsEnabled: boolean; smsReady: boolean } | null>(null);
+  const [smsModules, setSmsModules] = useState<{ callTaskSmsEnabled: boolean; smsReady: boolean; senderIdPending: boolean } | null>(null);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
@@ -530,7 +532,7 @@ export default function CallTasks() {
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setSmsModules({ callTaskSmsEnabled: (data as Record<string, unknown>).callTaskSmsEnabled as boolean, smsReady: (data as Record<string, unknown>).smsReady as boolean }); });
+      .then(data => { if (data) { const d = data as Record<string, unknown>; setSmsModules({ callTaskSmsEnabled: d.callTaskSmsEnabled as boolean, smsReady: d.smsReady as boolean, senderIdPending: d.senderIdPending as boolean }); } });
     fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
@@ -626,6 +628,7 @@ export default function CallTasks() {
                   onAiUsed={setAiUsedToday}
                   smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
                   smsReady={smsModules?.smsReady ?? true}
+                  senderIdPending={smsModules?.senderIdPending ?? false}
                   walletBalance={walletBalance}
                 />
               ))}
@@ -648,6 +651,7 @@ export default function CallTasks() {
                   onAiUsed={setAiUsedToday}
                   smsEnabled={smsModules?.callTaskSmsEnabled ?? false}
                   smsReady={smsModules?.smsReady ?? true}
+                  senderIdPending={smsModules?.senderIdPending ?? false}
                   walletBalance={walletBalance}
                 />
               ))}

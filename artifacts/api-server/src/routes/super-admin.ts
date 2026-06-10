@@ -433,6 +433,7 @@ const UpdateSettingsBody = z.object({
   notificationChannel: z.enum(["whatsapp", "sms"]).nullish(),
   phoneNumber: z.string().nullish(),
   termiiSenderId: z.string().nullish(),
+  senderIdApproved: z.boolean().optional(),
   callTaskAiDailyLimit: z.number().int().min(1).nullish(),
 });
 
@@ -467,7 +468,7 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   const parsed = UpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { departments, tone, pipelinePostTreatmentDays, pipelineDormantDays, language, clinicDescription, senderName, postTreatmentCheckinDays, postCareCheckinDays, whatsappFromNumber, notificationChannel, phoneNumber, termiiSenderId, callTaskAiDailyLimit } = parsed.data;
+  const { departments, tone, pipelinePostTreatmentDays, pipelineDormantDays, language, clinicDescription, senderName, postTreatmentCheckinDays, postCareCheckinDays, whatsappFromNumber, notificationChannel, phoneNumber, termiiSenderId, senderIdApproved, callTaskAiDailyLimit } = parsed.data;
   const updates: Record<string, unknown> = {};
   if (departments !== undefined) updates.departments = JSON.stringify(departments);
   if (tone !== undefined) updates.tone = JSON.stringify(tone);
@@ -481,7 +482,12 @@ router.put("/super-admin/hospitals/:id/settings", requireSuperAdmin, async (req,
   if (whatsappFromNumber !== undefined) updates.whatsapp_from_number = whatsappFromNumber;
   if (notificationChannel !== undefined) updates.notification_channel = notificationChannel;
   if (phoneNumber !== undefined) updates.phone_number = phoneNumber;
-  if (termiiSenderId !== undefined) updates.termii_sender_id = termiiSenderId;
+  if (termiiSenderId !== undefined) {
+    updates.termii_sender_id = termiiSenderId;
+    // Clear approval when the sender ID itself changes
+    if (!updates.sms_sender_id_approved) updates.sms_sender_id_approved = false;
+  }
+  if (senderIdApproved !== undefined) updates.sms_sender_id_approved = senderIdApproved;
   if (callTaskAiDailyLimit !== undefined) updates.call_task_ai_daily_limit = callTaskAiDailyLimit;
 
   const { data: settings, error } = await supabase

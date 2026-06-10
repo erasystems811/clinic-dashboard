@@ -140,6 +140,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
 
   const [smsEnabled, setSmsEnabled] = useState<boolean | null>(null);
   const [smsReady, setSmsReady] = useState<boolean>(true);
+  const [senderIdPending, setSenderIdPending] = useState<boolean>(false);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
@@ -147,7 +148,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) { setSmsEnabled((data as Record<string, unknown>).followupSmsEnabled as boolean); setSmsReady((data as Record<string, unknown>).smsReady as boolean ?? true); } });
+      .then(data => { if (data) { const d = data as Record<string, unknown>; setSmsEnabled(d.followupSmsEnabled as boolean); setSmsReady((d.smsReady as boolean) ?? true); setSenderIdPending((d.senderIdPending as boolean) ?? false); } });
     fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
@@ -395,7 +396,9 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
           <AlertDialogHeader>
             <AlertDialogTitle>SMS sender ID not active</AlertDialogTitle>
             <AlertDialogDescription>
-              Your hospital's SMS Sender ID has not been configured yet. SMS messages cannot be delivered until it is set up in Settings → Notification Channel. You can still send this message via email at no cost.
+              {senderIdPending
+                ? "Your SMS Sender ID has been submitted and is awaiting Termii approval. SMS cannot be delivered yet. You can send via email now at no cost, or wait until approval comes through."
+                : "Your hospital's SMS Sender ID has not been configured yet. Contact your administrator to set it up. You can still send this message via email at no cost."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

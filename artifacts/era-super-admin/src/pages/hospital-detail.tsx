@@ -132,6 +132,7 @@ export default function HospitalDetail({ id }: Props) {
   const [hospitalPhoneNumber, setHospitalPhoneNumber] = useState("");
   const [notificationChannel, setNotificationChannel] = useState<"whatsapp" | "sms">("whatsapp");
   const [termiiSenderId, setTermiiSenderId] = useState("");
+  const [senderIdApproved, setSenderIdApproved] = useState(false);
   const [callTaskAiDailyLimit, setCallTaskAiDailyLimit] = useState("");
   const [callTaskAiUsedToday, setCallTaskAiUsedToday] = useState(0);
 
@@ -184,6 +185,7 @@ export default function HospitalDetail({ id }: Props) {
       setHospitalPhoneNumber(s.phoneNumber ?? "");
       setNotificationChannel((s.notificationChannel as "whatsapp" | "sms") ?? "whatsapp");
       setTermiiSenderId(s.termiiSenderId ?? "");
+      setSenderIdApproved(s.senderIdApproved ?? false);
       setCallTaskAiDailyLimit(s.callTaskAiDailyLimit?.toString() ?? "");
       setCallTaskAiUsedToday(s.callTaskAiUsedToday ?? 0);
       setContactEmail(h.contactEmail ?? "");
@@ -273,6 +275,7 @@ export default function HospitalDetail({ id }: Props) {
         phoneNumber: hospitalPhoneNumber || null,
         notificationChannel,
         termiiSenderId: termiiSenderId || null,
+        senderIdApproved,
       } as Partial<HospitalSettings>);
       flash("Settings saved");
       load();
@@ -744,11 +747,33 @@ export default function HospitalDetail({ id }: Props) {
               <input
                 type="text"
                 value={termiiSenderId}
-                onChange={e => setTermiiSenderId(e.target.value)}
+                onChange={e => { setTermiiSenderId(e.target.value); setSenderIdApproved(false); }}
                 placeholder={notificationChannel === "whatsapp" ? "+2348012345678 (hospital WhatsApp number)" : "+2348012345678 or HospitalName"}
                 className={inputCls()}
               />
             </Field>
+
+            {termiiSenderId.trim() && (
+              <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                <div>
+                  <p className="text-xs font-medium text-foreground">Sender ID Approved by Termii</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {senderIdApproved
+                      ? "Active — SMS will be delivered using this sender ID."
+                      : "Pending — SMS will fall back to email until Termii approves this ID."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={senderIdApproved}
+                  onClick={() => setSenderIdApproved(v => !v)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${senderIdApproved ? "bg-emerald-500" : "bg-muted-foreground/30"}`}
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${senderIdApproved ? "translate-x-4" : "translate-x-0"}`} />
+                </button>
+              </div>
+            )}
 
           {/* Test SMS */}
           <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">

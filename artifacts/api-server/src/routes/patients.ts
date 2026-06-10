@@ -14,7 +14,7 @@ import {
   contactLine,
 } from "../lib/automation.js";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
-import { deductSmsFromWallet } from "../lib/wallet.js";
+import { deductSmsFromWallet, hasSufficientSmsBalance } from "../lib/wallet.js";
 import { deliverMobileMessage } from "../lib/messaging.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
 
@@ -987,7 +987,7 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const { sendEmail: shouldSendEmail, message, reason, logOnly, callOutcome } = req.body ?? {};
+  const { sendEmail: shouldSendEmail, message, reason, logOnly, callOutcome, forceEmail } = req.body ?? {};
   if (!logOnly && !shouldSendEmail && !message?.trim()) { res.status(400).json({ error: "message or email required" }); return; }
   if (shouldSendEmail && !message?.trim()) { res.status(400).json({ error: "message required for email" }); return; }
 
@@ -1002,6 +1002,7 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   let sent = false;
   let sentViaSms = false;
   let insufficientFunds = false;
+  let dndBlocked = false;
 
   if (logOnly) {
     // Phone call — just log the outcome, no message sent
@@ -1016,27 +1017,35 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
   } else if (shouldSendEmail) {
     const hCtx = await getHospitalContext(hospital.intId);
 
-    // Check SMS toggle — if on and wallet funded, send via SMS instead of email
+    // Check SMS toggle — if on and sender ready and wallet funded, send via SMS instead of email.
+    // forceEmail=true skips SMS (used after a DND-blocked attempt).
     const { data: modules } = await supabase.from("hospital_modules").select("followup_sms_enabled").eq("hospital_id", hospital.intId).maybeSingle();
-    const smsFlipEnabled = (modules?.followup_sms_enabled as boolean | null) ?? false;
+    const smsFlipEnabled = !forceEmail && ((modules?.followup_sms_enabled as boolean | null) ?? false);
+    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || (!!hCtx.termiiSenderId && hCtx.senderIdApproved);
 
-    if (smsFlipEnabled) {
-      const deduction = await deductSmsFromWallet(hospital.intId, `Follow-up SMS — ${patientName}`);
-      if (deduction.ok && smsPhone) {
+    if (smsFlipEnabled && smsReady && smsPhone) {
+      const canAfford = await hasSufficientSmsBalance(hospital.intId);
+      if (canAfford) {
         try {
           await deliverMobileMessage("sms", smsPhone, message.trim(), { senderId: hCtx.termiiSenderId });
+          await deductSmsFromWallet(hospital.intId, `Follow-up SMS — ${patientName}`);
           sentViaSms = true;
           sent = true;
         } catch (err) {
-          console.error("[direct-message] SMS failed, falling back to email:", err);
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (errMsg.startsWith("DND_BLOCKED:")) {
+            dndBlocked = true;
+          } else {
+            console.error("[direct-message] SMS failed, falling back to email:", err);
+          }
         }
       } else {
-        insufficientFunds = deduction.insufficientFunds;
+        insufficientFunds = true;
       }
     }
 
-    // Fall through to email if SMS was not used
-    if (!sentViaSms && email) {
+    // Fall through to email only if SMS was not used AND not DND-blocked (DND needs explicit hospital choice)
+    if (!sentViaSms && !dndBlocked && email) {
       const contact = contactLine(hCtx.phoneNumber);
       const body = `${message.trim()}\n\nIf you have any questions please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
       const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
@@ -1050,14 +1059,16 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
       sent = true;
     }
 
-    await supabase.from("activity").insert({
-      type: sentViaSms ? "manual_sms" : "manual_email",
-      description: `${sentViaSms ? "SMS" : "Email"} sent to ${patientName}${reason ? ` — ${reason}` : ""}`,
-      patient_id: id,
-      patient_name: patientName,
-      metadata: { body: message.trim().slice(0, 200) },
-      performed_by: performedBy,
-    });
+    if (!dndBlocked) {
+      await supabase.from("activity").insert({
+        type: sentViaSms ? "manual_sms" : "manual_email",
+        description: `${sentViaSms ? "SMS" : "Email"} sent to ${patientName}${reason ? ` — ${reason}` : ""}`,
+        patient_id: id,
+        patient_name: patientName,
+        metadata: { body: message.trim().slice(0, 200) },
+        performed_by: performedBy,
+      });
+    }
   } else {
     // Phone call logging only (legacy path)
     await supabase.from("activity").insert({
@@ -1070,7 +1081,7 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
     });
   }
 
-  res.json({ ok: true, sent, sentViaSms, insufficientFunds, email: shouldSendEmail ? email : null });
+  res.json({ ok: true, sent, sentViaSms, insufficientFunds, dndBlocked, email: shouldSendEmail ? email : null });
 });
 
 export default router;

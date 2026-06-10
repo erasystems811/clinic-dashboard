@@ -56,6 +56,8 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   const [sent, setSent] = useState(false);
   const [showWalletDialog, setShowWalletDialog] = useState(false);
   const [showSenderIdDialog, setShowSenderIdDialog] = useState(false);
+  const [showDndDialog, setShowDndDialog] = useState(false);
+  const [pendingDndMessage, setPendingDndMessage] = useState<string>("");
   const skipInsufficientToast = useRef(false);
 
   const handleGenerateDraft = async () => {
@@ -112,8 +114,13 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
         },
         body: JSON.stringify(body),
       });
-      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean; senderIdMissing?: boolean };
+      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean; senderIdMissing?: boolean; dndBlocked?: boolean };
       if (!res.ok) throw new Error(data.error ?? "Failed");
+      if (data.dndBlocked) {
+        setPendingDndMessage(emailBody.trim());
+        setShowDndDialog(true);
+        return;
+      }
       setSent(true);
       if (!isEmail) {
         toast({ title: "Call logged" });
@@ -408,6 +415,42 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
                 setShowSenderIdDialog(false);
                 skipInsufficientToast.current = true;
                 void doSendSelf();
+              }}
+            >
+              Send via Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDndDialog} onOpenChange={setShowDndDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>DND blocking detected</AlertDialogTitle>
+            <AlertDialogDescription>
+              This patient's number has DND (Do Not Disturb) restriction — the SMS was not delivered and no charge was applied. Would you like to send via email instead?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDndDialog(false)}>Dismiss</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                setShowDndDialog(false);
+                if (!hospital?.token || !pendingDndMessage) return;
+                setSending(true);
+                try {
+                  const res = await fetch(apiUrl(`/api/patients/${patientId}/direct-message`), {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-hospital-token": hospital.token,
+                      ...(user?.staffName ? { "x-performed-by": user.staffName } : {}),
+                    },
+                    body: JSON.stringify({ sendEmail: true, message: pendingDndMessage, forceEmail: true }),
+                  });
+                  if (res.ok) { setSent(true); toast({ title: "Sent via email", description: `Email sent to ${patientName} instead.` }); setTimeout(onClose, 1500); }
+                  else { toast({ title: "Email send failed", variant: "destructive" }); }
+                } finally { setSending(false); }
               }}
             >
               Send via Email

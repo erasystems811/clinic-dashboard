@@ -168,7 +168,7 @@ export default function WellnessAdmin() {
   const [bulkSmsMessage, setBulkSmsMessage] = useState("");
   const [bulkSmsSending, setBulkSmsSending] = useState(false);
   const [bulkSmsIncludeDormant, setBulkSmsIncludeDormant] = useState(false);
-  const [bulkSmsResult, setBulkSmsResult] = useState<{ sent: number; failed: number; skippedNoFunds: number; total: number } | null>(null);
+  const [bulkSmsResult, setBulkSmsResult] = useState<{ sent: number; failed: number; dndBlocked: number; skippedNoFunds: number; total: number } | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState("");
@@ -697,7 +697,7 @@ export default function WellnessAdmin() {
             {bulkSmsResult ? (
               <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-4 space-y-2">
                 <p className="text-sm font-semibold text-green-400">SMS sent</p>
-                <p className="text-sm text-muted-foreground">{bulkSmsResult.sent} of {bulkSmsResult.total} patients received the SMS{bulkSmsResult.failed > 0 ? ` · ${bulkSmsResult.failed} failed` : ""}{bulkSmsResult.skippedNoFunds > 0 ? ` · stopped early (wallet empty)` : ""}.</p>
+                <p className="text-sm text-muted-foreground">{bulkSmsResult.sent} of {bulkSmsResult.total} patients received the SMS{bulkSmsResult.dndBlocked > 0 ? ` · ${bulkSmsResult.dndBlocked} skipped (DND blocked)` : ""}{bulkSmsResult.failed > 0 ? ` · ${bulkSmsResult.failed} failed` : ""}{bulkSmsResult.skippedNoFunds > 0 ? ` · stopped early (wallet empty)` : ""}.</p>
                 <button onClick={() => { setBulkSmsResult(null); setBulkSmsMessage(""); setBulkSmsIncludeDormant(false); }} className="text-xs text-primary hover:underline">Send another</button>
               </div>
             ) : (

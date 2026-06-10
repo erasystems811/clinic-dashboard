@@ -155,7 +155,7 @@ export async function sendQueueJoinMessage(
   if (await skipIfQueueModuleDisabled(hCtx, ctx)) return;
   const logId = await logAutomation(ctx, "queued");
   try {
-    const message = `Hi ${patientName}, welcome to ${hCtx.hospitalName}. You've been checked in and you're currently number ${position} in the queue. Our team is working as quickly as possible and we'll keep you updated every step of the way. Please relax and make yourself comfortable. Thank you for trusting us with your care.`;
+    const message = `Hi ${patientName}, welcome to ${hCtx.hospitalName}. You've been checked in and you're currently number ${String(position).padStart(3, "0")} in the queue. Our team is working as quickly as possible and we'll keep you updated every step of the way. Please relax and make yourself comfortable. Thank you for trusting us with your care.`;
     await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId, smsChannel: "dnd" });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
@@ -804,7 +804,7 @@ export async function sendCallTaskConfirmedMessage(
   patientName: string,
   patientEmail: string,
   message: string,
-): Promise<{ sentViaSms: boolean; insufficientFunds: boolean; senderIdMissing: boolean }> {
+): Promise<{ sentViaSms: boolean; insufficientFunds: boolean; senderIdMissing: boolean; dndBlocked: boolean }> {
   const hCtx = await getHospitalContext(hospitalId);
 
   const { data: modules } = await supabase.from("hospital_modules").select("call_task_sms_enabled").eq("hospital_id", hospitalId).maybeSingle();
@@ -829,7 +829,7 @@ export async function sendCallTaskConfirmedMessage(
     automationType: "call_task_automated",
     channel: useSms ? "sms" : "email",
   };
-  if (await skipIfSuspended(hCtx, ctx)) return { sentViaSms: false, insufficientFunds, senderIdMissing };
+  if (await skipIfSuspended(hCtx, ctx)) return { sentViaSms: false, insufficientFunds, senderIdMissing, dndBlocked: false };
   const logId = await logAutomation(ctx, "queued");
   try {
     if (useSms) {
@@ -839,7 +839,7 @@ export async function sendCallTaskConfirmedMessage(
       await deliverMobileMessage("sms", phone, message, { senderId: hCtx.termiiSenderId });
       await deductSmsFromWallet(hospitalId, `Call task SMS — ${patientName}`);
       await updateAutomationLog(logId, "sent", `SMS → ${phone}`);
-      return { sentViaSms: true, insufficientFunds: false, senderIdMissing: false };
+      return { sentViaSms: true, insufficientFunds: false, senderIdMissing: false, dndBlocked: false };
     }
 
     const contact = contactLine(hCtx.phoneNumber);
@@ -847,11 +847,14 @@ export async function sendCallTaskConfirmedMessage(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject: `IMPORTANT - ${hCtx.hospitalName}`, html, text: body });
     await updateAutomationLog(logId, "sent", message);
-    return { sentViaSms: false, insufficientFunds, senderIdMissing };
+    return { sentViaSms: false, insufficientFunds, senderIdMissing, dndBlocked: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendCallTaskConfirmedMessage] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
+    if (msg.startsWith("DND_BLOCKED:")) {
+      return { sentViaSms: false, insufficientFunds, senderIdMissing, dndBlocked: true };
+    }
     Sentry.captureException(err, { extra: { ...ctx } });
     throw err;
   }

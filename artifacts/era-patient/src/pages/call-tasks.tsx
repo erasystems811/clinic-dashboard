@@ -67,6 +67,8 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
   const [sending, setSending] = useState(false);
   const [showWalletDialog, setShowWalletDialog] = useState(false);
   const [showSenderIdDialog, setShowSenderIdDialog] = useState(false);
+  const [showDndDialog, setShowDndDialog] = useState(false);
+  const [pendingDndMessage, setPendingDndMessage] = useState<string>("");
   const skipInsufficientToast = useRef(false);
 
   const logOutcome = useLogCallOutcome({
@@ -191,8 +193,14 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
         },
         body: JSON.stringify({ message: textMsg }),
       });
-      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean; senderIdMissing?: boolean };
+      const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean; senderIdMissing?: boolean; dndBlocked?: boolean };
       if (!res.ok) throw new Error(data.error ?? "Send failed");
+      if (data.dndBlocked) {
+        setPendingDndMessage(textMsg);
+        setShowDndDialog(true);
+        setSending(false);
+        return;
+      }
       if (data.senderIdMissing) {
         toast({ title: "Sent via email — SMS sender ID not set", description: "Your Termii Sender ID is not configured. Go to Settings → Notification Channel to set it up so messages can be delivered via SMS.", variant: "default" });
       } else if (data.insufficientFunds && !skipInsufficientToast.current) {
@@ -270,6 +278,51 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
                 setShowSenderIdDialog(false);
                 skipInsufficientToast.current = true;
                 void doSend();
+              }}
+            >
+              Send via Email
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDndDialog} onOpenChange={setShowDndDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>DND blocking detected</AlertDialogTitle>
+            <AlertDialogDescription>
+              This patient's number has DND (Do Not Disturb) restriction — the SMS was not delivered and no charge was applied. Would you like to send via email instead?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDndDialog(false)}>Dismiss</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                setShowDndDialog(false);
+                if (!hospital?.token || !pendingDndMessage) return;
+                setSending(true);
+                try {
+                  const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-manual-email`), {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "x-hospital-token": hospital.token,
+                      ...(user?.staffName ? { "x-performed-by": user.staffName } : {}),
+                    },
+                    body: JSON.stringify({ message: pendingDndMessage }),
+                  });
+                  if (res.ok) {
+                    skipInsufficientToast.current = true;
+                    logOutcome.mutate(
+                      { id: task.id, data: { outcome: `[Email sent after DND block] ${pendingDndMessage}` } },
+                      { onError: () => toast({ title: "Sent but failed to complete task", variant: "destructive" }) },
+                    );
+                    toast({ title: "Sent via email", description: "Email delivered to patient instead." });
+                  } else {
+                    toast({ title: "Email send failed", variant: "destructive" });
+                  }
+                } catch { toast({ title: "Email send failed", variant: "destructive" }); }
+                finally { setSending(false); }
               }}
             >
               Send via Email

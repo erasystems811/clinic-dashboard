@@ -255,7 +255,7 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
   if (!email) { res.status(400).json({ error: "No email on record for this patient" }); return; }
 
   try {
-    const { sentViaSms, insufficientFunds, senderIdMissing } = await sendCallTaskConfirmedMessage(
+    const { sentViaSms, insufficientFunds, senderIdMissing, dndBlocked } = await sendCallTaskConfirmedMessage(
       hospitalId,
       task.patient_id as number,
       task.patient_name as string,
@@ -276,7 +276,7 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
       performed_by: performedBy,
     });
 
-    res.json({ ok: true, sentViaSms, insufficientFunds, senderIdMissing });
+    res.json({ ok: true, sentViaSms, insufficientFunds, senderIdMissing, dndBlocked });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Send failed";
     res.status(500).json({ error: msg });

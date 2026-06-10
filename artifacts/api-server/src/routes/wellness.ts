@@ -6,7 +6,7 @@ import { verifyHospitalToken } from "./super-admin.js";
 import { generateWellnessNewsletter, sendWellnessNewsletterEmails, getHospitalContext } from "../lib/automation.js";
 import { sendEmail, wrapHtml } from "../lib/email.js";
 import { deliverMobileMessage } from "../lib/messaging.js";
-import { deductSmsFromWallet } from "../lib/wallet.js";
+import { deductSmsFromWallet, hasSufficientSmsBalance } from "../lib/wallet.js";
 
 const router: IRouter = Router();
 
@@ -611,25 +611,25 @@ router.post("/wellness/bulk-sms", async (req, res): Promise<void> => {
 
     let sent = 0;
     let failed = 0;
+    let dndBlocked = 0;
     let skippedNoFunds = 0;
 
     for (const patient of patients ?? []) {
       if (!patient.phone) continue;
-      const deduction = await deductSmsFromWallet(hospitalId, `Bulk SMS — ${patient.first_name} ${patient.last_name}`);
-      if (!deduction.ok) {
-        if (deduction.insufficientFunds) { skippedNoFunds++; break; }
-        failed++;
-        continue;
-      }
+      const canAfford = await hasSufficientSmsBalance(hospitalId);
+      if (!canAfford) { skippedNoFunds++; break; }
       try {
-        await deliverMobileMessage("sms", patient.phone as string, parsed.data.message);
+        await deliverMobileMessage("sms", patient.phone as string, parsed.data.message, { senderId: hCtx.termiiSenderId });
+        await deductSmsFromWallet(hospitalId, `Bulk SMS — ${patient.first_name} ${patient.last_name}`);
         sent++;
-      } catch {
-        failed++;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        if (errMsg.startsWith("DND_BLOCKED:")) { dndBlocked++; }
+        else { failed++; }
       }
     }
 
-    res.json({ sent, failed, skippedNoFunds, total: (patients ?? []).length });
+    res.json({ sent, failed, dndBlocked, skippedNoFunds, total: (patients ?? []).length });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

@@ -111,7 +111,7 @@ async function termiiSend(
   msg: MobileMessage,
   channel: "whatsapp" | "generic" | "dnd",
   opts: MessagingOptions = {},
-): Promise<{ ok: boolean; detail: string }> {
+): Promise<{ ok: boolean; detail: string; isDndBlocked?: boolean }> {
   const apiKey   = process.env.TERMII_API_KEY;
   const senderId = opts.senderId?.trim() || process.env.TERMII_SENDER_ID;
   const to       = normalisePhone(msg.to);
@@ -161,16 +161,18 @@ async function termiiSend(
 
     const code         = String(parsed.code ?? parsed.Code ?? "").toLowerCase();
     const termiiMsg    = String(parsed.message ?? parsed.Message ?? "").toLowerCase();
-    const isFailure    = (code && code !== "ok") ||
+    const isDndBlocked = termiiMsg.includes("dnd") || termiiMsg.includes("do not disturb") || termiiMsg.includes("not deliverable");
+    const isFailure    = isDndBlocked || (code && code !== "ok") ||
       termiiMsg.includes("insufficient") ||
       termiiMsg.includes("invalid") ||
       termiiMsg.includes("rejected") ||
       termiiMsg.includes("failed");
 
     if (isFailure) {
-      const detail = `[messaging] Termii rejected (${channel}): ${responseText}`;
-      console.error(detail);
-      return { ok: false, detail: `Termii error: ${parsed.message ?? parsed.Message ?? responseText}` };
+      const rawMsg = String(parsed.message ?? parsed.Message ?? responseText);
+      const prefix = isDndBlocked ? "DND_BLOCKED" : "Termii error";
+      console.error(`[messaging] Termii ${isDndBlocked ? "DND blocked" : "rejected"} (${channel}): ${responseText}`);
+      return { ok: false, detail: `${prefix}: ${rawMsg}`, isDndBlocked };
     }
 
     return { ok: true, detail: responseText };
@@ -189,11 +191,10 @@ export async function deliverWhatsApp(msg: MobileMessage, opts: MessagingOptions
 }
 
 export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
-  const branded = { ...msg, body: msg.body + "\n\nPowered by Era Patient" };
-
   if (opts.smsChannel === "dnd") {
-    // DND-approved transactional messages: try AT (transactional, bypasses DND),
-    // then fall back to Termii DND channel with fixed N-Alert sender.
+    // DND-approved transactional messages — branded with "Powered by Era Patient".
+    // Try AT (transactional, bypasses DND), then Termii DND with fixed N-Alert sender.
+    const branded = { ...msg, body: msg.body + "\n\nPowered by Era Patient" };
     const atResult = await africasTalkingSend(branded, opts);
     if (atResult.ok) return;
     if (!atResult.detail.includes("not configured")) throw new Error(atResult.detail);
@@ -202,14 +203,14 @@ export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}
     return;
   }
 
-  // Promotional/generic route: try AT, then Termii generic with hospital sender ID.
-  const atResult = await africasTalkingSend(branded, opts);
+  // Promotional/generic route — no extra branding. Try AT, then Termii generic.
+  const atResult = await africasTalkingSend(msg, opts);
   if (atResult.ok) return;
   if (!atResult.detail.includes("not configured")) throw new Error(atResult.detail);
 
   console.log("[messaging] Africa's Talking not configured, falling back to Termii for SMS");
-  const termiiResult = await termiiSend(branded, "generic", opts);
-  if (!termiiResult.ok) throw new Error(termiiResult.detail);
+  const termiiResult = await termiiSend(msg, "generic", opts);
+  if (!termiiResult.ok) throw new Error(termiiResult.detail); // detail already prefixed "DND_BLOCKED:" when applicable
 }
 
 export async function deliverMobileMessage(

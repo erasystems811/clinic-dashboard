@@ -1,6 +1,11 @@
 import { supabase } from "./supabase.js";
 
-const SMS_COST_KOBO = 700; // ₦7
+export const SMS_COST_KOBO = 700; // ₦7
+
+export async function hasSufficientSmsBalance(hospitalId: number): Promise<boolean> {
+  const balance = await getWalletBalance(hospitalId);
+  return balance >= SMS_COST_KOBO;
+}
 
 export async function deductSmsFromWallet(
   hospitalId: number,

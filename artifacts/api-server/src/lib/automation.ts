@@ -3,7 +3,7 @@ import { supabase } from "./supabase.js";
 import { generateOpenAIMessage, generateClaudeMessage, buildToneDescription } from "./ai.js";
 import { sendEmail, wrapHtml } from "./email.js";
 import { deliverMobileMessage } from "./messaging.js";
-import { deductSmsFromWallet } from "./wallet.js";
+import { deductSmsFromWallet, hasSufficientSmsBalance } from "./wallet.js";
 
 export type AutomationChannel = "whatsapp" | "sms" | "email";
 export type AutomationStatus = "queued" | "sent" | "failed";
@@ -515,9 +515,13 @@ export async function sendAppointmentReminderEmail(
 
   let useSms = false;
   if (smsFlipEnabled) {
-    const deduction = await deductSmsFromWallet(hospitalId, `Appointment reminder SMS (${hoursAway}h) — ${patientName}`);
-    useSms = deduction.ok;
-    if (deduction.insufficientFunds) console.log(`[sendAppointmentReminderEmail] Insufficient wallet — falling back to email for hospital ${hospitalId}`);
+    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || !!hCtx.termiiSenderId;
+    if (!smsReady) {
+      console.log(`[sendAppointmentReminderEmail] No SMS provider configured (no AT or Termii sender ID) — falling back to email for hospital ${hospitalId}`);
+    } else {
+      useSms = await hasSufficientSmsBalance(hospitalId);
+      if (!useSms) console.log(`[sendAppointmentReminderEmail] Insufficient wallet — falling back to email for hospital ${hospitalId}`);
+    }
   }
 
   const ctx: AutomationContext = {
@@ -540,6 +544,7 @@ export async function sendAppointmentReminderEmail(
         ? `Hi ${patientName}, reminder: your appointment at ${hCtx.hospitalName} is tomorrow ${dateStr}. To reschedule call ${hCtx.phoneNumber ?? hCtx.hospitalName}.`
         : `Hi ${patientName}, your appointment at ${hCtx.hospitalName} is in 2 hours at ${timeStr}. To reschedule call ${hCtx.phoneNumber ?? hCtx.hospitalName} immediately.`;
       await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
+      await deductSmsFromWallet(hospitalId, `Appointment reminder SMS (${hoursAway}h) — ${patientName}`);
       await updateAutomationLog(logId, "sent", `Appointment reminder SMS (${hoursAway}h) → ${phone}`);
       return;
     }
@@ -803,9 +808,14 @@ export async function sendCallTaskConfirmedMessage(
   let useSms = false;
   let insufficientFunds = false;
   if (smsFlipEnabled) {
-    const deduction = await deductSmsFromWallet(hospitalId, `Call task SMS — ${patientName}`);
-    useSms = deduction.ok;
-    insufficientFunds = deduction.insufficientFunds;
+    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || !!hCtx.termiiSenderId;
+    if (!smsReady) {
+      console.log(`[sendCallTaskConfirmedMessage] No SMS provider configured (no AT or Termii sender ID) — falling back to email for hospital ${hospitalId}`);
+    } else {
+      useSms = await hasSufficientSmsBalance(hospitalId);
+      insufficientFunds = !useSms;
+      if (!useSms) console.log(`[sendCallTaskConfirmedMessage] Insufficient wallet — falling back to email for hospital ${hospitalId}`);
+    }
   }
 
   const ctx: AutomationContext = {
@@ -821,6 +831,7 @@ export async function sendCallTaskConfirmedMessage(
       const phone = patient?.phone as string | null;
       if (!phone) throw new Error("Patient has no phone number for SMS");
       await deliverMobileMessage("sms", phone, message, { senderId: hCtx.termiiSenderId });
+      await deductSmsFromWallet(hospitalId, `Call task SMS — ${patientName}`);
       await updateAutomationLog(logId, "sent", `SMS → ${phone}`);
       return { sentViaSms: true, insufficientFunds: false };
     }
@@ -1069,9 +1080,13 @@ export async function sendDepartmentalFollowupEmail(
 
   let useSms = false;
   if (smsFlipEnabled) {
-    const deduction = await deductSmsFromWallet(hospitalId, `Follow-up SMS Day ${dayNumber} (${department}) — ${patientName}`);
-    useSms = deduction.ok;
-    if (deduction.insufficientFunds) console.log(`[sendDepartmentalFollowupEmail] Insufficient wallet — falling back to email for hospital ${hospitalId}`);
+    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || !!hCtx.termiiSenderId;
+    if (!smsReady) {
+      console.log(`[sendDepartmentalFollowupEmail] No SMS provider configured (no AT or Termii sender ID) — falling back to email for hospital ${hospitalId}`);
+    } else {
+      useSms = await hasSufficientSmsBalance(hospitalId);
+      if (!useSms) console.log(`[sendDepartmentalFollowupEmail] Insufficient wallet — falling back to email for hospital ${hospitalId}`);
+    }
   }
 
   const ctx: AutomationContext = {
@@ -1093,6 +1108,7 @@ export async function sendDepartmentalFollowupEmail(
       if (!phone) throw new Error("Patient has no phone number for SMS");
       const smsBody = `Hi ${firstName}, checking in from ${hCtx.hospitalName}. How are you doing after your ${department} treatment (Day ${dayNumber})? Reach us at ${hCtx.phoneNumber ?? hCtx.hospitalName} if you need anything.`;
       await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
+      await deductSmsFromWallet(hospitalId, `Follow-up SMS Day ${dayNumber} (${department}) — ${patientName}`);
       await updateAutomationLog(logId, "sent", `Follow-up Day ${dayNumber} SMS → ${phone}`);
       return;
     }

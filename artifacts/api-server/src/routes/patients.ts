@@ -934,6 +934,16 @@ router.post("/patients/:id/flag-missed", async (req, res): Promise<void> => {
   res.json(camelize(task));
 });
 
+// ── DND status check (lightweight) ───────────────────────────────────────────
+router.get("/patients/:id/dnd-status", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { data } = await supabase.from("patients").select("dnd_blocked").eq("id", id).eq("hospital_id", hospital.code).maybeSingle();
+  res.json({ dndBlocked: (data?.dnd_blocked as boolean | null) ?? false });
+});
+
 // ── AI draft for direct message (no call task required) ───────────────────────
 router.post("/patients/:id/ai-draft-message", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
@@ -1029,11 +1039,13 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
         try {
           await deliverMobileMessage("sms", smsPhone, message.trim(), { senderId: hCtx.termiiSenderId });
           await deductSmsFromWallet(hospital.intId, `Follow-up SMS — ${patientName}`);
+          await supabase.from("patients").update({ dnd_blocked: false }).eq("id", id);
           sentViaSms = true;
           sent = true;
         } catch (err) {
           const errMsg = err instanceof Error ? err.message : String(err);
           if (errMsg.startsWith("DND_BLOCKED:")) {
+            await supabase.from("patients").update({ dnd_blocked: true }).eq("id", id);
             dndBlocked = true;
           } else {
             console.error("[direct-message] SMS failed, falling back to email:", err);

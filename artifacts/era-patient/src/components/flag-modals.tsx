@@ -89,6 +89,12 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
       setShowSenderIdDialog(true);
       return;
     }
+    // Pre-flight: if SMS is on and patient has known DND blocking, warn before sending
+    if (isEmail && smsEnabled && patientDndBlocked) {
+      setPendingDndMessage(emailBody.trim());
+      setShowDndDialog(true);
+      return;
+    }
     // Pre-flight: if SMS is on and wallet is empty, prompt the user before sending
     if (isEmail && smsEnabled && walletBalance !== null && walletBalance < 7) {
       setShowWalletDialog(true);
@@ -117,6 +123,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
       const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean; senderIdMissing?: boolean; dndBlocked?: boolean };
       if (!res.ok) throw new Error(data.error ?? "Failed");
       if (data.dndBlocked) {
+        setPatientDndBlocked(true);
         setPendingDndMessage(emailBody.trim());
         setShowDndDialog(true);
         return;
@@ -150,6 +157,7 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   const [senderIdPending, setSenderIdPending] = useState<boolean>(false);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [patientDndBlocked, setPatientDndBlocked] = useState(false);
 
   useEffect(() => {
     if (!hospital?.token) return;
@@ -159,10 +167,19 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
     fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
-  }, [hospital?.token]);
+    fetch(apiUrl(`/api/patients/${patientId}/dnd-status`), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setPatientDndBlocked((data as Record<string, unknown>).dndBlocked as boolean ?? false); });
+  }, [hospital?.token, patientId]);
 
   const handleSmsToggle = async (value: boolean) => {
     if (!hospital?.token || smsToggleSaving) return;
+    // Warn immediately if this patient has known DND blocking
+    if (value && patientDndBlocked) {
+      setPendingDndMessage(emailBody.trim());
+      setShowDndDialog(true);
+      return;
+    }
     setSmsToggleSaving(true);
     try {
       const res = await fetch(apiUrl("/api/hospital/sms-modules"), {

@@ -49,9 +49,10 @@ const ACTION_TYPES = [
 ] as const;
 
 /* ── Action Panel ── */
-function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, senderIdPending, walletBalance }: {
+function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, senderIdPending, walletBalance, patientDndBlocked }: {
   task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (newCount: number) => void;
   smsEnabled: boolean; smsReady: boolean; senderIdPending: boolean; walletBalance: number | null;
+  patientDndBlocked: boolean;
 }) {
   const { toast } = useToast();
   const { hospital, user } = useAuth();
@@ -70,6 +71,15 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
   const [showDndDialog, setShowDndDialog] = useState(false);
   const [pendingDndMessage, setPendingDndMessage] = useState<string>("");
   const skipInsufficientToast = useRef(false);
+
+  // Fetch patient's cached DND status on mount (overrides patientDndBlocked prop after load)
+  const [dndBlocked, setDndBlocked] = useState(patientDndBlocked);
+  useEffect(() => {
+    if (!hospital?.token || !task.patientId) return;
+    fetch(apiUrl(`/api/patients/${task.patientId}/dnd-status`), { headers: { "x-hospital-token": hospital.token } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setDndBlocked((data as Record<string, unknown>).dndBlocked as boolean ?? false); });
+  }, [hospital?.token, task.patientId]);
 
   const logOutcome = useLogCallOutcome({
     mutation: {
@@ -172,6 +182,12 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
       setShowSenderIdDialog(true);
       return;
     }
+    // Pre-flight: if SMS is on and patient has known DND blocking, warn before sending
+    if (smsEnabled && dndBlocked) {
+      setPendingDndMessage(textMsg);
+      setShowDndDialog(true);
+      return;
+    }
     // Pre-flight: if SMS is on and wallet is empty, prompt the user before sending
     if (smsEnabled && walletBalance !== null && walletBalance < 7) {
       setShowWalletDialog(true);
@@ -196,6 +212,7 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
       const data = await res.json() as { ok?: boolean; error?: string; sentViaSms?: boolean; insufficientFunds?: boolean; senderIdMissing?: boolean; dndBlocked?: boolean };
       if (!res.ok) throw new Error(data.error ?? "Send failed");
       if (data.dndBlocked) {
+        setDndBlocked(true);
         setPendingDndMessage(textMsg);
         setShowDndDialog(true);
         setSending(false);
@@ -525,7 +542,7 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsRe
             </div>
           )}
 
-          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} smsEnabled={smsEnabled} smsReady={smsReady} senderIdPending={senderIdPending} walletBalance={walletBalance} />
+          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} smsEnabled={smsEnabled} smsReady={smsReady} senderIdPending={senderIdPending} walletBalance={walletBalance} patientDndBlocked={false} />
         </div>
       )}
 

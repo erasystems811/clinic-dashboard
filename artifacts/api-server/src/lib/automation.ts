@@ -8,6 +8,10 @@ import { deductSmsFromWallet, hasSufficientSmsBalance } from "./wallet.js";
 export type AutomationChannel = "whatsapp" | "sms" | "email";
 export type AutomationStatus = "queued" | "sent" | "failed";
 
+async function setPatientDndBlocked(patientId: number, blocked: boolean): Promise<void> {
+  await supabase.from("patients").update({ dnd_blocked: blocked }).eq("id", patientId);
+}
+
 export interface AutomationContext {
   hospitalId: number;
   patientId?: number;
@@ -551,11 +555,13 @@ export async function sendAppointmentReminderEmail(
       try {
         await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
         await deductSmsFromWallet(hospitalId, `Appointment reminder SMS (${hoursAway}h) — ${patientName}`);
+        await setPatientDndBlocked(patientId, false);
         await updateAutomationLog(logId, "sent", `Appointment reminder SMS (${hoursAway}h) → ${phone}`);
         return;
       } catch (smsErr) {
         const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
         if (smsMsg.startsWith("DND_BLOCKED:")) {
+          await setPatientDndBlocked(patientId, true);
           console.log(`[sendAppointmentReminderEmail] DND blocked for ${phone} — falling back to email for hospital ${hospitalId}`);
           // Fall through to email below
         } else {
@@ -848,6 +854,7 @@ export async function sendCallTaskConfirmedMessage(
       if (!phone) throw new Error("Patient has no phone number for SMS");
       await deliverMobileMessage("sms", phone, message, { senderId: hCtx.termiiSenderId });
       await deductSmsFromWallet(hospitalId, `Call task SMS — ${patientName}`);
+      await setPatientDndBlocked(patientId, false);
       await updateAutomationLog(logId, "sent", `SMS → ${phone}`);
       return { sentViaSms: true, insufficientFunds: false, senderIdMissing: false, dndBlocked: false };
     }
@@ -863,6 +870,7 @@ export async function sendCallTaskConfirmedMessage(
     console.error("[sendCallTaskConfirmedMessage] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     if (msg.startsWith("DND_BLOCKED:")) {
+      await setPatientDndBlocked(patientId, true);
       return { sentViaSms: false, insufficientFunds, senderIdMissing, dndBlocked: true };
     }
     Sentry.captureException(err, { extra: { ...ctx } });

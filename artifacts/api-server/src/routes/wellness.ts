@@ -621,11 +621,14 @@ router.post("/wellness/bulk-sms", async (req, res): Promise<void> => {
       try {
         await deliverMobileMessage("sms", patient.phone as string, parsed.data.message, { senderId: hCtx.termiiSenderId });
         await deductSmsFromWallet(hospitalId, `Bulk SMS — ${patient.first_name} ${patient.last_name}`);
+        await supabase.from("patients").update({ dnd_blocked: false }).eq("id", patient.id);
         sent++;
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        if (errMsg.startsWith("DND_BLOCKED:")) { dndBlocked++; }
-        else { failed++; }
+        if (errMsg.startsWith("DND_BLOCKED:")) {
+          await supabase.from("patients").update({ dnd_blocked: true }).eq("id", patient.id);
+          dndBlocked++;
+        } else { failed++; }
       }
     }
 

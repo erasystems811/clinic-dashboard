@@ -273,7 +273,8 @@ router.post("/queue/:id/transfer", async (req: Request, res: Response): Promise<
       position: newPosition,
       transferred_from_doctor_name: (existing.doctor_name as string | null) ?? null,
     })
-    .eq("id", queueId);
+    .eq("id", queueId)
+    .eq("hospital_id", ctx.code);
 
   if (error) { res.status(500).json({ error: "Transfer failed" }); return; }
   const entry = existing;

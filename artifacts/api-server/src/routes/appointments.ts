@@ -198,7 +198,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
   if (error || !appt) { res.status(404).json({ error: "Appointment not found" }); return; }
 
   if (parsed.data.status === "no_show") {
-    const { data: patient } = await supabase.from("patients").select("*").eq("id", appt.patient_id).single();
+    const { data: patient } = await supabase.from("patients").select("*").eq("id", appt.patient_id).eq("hospital_id", hospital.code).single();
     if (patient) {
       const hospitalIntId = await resolveHospitalIntId(patient.hospital_id as string);
       await supabase.from("call_tasks").insert({

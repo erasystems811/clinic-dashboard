@@ -299,6 +299,7 @@ router.get("/wellness/current", async (req, res): Promise<void> => {
 router.put("/wellness", async (req, res): Promise<void> => {
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const parsed = UpsertNewsletterBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -405,10 +406,13 @@ router.post("/wellness/:id/send", async (req, res): Promise<void> => {
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
 
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const { data, error } = await supabase
     .from("wellness_newsletter")
     .select("*")
     .eq("id", id)
+    .eq("hospital_id", hospitalId)
     .single();
 
   if (error || !data) { res.status(404).json({ error: "Newsletter not found" }); return; }
@@ -419,7 +423,7 @@ router.post("/wellness/:id/send", async (req, res): Promise<void> => {
     return;
   }
 
-  const resolvedHospitalId = hospitalId ?? (data.hospital_id as number | null);
+  const resolvedHospitalId = hospitalId;
   let sent = 0;
   let failed = 0;
 

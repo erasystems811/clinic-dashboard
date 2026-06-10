@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { supabase } from "../lib/supabase.js";
 import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
+import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 
 const router: IRouter = Router();
 
@@ -35,6 +36,8 @@ router.get("/departments", async (req, res): Promise<void> => {
 });
 
 router.post("/departments", async (req, res): Promise<void> => {
+  const ctx = await getHospitalFromRequest(req);
+  if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
   const parsed = CreateDepartmentBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const { data, error } = await supabase.from("departments").insert(parsed.data).select().single();
@@ -43,6 +46,8 @@ router.post("/departments", async (req, res): Promise<void> => {
 });
 
 router.delete("/departments/:id", async (req, res): Promise<void> => {
+  const ctx = await getHospitalFromRequest(req);
+  if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   await supabase.from("departments").delete().eq("id", id);

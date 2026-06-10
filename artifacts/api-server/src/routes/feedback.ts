@@ -19,6 +19,7 @@ router.post("/patients/:id/feedback-link", async (req, res): Promise<void> => {
     .from("patients")
     .select("id, first_name, last_name")
     .eq("id", patientId)
+    .eq("hospital_id", hospitalId)
     .single();
 
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
@@ -217,11 +218,9 @@ router.put("/feedback/form-config", async (req, res): Promise<void> => {
 router.get("/feedback", async (req, res): Promise<void> => {
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  let query = supabase.from("feedback").select("*").order("submitted_at", { ascending: false });
-  if (hospitalId) {
-    query = query.eq("hospital_id", hospitalId);
-  }
+  let query = supabase.from("feedback").select("*").eq("hospital_id", hospitalId).order("submitted_at", { ascending: false });
 
   const { data, error } = await query;
   if (error) { res.status(500).json({ error: error.message }); return; }

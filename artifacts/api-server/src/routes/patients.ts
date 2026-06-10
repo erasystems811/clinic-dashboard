@@ -415,6 +415,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
     .from("patients")
     .update({ ...snakify(parsed.data as Record<string, unknown>), updated_at: new Date().toISOString() })
     .eq("id", id)
+    .eq("hospital_id", hospital.code)
     .select()
     .single();
 
@@ -451,7 +452,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
         treatment_duration_days: null,
         treatment_end_date: null,
         treatment_started_at: null,
-      }).eq("id", id);
+      }).eq("id", id).eq("hospital_id", hospital.code);
     }
   }
 

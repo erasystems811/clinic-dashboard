@@ -95,7 +95,7 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const parsed = CarePlanBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { data: patient } = await supabase.from("patients").select("*").eq("id", patientId).single();
+  const { data: patient } = await supabase.from("patients").select("*").eq("id", patientId).eq("hospital_id", hospital.code).single();
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const now = new Date();
@@ -134,7 +134,7 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   if (!patient.stage || patient.stage === "New") {
     const { error: stageErr } = await supabase.from("patients")
       .update({ stage: "Active", updated_at: now.toISOString() })
-      .eq("id", patientId);
+      .eq("id", patientId).eq("hospital_id", hospital.code);
     if (stageErr) console.error("[care-plans] stage update failed:", stageErr);
   }
 
@@ -150,7 +150,7 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
     // Only GenOut has meaningful treatment_end_date; other departments use null.
     treatment_end_date: isGeneralOutpatient ? treatmentEndDate.toISOString().split("T")[0] : null,
     pre_queue_stage: null,
-  }).eq("id", patientId);
+  }).eq("id", patientId).eq("hospital_id", hospital.code);
   if (metaErr) console.error("[care-plans] metadata update failed:", metaErr);
 
   // Remove from queue (patient is now admitted to care)

@@ -214,6 +214,8 @@ function BookModal({
   const [doctorId, setDoctorId] = useState<number | "">("");
   const [doctors, setDoctors] = useState<ApptDoctor[]>([]);
   const [showWalletDialog, setShowWalletDialog] = useState(false);
+  const [showDndDialog, setShowDndDialog] = useState(false);
+  const [patientDndBlocked, setPatientDndBlocked] = useState(false);
 
   // Load doctors list
   const token = hospital?.token ?? "";
@@ -232,10 +234,15 @@ function BookModal({
 
   const create = useCreateAppointment({
     mutation: {
-      onSuccess: () => {
-        toast({ title: "Appointment booked" });
+      onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: getListAppointmentsQueryKey() });
-        onClose();
+        const d = data as Record<string, unknown>;
+        if (d.dndBlocked) {
+          setShowDndDialog(true);
+        } else {
+          toast({ title: "Appointment booked" });
+          onClose();
+        }
       },
       onError: () => toast({ title: "Failed to book appointment", variant: "destructive" }),
     },
@@ -262,6 +269,10 @@ function BookModal({
     if (!selectedPatient || !title || !date || !time) return;
     if (new Date(`${date}T${time}:00`) < new Date()) {
       toast({ title: "Cannot book in the past", description: "Please choose a future date and time.", variant: "destructive" });
+      return;
+    }
+    if (smsEnabled && patientDndBlocked) {
+      setShowDndDialog(true);
       return;
     }
     if (smsEnabled && walletBalance !== null && walletBalance < 7) {
@@ -316,7 +327,16 @@ function BookModal({
                     <button
                       key={p.id}
                       type="button"
-                      onClick={() => { setSelectedPatient({ id: p.id, name: `${p.firstName} ${p.lastName}` }); setSearch(""); }}
+                      onClick={() => {
+                        setSelectedPatient({ id: p.id, name: `${p.firstName} ${p.lastName}` });
+                        setSearch("");
+                        // Check patient's cached DND status
+                        if (token) {
+                          fetch(apiUrl(`/api/patients/${p.id}/dnd-status`), { headers: { "x-hospital-token": token } })
+                            .then(r => r.ok ? r.json() : null)
+                            .then(d => { if (d) setPatientDndBlocked((d as Record<string, unknown>).dndBlocked as boolean ?? false); });
+                        }
+                      }}
                       className="w-full flex items-center gap-3 p-2 rounded hover:bg-muted/60 text-left text-sm"
                     >
                       <div className="w-7 h-7 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0">
@@ -393,9 +413,9 @@ function BookModal({
             <span>⚡</span> What happens automatically after booking:
           </p>
           <ul className="space-y-0.5 text-xs text-emerald-200/80 pl-4">
-            <li>📧 Confirmation email → sent to patient immediately</li>
-            <li>📧 Reminder email → sent 24 hours before appointment</li>
-            <li>📧 Reminder email → sent 2 hours before appointment</li>
+            <li>{smsEnabled ? "💬 Confirmation SMS" : "📧 Confirmation email"} → sent to patient immediately</li>
+            <li>{smsEnabled ? "💬 Reminder SMS" : "📧 Reminder email"} → sent 24 hours before appointment</li>
+            <li>{smsEnabled ? "💬 Reminder SMS" : "📧 Reminder email"} → sent 2 hours before appointment</li>
           </ul>
           <p className="text-[11px] text-emerald-300/50 pt-0.5">You don't need to call or text the patient separately.</p>
         </div>
@@ -426,6 +446,22 @@ function BookModal({
             </AlertDialogAction>
             <AlertDialogAction onClick={() => { setShowWalletDialog(false); doBook(); }}>
               Book (email reminders)
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showDndDialog} onOpenChange={(open) => { if (!open) { setShowDndDialog(false); if (create.isSuccess) onClose(); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>DND blocking detected</AlertDialogTitle>
+            <AlertDialogDescription>
+              This patient's number has DND (Do Not Disturb) restriction — the SMS confirmation could not be delivered. The appointment has been booked and the patient will receive an email confirmation instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => { setShowDndDialog(false); if (!create.isSuccess) doBook(); else onClose(); }}>
+              {create.isSuccess ? "OK, close" : "Book anyway (email only)"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

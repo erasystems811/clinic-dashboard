@@ -140,12 +140,15 @@ router.post("/appointments", async (req, res): Promise<void> => {
     performed_by: performedBy,
   });
 
-  // Patient confirmation email
+  // Patient confirmation (email or SMS depending on toggle)
+  let confirmDndBlocked = false;
   if (patient?.email) {
-    sendAppointmentConfirmation(hospital.intId, parsed.data.patientId, patientName, patient.email as string, appt.scheduled_at)
-      .catch((err) => console.error("[appt-confirm-email] unhandled error:", err));
+    try {
+      const result = await sendAppointmentConfirmation(hospital.intId, parsed.data.patientId, patientName, patient.email as string, appt.scheduled_at);
+      confirmDndBlocked = result.dndBlocked;
+    } catch (err) { console.error("[appt-confirm] unhandled error:", err); }
   } else {
-    console.warn("[appt-confirm-email] skipped — patient", parsed.data.patientId, "has no email address");
+    console.warn("[appt-confirm] skipped — patient", parsed.data.patientId, "has no email address");
   }
 
   // Doctor assignment notification email
@@ -164,7 +167,7 @@ router.post("/appointments", async (req, res): Promise<void> => {
     ).catch((err) => console.error("[doctor-appt-assigned-email] unhandled error:", err));
   }
 
-  res.status(201).json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled" });
+  res.status(201).json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled", dndBlocked: confirmDndBlocked });
 });
 
 router.patch("/appointments/:id", async (req, res): Promise<void> => {
@@ -242,8 +245,12 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
       .eq("id", appt.patient_id as number)
       .maybeSingle();
     if (patient?.email) {
-      sendAppointmentReschedule(hospital.intId, appt.patient_id as number, appt.patient_name as string, patient.email as string, parsed.data.scheduledAt)
-        .catch((err) => console.error("[appt-reschedule-email] unhandled error:", err));
+      try {
+        const result = await sendAppointmentReschedule(hospital.intId, appt.patient_id as number, appt.patient_name as string, patient.email as string, parsed.data.scheduledAt);
+        if (result.dndBlocked) {
+          return res.json({ ...camelize(appt), dndBlocked: true });
+        }
+      } catch (err) { console.error("[appt-reschedule] unhandled error:", err); }
     }
   }
 
@@ -258,7 +265,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
     });
   }
 
-  res.json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled" });
+  res.json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled", dndBlocked: false });
 });
 
 // ── PATCH /api/appointments/:id/reassign — doctor reassigns appointment to another doctor ──

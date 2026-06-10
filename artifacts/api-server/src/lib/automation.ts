@@ -436,39 +436,66 @@ export async function sendAppointmentConfirmationEmail(
   patientName: string,
   patientEmail: string,
   scheduledAt: string,
-): Promise<void> {
+): Promise<{ dndBlocked: boolean }> {
   const hCtx = await getHospitalContext(hospitalId);
+
+  const { data: modules } = await supabase.from("hospital_modules").select("appointment_reminder_sms_enabled").eq("hospital_id", hospitalId).maybeSingle();
+  const smsFlipEnabled = (modules?.appointment_reminder_sms_enabled as boolean | null) ?? false;
+  let useSms = false;
+  if (smsFlipEnabled) {
+    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || (!!hCtx.termiiSenderId && hCtx.senderIdApproved);
+    if (smsReady) useSms = await hasSufficientSmsBalance(hospitalId);
+  }
+
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType: "appointment_confirmation",
-    channel: "email",
+    channel: useSms ? "sms" : "email",
   };
-  if (await skipIfSuspended(hCtx, ctx)) return;
+  if (await skipIfSuspended(hCtx, ctx)) return { dndBlocked: false };
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
     const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short", timeZone: "Africa/Lagos" });
+
+    if (useSms) {
+      const { data: patient } = await supabase.from("patients").select("phone").eq("id", patientId).maybeSingle();
+      const phone = patient?.phone as string | null;
+      if (phone) {
+        try {
+          const smsBody = `Hi ${patientName}, your appointment at ${hCtx.hospitalName} is confirmed for ${dateStr}. Please arrive a few minutes early. To reschedule call ${hCtx.phoneNumber ?? hCtx.hospitalName}.`;
+          await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
+          await deductSmsFromWallet(hospitalId, `Appointment confirmation SMS — ${patientName}`);
+          await setPatientDndBlocked(patientId, false);
+          await updateAutomationLog(logId, "sent", `Appointment confirmation SMS → ${phone}`);
+          return { dndBlocked: false };
+        } catch (smsErr) {
+          const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
+          if (smsMsg.startsWith("DND_BLOCKED:")) {
+            await setPatientDndBlocked(patientId, true);
+            await updateAutomationLog(logId, "failed", smsMsg);
+            return { dndBlocked: true };
+          }
+          // Non-DND SMS error — fall through to email
+        }
+      }
+    }
+
     const subject = `Appointment Confirmed — ${hCtx.hospitalName}`;
     const body = `Hi ${patientName},\n\nYour appointment at ${hCtx.hospitalName} has been confirmed for ${dateStr}. Please arrive a few minutes early.\n\nIf you need to reschedule please do not hesitate to ${contact} as soon as possible. Please do not reply to this email directly. We look forward to seeing you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
-
     const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
     const bookingUrl = hCtx.slug ? `${appUrl}/book/${hCtx.slug}` : null;
     const bookingHtml = bookingUrl ? `<p style="text-align:center;margin:20px 0 0"><a href="${bookingUrl}" style="color:#14b8a6;font-size:13px;text-decoration:none;">Need to reschedule? Book online →</a></p>` : "";
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`, hCtx.hospitalName);
-    await sendEmail({
-      to: patientEmail,
-      from: hCtx.fromAddress,
-      subject,
-      html,
-      text: bookingUrl ? `${body}\n\nNeed to reschedule? Book online: ${bookingUrl}` : body,
-    });
-
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: bookingUrl ? `${body}\n\nNeed to reschedule? Book online: ${bookingUrl}` : body });
     await updateAutomationLog(logId, "sent", `Appointment confirmation → ${patientEmail}`);
+    return { dndBlocked: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendAppointmentConfirmationEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
+    return { dndBlocked: false };
   }
 }
 
@@ -478,32 +505,66 @@ export async function sendAppointmentRescheduleEmail(
   patientName: string,
   patientEmail: string,
   scheduledAt: string,
-): Promise<void> {
+): Promise<{ dndBlocked: boolean }> {
   const hCtx = await getHospitalContext(hospitalId);
+
+  const { data: modules } = await supabase.from("hospital_modules").select("appointment_reminder_sms_enabled").eq("hospital_id", hospitalId).maybeSingle();
+  const smsFlipEnabled = (modules?.appointment_reminder_sms_enabled as boolean | null) ?? false;
+  let useSms = false;
+  if (smsFlipEnabled) {
+    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || (!!hCtx.termiiSenderId && hCtx.senderIdApproved);
+    if (smsReady) useSms = await hasSufficientSmsBalance(hospitalId);
+  }
+
   const ctx: AutomationContext = {
     hospitalId, patientId, patientName,
     automationType: "appointment_rescheduled_email",
-    channel: "email",
+    channel: useSms ? "sms" : "email",
   };
-  if (await skipIfSuspended(hCtx, ctx)) return;
+  if (await skipIfSuspended(hCtx, ctx)) return { dndBlocked: false };
   const logId = await logAutomation(ctx, "queued");
   try {
     const contact = contactLine(hCtx.phoneNumber);
     const dateStr = new Date(scheduledAt).toLocaleString("en-GB", { dateStyle: "full", timeStyle: "short", timeZone: "Africa/Lagos" });
+
+    if (useSms) {
+      const { data: patient } = await supabase.from("patients").select("phone").eq("id", patientId).maybeSingle();
+      const phone = patient?.phone as string | null;
+      if (phone) {
+        try {
+          const smsBody = `Hi ${patientName}, your appointment at ${hCtx.hospitalName} has been rescheduled to ${dateStr}. To make further changes call ${hCtx.phoneNumber ?? hCtx.hospitalName}.`;
+          await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
+          await deductSmsFromWallet(hospitalId, `Appointment reschedule SMS — ${patientName}`);
+          await setPatientDndBlocked(patientId, false);
+          await updateAutomationLog(logId, "sent", `Appointment reschedule SMS → ${phone}`);
+          return { dndBlocked: false };
+        } catch (smsErr) {
+          const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
+          if (smsMsg.startsWith("DND_BLOCKED:")) {
+            await setPatientDndBlocked(patientId, true);
+            await updateAutomationLog(logId, "failed", smsMsg);
+            return { dndBlocked: true };
+          }
+          // Non-DND SMS error — fall through to email
+        }
+      }
+    }
+
     const subject = `Appointment Rescheduled — ${hCtx.hospitalName}`;
     const body = `Hi ${patientName},\n\nWe would like to let you know that your appointment at ${hCtx.hospitalName} has been rescheduled to ${dateStr}. Please take note of the new date and time and plan accordingly.\n\nIf you have any questions or need to make further changes please do not hesitate to ${contact} as soon as possible. Please do not reply to this email directly. We look forward to seeing you.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
-
     const appUrl = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng").replace(/\/$/, "");
     const bookingUrl = hCtx.slug ? `${appUrl}/book/${hCtx.slug}` : null;
     const bookingHtml = bookingUrl ? `<p style="text-align:center;margin:20px 0 0"><a href="${bookingUrl}" style="color:#14b8a6;font-size:13px;text-decoration:none;">Need to make another change? Book online →</a></p>` : "";
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: bookingUrl ? `${body}\n\nNeed to make another change? Book online: ${bookingUrl}` : body });
     await updateAutomationLog(logId, "sent", `Appointment reschedule confirmation → ${patientEmail}`);
+    return { dndBlocked: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendAppointmentRescheduleEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
+    return { dndBlocked: false };
   }
 }
 

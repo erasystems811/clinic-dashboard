@@ -25,6 +25,9 @@ export interface MobileMessage {
 
 export interface MessagingOptions {
   senderId?: string | null;
+  /** "dnd" = Termii DND route (N-Alert sender, bypasses DND, 4 approved templates only).
+   *  "generic" = promotional route (hospital sender ID). Defaults to "generic". */
+  smsChannel?: "dnd" | "generic";
 }
 
 // ── Phone normalisation ───────────────────────────────────────────────────────
@@ -186,19 +189,26 @@ export async function deliverWhatsApp(msg: MobileMessage, opts: MessagingOptions
 }
 
 export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
-  // Prefer Africa's Talking for SMS — proper transactional route, bypasses DND.
-  // Falls back to Termii if AT is not configured.
-  const atResult = await africasTalkingSend(msg, opts);
-  if (atResult.ok) return;
+  const branded = { ...msg, body: msg.body + "\n\nPowered by Era Patient" };
 
-  // Africa's Talking not configured or failed — fall back to Termii
-  if (!atResult.detail.includes("not configured")) {
-    // AT was configured but delivery failed — don't silently fall back, throw
-    throw new Error(atResult.detail);
+  if (opts.smsChannel === "dnd") {
+    // DND-approved transactional messages: try AT (transactional, bypasses DND),
+    // then fall back to Termii DND channel with fixed N-Alert sender.
+    const atResult = await africasTalkingSend(branded, opts);
+    if (atResult.ok) return;
+    if (!atResult.detail.includes("not configured")) throw new Error(atResult.detail);
+    const dndResult = await termiiSend(branded, "dnd", { senderId: "N-Alert" });
+    if (!dndResult.ok) throw new Error(dndResult.detail);
+    return;
   }
 
+  // Promotional/generic route: try AT, then Termii generic with hospital sender ID.
+  const atResult = await africasTalkingSend(branded, opts);
+  if (atResult.ok) return;
+  if (!atResult.detail.includes("not configured")) throw new Error(atResult.detail);
+
   console.log("[messaging] Africa's Talking not configured, falling back to Termii for SMS");
-  const termiiResult = await termiiSend(msg, "generic", opts);
+  const termiiResult = await termiiSend(branded, "generic", opts);
   if (!termiiResult.ok) throw new Error(termiiResult.detail);
 }
 

@@ -156,7 +156,7 @@ export async function sendQueueJoinMessage(
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, welcome to ${hCtx.hospitalName}. You've been checked in and you're currently number ${position} in the queue. Our team is working as quickly as possible and we'll keep you updated every step of the way. Please relax and make yourself comfortable. Thank you for trusting us with your care.`;
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId, smsChannel: "dnd" });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -183,7 +183,7 @@ export async function sendQueueNextInLine(
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, you are next in line at ${hCtx.hospitalName}. Please be ready — you will be called in shortly. Thank you for your patience.`;
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId, smsChannel: "dnd" });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -210,7 +210,7 @@ export async function sendQueueYourTurn(
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, it is your turn now at ${hCtx.hospitalName}. Please proceed, we are ready for you.`;
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId, smsChannel: "dnd" });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -237,7 +237,7 @@ export async function sendQueueLongWaitApology(
   const logId = await logAutomation(ctx, "queued");
   try {
     const message = `Hi ${patientName}, we sincerely apologise for the longer than usual wait today at ${hCtx.hospitalName}. We are doing our best to attend to everyone as quickly as possible and we truly appreciate your patience. Thank you for being with us.`;
-    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId });
+    await deliverMobileMessage(hCtx.notificationChannel, phone, message, { senderId: hCtx.termiiSenderId, smsChannel: "dnd" });
     await updateAutomationLog(logId, "sent", message);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

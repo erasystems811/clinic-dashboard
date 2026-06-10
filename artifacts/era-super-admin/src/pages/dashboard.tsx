@@ -130,7 +130,7 @@ export default function Hospitals() {
               const expDate = h.subscriptionExpiresAt ? new Date(h.subscriptionExpiresAt) : null;
               const daysLeft = expDate ? Math.ceil((expDate.getTime() - now) / 86400000) : null;
               const isExpired = daysLeft !== null && daysLeft < 0;
-              const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
+              const isExpiringSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 5;
 
               return (
                 <div key={h.id}

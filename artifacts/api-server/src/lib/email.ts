@@ -95,38 +95,40 @@ async function sendViaSes(payload: EmailPayload): Promise<string> {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-// ── Monthly volume tracking for automatic Resend → SES switchover ─────────────
-// Resend's free tier is 3,000 emails/month. Once this month's email count crosses
-// the threshold, all further emails route through SES automatically — keeping you
-// inside the free tier without any manual change.
+// ── Volume tracking for automatic Resend → SES switchover ────────────────────
+// Resend free tier: 100 emails/day and 3,000 emails/month.
+// Auto mode tracks both windows and routes overflow to SES, keeping you inside
+// the free tier without any manual change.
 //
-// The count is kept in a dedicated `email_counters` table that is ONLY ever
-// touched by this function — so every single email (including bulk sends) is
-// counted exactly, and the count survives server restarts.
+// Counts live in the `email_counters` table (keyed by YYYY-MM-DD for daily,
+// YYYY-MM for monthly) — every send is counted exactly and survives restarts.
+const RESEND_DAILY_THRESHOLD = 90;   // switch to SES after 90 Resend sends/day
 const RESEND_MONTHLY_THRESHOLD = 2900;
+
+function currentDayKey(): string {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+}
 
 function currentMonthKey(): string {
   return new Date().toISOString().slice(0, 7); // YYYY-MM
 }
 
-// Read the current month's count from the exact counter table.
-async function getMonthCount(monthKey: string): Promise<number> {
+async function getPeriodCount(key: string): Promise<number> {
   try {
     const { data } = await supabase
       .from("email_counters")
       .select("count")
-      .eq("month_key", monthKey)
+      .eq("month_key", key)
       .maybeSingle();
     return (data?.count as number) ?? 0;
   } catch {
-    return 0; // if read fails, assume under threshold — worst case we use Resend slightly longer
+    return 0;
   }
 }
 
-// Atomically add to the counter and return the new total.
-async function bumpMonthCount(monthKey: string, by: number): Promise<number> {
+async function bumpPeriodCount(key: string, by: number): Promise<number> {
   try {
-    const { data } = await supabase.rpc("increment_email_count", { p_month_key: monthKey, p_by: by });
+    const { data } = await supabase.rpc("increment_email_count", { p_month_key: key, p_by: by });
     return (data as number) ?? 0;
   } catch {
     return 0;
@@ -136,33 +138,43 @@ async function bumpMonthCount(monthKey: string, by: number): Promise<number> {
 export async function sendEmail(payload: EmailPayload): Promise<string> {
   const explicitProvider = (process.env.EMAIL_PROVIDER ?? "").toLowerCase();
 
-  // If the operator has explicitly forced a provider, always honour it
-  // (no counting needed).
-  if (explicitProvider === "ses") {
-    return sendViaSes(payload);
-  }
-  if (explicitProvider === "resend") {
-    return sendViaResend(payload);
-  }
+  if (explicitProvider === "ses") return sendViaSes(payload);
+  if (explicitProvider === "resend") return sendViaResend(payload);
 
-  // Auto mode (no EMAIL_PROVIDER set): use Resend until the monthly threshold,
-  // then automatically switch to SES for the rest of the month.
+  // Auto mode: use Resend up to the daily/monthly thresholds, then SES.
+  const dayKey = currentDayKey();
   const monthKey = currentMonthKey();
   const recipients = Array.isArray(payload.to) ? payload.to.length : 1;
+  const sesAvailable = !!process.env.AWS_ACCESS_KEY_ID;
 
-  const countSoFar = await getMonthCount(monthKey);
-  const useSes = countSoFar >= RESEND_MONTHLY_THRESHOLD && !!process.env.AWS_ACCESS_KEY_ID;
+  const [dayCount, monthCount] = await Promise.all([
+    getPeriodCount(dayKey),
+    getPeriodCount(monthKey),
+  ]);
+
+  const useSes = sesAvailable && (
+    dayCount >= RESEND_DAILY_THRESHOLD ||
+    monthCount >= RESEND_MONTHLY_THRESHOLD
+  );
 
   const id = useSes ? await sendViaSes(payload) : await sendViaResend(payload);
 
-  // Record this send exactly (atomic increment) — only after a successful send
-  const newTotal = await bumpMonthCount(monthKey, recipients);
+  // Bump both counters atomically — only after a successful send.
+  await Promise.all([
+    bumpPeriodCount(dayKey, recipients),
+    bumpPeriodCount(monthKey, recipients),
+  ]);
 
-  if (newTotal >= RESEND_MONTHLY_THRESHOLD && countSoFar < RESEND_MONTHLY_THRESHOLD) {
-    if (process.env.AWS_ACCESS_KEY_ID) {
-      console.log(`[email] Monthly Resend threshold (${RESEND_MONTHLY_THRESHOLD}) reached — routing further emails via SES for the rest of ${monthKey}`);
-    } else {
-      console.warn(`[email] Monthly Resend threshold (${RESEND_MONTHLY_THRESHOLD}) reached but AWS/SES is not configured — still using Resend. Set AWS keys to enable auto-switch.`);
+  if (!useSes) {
+    const newDay = dayCount + recipients;
+    const newMonth = monthCount + recipients;
+    if (newDay >= RESEND_DAILY_THRESHOLD && dayCount < RESEND_DAILY_THRESHOLD) {
+      if (sesAvailable) console.log(`[email] Daily Resend threshold (${RESEND_DAILY_THRESHOLD}) reached — routing further emails via SES for the rest of today`);
+      else console.warn(`[email] Daily Resend threshold (${RESEND_DAILY_THRESHOLD}) reached but AWS/SES is not configured — still using Resend.`);
+    }
+    if (newMonth >= RESEND_MONTHLY_THRESHOLD && monthCount < RESEND_MONTHLY_THRESHOLD) {
+      if (sesAvailable) console.log(`[email] Monthly Resend threshold (${RESEND_MONTHLY_THRESHOLD}) reached — routing further emails via SES for the rest of ${monthKey}`);
+      else console.warn(`[email] Monthly Resend threshold (${RESEND_MONTHLY_THRESHOLD}) reached but AWS/SES is not configured — still using Resend.`);
     }
   }
 

@@ -135,7 +135,7 @@ export default function Analytics() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const now = Date.now();
-  const in30 = now + 30 * 24 * 60 * 60 * 1000;
+  const in30 = now + 5 * 24 * 60 * 60 * 1000;
 
   const isSuspended = (h: Hospital) => !h.active || h.subscriptionStatus === "inactive" || h.subscriptionStatus === "suspended";
 
@@ -226,7 +226,7 @@ export default function Analytics() {
           <StatCard label="Active"        value={stats.active}       icon={CheckCircle2} color="text-emerald-400"                          loading={hospitalsLoading} sub="subscribed" />
           <StatCard label="Trial"         value={stats.trial}        icon={AlertCircle}  color="text-amber-400"                            loading={hospitalsLoading} sub="on trial" />
           <StatCard label="Suspended"     value={stats.suspended}    icon={XCircle}      color="text-red-400"                              loading={hospitalsLoading} />
-          <StatCard label="Expiring ≤30d" value={stats.expiringSoon} icon={CalendarClock} color={stats.expiringSoon > 0 ? "text-amber-400" : "text-muted-foreground/40"} loading={hospitalsLoading} gold={stats.expiringSoon > 0} sub={stats.expiringSoon > 0 ? "needs action" : "all clear"} />
+          <StatCard label="Expiring ≤5d" value={stats.expiringSoon} icon={CalendarClock} color={stats.expiringSoon > 0 ? "text-amber-400" : "text-muted-foreground/40"} loading={hospitalsLoading} gold={stats.expiringSoon > 0} sub={stats.expiringSoon > 0 ? "needs action" : "all clear"} />
         </div>
       </div>
 

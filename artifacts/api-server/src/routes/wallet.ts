@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase.js";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 import { requireSuperAdmin } from "./super-admin.js";
 import { creditWallet } from "../lib/wallet.js";
+import { isPromotionalSmsRestricted } from "../lib/messaging.js";
 
 const router: IRouter = Router();
 
@@ -224,6 +225,7 @@ router.get("/hospital/sms-modules", async (req: Request, res: Response): Promise
     appointmentReminderSmsEnabled: (data?.appointment_reminder_sms_enabled as boolean | null) ?? false,
     smsReady,
     senderIdPending,
+    promotionalSmsRestricted: isPromotionalSmsRestricted(),
   });
 });
 

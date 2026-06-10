@@ -49,10 +49,10 @@ const ACTION_TYPES = [
 ] as const;
 
 /* ── Action Panel ── */
-function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, senderIdPending, walletBalance, patientDndBlocked }: {
+function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, senderIdPending, walletBalance, patientDndBlocked, promotionalSmsRestricted }: {
   task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (newCount: number) => void;
   smsEnabled: boolean; smsReady: boolean; senderIdPending: boolean; walletBalance: number | null;
-  patientDndBlocked: boolean;
+  patientDndBlocked: boolean; promotionalSmsRestricted: boolean;
 }) {
   const { toast } = useToast();
   const { hospital, user } = useAuth();
@@ -175,6 +175,11 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
     if (!textMsg.trim()) return;
     if (!hospital?.token) {
       toast({ title: "Not authenticated", description: "Please log in again and retry.", variant: "destructive" });
+      return;
+    }
+    // Pre-flight: SMS restricted hours (5 PM – 8 AM WAT)
+    if (smsEnabled && promotionalSmsRestricted) {
+      toast({ title: "SMS unavailable right now", description: "Promotional SMS is blocked by Termii between 5:00 PM and 8:00 AM. Please try after 8:00 AM.", variant: "destructive" });
       return;
     }
     // Pre-flight: if SMS is on but sender ID not configured, prompt before sending
@@ -380,9 +385,10 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
 }
 
 /* ── Task Card ── */
-function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, senderIdPending, walletBalance }: {
+function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsReady, senderIdPending, walletBalance, promotionalSmsRestricted }: {
   task: CallTask; aiUsedToday: number; aiDailyLimit: number; onAiUsed: (n: number) => void;
   smsEnabled: boolean; smsReady: boolean; senderIdPending: boolean; walletBalance: number | null;
+  promotionalSmsRestricted: boolean;
 }) {
   const { hospital, user } = useAuth();
   const { toast } = useToast();
@@ -542,7 +548,7 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsRe
             </div>
           )}
 
-          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} smsEnabled={smsEnabled} smsReady={smsReady} senderIdPending={senderIdPending} walletBalance={walletBalance} patientDndBlocked={false} />
+          <ActionPanel task={task} aiUsedToday={aiUsedToday} aiDailyLimit={aiDailyLimit} onAiUsed={onAiUsed} smsEnabled={smsEnabled} smsReady={smsReady} senderIdPending={senderIdPending} walletBalance={walletBalance} patientDndBlocked={false} promotionalSmsRestricted={promotionalSmsRestricted} />
         </div>
       )}
 
@@ -570,7 +576,7 @@ export default function CallTasks() {
   const { hospital } = useAuth();
   const [aiUsedToday, setAiUsedToday] = useState(0);
   const [aiDailyLimit, setAiDailyLimit] = useState(20);
-  const [smsModules, setSmsModules] = useState<{ callTaskSmsEnabled: boolean; smsReady: boolean; senderIdPending: boolean } | null>(null);
+  const [smsModules, setSmsModules] = useState<{ callTaskSmsEnabled: boolean; smsReady: boolean; senderIdPending: boolean; promotionalSmsRestricted: boolean } | null>(null);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
@@ -602,7 +608,7 @@ export default function CallTasks() {
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) { const d = data as Record<string, unknown>; setSmsModules({ callTaskSmsEnabled: d.callTaskSmsEnabled as boolean, smsReady: d.smsReady as boolean, senderIdPending: d.senderIdPending as boolean }); } });
+      .then(data => { if (data) { const d = data as Record<string, unknown>; setSmsModules({ callTaskSmsEnabled: d.callTaskSmsEnabled as boolean, smsReady: d.smsReady as boolean, senderIdPending: d.senderIdPending as boolean, promotionalSmsRestricted: (d.promotionalSmsRestricted as boolean) ?? false }); } });
     fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
@@ -610,6 +616,10 @@ export default function CallTasks() {
 
   const handleSmsToggle = async (value: boolean) => {
     if (!hospital?.token || smsToggleSaving) return;
+    if (value && smsModules?.promotionalSmsRestricted) {
+      toast({ title: "SMS unavailable right now", description: "Promotional SMS is blocked by Termii between 5:00 PM and 8:00 AM. Try again after 8:00 AM.", variant: "destructive" });
+      return;
+    }
     setSmsToggleSaving(true);
     try {
       const res = await fetch(apiUrl("/api/hospital/sms-modules"), {
@@ -700,6 +710,7 @@ export default function CallTasks() {
                   smsReady={smsModules?.smsReady ?? true}
                   senderIdPending={smsModules?.senderIdPending ?? false}
                   walletBalance={walletBalance}
+                  promotionalSmsRestricted={smsModules?.promotionalSmsRestricted ?? false}
                 />
               ))}
             </div>
@@ -723,6 +734,7 @@ export default function CallTasks() {
                   smsReady={smsModules?.smsReady ?? true}
                   senderIdPending={smsModules?.senderIdPending ?? false}
                   walletBalance={walletBalance}
+                  promotionalSmsRestricted={smsModules?.promotionalSmsRestricted ?? false}
                 />
               ))}
             </div>

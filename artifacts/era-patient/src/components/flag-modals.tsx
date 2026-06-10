@@ -84,6 +84,13 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
     const isEmail = selfMethod === "email";
     if (isEmail && !emailBody.trim()) return;
     if (!isEmail && !callOutcome.trim()) return;
+    // Pre-flight: SMS restricted hours (5 PM – 8 AM WAT)
+    if (isEmail && smsEnabled && promotionalSmsRestricted) {
+      toast({ title: "SMS unavailable right now", description: "Promotional SMS is blocked by Termii between 5:00 PM and 8:00 AM. The message will be sent via email instead.", variant: "default" });
+      skipInsufficientToast.current = true;
+      await doSendSelf();
+      return;
+    }
     // Pre-flight: if SMS is on but sender ID not configured, prompt before sending
     if (isEmail && smsEnabled && !smsReady) {
       setShowSenderIdDialog(true);
@@ -158,12 +165,13 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [patientDndBlocked, setPatientDndBlocked] = useState(false);
+  const [promotionalSmsRestricted, setPromotionalSmsRestricted] = useState(false);
 
   useEffect(() => {
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) { const d = data as Record<string, unknown>; setSmsEnabled(d.followupSmsEnabled as boolean); setSmsReady((d.smsReady as boolean) ?? true); setSenderIdPending((d.senderIdPending as boolean) ?? false); } });
+      .then(data => { if (data) { const d = data as Record<string, unknown>; setSmsEnabled(d.followupSmsEnabled as boolean); setSmsReady((d.smsReady as boolean) ?? true); setSenderIdPending((d.senderIdPending as boolean) ?? false); setPromotionalSmsRestricted((d.promotionalSmsRestricted as boolean) ?? false); } });
     fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
@@ -174,6 +182,11 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
 
   const handleSmsToggle = async (value: boolean) => {
     if (!hospital?.token || smsToggleSaving) return;
+    // Block toggle during Termii promotional SMS restricted hours
+    if (value && promotionalSmsRestricted) {
+      toast({ title: "SMS unavailable right now", description: "Promotional SMS is blocked by Termii between 5:00 PM and 8:00 AM. Toggle SMS on after 8:00 AM.", variant: "destructive" });
+      return;
+    }
     // Warn immediately if this patient has known DND blocking
     if (value && patientDndBlocked) {
       setPendingDndMessage(emailBody.trim());

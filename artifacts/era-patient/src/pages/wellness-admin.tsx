@@ -169,6 +169,7 @@ export default function WellnessAdmin() {
   const [bulkSmsSending, setBulkSmsSending] = useState(false);
   const [bulkSmsIncludeDormant, setBulkSmsIncludeDormant] = useState(false);
   const [bulkSmsResult, setBulkSmsResult] = useState<{ sent: number; failed: number; dndBlocked: number; skippedNoFunds: number; total: number } | null>(null);
+  const [promotionalSmsRestricted, setPromotionalSmsRestricted] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState("");
@@ -207,6 +208,15 @@ export default function WellnessAdmin() {
           setGenerateCount(data.generateCount);
           setBulkSentThisMonth(data.bulkSentThisMonth);
         }
+      })
+      .catch(() => {});
+
+    fetch(apiUrl(`/api/hospital/sms-modules`), {
+      headers: { "x-hospital-token": hospital.token },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { promotionalSmsRestricted?: boolean } | null) => {
+        if (data) setPromotionalSmsRestricted(data.promotionalSmsRestricted ?? false);
       })
       .catch(() => {});
   }, [hospital?.token]);
@@ -718,9 +728,14 @@ export default function WellnessAdmin() {
                     checked={bulkSmsIncludeDormant} onChange={e => setBulkSmsIncludeDormant(e.target.checked)} />
                   <span className="text-sm text-muted-foreground">Also send to <strong className="text-foreground">Dormant</strong> patients</span>
                 </label>
+                {promotionalSmsRestricted && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2">
+                    SMS unavailable 5:00 PM – 8:00 AM (Termii restriction). Try again after 8:00 AM.
+                  </p>
+                )}
                 <button
                   className="w-full py-2.5 rounded-md bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
-                  disabled={bulkSmsSending || !bulkSmsMessage.trim()}
+                  disabled={bulkSmsSending || !bulkSmsMessage.trim() || promotionalSmsRestricted}
                   onClick={async () => {
                     if (!hospital?.token) return;
                     setBulkSmsSending(true);

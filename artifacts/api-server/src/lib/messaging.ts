@@ -183,6 +183,17 @@ async function termiiSend(
   }
 }
 
+// ── Promotional SMS time restriction ─────────────────────────────────────────
+// Termii blocks promotional/generic SMS 5 PM – 8 AM WAT (UTC+1).
+// DND/transactional route (N-Alert) is not affected.
+export function isPromotionalSmsRestricted(): boolean {
+  const watHour = (new Date().getUTCHours() + 1) % 24; // WAT = UTC+1
+  return watHour >= 17 || watHour < 8;
+}
+
+export const PROMOTIONAL_SMS_RESTRICTED_MSG =
+  "Promotional SMS is unavailable between 5:00 PM and 8:00 AM (Termii restriction). Please try again after 8:00 AM.";
+
 // ── Public delivery functions ─────────────────────────────────────────────────
 
 export async function deliverWhatsApp(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
@@ -203,7 +214,12 @@ export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}
     return;
   }
 
-  // Promotional/generic route — no extra branding. Try AT, then Termii generic.
+  // Promotional/generic route — blocked by Termii 5 PM – 8 AM WAT.
+  if (isPromotionalSmsRestricted()) {
+    throw new Error(`TIME_RESTRICTED: ${PROMOTIONAL_SMS_RESTRICTED_MSG}`);
+  }
+
+  // No extra branding. Try AT, then Termii generic.
   const atResult = await africasTalkingSend(msg, opts);
   if (atResult.ok) return;
   if (!atResult.detail.includes("not configured")) throw new Error(atResult.detail);

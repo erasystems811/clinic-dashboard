@@ -501,9 +501,13 @@ export function FollowUpFlagModal({ patientName, patientId, onClose }: ModalProp
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => navigate("/settings")}>
+            <AlertDialogCancel>Later</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              onClick={() => { setShowWalletDialog(false); navigate("/settings"); }}
+            >
               Fund Wallet
-            </AlertDialogCancel>
+            </AlertDialogAction>
             <AlertDialogAction
               onClick={() => {
                 setShowWalletDialog(false);

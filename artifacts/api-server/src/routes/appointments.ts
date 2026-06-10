@@ -211,11 +211,8 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
         hospital_id: hospitalIntId,
       });
 
-      if (hospitalIntId) {
-        const phone = (patient.whatsapp_number as string) || (patient.phone as string);
-        if (phone) {
-          sendAppointmentNoShowFollowUp(hospitalIntId, patient.id, `${patient.first_name} ${patient.last_name}`, phone, appt.title).catch(() => {});
-        }
+      if (hospitalIntId && patient.email) {
+        sendAppointmentNoShowFollowUp(hospitalIntId, patient.id, `${patient.first_name} ${patient.last_name}`, patient.email as string).catch(() => {});
       }
     }
 
@@ -248,7 +245,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
       try {
         const result = await sendAppointmentReschedule(hospital.intId, appt.patient_id as number, appt.patient_name as string, patient.email as string, parsed.data.scheduledAt);
         if (result.dndBlocked) {
-          return res.json({ ...camelize(appt), dndBlocked: true });
+          return res.json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled", dndBlocked: true });
         }
       } catch (err) { console.error("[appt-reschedule] unhandled error:", err); }
     }

@@ -604,7 +604,7 @@ router.post("/wellness/bulk-sms", async (req, res): Promise<void> => {
 
     const { data: patients } = await supabase
       .from("patients")
-      .select("id, first_name, last_name, phone")
+      .select("id, first_name, last_name, phone, dnd_blocked")
       .eq("hospital_id", hCtx.hospitalCode)
       .in("stage", stages)
       .not("phone", "is", null);
@@ -616,6 +616,7 @@ router.post("/wellness/bulk-sms", async (req, res): Promise<void> => {
 
     for (const patient of patients ?? []) {
       if (!patient.phone) continue;
+      if (patient.dnd_blocked) { dndBlocked++; continue; }
       const canAfford = await hasSufficientSmsBalance(hospitalId);
       if (!canAfford) { skippedNoFunds++; break; }
       try {

@@ -365,9 +365,13 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => navigate("/settings")}>
+            <AlertDialogCancel>Later</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              onClick={() => { setShowWalletDialog(false); navigate("/settings"); }}
+            >
               Fund Wallet
-            </AlertDialogCancel>
+            </AlertDialogAction>
             <AlertDialogAction
               onClick={() => {
                 setShowWalletDialog(false);
@@ -574,6 +578,7 @@ function TaskCard({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, smsRe
 /* ── Page ── */
 export default function CallTasks() {
   const { hospital } = useAuth();
+  const { toast } = useToast();
   const [aiUsedToday, setAiUsedToday] = useState(0);
   const [aiDailyLimit, setAiDailyLimit] = useState(20);
   const [smsModules, setSmsModules] = useState<{ callTaskSmsEnabled: boolean; smsReady: boolean; senderIdPending: boolean; promotionalSmsRestricted: boolean } | null>(null);

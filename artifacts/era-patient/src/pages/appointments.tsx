@@ -273,10 +273,9 @@ function BookModal({
       return;
     }
     if (smsEnabled && promotionalSmsRestricted) {
-      toast({ title: "SMS unavailable right now", description: "Promotional SMS is blocked by Termii between 5:00 PM and 8:00 AM. Try again after 8:00 AM.", variant: "destructive" });
-      return;
+      toast({ title: "Booking via email only", description: "Promotional SMS is blocked by Termii between 5:00 PM and 8:00 AM. Appointment confirmation will be sent by email instead.", variant: "default" });
     }
-    if (smsEnabled && patientDndBlocked) {
+    if (smsEnabled && !promotionalSmsRestricted && patientDndBlocked) {
       setShowDndDialog(true);
       return;
     }

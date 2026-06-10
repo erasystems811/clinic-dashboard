@@ -1061,14 +1061,18 @@ router.post("/patients/:id/direct-message", async (req, res): Promise<void> => {
       const contact = contactLine(hCtx.phoneNumber);
       const body = `${message.trim()}\n\nIf you have any questions please do not hesitate to ${contact}. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
       const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
-      sendEmail({
-        to: email,
-        from: hCtx.fromAddress,
-        subject: `IMPORTANT - ${hCtx.hospitalName}`,
-        html,
-        text: body,
-      }).catch(err => console.error("[direct-message] email failed:", err));
-      sent = true;
+      try {
+        await sendEmail({
+          to: email,
+          from: hCtx.fromAddress,
+          subject: `IMPORTANT - ${hCtx.hospitalName}`,
+          html,
+          text: body,
+        });
+        sent = true;
+      } catch (err) {
+        console.error("[direct-message] email failed:", err);
+      }
     }
 
     if (!dndBlocked) {

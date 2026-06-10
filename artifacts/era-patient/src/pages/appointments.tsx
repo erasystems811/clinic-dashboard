@@ -193,13 +193,14 @@ interface ApptDoctor {
    Book Appointment Modal (shared)
 ────────────────────────────────────────────── */
 function BookModal({
-  prefillDate, prefillTime, onClose, smsEnabled, walletBalance,
+  prefillDate, prefillTime, onClose, smsEnabled, walletBalance, promotionalSmsRestricted,
 }: {
   prefillDate?: string;
   prefillTime?: string;
   onClose: () => void;
   smsEnabled: boolean;
   walletBalance: number | null;
+  promotionalSmsRestricted: boolean;
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -269,6 +270,10 @@ function BookModal({
     if (!selectedPatient || !title || !date || !time) return;
     if (new Date(`${date}T${time}:00`) < new Date()) {
       toast({ title: "Cannot book in the past", description: "Please choose a future date and time.", variant: "destructive" });
+      return;
+    }
+    if (smsEnabled && promotionalSmsRestricted) {
+      toast({ title: "SMS unavailable right now", description: "Promotional SMS is blocked by Termii between 5:00 PM and 8:00 AM. Try again after 8:00 AM.", variant: "destructive" });
       return;
     }
     if (smsEnabled && patientDndBlocked) {
@@ -833,7 +838,7 @@ export default function Appointments() {
   const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
   const isReceptionist = user?.role === "receptionist" || user?.role === "admin";
 
-  const [smsModules, setSmsModules] = useState<{ appointmentReminderSmsEnabled: boolean } | null>(null);
+  const [smsModules, setSmsModules] = useState<{ appointmentReminderSmsEnabled: boolean; promotionalSmsRestricted: boolean } | null>(null);
   const [smsToggleSaving, setSmsToggleSaving] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
   const [editPatientId, setEditPatientId] = useState<number | null>(null);
@@ -900,7 +905,7 @@ export default function Appointments() {
     if (!hospital?.token) return;
     fetch(apiUrl("/api/hospital/sms-modules"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setSmsModules({ appointmentReminderSmsEnabled: (data as Record<string, unknown>).appointmentReminderSmsEnabled as boolean }); });
+      .then(data => { if (data) { const d = data as Record<string, unknown>; setSmsModules({ appointmentReminderSmsEnabled: d.appointmentReminderSmsEnabled as boolean, promotionalSmsRestricted: (d.promotionalSmsRestricted as boolean) ?? false }); } });
     fetch(apiUrl("/api/wallet/balance"), { headers: { "x-hospital-token": hospital.token } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setWalletBalance((data as Record<string, unknown>).balanceNaira as number); });
@@ -908,6 +913,10 @@ export default function Appointments() {
 
   const handleSmsToggle = async (value: boolean) => {
     if (!hospital?.token || smsToggleSaving) return;
+    if (value && smsModules?.promotionalSmsRestricted) {
+      toast({ title: "SMS unavailable right now", description: "Promotional SMS is blocked by Termii between 5:00 PM and 8:00 AM. Try again after 8:00 AM.", variant: "destructive" });
+      return;
+    }
     setSmsToggleSaving(true);
     try {
       const res = await fetch(apiUrl("/api/hospital/sms-modules"), {
@@ -1344,6 +1353,7 @@ export default function Appointments() {
           onClose={() => setShowBook(false)}
           smsEnabled={!!smsModules?.appointmentReminderSmsEnabled}
           walletBalance={walletBalance}
+          promotionalSmsRestricted={smsModules?.promotionalSmsRestricted ?? false}
         />
       )}
 

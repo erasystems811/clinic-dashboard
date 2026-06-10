@@ -153,6 +153,7 @@ router.get("/patients", async (req, res): Promise<void> => {
   if (query.data.stage === "Booked") {
     const { data: apptRows } = await supabase
       .from("appointments").select("patient_id").in("patient_id", (await supabase.from("patients").select("id").eq("hospital_id", hospital.code)).data?.map(p => p.id as number) ?? [])
+      .eq("hospital_id", hospital.intId)
       .gte("scheduled_at", nowIso).not("status", "in", '("cancelled","no_show","completed")');
     const ids = [...new Set((apptRows ?? []).map(r => r.patient_id as number))];
     if (ids.length === 0) { res.json([]); return; }
@@ -750,17 +751,18 @@ router.post("/patients/:id/dequeue", async (req, res): Promise<void> => {
     ? Math.max(0, Math.round((Date.now() - new Date(existing.checked_in_at).getTime()) / 60000))
     : null;
 
+  const displayPatient = patient ?? existing;
   await supabase.from("activity").insert({
     type: "dequeued",
-    description: `${patient!.first_name} ${patient!.last_name} removed from queue`,
+    description: `${displayPatient.first_name} ${displayPatient.last_name} removed from queue`,
     patient_id: id,
-    patient_name: `${patient!.first_name} ${patient!.last_name}`,
+    patient_name: `${displayPatient.first_name} ${displayPatient.last_name}`,
     hospital_id: await resolveHospitalIntId(existing.hospital_id as string),
     // metadata stores wait_minutes as a numeric string so dashboard can compute all-time avg
     metadata: waitMins !== null ? String(waitMins) : null,
   });
 
-  res.json(camelize(patient!));
+  res.json(camelize(displayPatient));
 });
 
 router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {

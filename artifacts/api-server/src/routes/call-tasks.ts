@@ -34,6 +34,29 @@ async function resolveHospitalIntId(hospitalCodeOrNull: string | null): Promise<
   return data?.id ?? null;
 }
 
+const DEFAULT_AI_DRAFT_DAILY_LIMIT = 20;
+
+async function getDailyDraftCount(hospitalId: number): Promise<number> {
+  const today = new Date().toISOString().split("T")[0];
+  const { count } = await supabase
+    .from("automation_log")
+    .select("*", { count: "exact", head: true })
+    .eq("hospital_id", hospitalId)
+    .eq("automation_type", "call_task_draft_generated")
+    .gte("created_at", `${today}T00:00:00Z`)
+    .lte("created_at", `${today}T23:59:59Z`);
+  return count ?? 0;
+}
+
+async function getAiDraftDailyLimit(hospitalId: number): Promise<number> {
+  const { data } = await supabase
+    .from("hospital_settings")
+    .select("call_task_ai_daily_limit")
+    .eq("hospital_id", hospitalId)
+    .maybeSingle();
+  return (data?.call_task_ai_daily_limit as number | null) ?? DEFAULT_AI_DRAFT_DAILY_LIMIT;
+}
+
 // ── Daily automated message rate limit check ──────────────────────────────────
 // Max 5 automated messages (call_task_automated) per hospital per calendar day.
 async function getDailyAutomatedCount(hospitalId: number): Promise<number> {
@@ -152,29 +175,6 @@ router.patch("/call-tasks/:id/action-type", async (req, res): Promise<void> => {
   res.json(camelize(task));
 });
 
-const DEFAULT_AI_DRAFT_DAILY_LIMIT = 20;
-
-async function getDailyDraftCount(hospitalId: number): Promise<number> {
-  const today = new Date().toISOString().split("T")[0];
-  const { count } = await supabase
-    .from("automation_log")
-    .select("*", { count: "exact", head: true })
-    .eq("hospital_id", hospitalId)
-    .eq("automation_type", "call_task_draft_generated")
-    .gte("created_at", `${today}T00:00:00Z`)
-    .lte("created_at", `${today}T23:59:59Z`);
-  return count ?? 0;
-}
-
-async function getAiDraftDailyLimit(hospitalId: number): Promise<number> {
-  const { data } = await supabase
-    .from("hospital_settings")
-    .select("call_task_ai_daily_limit")
-    .eq("hospital_id", hospitalId)
-    .maybeSingle();
-  return (data?.call_task_ai_daily_limit as number | null) ?? DEFAULT_AI_DRAFT_DAILY_LIMIT;
-}
-
 // ── Generate AI draft — does NOT send, returns draft for receptionist to review ─
 router.post("/call-tasks/:id/generate-draft", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
@@ -272,6 +272,7 @@ router.post("/call-tasks/:id/send-message", async (req, res): Promise<void> => {
         : `Important email sent to ${task.patient_name} via call task`,
       patient_id: task.patient_id,
       patient_name: task.patient_name,
+      hospital_id: hospitalId,
       metadata: parsed.data.message.slice(0, 200),
       performed_by: performedBy,
     });

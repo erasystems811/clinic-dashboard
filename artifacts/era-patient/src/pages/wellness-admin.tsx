@@ -141,18 +141,6 @@ export default function WellnessAdmin() {
   const { toast } = useToast();
   const { hospital, hospitalConfig } = useAuth();
   const wellnessEnabled = hospitalConfig?.modules?.wellnessNewsletterEnabled ?? true;
-
-  if (!wellnessEnabled) {
-    return (
-      <Layout>
-        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-          <Newspaper className="w-10 h-10 text-muted-foreground/30" />
-          <p className="text-sm font-medium">Wellness Newsletter is not available</p>
-          <p className="text-xs text-muted-foreground">This feature is not enabled for your clinic.</p>
-        </div>
-      </Layout>
-    );
-  }
   const queryClient = useQueryClient();
   const currentWeekOf = weekOfDate(new Date());
 
@@ -240,6 +228,18 @@ export default function WellnessAdmin() {
       onError: () => toast({ title: "Failed to save", variant: "destructive" }),
     },
   });
+
+  if (!wellnessEnabled) {
+    return (
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+          <Newspaper className="w-10 h-10 text-muted-foreground/30" />
+          <p className="text-sm font-medium">Wellness Newsletter is not available</p>
+          <p className="text-xs text-muted-foreground">This feature is not enabled for your clinic.</p>
+        </div>
+      </Layout>
+    );
+  }
 
   const handleGenerate = async (mode: "fresh" | "new-subtopic" | "new-angle" = "fresh") => {
     if (!hospital?.token) { toast({ title: "Not authenticated", variant: "destructive" }); return; }

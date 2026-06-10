@@ -278,13 +278,9 @@ router.get("/wellness/limits", async (req, res): Promise<void> => {
 router.get("/wellness", async (req, res): Promise<void> => {
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  let q = supabase.from("wellness_newsletter").select("*").order("updated_at", { ascending: false });
-  if (hospitalId) {
-    q = q.eq("hospital_id", hospitalId);
-  }
-
-  const { data, error } = await q;
+  const { data, error } = await supabase.from("wellness_newsletter").select("*").eq("hospital_id", hospitalId).order("updated_at", { ascending: false });
   if (error) { res.status(500).json({ error: error.message }); return; }
   res.json((data ?? []).map((e) => camelize(e)));
 });
@@ -292,12 +288,10 @@ router.get("/wellness", async (req, res): Promise<void> => {
 router.get("/wellness/current", async (req, res): Promise<void> => {
   const hospitalToken = req.headers["x-hospital-token"] as string;
   const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
   const weekOf = weekOfDate(new Date());
 
-  let q = supabase.from("wellness_newsletter").select("*").eq("week_of", weekOf);
-  if (hospitalId) q = q.eq("hospital_id", hospitalId);
-
-  const { data } = await q.maybeSingle();
+  const { data } = await supabase.from("wellness_newsletter").select("*").eq("week_of", weekOf).eq("hospital_id", hospitalId).maybeSingle();
   if (!data) { res.json(null); return; }
   res.json(camelize(data));
 });
@@ -328,7 +322,7 @@ router.put("/wellness", async (req, res): Promise<void> => {
 
   let entry;
   if (existing) {
-    const { data } = await supabase.from("wellness_newsletter").update(payload).eq("week_of", parsed.data.weekOf).select().single();
+    const { data } = await supabase.from("wellness_newsletter").update(payload).eq("week_of", parsed.data.weekOf).eq("hospital_id", hospitalId ?? 0).select().single();
     entry = data;
   } else {
     const { data } = await supabase.from("wellness_newsletter").insert({ ...payload, week_of: parsed.data.weekOf }).select().single();

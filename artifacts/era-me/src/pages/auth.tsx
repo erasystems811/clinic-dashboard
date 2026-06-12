@@ -147,8 +147,8 @@ export default function AuthPage() {
           {/* ── Welcome ──────────────────────────────────────────── */}
           {step === "welcome" && (
             <div className="flex flex-col items-center text-center">
-              <div className="w-20 h-20 rounded-3xl bg-primary flex items-center justify-center mb-6 shadow-lg shadow-primary/30">
-                <span className="text-primary-foreground font-bold text-3xl">E</span>
+              <div className="w-24 h-24 rounded-2xl overflow-hidden mb-6 shadow-lg">
+                <img src="/era-logo.png" alt="ERA Systems" className="w-full h-full object-cover" />
               </div>
               <h1 className="text-3xl font-bold text-foreground mb-2">ERA Me</h1>
               <p className="text-muted-foreground text-base mb-10 leading-relaxed">

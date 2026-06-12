@@ -28,21 +28,21 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* ── Default: Blue light theme ─────────────────────────────────────── */
+/* ── Default: Dark navy + teal (matches hospital app) ──────────────── */
 :root {
-  --background: 0 0% 98%;
-  --foreground: 222 47% 11%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --primary: 217 91% 60%;
+  --background: 226 60% 10%;
+  --foreground: 214 32% 91%;
+  --card: 226 50% 14%;
+  --card-foreground: 214 32% 91%;
+  --primary: 175 84% 32%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 14% 96%;
-  --secondary-foreground: 222 47% 11%;
-  --muted: 220 14% 96%;
-  --muted-foreground: 220 9% 46%;
-  --border: 220 13% 91%;
-  --input: 220 13% 91%;
-  --ring: 217 91% 60%;
+  --secondary: 226 40% 20%;
+  --secondary-foreground: 214 32% 91%;
+  --muted: 226 40% 20%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --border: 226 40% 20%;
+  --input: 226 40% 20%;
+  --ring: 175 84% 32%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
   --premium: 38 92% 50%;
@@ -50,50 +50,6 @@
   --radius: 0.875rem;
 }
 
-/* ── Dark mode ─────────────────────────────────────────────────────── */
-.dark {
-  --background: 224 71% 4%;
-  --foreground: 213 31% 91%;
-  --card: 224 71% 8%;
-  --card-foreground: 213 31% 91%;
-  --primary: 217 91% 65%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 222 47% 14%;
-  --secondary-foreground: 213 31% 91%;
-  --muted: 222 47% 14%;
-  --muted-foreground: 215 20% 65%;
-  --border: 216 34% 17%;
-  --input: 216 34% 17%;
-  --ring: 217 91% 65%;
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 100%;
-  --premium: 38 92% 55%;
-  --premium-foreground: 0 0% 100%;
-}
-
-/* ── Theme: Purple ──────────────────────────────────────────────────── */
-[data-theme="purple"] { --primary: 262 83% 58%; --ring: 262 83% 58%; }
-[data-theme="purple"].dark { --primary: 262 83% 68%; --ring: 262 83% 68%; }
-
-/* ── Theme: Green ───────────────────────────────────────────────────── */
-[data-theme="green"] { --primary: 142 72% 40%; --ring: 142 72% 40%; }
-[data-theme="green"].dark { --primary: 142 72% 50%; --ring: 142 72% 50%; }
-
-/* ── Theme: Orange ──────────────────────────────────────────────────── */
-[data-theme="orange"] { --primary: 25 95% 53%; --ring: 25 95% 53%; }
-[data-theme="orange"].dark { --primary: 25 95% 60%; --ring: 25 95% 60%; }
-
-/* ── Theme: Teal ────────────────────────────────────────────────────── */
-[data-theme="teal"] { --primary: 172 66% 40%; --ring: 172 66% 40%; }
-[data-theme="teal"].dark { --primary: 172 66% 50%; --ring: 172 66% 50%; }
-
-/* ── Theme: Rose ────────────────────────────────────────────────────── */
-[data-theme="rose"] { --primary: 347 77% 50%; --ring: 347 77% 50%; }
-[data-theme="rose"].dark { --primary: 347 77% 60%; --ring: 347 77% 60%; }
-
-/* ── Theme: Slate ───────────────────────────────────────────────────── */
-[data-theme="slate"] { --primary: 215 28% 35%; --ring: 215 28% 35%; }
-[data-theme="slate"].dark { --primary: 215 28% 55%; --ring: 215 28% 55%; }
 
 /* ── Global styles ──────────────────────────────────────────────────── */
 * { box-sizing: border-box; }

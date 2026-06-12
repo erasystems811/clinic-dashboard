@@ -13,7 +13,7 @@ import {
 } from "../lib/patient-auth.js";
 
 const router: IRouter = Router();
-const FROM = "ERA Me <noreply@erasystems.io>";
+const FROM = `ERA Me <${process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev"}>`;
 
 // ── Email templates ────────────────────────────────────────────────────────────
 
@@ -103,7 +103,13 @@ router.post("/patient-app/register/send-otp", async (req, res): Promise<void> =>
     expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
   });
 
-  await sendEmail({ to: email, from: FROM, subject: "Your ERA Me verification code", html: otpEmail(username, otp) });
+  try {
+    await sendEmail({ to: email, from: FROM, subject: "Your ERA Me verification code", html: otpEmail(username, otp) });
+  } catch (err) {
+    console.error("[patient-app] OTP email failed:", err);
+    res.status(500).json({ error: "Failed to send verification email. Check your email address and try again." });
+    return;
+  }
 
   res.json({ ok: true });
 });

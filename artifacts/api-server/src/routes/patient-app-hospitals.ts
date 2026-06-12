@@ -131,16 +131,16 @@ router.post("/patient-app/hospitals/connect/request", async (req, res): Promise<
   let patientRecord: PatientRow | null = null;
 
   async function findByHospitalId(hid: string): Promise<PatientRow | null> {
-    // 1. Try patient_number (alphanumeric ID assigned by the clinic)
-    const { data: byNum } = await supabase
+    // 1. Try patient_id column (the custom alphanumeric ID shown in the hospital dashboard)
+    const { data: byPatientId } = await supabase
       .from("patients")
       .select("id, first_name, last_name, email")
-      .ilike("patient_number", idStr)
+      .ilike("patient_id", idStr)
       .eq("hospital_id", hid)
       .maybeSingle();
-    if (byNum) return byNum as PatientRow;
+    if (byPatientId) return byPatientId as PatientRow;
 
-    // 2. Try numeric DB id
+    // 2. Try numeric DB id (the auto-increment integer primary key)
     if (/^\d+$/.test(idStr)) {
       const { data: byId } = await supabase
         .from("patients")
@@ -241,7 +241,7 @@ router.post("/patient-app/hospitals/connect/verify", async (req, res): Promise<v
   async function findVerifyRow(hid: string): Promise<VerifyRow | null> {
     const { data: byNum } = await supabase
       .from("patients").select("id, email")
-      .ilike("patient_number", verifyIdStr).eq("hospital_id", hid).maybeSingle();
+      .ilike("patient_id", verifyIdStr).eq("hospital_id", hid).maybeSingle();
     if (byNum) return byNum as VerifyRow;
     if (/^\d+$/.test(verifyIdStr)) {
       const { data: byId } = await supabase

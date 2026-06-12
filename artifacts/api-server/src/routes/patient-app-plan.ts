@@ -200,18 +200,30 @@ async function fetchAndSavePlan(accountId: number): Promise<WeekPlan> {
   return plan;
 }
 
-// GET /api/patient-app/plan/current
+// GET /api/patient-app/plan/current?weekStart=YYYY-MM-DD
+// weekStart defaults to the current Monday; pass any Monday to view past or future weeks.
 router.get("/patient-app/plan/current", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const weekStart = getWeekStart();
+  const currentWeekStart = getWeekStart();
+  const reqWeekStart = req.query.weekStart as string | undefined;
+  const weekStart = (reqWeekStart && /^\d{4}-\d{2}-\d{2}$/.test(reqWeekStart))
+    ? reqWeekStart
+    : currentWeekStart;
+  const isCurrentWeek = weekStart === currentWeekStart;
 
   const { data: existing } = await supabase
     .from("weekly_plans").select("plan_data, generated_at")
     .eq("account_id", account.id).eq("week_start", weekStart).maybeSingle();
 
   if (existing) {
+    if (!isCurrentWeek) {
+      // Past/future weeks: return whatever was saved, no auto-regenerate
+      res.json({ weekStart, plan: existing.plan_data as WeekPlan, generatedAt: existing.generated_at });
+      return;
+    }
+    // Current week: regenerate if modules were updated since last generation
     const { count } = await supabase
       .from("wellness_modules").select("*", { count: "exact", head: true })
       .eq("account_id", account.id).gt("updated_at", existing.generated_at as string);
@@ -221,7 +233,19 @@ router.get("/patient-app/plan/current", async (req, res): Promise<void> => {
     }
   }
 
-  const plan = await fetchAndSavePlan(account.id);
+  // Generate plan (current week → save; past with no saved plan → generate but don't overwrite)
+  const weekDates = getWeekDates(weekStart);
+  const { data: modules } = await supabase
+    .from("wellness_modules").select("module_type, settings, enabled").eq("account_id", account.id);
+  const plan = generateWeekPlan(weekDates, (modules ?? []) as ModuleRow[]);
+
+  if (isCurrentWeek || !existing) {
+    await supabase.from("weekly_plans").upsert(
+      { account_id: account.id, week_start: weekStart, plan_data: plan, generated_at: plan.generatedAt },
+      { onConflict: "account_id,week_start" },
+    );
+  }
+
   res.json({ weekStart, plan, generatedAt: plan.generatedAt });
 });
 

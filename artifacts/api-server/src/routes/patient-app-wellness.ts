@@ -156,18 +156,29 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
   const todayPlanDay = plan?.days.find((d) => d.date === today);
 
   if (todayPlanDay && todayPlanDay.items.length > 0) {
+    // Deduplicate by moduleType — the plan may schedule a module at multiple times
+    // (e.g. water 3×/day) but the home checklist shows each habit exactly once.
+    const seen = new Set<string>();
     for (const item of todayPlanDay.items) {
       const log = logMap[item.moduleType] ?? null;
       const settings = moduleMap[item.moduleType]?.settings ?? {};
 
       if (item.isRestDay) {
-        checklist.push({ id: item.moduleType, emoji: item.emoji, label: item.label, sub: item.sub, done: true });
+        if (!seen.has(item.moduleType)) {
+          seen.add(item.moduleType);
+          checklist.push({ id: item.moduleType, emoji: item.emoji, label: item.label, sub: item.sub, done: true });
+        }
         continue;
       }
 
+      if (seen.has(item.moduleType)) continue;
+      seen.add(item.moduleType);
+
       const done = isModuleCompleted(item.moduleType, log ?? undefined, settings, today);
       const sub = log ? (checklistSub(item.moduleType, log, settings, today) ?? item.sub) : item.sub;
-      checklist.push({ id: item.moduleType, emoji: item.emoji, label: item.label, sub, done });
+      // Use generic label for multi-time modules (e.g. "Water intake" not "Water intake (midday)")
+      const label = item.moduleType === "water" ? "Water intake" : item.label;
+      checklist.push({ id: item.moduleType, emoji: item.emoji, label, sub, done });
     }
   } else {
     // No plan yet — fall back to direct module-based checklist

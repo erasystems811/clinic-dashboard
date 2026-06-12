@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Bell, BellOff, Printer, RefreshCw, ChevronRight } from "lucide-react";
+import { ArrowLeft, Bell, BellOff, Printer, RefreshCw, ChevronRight, ChevronLeft } from "lucide-react";
 import { Link } from "wouter";
 import { useCurrentPlan, useRegeneratePlan } from "@/lib/plan-api";
 import type { PlanItem, WeekPlan } from "@/lib/plan-api";
@@ -16,6 +16,15 @@ const MODULE_ACCENT: Record<string, string> = {
 
 const SHORT_DAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const FULL_DAY  = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+function getMonday(offsetWeeks = 0): string {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff + offsetWeeks * 7);
+  d.setHours(12, 0, 0, 0);
+  return d.toISOString().split("T")[0];
+}
 
 function moduleHref(t: string) { return t === "mood_check" ? "/wellness/mood" : `/wellness/${t}`; }
 function todayStr()            { return new Date().toISOString().split("T")[0]; }
@@ -39,10 +48,12 @@ export default function PlanPage() {
   const [, navigate] = useLocation();
   const [view, setView] = useState<"week" | "today">("week");
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = current, -1 = last week, +1 = next week
   const { account } = useAuth();
   const firstName = (account?.displayName ?? "").split(" ")[0] || "Your";
 
-  const { data: planData, isLoading } = useCurrentPlan();
+  const requestedWeekStart = weekOffset === 0 ? undefined : getMonday(weekOffset);
+  const { data: planData, isLoading } = useCurrentPlan(requestedWeekStart);
   const { data: todayRaw } = useWellnessToday() as { data: { checklist: ChecklistItem[] } | undefined };
   const { data: summary } = useWeekSummary();
   const regenerate = useRegeneratePlan();
@@ -155,20 +166,40 @@ export default function PlanPage() {
           style={{ color: "var(--text-sub)", fontSize: 13, fontWeight: 500 }}>
           <ArrowLeft className="w-4 h-4" /> Home
         </button>
-        <div className="flex items-end justify-between mb-1">
+        <div className="flex items-start justify-between mb-1">
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 800, color: "var(--text-main)" }}>
               {firstName}'s Plan
             </h1>
-            <p style={{ fontSize: 12, color: "var(--text-sub)", fontWeight: 500, marginTop: 2 }}>{weekLabel}</p>
-          </div>
-          <div className="text-right">
-            <p style={{ fontSize: 28, fontWeight: 900, color: rateColor, lineHeight: 1, filter: `drop-shadow(0 0 6px ${rateColor}70)` }}>
-              {weekRate}%
+            <p style={{ fontSize: 12, color: "var(--text-sub)", fontWeight: 500, marginTop: 2 }}>
+              {weekOffset === 0 ? "This week" : weekOffset === -1 ? "Last week" : weekOffset === 1 ? "Next week" : weekLabel}
+              {" · "}{weekLabel}
             </p>
-            <p style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>this week</p>
+          </div>
+          {/* Week navigation */}
+          <div className="flex items-center gap-1">
+            <button onClick={() => setWeekOffset(w => w - 1)}
+              className="w-8 h-8 flex items-center justify-center rounded-xl active:scale-90 transition"
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+              <ChevronLeft className="w-4 h-4" style={{ color: "var(--text-sub)" }} />
+            </button>
+            {weekOffset !== 0 && (
+              <button onClick={() => setWeekOffset(0)}
+                className="px-2 h-8 rounded-xl text-xs font-bold active:scale-90 transition"
+                style={{ background: "var(--accent-tint-bg)", border: "1px solid var(--accent-tint-border)", color: "var(--accent)" }}>
+                Today
+              </button>
+            )}
+            <button onClick={() => setWeekOffset(w => w + 1)}
+              className="w-8 h-8 flex items-center justify-center rounded-xl active:scale-90 transition"
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+              <ChevronRight className="w-4 h-4" style={{ color: "var(--text-sub)" }} />
+            </button>
           </div>
         </div>
+        {weekOffset !== 0 && (
+          <p style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 4 }}>{weekLabel}</p>
+        )}
         <div className="mt-3 mb-3 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--glass-track)" }}>
           <div className="h-full rounded-full transition-all duration-700"
             style={{ width: `${weekRate}%`, background: rateColor, boxShadow: `0 0 8px ${rateColor}60` }} />

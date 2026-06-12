@@ -50,12 +50,14 @@ export interface WeekPlan {
   days: PlanDay[];
 }
 
-export function useCurrentPlan() {
+export function useCurrentPlan(weekStart?: string) {
   return useQuery({
-    queryKey: ["plan", "current"],
-    queryFn: () => get<{ weekStart: string; plan: WeekPlan; generatedAt: string }>(`${BASE}/current`),
-    staleTime: 0,
-    refetchOnMount: "always",
+    queryKey: ["plan", weekStart ?? "current"],
+    queryFn: () => get<{ weekStart: string; plan: WeekPlan; generatedAt: string }>(
+      `${BASE}/current${weekStart ? `?weekStart=${weekStart}` : ""}`
+    ),
+    staleTime: weekStart ? 10 * 60 * 1000 : 0,
+    refetchOnMount: weekStart ? false : "always",
   });
 }
 

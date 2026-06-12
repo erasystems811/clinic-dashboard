@@ -7,10 +7,11 @@ export interface Account {
   email: string;
   accountType: "individual" | "family";
   displayName: string | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
   themeColor: string;
   darkMode: boolean;
   isPremium?: boolean;
-  dateOfBirth?: string | null;
 }
 
 interface AuthContextValue {

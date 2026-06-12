@@ -31,6 +31,7 @@ import { NewJournalPage, JournalViewPage } from "@/pages/companion/journal";
 import ChatPage from "@/pages/companion/chat";
 import PersonalityPage from "@/pages/companion/personality";
 import CompanionSettingsPage from "@/pages/companion/settings";
+import OnboardingPage from "@/pages/onboarding";
 import Layout from "@/components/layout";
 
 const queryClient = new QueryClient({
@@ -59,6 +60,16 @@ function AppRoutes() {
         <Route path="/auth" component={AuthPage} />
         <Route path="/reset-password" component={AuthPage} />
         <Route><Redirect to="/auth" /></Route>
+      </Switch>
+    );
+  }
+
+  // First-time user — hasn't completed onboarding yet
+  if (!account.displayName) {
+    return (
+      <Switch>
+        <Route path="/onboarding" component={OnboardingPage} />
+        <Route><Redirect to="/onboarding" /></Route>
       </Switch>
     );
   }

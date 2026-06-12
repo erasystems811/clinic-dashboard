@@ -364,4 +364,76 @@ router.patch("/patient-app/me", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// ── First-time onboarding ──────────────────────────────────────────────────────
+// Saves profile + auto-enables modules based on goals. Called once after registration.
+router.post("/patient-app/onboard", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const body = z.object({
+    displayName: z.string().min(1).max(60),
+    gender: z.string().optional(),
+    dateOfBirth: z.string().optional(),
+    goals: z.array(z.string()).default([]),
+    wakeTime: z.string().optional(),
+    bedTime: z.string().optional(),
+  }).safeParse(req.body);
+
+  if (!body.success) { res.status(400).json({ error: body.error.issues[0]?.message ?? "Invalid input" }); return; }
+
+  const { displayName, gender, dateOfBirth, goals, wakeTime, bedTime } = body.data;
+
+  // Save profile data
+  const profileUpdate: Record<string, unknown> = {
+    display_name: displayName,
+    updated_at: new Date().toISOString(),
+  };
+  if (gender) profileUpdate.gender = gender;
+  if (dateOfBirth) profileUpdate.date_of_birth = dateOfBirth;
+  await supabase.from("patient_accounts").update(profileUpdate).eq("id", account.id);
+
+  // Map goals → modules to enable
+  const GOAL_MODULE: Record<string, string> = {
+    stay_hydrated: "water",
+    sleep_better:  "sleep",
+    exercise_more: "workout",
+    eat_healthier: "fruit",
+    manage_meds:   "medications",
+    reduce_stress: "stress",
+  };
+
+  // Build module list: always-on baseline + goal-based additions
+  const modules = new Map<string, Record<string, unknown>>([
+    ["mood_check", {}],
+    ["energy",     {}],
+    ["water",      { target: 8 }],
+  ]);
+
+  for (const goal of goals) {
+    const mod = GOAL_MODULE[goal];
+    if (!mod) continue;
+    const settings: Record<string, unknown> = {};
+    if (mod === "water") settings.target = 8;
+    if (mod === "sleep") { settings.wakeTime = wakeTime ?? "07:00"; settings.bedTime = bedTime ?? "23:00"; }
+    modules.set(mod, settings);
+  }
+
+  // Update sleep settings even if goal not selected (always have schedule)
+  if (!modules.has("sleep") && (wakeTime || bedTime)) {
+    modules.set("sleep", { wakeTime: wakeTime ?? "07:00", bedTime: bedTime ?? "23:00" });
+  }
+
+  // Upsert all modules in parallel
+  await Promise.all(
+    Array.from(modules.entries()).map(([moduleType, settings]) =>
+      supabase.from("wellness_modules").upsert(
+        { account_id: account.id, module_type: moduleType, settings, enabled: true, updated_at: new Date().toISOString() },
+        { onConflict: "account_id,module_type" }
+      )
+    )
+  );
+
+  res.json({ displayName, gender: gender ?? null, enabledModules: Array.from(modules.keys()) });
+});
+
 export default router;

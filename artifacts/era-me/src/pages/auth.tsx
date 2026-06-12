@@ -160,10 +160,10 @@ export default function AuthPage() {
         {/* ── Welcome ──────────────────────────────────────────── */}
         {step === "welcome" && (
           <div className="flex flex-col items-center text-center">
-            <div className="w-20 h-20 rounded-2xl overflow-hidden mb-5 shadow-2xl ring-1 ring-white/10">
-              <img src="/era-logo.png" alt="ERA Systems" className="w-full h-full object-cover" />
+            <div className="w-48 mb-4">
+              <img src="/era-logo.png" alt="ERA Systems" className="w-full h-auto object-contain" />
             </div>
-            <h1 className="text-3xl font-bold mb-1" style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <h1 className="text-2xl font-bold mb-1" style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               ERA Me
             </h1>
             <p className="text-sm mb-8 leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>

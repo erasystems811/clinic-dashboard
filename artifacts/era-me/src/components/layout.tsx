@@ -1,5 +1,6 @@
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { Home, Heart, CalendarDays, Building2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,33 @@ const NAV = [
 
 export default function Layout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
+  const qc = useQueryClient();
+  const lastDate = useRef(new Date().toISOString().split("T")[0]);
+
+  useEffect(() => {
+    function checkDay() {
+      const today = new Date().toISOString().split("T")[0];
+      if (today !== lastDate.current) {
+        lastDate.current = today;
+        // Day rolled over — refresh daily data and current plan
+        void qc.invalidateQueries({ queryKey: ["wellness", "today"] });
+        void qc.invalidateQueries({ queryKey: ["plan"] }); // invalidates all plan queries (current + past weeks)
+        void qc.invalidateQueries({ queryKey: ["wellness", "summary"] });
+      }
+    }
+
+    // Poll every minute so midnight is caught even if app stays open
+    const interval = setInterval(checkDay, 60_000);
+
+    // Also fire whenever the user returns to the tab/app (mobile: foreground)
+    function onVisible() { if (document.visibilityState === "visible") checkDay(); }
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [qc]);
 
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-mid) 50%, var(--bg-base) 100%)" }}>

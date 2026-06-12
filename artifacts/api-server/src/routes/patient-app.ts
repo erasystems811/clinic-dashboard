@@ -258,7 +258,7 @@ router.post("/patient-app/forgot-password", async (req, res): Promise<void> => {
     expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
   });
 
-  const appUrl = (process.env.ERA_ME_URL ?? "http://localhost:3001").replace(/\/$/, "");
+  const appUrl = (process.env.ERA_ME_URL ?? process.env.APP_BASE_URL ?? "http://localhost:3001").replace(/\/$/, "");
   sendEmail({
     to: account.email as string,
     from: FROM,

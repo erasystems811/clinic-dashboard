@@ -209,7 +209,7 @@ function AddHospitalFlow({ onDone }: { onDone: () => void }) {
         <div className="text-6xl mb-6">🏥</div>
         <h2 className="text-xl font-bold text-foreground mb-2">Hospital connected!</h2>
         <p className="text-muted-foreground text-sm mb-2">
-          <strong>{selectedHospital?.name}</strong> has been linked to your ERA Me account.
+          <strong>{selectedHospital?.name}</strong> has been linked to your ERA Health account.
         </p>
         <p className="text-muted-foreground text-sm mb-8">
           Your records for <strong>{patientName}</strong> are now accessible.

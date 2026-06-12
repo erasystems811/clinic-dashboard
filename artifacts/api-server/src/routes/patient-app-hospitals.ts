@@ -4,7 +4,7 @@ import { getPatientFromRequest } from "../lib/patient-auth.js";
 import { generateOtp } from "../lib/patient-auth.js";
 import { sendEmail } from "../lib/email.js";
 
-const FROM = "ERA Me <noreply@erasystems.io>";
+const FROM = `ERA Health <${process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev"}>`;
 
 const router: IRouter = Router();
 
@@ -158,10 +158,10 @@ router.post("/patient-app/hospitals/connect/request", async (req, res): Promise<
   await sendEmail({
     to: patientEmail,
     from: FROM,
-    subject: `Your ERA Me verification code — ${hospitalName}`,
+    subject: `Your ERA Health verification code — ${hospitalName}`,
     html: `
       <p>Hi ${patientName},</p>
-      <p>A request was made to link your patient record at <strong>${hospitalName}</strong> to an ERA Me account.</p>
+      <p>A request was made to link your patient record at <strong>${hospitalName}</strong> to an ERA Health account.</p>
       <p>Your verification code is:</p>
       <h2 style="font-size:32px;letter-spacing:8px;font-family:monospace;">${otp}</h2>
       <p>This code expires in 10 minutes.</p>

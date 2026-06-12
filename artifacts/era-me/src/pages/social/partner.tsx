@@ -36,7 +36,7 @@ export default function PartnerPage() {
   function sharePartnerStreaks() {
     if (activeStreaks.length === 0) return;
     const lines = activeStreaks.map((s) => `${s.emoji} ${s.label}: ${s.streak} day${s.streak !== 1 ? "s" : ""}`);
-    const text = `${displayName}'s ERA Me wellness streaks 🔥\n\n${lines.join("\n")}\n\nCheck out erasystems.io`;
+    const text = `${displayName}'s ERA Health wellness streaks 🔥\n\n${lines.join("\n")}\n\nCheck out erasystems.io`;
     if (navigator.share) {
       void navigator.share({ title: `${displayName}'s Streaks`, text });
     } else {

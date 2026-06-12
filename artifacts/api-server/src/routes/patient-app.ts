@@ -13,22 +13,22 @@ import {
 } from "../lib/patient-auth.js";
 
 const router: IRouter = Router();
-const FROM = `ERA Me <${process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev"}>`;
+const FROM = `ERA Health <${process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev"}>`;
 
 // ── Email templates ────────────────────────────────────────────────────────────
 
 function otpEmail(username: string, otp: string): string {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-  <div style="background:linear-gradient(135deg,#3b82f6,#6366f1);padding:32px 24px;text-align:center;">
-    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">ERA Me</h1>
-    <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Your personal health companion</p>
+  <div style="background:linear-gradient(135deg,#0d9488,#0f766e);padding:32px 24px;text-align:center;">
+    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">ERA Health</h1>
+    <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Track your wellness · Manage your health</p>
   </div>
   <div style="padding:32px 24px;">
     <p style="margin:0 0 8px;color:#374151;font-size:16px;">Hi <strong>${username}</strong>,</p>
     <p style="margin:0 0 24px;color:#6b7280;font-size:15px;">Enter this code to verify your email and complete your registration:</p>
-    <div style="background:#f0f7ff;border:2px dashed #93c5fd;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
-      <span style="font-size:40px;font-weight:800;letter-spacing:10px;color:#2563eb;font-family:monospace;">${otp}</span>
+    <div style="background:#f0fdfa;border:2px dashed #5eead4;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px;">
+      <span style="font-size:40px;font-weight:800;letter-spacing:10px;color:#0d9488;font-family:monospace;">${otp}</span>
     </div>
     <p style="margin:0;color:#9ca3af;font-size:13px;text-align:center;">This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
   </div>
@@ -38,15 +38,15 @@ function otpEmail(username: string, otp: string): string {
 function welcomeEmail(username: string, password: string): string {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-  <div style="background:linear-gradient(135deg,#3b82f6,#6366f1);padding:32px 24px;text-align:center;">
-    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">Welcome to ERA Me</h1>
+  <div style="background:linear-gradient(135deg,#0d9488,#0f766e);padding:32px 24px;text-align:center;">
+    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">Welcome to ERA Health</h1>
     <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Your account is ready</p>
   </div>
   <div style="padding:32px 24px;">
     <p style="margin:0 0 8px;color:#374151;font-size:16px;">Hi <strong>${username}</strong>,</p>
-    <p style="margin:0 0 24px;color:#6b7280;font-size:15px;">Your ERA Me account has been created. Here is your auto-generated password — save it somewhere safe:</p>
-    <div style="background:#f0f7ff;border:2px dashed #93c5fd;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px;">
-      <span style="font-size:22px;font-weight:700;letter-spacing:3px;color:#1e40af;font-family:monospace;">${password}</span>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:15px;">Your ERA Health account has been created. Here is your auto-generated password — save it somewhere safe:</p>
+    <div style="background:#f0fdfa;border:2px dashed #5eead4;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px;">
+      <span style="font-size:22px;font-weight:700;letter-spacing:3px;color:#0d9488;font-family:monospace;">${password}</span>
     </div>
     <div style="background:#fefce8;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin-bottom:24px;">
       <p style="margin:0;color:#92400e;font-size:14px;"><strong>Important:</strong> Change this password in your Profile settings after your first login.</p>
@@ -59,8 +59,8 @@ function welcomeEmail(username: string, password: string): string {
 function resetEmail(username: string, resetUrl: string): string {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-  <div style="background:linear-gradient(135deg,#3b82f6,#6366f1);padding:32px 24px;text-align:center;">
-    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">ERA Me</h1>
+  <div style="background:linear-gradient(135deg,#0d9488,#0f766e);padding:32px 24px;text-align:center;">
+    <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">ERA Health</h1>
   </div>
   <div style="padding:32px 24px;">
     <p style="margin:0 0 8px;color:#374151;font-size:16px;">Hi <strong>${username}</strong>,</p>
@@ -104,7 +104,7 @@ router.post("/patient-app/register/send-otp", async (req, res): Promise<void> =>
   });
 
   try {
-    await sendEmail({ to: email, from: FROM, subject: "Your ERA Me verification code", html: otpEmail(username, otp) });
+    await sendEmail({ to: email, from: FROM, subject: "Your ERA Health verification code", html: otpEmail(username, otp) });
   } catch (err) {
     console.error("[patient-app] OTP email failed:", err);
     res.status(500).json({ error: "Failed to send verification email. Check your email address and try again." });
@@ -165,7 +165,7 @@ router.post("/patient-app/register/verify", async (req, res): Promise<void> => {
 
   if (error || !account) { res.status(500).json({ error: "Failed to create account. Please try again." }); return; }
 
-  sendEmail({ to: email, from: FROM, subject: "Your ERA Me password", html: welcomeEmail(username, plainPassword) }).catch(() => {});
+  sendEmail({ to: email, from: FROM, subject: "Your ERA Health password", html: welcomeEmail(username, plainPassword) }).catch(() => {});
 
   const token = signPatientToken(account.id as number);
 
@@ -261,7 +261,7 @@ router.post("/patient-app/forgot-password", async (req, res): Promise<void> => {
   sendEmail({
     to: body.data.email,
     from: FROM,
-    subject: "Reset your ERA Me password",
+    subject: "Reset your ERA Health password",
     html: resetEmail(account.username as string, `${appUrl}/reset-password?token=${token}`),
   }).catch(() => {});
 

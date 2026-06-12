@@ -50,7 +50,7 @@ export default function PricingPage() {
         </div>
         <h1 className="text-2xl font-bold text-foreground mb-2">ERA Premium</h1>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          Unlock your AI companion, hospital connections, and everything that makes ERA Me powerful.
+          Unlock advanced wellness modules, companion features, and everything that makes ERA Health powerful.
         </p>
       </div>
 

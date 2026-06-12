@@ -155,7 +155,7 @@ export default function ProfilePage() {
       {/* Private companion */}
       <Section title="Private">
         <div className="space-y-1">
-          <SettingsRow label="My Companion" sublabel="Journal, AI chat & personality profile" onClick={() => navigate("/companion")} />
+          <SettingsRow label="My Companion" sublabel="Journal & personality profile" onClick={() => navigate("/companion")} />
         </div>
       </Section>
 
@@ -179,7 +179,7 @@ export default function ProfilePage() {
         Sign Out
       </button>
 
-      <p className="text-center text-xs text-muted-foreground mt-6">ERA Me · By Era Systems</p>
+      <p className="text-center text-xs text-muted-foreground mt-6">ERA Health · By ERA Systems</p>
     </div>
   );
 }

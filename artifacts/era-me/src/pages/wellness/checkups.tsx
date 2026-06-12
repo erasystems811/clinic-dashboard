@@ -167,7 +167,7 @@ export default function CheckupsPage() {
         <div className="bg-card border border-border rounded-2xl p-6 text-center mb-6">
           <p className="text-4xl mb-3">🏥</p>
           <p className="font-semibold text-foreground mb-1">No checkups added</p>
-          <p className="text-sm text-muted-foreground">Add your routine checkups and ERA Me will tell you when each one is due again.</p>
+          <p className="text-sm text-muted-foreground">Add your routine checkups and ERA Health will tell you when each one is due again.</p>
         </div>
         <button onClick={openAdd} className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 flex items-center justify-center gap-2">
           <Plus className="w-5 h-5" />Add a checkup

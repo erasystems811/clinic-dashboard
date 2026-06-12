@@ -26,9 +26,22 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const SESSION_KEY = "era_me_session";
 
+const THEME_PRIMARY: Record<string, string> = {
+  blue:   "217 91% 60%",
+  purple: "271 91% 65%",
+  green:  "158 64% 52%",
+  orange: "25 95% 53%",
+  teal:   "175 84% 32%",
+  rose:   "347 77% 50%",
+  slate:  "215 16% 47%",
+};
+
 function applyTheme(account: Account) {
   const root = document.documentElement;
-  root.setAttribute("data-theme", account.themeColor ?? "blue");
+  root.setAttribute("data-theme", account.themeColor ?? "teal");
+  const hsl = THEME_PRIMARY[account.themeColor ?? "teal"] ?? THEME_PRIMARY.teal;
+  root.style.setProperty("--primary", hsl);
+  root.style.setProperty("--ring", hsl);
   if (account.darkMode) {
     root.classList.add("dark");
   } else {

@@ -12,14 +12,10 @@ type Step =
   | "register-details"
   | "register-otp"
   | "register-success"
-  | "login-phone"
-  | "login-select"
-  | "login-password"
+  | "login"
   | "forgot-request"
   | "forgot-sent"
   | "reset-password";
-
-interface FoundAccount { username: string; displayName: string; }
 
 export default function AuthPage() {
   const { login } = useAuth();
@@ -35,9 +31,7 @@ export default function AuthPage() {
   const [regEmail, setRegEmail] = useState("");
   const [regPhone, setRegPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [loginPhone, setLoginPhone] = useState("");
-  const [foundAccounts, setFoundAccounts] = useState<FoundAccount[]>([]);
-  const [selectedUsername, setSelectedUsername] = useState("");
+  const [loginUsername, setLoginUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
@@ -74,30 +68,12 @@ export default function AuthPage() {
     finally { setLoading(false); }
   }
 
-  async function handleLookupPhone(e: React.FormEvent) {
-    e.preventDefault(); clearError(); setLoading(true);
-    try {
-      const res = await apiFetch<{ accounts: FoundAccount[] }>("/api/patient-app/login/lookup", {
-        method: "POST",
-        body: JSON.stringify({ phone: loginPhone.trim() }),
-      });
-      setFoundAccounts(res.accounts);
-      if (res.accounts.length === 1) {
-        setSelectedUsername(res.accounts[0].username);
-        setStep("login-password");
-      } else {
-        setStep("login-select");
-      }
-    } catch (err) { setError((err as Error).message); }
-    finally { setLoading(false); }
-  }
-
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault(); clearError(); setLoading(true);
     try {
       const res = await apiFetch<{ token: string; account: Account }>("/api/patient-app/login", {
         method: "POST",
-        body: JSON.stringify({ username: selectedUsername, password }),
+        body: JSON.stringify({ username: loginUsername.trim(), password }),
       });
       login(res.token, res.account);
       navigate("/");
@@ -126,7 +102,7 @@ export default function AuthPage() {
         method: "POST",
         body: JSON.stringify({ token, newPassword }),
       });
-      setStep("login-phone");
+      setStep("login");
       setError("");
       window.history.replaceState({}, "", "/auth");
     } catch (err) { setError((err as Error).message); }
@@ -164,10 +140,10 @@ export default function AuthPage() {
               <img src="/era-logo.png" alt="ERA Systems" className="w-full h-auto object-contain" />
             </div>
             <h1 className="text-2xl font-bold mb-1" style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-              ERA Me
+              ERA Health
             </h1>
             <p className="text-sm mb-8 leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Your personal health companion.<br />Track wellness, connect with hospitals.
+              Track your wellness · Manage your health<br />Connect with your care team
             </p>
 
             <button onClick={() => setStep("register-type")}
@@ -175,7 +151,7 @@ export default function AuthPage() {
               style={{ background: "linear-gradient(135deg, #0d9488, #14b8a6)", boxShadow: "0 8px 32px rgba(20,184,166,0.35)" }}>
               Create Account
             </button>
-            <button onClick={() => setStep("login-phone")}
+            <button onClick={() => { clearError(); setStep("login"); }}
               className="w-full py-4 rounded-2xl font-semibold text-base transition active:scale-95"
               style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)" }}>
               Sign In
@@ -192,7 +168,7 @@ export default function AuthPage() {
         {step === "register-type" && (
           <div>
             <GlassBack onClick={() => setStep("welcome")} />
-            <h2 className="text-2xl font-bold text-white mb-1">How will you use ERA Me?</h2>
+            <h2 className="text-2xl font-bold text-white mb-1">How will you use ERA Health?</h2>
             <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>Choose the account type that fits you.</p>
             <div className="space-y-3 mb-7">
               {([
@@ -292,26 +268,46 @@ export default function AuthPage() {
             </div>
             <h2 className="text-2xl font-bold text-white mb-2">You're in!</h2>
             <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Your ERA Me account is ready. Check your email for your password — change it in Profile after you log in.
+              Your ERA Health account is ready. Check your email for your password — change it in Profile after you log in.
             </p>
             <div className="mt-8 w-5 h-5 rounded-full border-2 border-t-transparent animate-spin"
               style={{ borderColor: "#14b8a6", borderTopColor: "transparent" }} />
           </div>
         )}
 
-        {/* ── Login: Phone ──────────────────────────────────────── */}
-        {step === "login-phone" && (
+        {/* ── Login ─────────────────────────────────────────────── */}
+        {step === "login" && (
           <div>
             <GlassBack onClick={() => setStep("welcome")} />
             <h2 className="text-2xl font-bold text-white mb-1">Welcome back</h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>Enter your phone number to find your account.</p>
-            <form onSubmit={handleLookupPhone} className="space-y-4">
-              <GlassInput type="tel" required autoComplete="tel" value={loginPhone}
-                onChange={(e) => setLoginPhone(e.target.value)} placeholder="+234 800 000 0000" />
+            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Sign in with your username and password.
+            </p>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <GlassField label="Username">
+                <GlassInput type="text" required autoComplete="username" value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)} placeholder="your_username" />
+              </GlassField>
+              <GlassField label="Password">
+                <div className="relative">
+                  <GlassInput type={showPassword ? "text" : "password"} required autoComplete="current-password"
+                    value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password"
+                    className="pr-12" />
+                  <button type="button" onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 transition"
+                    style={{ color: "rgba(255,255,255,0.4)" }}>
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </GlassField>
               {error && <GlassError>{error}</GlassError>}
               <GlassButton type="submit" loading={loading}>
-                {loading ? "Looking up…" : "Continue"}
+                {loading ? "Signing in…" : "Sign In"}
               </GlassButton>
+              <button type="button" onClick={() => { setForgotEmail(""); setStep("forgot-request"); }}
+                className="w-full text-sm font-medium py-2" style={{ color: "rgba(20,184,166,0.8)" }}>
+                Forgot password?
+              </button>
             </form>
             <p className="text-center text-sm mt-6" style={{ color: "rgba(255,255,255,0.4)" }}>
               No account?{" "}
@@ -322,67 +318,10 @@ export default function AuthPage() {
           </div>
         )}
 
-        {/* ── Login: Select account ─────────────────────────────── */}
-        {step === "login-select" && (
-          <div>
-            <GlassBack onClick={() => setStep("login-phone")} />
-            <h2 className="text-2xl font-bold text-white mb-1">Which one is you?</h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>Multiple accounts on this number.</p>
-            <div className="space-y-3">
-              {foundAccounts.map((a) => (
-                <button key={a.username}
-                  onClick={() => { setSelectedUsername(a.username); setStep("login-password"); }}
-                  className="w-full flex items-center gap-4 p-4 rounded-2xl text-left transition active:scale-95"
-                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 font-bold text-lg"
-                    style={{ background: "rgba(20,184,166,0.2)", color: "#14b8a6" }}>
-                    {a.displayName[0]?.toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-white text-sm">{a.displayName}</p>
-                    <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>@{a.username}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── Login: Password ───────────────────────────────────── */}
-        {step === "login-password" && (
-          <div>
-            <GlassBack onClick={() => { setPassword(""); setStep(foundAccounts.length > 1 ? "login-select" : "login-phone"); }} />
-            <h2 className="text-2xl font-bold text-white mb-1">Enter your password</h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Signing in as <span className="text-white font-medium">@{selectedUsername}</span>
-            </p>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="relative">
-                <GlassInput type={showPassword ? "text" : "password"} required autoComplete="current-password"
-                  value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password"
-                  className="pr-12" />
-                <button type="button" onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 transition"
-                  style={{ color: "rgba(255,255,255,0.4)" }}>
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-              {error && <GlassError>{error}</GlassError>}
-              <GlassButton type="submit" loading={loading}>
-                {loading ? "Signing in…" : "Sign In"}
-              </GlassButton>
-              <button type="button" onClick={() => { setForgotEmail(""); setStep("forgot-request"); }}
-                className="w-full text-sm font-medium py-2" style={{ color: "rgba(20,184,166,0.8)" }}>
-                Forgot password?
-              </button>
-            </form>
-          </div>
-        )}
-
         {/* ── Forgot: Request ───────────────────────────────────── */}
         {step === "forgot-request" && (
           <div>
-            <GlassBack onClick={() => setStep("login-password")} />
+            <GlassBack onClick={() => setStep("login")} />
             <h2 className="text-2xl font-bold text-white mb-1">Reset password</h2>
             <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>Enter your email and we'll send a reset link.</p>
             <form onSubmit={handleForgot} className="space-y-4">
@@ -407,7 +346,7 @@ export default function AuthPage() {
             <p className="text-sm leading-relaxed mb-8" style={{ color: "rgba(255,255,255,0.5)" }}>
               If an account exists with that email, a reset link is on its way. It expires in 1 hour.
             </p>
-            <GlassButton onClick={() => setStep("login-phone")}>Back to Sign In</GlassButton>
+            <GlassButton onClick={() => setStep("login")}>Back to Sign In</GlassButton>
           </div>
         )}
 

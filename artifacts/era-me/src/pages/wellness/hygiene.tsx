@@ -162,7 +162,7 @@ export default function HygienePage() {
         <div className="bg-card border border-border rounded-2xl p-6 text-center mb-5">
           <p className="text-4xl mb-3">🪥🧽🪒</p>
           <p className="font-semibold text-foreground mb-1">Nothing added yet</p>
-          <p className="text-sm text-muted-foreground">ERA Me will remind you when each item is due for replacement.</p>
+          <p className="text-sm text-muted-foreground">ERA Health will remind you when each item is due for replacement.</p>
         </div>
         <button onClick={enableDefaults} disabled={saveModule.isPending}
           className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60 mb-3">

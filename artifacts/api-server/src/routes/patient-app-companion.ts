@@ -69,7 +69,7 @@ function buildSystemPrompt(
     ? `🎂 Today is ${name}'s birthday! Acknowledge it warmly.`
     : "";
 
-  return `You are ERA Me's private companion — a warm, emotionally intelligent, psychologically-aware presence in ${name}'s life.
+  return `You are ERA Health's private companion — a warm, emotionally intelligent, psychologically-aware presence in ${name}'s life.
 
 ${age ? `${name} is ${age} years old.` : ""}
 ${birthdaySection}

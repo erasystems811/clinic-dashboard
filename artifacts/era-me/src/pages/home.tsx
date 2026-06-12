@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Heart, Building2, Users, Sparkles, ChevronRight, Crown, CheckCircle2, Circle } from "lucide-react";
+import { Sparkles, ChevronRight, Crown, CheckCircle2, Circle } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate, cn } from "@/lib/utils";
 import { useWellnessToday, useWeekSummary } from "@/lib/wellness-api";
@@ -60,7 +60,6 @@ const MODULE_ACCENT: Record<string, string> = {
 export default function HomePage() {
   const { account } = useAuth();
   const displayName = account?.displayName ?? account?.username ?? "there";
-  const isPremium = account?.isPremium ?? false;
   const { data: todayData } = useWellnessToday() as { data: TodayData | undefined };
   const { data: summary } = useWeekSummary();
 
@@ -101,24 +100,6 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* ── Premium banner ─────────────────────────────────────────── */}
-      {!isPremium && (
-        <Link href="/pricing">
-          <div className="relative rounded-2xl p-4 flex items-center gap-3 cursor-pointer active:scale-[0.98] transition overflow-hidden"
-            style={{ background: "linear-gradient(135deg,#92400e,#d97706,#f59e0b)", boxShadow: "0 8px 32px rgba(245,158,11,0.3)" }}>
-            <div className="absolute inset-0 opacity-20"
-              style={{ background: "repeating-linear-gradient(-45deg,transparent,transparent 8px,rgba(255,255,255,0.1) 8px,rgba(255,255,255,0.1) 9px)" }} />
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-              <Crown className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex-1 min-w-0 relative">
-              <p className="text-white font-bold text-sm">Unlock ERA Premium</p>
-              <p className="text-white/75 text-xs mt-0.5">Companion, hospital connections & more</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-white/70 shrink-0 relative" />
-          </div>
-        </Link>
-      )}
 
       {/* ── Today's plan ───────────────────────────────────────────── */}
       <div>
@@ -197,10 +178,9 @@ export default function HomePage() {
           <QuickCard href="/wellness"
             emoji="💚" label="My Wellness" description="Habits & tracking"
             gradient="linear-gradient(135deg,#064e3b,#065f46)" accent="#10b981" />
-          <QuickCard href={isPremium ? "/hospitals" : "/pricing"}
+          <QuickCard href="/hospitals"
             emoji="🏥" label="Hospitals" description="Your connected hospitals"
-            gradient="linear-gradient(135deg,#1e3a5f,#1e40af)" accent="#60a5fa"
-            locked={!isPremium} />
+            gradient="linear-gradient(135deg,#1e3a5f,#1e40af)" accent="#60a5fa" />
           <QuickCard href="/social"
             emoji="👥" label="Social" description="Partners & streaks"
             gradient="linear-gradient(135deg,#3b0764,#6d28d9)" accent="#a78bfa" />

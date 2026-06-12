@@ -29,9 +29,9 @@ export default function SocialPage() {
   function shareStreaks() {
     if (topStreaks.length === 0) return;
     const lines = topStreaks.map((s) => `${s.emoji} ${s.label}: ${s.streak} day${s.streak !== 1 ? "s" : ""}`);
-    const text = `My ERA Me wellness streaks 💪\n\n${lines.join("\n")}\n\nTrack yours at erasystems.io`;
+    const text = `My ERA Health wellness streaks 💪\n\n${lines.join("\n")}\n\nTrack yours at erasystems.io`;
     if (navigator.share) {
-      void navigator.share({ title: "My ERA Me Streaks", text });
+      void navigator.share({ title: "My ERA Health Streaks", text });
     } else {
       void navigator.clipboard.writeText(text);
     }

@@ -140,7 +140,7 @@ export default function VaccinesPage() {
         <div className="bg-card border border-border rounded-2xl p-6 text-center mb-6">
           <p className="text-4xl mb-3">💉</p>
           <p className="font-semibold text-foreground mb-1">No vaccines recorded</p>
-          <p className="text-sm text-muted-foreground">Add your vaccination history and ERA Me will remind you when your next dose is due.</p>
+          <p className="text-sm text-muted-foreground">Add your vaccination history and ERA Health will remind you when your next dose is due.</p>
         </div>
         <button onClick={openAdd} className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 flex items-center justify-center gap-2">
           <Plus className="w-5 h-5" />Add a vaccine

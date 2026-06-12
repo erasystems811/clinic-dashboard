@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { Heart, Building2, Users, Sparkles, ChevronRight, Crown, Check } from "lucide-react";
+import { Heart, Building2, Users, Sparkles, ChevronRight, Crown, CheckCircle2, Circle } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate, cn } from "@/lib/utils";
 import { useWellnessToday, useWeekSummary } from "@/lib/wellness-api";
@@ -25,6 +25,38 @@ function moduleHref(id: string): string {
   return `/wellness/${id}`;
 }
 
+const MODULE_COLORS: Record<string, string> = {
+  water:       "rgba(56,189,248,0.15)",
+  medications: "rgba(20,184,166,0.15)",
+  workout:     "rgba(249,115,22,0.15)",
+  sleep:       "rgba(139,92,246,0.15)",
+  mood_check:  "rgba(251,191,36,0.15)",
+  energy:      "rgba(132,204,22,0.15)",
+  stress:      "rgba(168,85,247,0.15)",
+  fruit:       "rgba(34,197,94,0.15)",
+  vitals:      "rgba(239,68,68,0.15)",
+  smoking:     "rgba(100,116,139,0.15)",
+  eyebreak:    "rgba(99,102,241,0.15)",
+  sunscreen:   "rgba(234,179,8,0.15)",
+  outdoors:    "rgba(22,163,74,0.15)",
+};
+
+const MODULE_ACCENT: Record<string, string> = {
+  water:       "#38bdf8",
+  medications: "#14b8a6",
+  workout:     "#f97316",
+  sleep:       "#8b5cf6",
+  mood_check:  "#fbbf24",
+  energy:      "#84cc16",
+  stress:      "#a855f7",
+  fruit:       "#22c55e",
+  vitals:      "#ef4444",
+  smoking:     "#64748b",
+  eyebreak:    "#6366f1",
+  sunscreen:   "#eab308",
+  outdoors:    "#16a34a",
+};
+
 export default function HomePage() {
   const { account } = useAuth();
   const displayName = account?.displayName ?? account?.username ?? "there";
@@ -33,70 +65,119 @@ export default function HomePage() {
   const { data: summary } = useWeekSummary();
 
   const checklist: ChecklistItem[] = todayData?.checklist ?? [];
-  const hasModules = checklist.length > 0;
+  const doneCount = checklist.filter((c) => c.done).length;
+  const total = checklist.length;
+  const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
   return (
-    <div className="px-5 pt-6 pb-4">
-      {/* Header */}
-      <div className="mb-6">
-        <p className="text-muted-foreground text-sm font-medium">{formatDate()}</p>
-        <h1 className="text-2xl font-bold text-foreground mt-1">
-          {greeting()}, {displayName} 👋
-        </h1>
+    <div className="px-4 pt-6 pb-6 space-y-6">
+
+      {/* ── Hero greeting ─────────────────────────────────────────── */}
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs font-medium mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>{formatDate()}</p>
+          <h1 className="text-2xl font-bold leading-tight" style={{ background: "linear-gradient(135deg,#fff 30%,#94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            {greeting()},<br />{displayName} 👋
+          </h1>
+        </div>
+
+        {/* Completion ring */}
+        {total > 0 && (
+          <div className="relative w-16 h-16 shrink-0">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="6" />
+              <circle cx="32" cy="32" r="26" fill="none" stroke="#14b8a6" strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 26}`}
+                strokeDashoffset={`${2 * Math.PI * 26 * (1 - pct / 100)}`}
+                style={{ filter: "drop-shadow(0 0 6px rgba(20,184,166,0.8))", transition: "stroke-dashoffset 0.6s ease" }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-sm font-bold text-white leading-none">{pct}%</span>
+              <span className="text-[9px] leading-none" style={{ color: "rgba(255,255,255,0.45)" }}>done</span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Premium upsell banner */}
+      {/* ── Premium banner ─────────────────────────────────────────── */}
       {!isPremium && (
         <Link href="/pricing">
-          <div className="mb-6 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-4 flex items-center gap-3 cursor-pointer active:scale-[0.98] transition">
-            <Crown className="w-6 h-6 text-white shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-semibold text-sm">Unlock ERA Premium</p>
-              <p className="text-white/80 text-xs">AI companion, hospital connections & more</p>
+          <div className="relative rounded-2xl p-4 flex items-center gap-3 cursor-pointer active:scale-[0.98] transition overflow-hidden"
+            style={{ background: "linear-gradient(135deg,#92400e,#d97706,#f59e0b)", boxShadow: "0 8px 32px rgba(245,158,11,0.3)" }}>
+            <div className="absolute inset-0 opacity-20"
+              style={{ background: "repeating-linear-gradient(-45deg,transparent,transparent 8px,rgba(255,255,255,0.1) 8px,rgba(255,255,255,0.1) 9px)" }} />
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+              <Crown className="w-5 h-5 text-white" />
             </div>
-            <ChevronRight className="w-5 h-5 text-white/80 shrink-0" />
+            <div className="flex-1 min-w-0 relative">
+              <p className="text-white font-bold text-sm">Unlock ERA Premium</p>
+              <p className="text-white/75 text-xs mt-0.5">Companion, hospital connections & more</p>
+            </div>
+            <ChevronRight className="w-5 h-5 text-white/70 shrink-0 relative" />
           </div>
         </Link>
       )}
 
-      {/* Today's plan */}
-      <div className="mb-6">
-        <h2 className="text-base font-semibold text-foreground mb-3">Today's plan</h2>
+      {/* ── Today's plan ───────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-bold text-white">Today's plan</h2>
+          {total > 0 && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full"
+              style={{ background: "rgba(20,184,166,0.15)", color: "#14b8a6", border: "1px solid rgba(20,184,166,0.25)" }}>
+              {doneCount}/{total} done
+            </span>
+          )}
+        </div>
 
-        {hasModules ? (
-          <div className="bg-card rounded-2xl border border-border divide-y divide-border overflow-hidden">
-            {checklist.map((item) => (
-              <Link key={item.id} href={moduleHref(item.id)}>
-                <div className="flex items-center gap-3 px-4 py-3.5 transition active:bg-muted cursor-pointer">
-                  <div className={cn(
-                    "w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition",
-                    item.done ? "bg-primary border-primary" : "border-muted-foreground/40"
-                  )}>
-                    {item.done && <Check className="w-3.5 h-3.5 text-primary-foreground" />}
+        {checklist.length > 0 ? (
+          <div className="space-y-2.5">
+            {checklist.map((item) => {
+              const accent = MODULE_ACCENT[item.id] ?? "#14b8a6";
+              const bg = MODULE_COLORS[item.id] ?? "rgba(20,184,166,0.1)";
+              return (
+                <Link key={item.id} href={moduleHref(item.id)}>
+                  <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl cursor-pointer active:scale-[0.98] transition"
+                    style={{
+                      background: item.done ? "rgba(20,184,166,0.1)" : bg,
+                      border: `1px solid ${item.done ? "rgba(20,184,166,0.3)" : "rgba(255,255,255,0.06)"}`,
+                      boxShadow: item.done ? `0 0 20px rgba(20,184,166,0.08)` : "none",
+                    }}>
+                    <div className="w-4 h-4 shrink-0">
+                      {item.done
+                        ? <CheckCircle2 className="w-4 h-4" style={{ color: "#14b8a6" }} />
+                        : <Circle className="w-4 h-4" style={{ color: "rgba(255,255,255,0.25)" }} />}
+                    </div>
+                    <span className="text-xl shrink-0">{item.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn("text-sm font-semibold", item.done ? "line-through" : "text-white")}
+                        style={{ color: item.done ? "rgba(255,255,255,0.35)" : undefined }}>
+                        {item.label}
+                      </p>
+                      {item.sub && <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>{item.sub}</p>}
+                    </div>
+                    <ChevronRight className="w-4 h-4 shrink-0" style={{ color: accent, opacity: 0.7 }} />
                   </div>
-                  <span className="text-base shrink-0">{item.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn("text-sm font-semibold", item.done && "line-through text-muted-foreground")}>
-                      {item.label}
-                    </p>
-                    {item.sub && <p className="text-xs text-muted-foreground">{item.sub}</p>}
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         ) : (
-          <div className="bg-card rounded-2xl border border-border p-5 text-center">
-            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
-              <Sparkles className="w-6 h-6 text-muted-foreground" />
+          <div className="rounded-2xl p-6 text-center"
+            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3"
+              style={{ background: "rgba(20,184,166,0.1)", border: "1px solid rgba(20,184,166,0.2)" }}>
+              <Sparkles className="w-7 h-7" style={{ color: "#14b8a6" }} />
             </div>
-            <p className="text-foreground font-medium mb-1">Nothing yet</p>
-            <p className="text-muted-foreground text-sm">
-              Set up your wellness modules and your daily plan will appear here automatically.
+            <p className="font-bold text-white mb-1">Nothing set up yet</p>
+            <p className="text-xs leading-relaxed mb-4" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Set up your wellness modules and your daily plan will appear here.
             </p>
             <Link href="/wellness">
-              <button className="mt-4 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold transition active:scale-95">
+              <button className="px-6 py-2.5 rounded-xl text-sm font-bold text-white transition active:scale-95"
+                style={{ background: "linear-gradient(135deg,#0d9488,#14b8a6)", boxShadow: "0 4px 16px rgba(20,184,166,0.3)" }}>
                 Set up wellness
               </button>
             </Link>
@@ -104,112 +185,101 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Weekly summary card */}
+      {/* ── Weekly summary ──────────────────────────────────────────── */}
       {summary && summary.moduleStats.length > 0 && (
         <WeeklySummaryCard summary={summary} />
       )}
 
-      {/* Quick access */}
-      <h2 className="text-base font-semibold text-foreground mb-3">Quick access</h2>
-      <div className="grid grid-cols-2 gap-3">
-        <QuickCard
-          href="/wellness"
-          icon={<Heart className="w-6 h-6" />}
-          label="My Wellness"
-          description="Habits & tracking"
-          color="bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400"
-        />
-        <QuickCard
-          href="/hospitals"
-          icon={<Building2 className="w-6 h-6" />}
-          label="Hospitals"
-          description="Your connected hospitals"
-          color="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
-          locked={!isPremium}
-        />
-        <QuickCard
-          href="/social"
-          icon={<Users className="w-6 h-6" />}
-          label="Social"
-          description="Partners & streaks"
-          color="bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400"
-        />
+      {/* ── Quick access ───────────────────────────────────────────── */}
+      <div>
+        <h2 className="text-base font-bold text-white mb-3">Quick access</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <QuickCard href="/wellness"
+            emoji="💚" label="My Wellness" description="Habits & tracking"
+            gradient="linear-gradient(135deg,#064e3b,#065f46)" accent="#10b981" />
+          <QuickCard href={isPremium ? "/hospitals" : "/pricing"}
+            emoji="🏥" label="Hospitals" description="Your connected hospitals"
+            gradient="linear-gradient(135deg,#1e3a5f,#1e40af)" accent="#60a5fa"
+            locked={!isPremium} />
+          <QuickCard href="/social"
+            emoji="👥" label="Social" description="Partners & streaks"
+            gradient="linear-gradient(135deg,#3b0764,#6d28d9)" accent="#a78bfa" />
+        </div>
       </div>
+
     </div>
   );
 }
 
 function WeeklySummaryCard({ summary }: { summary: WeekSummary }) {
   const { moduleStats, moodAvg, overallRate, weekStart, weekEnd } = summary;
-
   const startLabel = new Date(weekStart + "T12:00:00").toLocaleDateString("en-NG", { month: "short", day: "numeric" });
   const endLabel   = new Date(weekEnd   + "T12:00:00").toLocaleDateString("en-NG", { month: "short", day: "numeric" });
 
-  const rateColor =
-    overallRate >= 80 ? "text-emerald-600 dark:text-emerald-400" :
-    overallRate >= 50 ? "text-amber-600  dark:text-amber-400"  :
-                        "text-rose-600   dark:text-rose-400";
+  const rateColor = overallRate >= 80 ? "#10b981" : overallRate >= 50 ? "#f59e0b" : "#ef4444";
+  const rateGlow  = overallRate >= 80 ? "rgba(16,185,129,0.3)" : overallRate >= 50 ? "rgba(245,158,11,0.3)" : "rgba(239,68,68,0.3)";
 
   return (
-    <div className="mb-6">
-      <div className="bg-card border border-border rounded-2xl overflow-hidden">
-        {/* Card header */}
-        <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-foreground">This week</p>
-            <p className="text-xs text-muted-foreground">{startLabel} – {endLabel}</p>
-          </div>
-          <div className="text-right">
-            <p className={cn("text-2xl font-bold", rateColor)}>{overallRate}%</p>
-            <p className="text-[10px] text-muted-foreground">completed</p>
-          </div>
-        </div>
+    <div className="rounded-2xl overflow-hidden"
+      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
 
-        {/* Progress bar */}
-        <div className="px-4 pb-3">
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className={cn("h-full rounded-full transition-all", overallRate >= 80 ? "bg-emerald-500" : overallRate >= 50 ? "bg-amber-500" : "bg-rose-500")}
-              style={{ width: `${overallRate}%` }}
-            />
-          </div>
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-bold text-white">This week</p>
+          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>{startLabel} – {endLabel}</p>
         </div>
+        <div className="text-right">
+          <p className="text-3xl font-black" style={{ color: rateColor, filter: `drop-shadow(0 0 8px ${rateGlow})` }}>
+            {overallRate}%
+          </p>
+          <p className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>completed</p>
+        </div>
+      </div>
 
-        {/* Per-module rows */}
-        <div className="divide-y divide-border">
-          {moduleStats.map((stat) => (
-            <div key={stat.type} className="flex items-center gap-3 px-4 py-2.5">
+      {/* Overall bar */}
+      <div className="px-4 pb-4">
+        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+          <div className="h-full rounded-full transition-all"
+            style={{ width: `${overallRate}%`, background: rateColor, boxShadow: `0 0 8px ${rateGlow}` }} />
+        </div>
+      </div>
+
+      {/* Per-module rows */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        {moduleStats.map((stat) => {
+          const accent = MODULE_ACCENT[stat.type] ?? "#14b8a6";
+          return (
+            <div key={stat.type} className="flex items-center gap-3 px-4 py-2.5"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
               <span className="text-base w-6 text-center shrink-0">{stat.emoji}</span>
               <div className="flex gap-1 flex-1">
                 {stat.days.map((done, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "flex-1 h-2 rounded-full",
-                      done ? "bg-primary" : "bg-muted"
-                    )}
-                  />
+                  <div key={i} className="flex-1 h-1.5 rounded-full"
+                    style={{ background: done ? accent : "rgba(255,255,255,0.08)",
+                      boxShadow: done ? `0 0 4px ${accent}80` : "none" }} />
                 ))}
               </div>
-              <span className="text-xs font-semibold text-muted-foreground w-8 text-right shrink-0">
+              <span className="text-xs font-bold w-8 text-right shrink-0" style={{ color: accent }}>
                 {stat.completedDays}/7
               </span>
             </div>
-          ))}
-        </div>
-
-        {/* Mood row */}
-        {moodAvg && (
-          <div className="px-4 py-3 border-t border-border flex items-center gap-4">
-            <p className="text-xs text-muted-foreground shrink-0">Avg mood</p>
-            <div className="flex gap-3 flex-1">
-              <MoodPip label="😊" value={moodAvg.mood} />
-              <MoodPip label="⚡" value={moodAvg.energy} />
-              <MoodPip label="😰" value={moodAvg.stress} invert />
-            </div>
-          </div>
-        )}
+          );
+        })}
       </div>
+
+      {/* Mood */}
+      {moodAvg && (
+        <div className="px-4 py-3 flex items-center gap-4"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <p className="text-xs shrink-0" style={{ color: "rgba(255,255,255,0.4)" }}>Avg mood</p>
+          <div className="flex gap-4 flex-1">
+            <MoodPip label="😊" value={moodAvg.mood} />
+            <MoodPip label="⚡" value={moodAvg.energy} />
+            <MoodPip label="🧘" value={moodAvg.stress} invert />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -218,36 +288,34 @@ function MoodPip({ label, value, invert = false }: { label: string; value: numbe
   const filled = Math.round(value);
   const good = invert ? 6 - filled : filled;
   return (
-    <div className="flex items-center gap-1">
-      <span className="text-xs">{label}</span>
+    <div className="flex items-center gap-1.5">
+      <span className="text-sm">{label}</span>
       <div className="flex gap-0.5">
         {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} className={cn("w-2 h-2 rounded-full", i < good ? "bg-primary" : "bg-muted")} />
+          <div key={i} className="w-2 h-2 rounded-full"
+            style={{ background: i < good ? "#14b8a6" : "rgba(255,255,255,0.1)",
+              boxShadow: i < good ? "0 0 4px rgba(20,184,166,0.6)" : "none" }} />
         ))}
       </div>
     </div>
   );
 }
 
-function QuickCard({
-  href, icon, label, description, color, locked = false,
-}: {
-  href: string; icon: React.ReactNode; label: string; description: string; color: string; locked?: boolean;
+function QuickCard({ href, emoji, label, description, gradient, accent, locked = false }: {
+  href: string; emoji: string; label: string; description: string;
+  gradient: string; accent: string; locked?: boolean;
 }) {
   return (
-    <Link href={locked ? "/pricing" : href}>
-      <div className={cn(
-        "bg-card border border-border rounded-2xl p-4 transition active:scale-95 cursor-pointer relative overflow-hidden",
-        locked && "opacity-80"
-      )}>
-        <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center mb-3", color)}>
-          {icon}
-        </div>
-        <p className="font-semibold text-foreground text-sm">{label}</p>
-        <p className="text-muted-foreground text-xs mt-0.5">{description}</p>
+    <Link href={href}>
+      <div className="relative rounded-2xl p-4 cursor-pointer active:scale-95 transition overflow-hidden"
+        style={{ background: gradient, border: `1px solid ${accent}30`, boxShadow: `0 4px 20px ${accent}20` }}>
+        <div className="text-2xl mb-2">{emoji}</div>
+        <p className="font-bold text-white text-sm">{label}</p>
+        <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.55)" }}>{description}</p>
         {locked && (
-          <div className="absolute top-3 right-3">
-            <Crown className="w-4 h-4 text-amber-500" />
+          <div className="absolute top-3 right-3 w-6 h-6 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(245,158,11,0.2)" }}>
+            <Crown className="w-3.5 h-3.5" style={{ color: "#f59e0b" }} />
           </div>
         )}
       </div>

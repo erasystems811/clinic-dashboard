@@ -142,11 +142,11 @@ function applyTheme(account: Account) {
   root.style.setProperty("--btn-gradient", palette.btnGradient);
 
   // Neutral glass card surfaces — never flooded with accent color
-  root.style.setProperty("--glass-bg",     dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.55)");
-  root.style.setProperty("--glass-border", dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.70)");
-  root.style.setProperty("--glass-track",  dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.40)");
-  root.style.setProperty("--input-bg",     dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.60)");
-  root.style.setProperty("--input-border", dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.75)");
+  root.style.setProperty("--glass-bg",     dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.55)");
+  root.style.setProperty("--glass-border", dark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.70)");
+  root.style.setProperty("--glass-track",  dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.40)");
+  root.style.setProperty("--input-bg",     dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.60)");
+  root.style.setProperty("--input-border", dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.75)");
   // Accent tints — used ONLY on intentionally highlighted panels (e.g. ERA score card border, today badge)
   root.style.setProperty("--accent-tint-bg",     dark ? `rgba(${palette.glowRGB},0.08)` : `rgba(${palette.glowRGB},0.10)`);
   root.style.setProperty("--accent-tint-border",  dark ? `rgba(${palette.glowRGB},0.22)` : `rgba(${palette.glowRGB},0.30)`);

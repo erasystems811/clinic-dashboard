@@ -87,17 +87,25 @@ body {
   button:active { opacity: 0.75; transform: scale(0.98); }
 }
 
-/* ── Light mode: teal glassmorphism ──────────────────────────────────── */
+/* ── Body gradient — gives glass cards something to blur through ──────── */
 html:not(.dark) body {
   background: linear-gradient(150deg, var(--light-bg-from, #f0fdfb) 0%, var(--light-bg-to, #ccfbf1) 60%, var(--light-bg-from, #f0fdfb) 100%);
   min-height: 100vh;
 }
+.dark body {
+  background: linear-gradient(150deg, var(--bg-base, #060d1f) 0%, var(--bg-mid, #0a1628) 50%, var(--bg-base, #060d1f) 100%);
+  min-height: 100vh;
+}
 
-/* Glass cards: frosted-blur panels over the teal gradient */
-html:not(.dark) section > .rounded-2xl,
-html:not(.dark) .glass-card {
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+/* Glass blur on all rounded div panels throughout the whole app.
+   Targets div only — buttons, spans, inputs are not affected. */
+div.rounded-2xl {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+div.rounded-xl {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 /* Override hardcoded white Tailwind utilities in light mode */

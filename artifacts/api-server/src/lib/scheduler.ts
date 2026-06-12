@@ -591,7 +591,7 @@ async function runNoShowDetection() {
           patient_id: appt.patient_id,
           patient_name: patientName,
           metadata: appt.scheduled_at,
-        }).then(() => {}).catch(() => {});
+        }).then(() => {}, () => {});
       }
 
       log(`Auto no-show: appt ${appt.id} (${appt.patient_name})`);

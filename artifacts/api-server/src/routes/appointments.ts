@@ -245,7 +245,7 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
       try {
         const result = await sendAppointmentReschedule(hospital.intId, appt.patient_id as number, appt.patient_name as string, patient.email as string, parsed.data.scheduledAt);
         if (result.dndBlocked) {
-          return res.json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled", dndBlocked: true });
+          res.json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled", dndBlocked: true }); return;
         }
       } catch (err) { console.error("[appt-reschedule] unhandled error:", err); }
     }

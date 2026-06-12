@@ -1890,8 +1890,8 @@ router.get("/hospital/announcements", async (req, res): Promise<void> => {
   const moduleEnabled: Record<string, boolean> = {
     appointments: hospitalModules?.appointments_enabled ?? true,
     feedback: hospitalModules?.feedback_enabled ?? true,
-    wellness_newsletter: (hospitalModules as Record<string, unknown>)?.wellness_newsletter_enabled ?? true,
-    messages: (hospitalModules as Record<string, unknown>)?.messages_enabled ?? false,
+    wellness_newsletter: Boolean((hospitalModules as Record<string, unknown>)?.wellness_newsletter_enabled ?? true),
+    messages: Boolean((hospitalModules as Record<string, unknown>)?.messages_enabled ?? false),
   };
 
   const visible = unread.filter(a => {

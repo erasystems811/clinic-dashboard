@@ -76,7 +76,7 @@ router.post("/wallet/fund/initiate", async (req: Request, res: Response): Promis
     return;
   }
 
-  let flwRes: Response;
+  let flwRes: globalThis.Response;
   try {
     flwRes = await fetch(`${FLW_BASE}/payments`, {
       method: "POST",
@@ -172,7 +172,7 @@ router.get("/wallet/transactions", async (req: Request, res: Response): Promise<
 
 // ── POST /api/super-admin/hospitals/:id/wallet/credit — super admin manually credits wallet ──
 router.post("/super-admin/hospitals/:id/wallet/credit", requireSuperAdmin, async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const amountNaira = Number(req.body?.amountNaira);
@@ -187,7 +187,7 @@ router.post("/super-admin/hospitals/:id/wallet/credit", requireSuperAdmin, async
 
 // ── GET /api/super-admin/hospitals/:id/wallet — super admin views wallet ──────
 router.get("/super-admin/hospitals/:id/wallet", requireSuperAdmin, async (req: Request, res: Response): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [{ data: hospital }, { data: transactions }] = await Promise.all([

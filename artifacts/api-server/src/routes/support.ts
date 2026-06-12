@@ -347,7 +347,7 @@ router.get("/super-admin/support/tickets/:id/analysis", requireSuperAdmin, async
 
   const { data: ticket } = await supabase
     .from("support_tickets")
-    .select("subject, hospital_name, status")
+    .select("subject, hospital_name, status, hospital_id")
     .eq("id", id)
     .single();
 

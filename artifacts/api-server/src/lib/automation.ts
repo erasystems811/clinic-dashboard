@@ -116,6 +116,7 @@ export async function getHospitalContext(hospitalId: number): Promise<HospitalCo
     suspended,
     feedbackEnabled: mods?.feedback_enabled !== false,
     slug: (hospital?.slug as string | null) ?? null,
+    contactEmail: null,
   };
 }
 

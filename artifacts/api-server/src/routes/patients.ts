@@ -487,7 +487,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
     if (parsed.data.email) queueUpdate.email = data.email;
     if (parsed.data.whatsappNumber) queueUpdate.whatsapp_number = data.whatsapp_number;
 
-    const propagations: Promise<unknown>[] = [];
+    const propagations: PromiseLike<unknown>[] = [];
 
     // Sync queue row if patient is currently queued
     if (Object.keys(queueUpdate).length > 0) {

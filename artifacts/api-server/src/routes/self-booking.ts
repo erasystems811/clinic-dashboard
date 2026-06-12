@@ -201,7 +201,7 @@ router.delete("/hospital/time-blocks/:id", async (req: Request, res: Response): 
   const hospitalId = token ? verifyHospitalToken(token) : null;
   if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   await supabase.from("appointment_time_blocks").delete().eq("id", id).eq("hospital_id", hospitalId);
@@ -250,7 +250,7 @@ router.patch("/hospital/self-bookings/:id/confirm", async (req: Request, res: Re
   const ctx = await getHospitalFromRequest(req);
   if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const body = (req.body ?? {}) as Record<string, unknown>;
@@ -334,7 +334,7 @@ router.patch("/hospital/self-bookings/:id/cancel", async (req: Request, res: Res
   const ctx = await getHospitalFromRequest(req);
   if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id as string, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const { data: booking } = await supabase.from("self_bookings")

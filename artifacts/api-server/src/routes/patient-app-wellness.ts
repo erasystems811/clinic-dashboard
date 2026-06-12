@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../lib/supabase.js";
 import { getPatientFromRequest } from "../lib/patient-auth.js";
 
@@ -428,6 +429,63 @@ router.get("/patient-app/wellness/streak/:type", async (req, res): Promise<void>
   }
 
   res.json({ streak });
+});
+
+// ── AI Daily Insight ─────────────────────────────────────────────────────────
+// Cached per account per day — only one Claude call per user per day
+const insightCache = new Map<string, string>();
+
+router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const today = new Date().toISOString().split("T")[0];
+  const cacheKey = `${account.id}:${today}`;
+
+  if (insightCache.has(cacheKey)) {
+    res.json({ insight: insightCache.get(cacheKey) });
+    return;
+  }
+
+  // Evict old entries
+  for (const k of insightCache.keys()) {
+    if (!k.endsWith(`:${today}`)) insightCache.delete(k);
+  }
+
+  // Fetch context
+  const [{ data: modules }, { data: logs }] = await Promise.all([
+    supabase.from("wellness_modules").select("module_type, enabled").eq("account_id", account.id).eq("enabled", true),
+    supabase.from("wellness_logs")
+      .select("module_type, log_date")
+      .eq("account_id", account.id)
+      .gte("log_date", new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0])
+      .order("log_date", { ascending: false }),
+  ]);
+
+  const activeTypes = (modules ?? []).map((m: Record<string, string>) => m.module_type).join(", ");
+  const daysLogged = [...new Set((logs ?? []).map((l: Record<string, string>) => l.log_date))].length;
+  const logCount = logs?.length ?? 0;
+  const name = (account as Record<string, unknown>).display_name as string ?? "there";
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+
+  try {
+    const anthropic = new Anthropic();
+    const msg = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 60,
+      messages: [{
+        role: "user",
+        content: `You are ERA Health, a caring wellness companion. Write ONE short, warm, personal insight (max 18 words) for ${name} based on: active habits = [${activeTypes}], days logged this week = ${daysLogged}/7, total logs this week = ${logCount}, time of day = ${timeOfDay}. Be specific, encouraging, and actionable. No generic advice. No quotes.`,
+      }],
+    });
+
+    const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : null;
+    if (text) insightCache.set(cacheKey, text);
+    res.json({ insight: text ?? null });
+  } catch {
+    res.json({ insight: null });
+  }
 });
 
 export default router;

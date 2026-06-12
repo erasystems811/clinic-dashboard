@@ -52,6 +52,17 @@ export function useWeekSummary() {
   });
 }
 
+export function useAiInsight() {
+  return useQuery<{ insight: string | null }>({
+    queryKey: ["wellness", "ai-insight"],
+    queryFn: () => get<{ insight: string | null }>(`${BASE}/ai-insight`),
+    staleTime: 4 * 60 * 60 * 1000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
 export function useSaveModule(type: string) {

@@ -7,13 +7,13 @@ import { Crown, Moon, Sun, LogOut, ChevronRight, Check } from "lucide-react";
 import { useCoins } from "@/lib/hospitals-api";
 
 const THEMES = [
-  { id: "blue",   label: "Blue",   color: "bg-blue-500" },
-  { id: "purple", label: "Purple", color: "bg-purple-500" },
-  { id: "green",  label: "Green",  color: "bg-emerald-500" },
-  { id: "orange", label: "Orange", color: "bg-orange-500" },
-  { id: "teal",   label: "Teal",   color: "bg-teal-500" },
-  { id: "rose",   label: "Rose",   color: "bg-rose-500" },
-  { id: "slate",  label: "Slate",  color: "bg-slate-500" },
+  { id: "teal",   label: "Teal",   bg: "linear-gradient(135deg,#0d9488,#14b8a6)", accent: "#14b8a6" },
+  { id: "blue",   label: "Blue",   bg: "linear-gradient(135deg,#1d4ed8,#3b82f6)", accent: "#3b82f6" },
+  { id: "purple", label: "Purple", bg: "linear-gradient(135deg,#7c3aed,#a78bfa)", accent: "#a78bfa" },
+  { id: "green",  label: "Green",  bg: "linear-gradient(135deg,#15803d,#22c55e)", accent: "#22c55e" },
+  { id: "orange", label: "Sunset", bg: "linear-gradient(135deg,#c2410c,#f97316)", accent: "#f97316" },
+  { id: "rose",   label: "Rose",   bg: "linear-gradient(135deg,#be123c,#f43f5e)", accent: "#f43f5e" },
+  { id: "slate",  label: "Silver", bg: "linear-gradient(135deg,#475569,#94a3b8)", accent: "#94a3b8" },
 ] as const;
 
 type ThemeId = typeof THEMES[number]["id"];
@@ -54,14 +54,14 @@ export default function ProfilePage() {
 
   return (
     <div className="px-5 pt-6 pb-4">
-      <h1 className="text-2xl font-bold text-foreground mb-6">Profile</h1>
+      <h1 className="text-2xl font-bold mb-6" style={{ color: "var(--text-main)" }}>Profile</h1>
 
       {/* Account card */}
       <div className="rounded-2xl p-5 mb-4"
         style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
         <div className="flex items-center gap-4 mb-4">
           <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: "linear-gradient(135deg,#0d9488,#14b8a6)", boxShadow: "0 4px 16px rgba(20,184,166,0.4)" }}>
+            style={{ background: "var(--btn-gradient)", boxShadow: `0 4px 16px rgba(var(--glow-rgb),0.4)` }}>
             <span className="font-bold text-white text-2xl">
               {(account.displayName ?? account.username)[0].toUpperCase()}
             </span>
@@ -116,54 +116,61 @@ export default function ProfilePage() {
         </Link>
       )}
 
-      {/* Theme picker */}
-      <Section title="App Theme">
-        <div className="flex flex-wrap gap-3 pt-1">
-          {THEMES.map((t) => {
-            const active = (account.themeColor ?? "blue") === t.id;
-            return (
-              <button key={t.id} onClick={() => handleTheme(t.id)}
-                className={cn(
-                  "flex flex-col items-center gap-1.5 transition active:scale-95",
-                )}>
-                <div className={cn(
-                  "w-10 h-10 rounded-full flex items-center justify-center border-2 transition",
-                  t.color,
-                  active ? "border-foreground scale-110" : "border-transparent"
-                )}>
-                  {active && <Check className="w-4 h-4 text-white" />}
-                </div>
-                <span className="text-[10px] text-muted-foreground font-medium">{t.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        {saving && <p className="text-xs text-muted-foreground mt-2">Saving…</p>}
-      </Section>
+      {/* Theme + appearance */}
+      <div className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>
+          App Colour & Mood
+        </p>
+        <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            {THEMES.map((t) => {
+              const active = (account.themeColor ?? "teal") === t.id;
+              return (
+                <button key={t.id} onClick={() => handleTheme(t.id)}
+                  className="flex flex-col items-center gap-1.5 transition active:scale-90">
+                  <div className="relative w-12 h-12 rounded-xl"
+                    style={{ background: t.bg,
+                      border: active ? `2.5px solid ${t.accent}` : "2px solid rgba(255,255,255,0.1)",
+                      boxShadow: active ? `0 0 14px ${t.accent}70` : "none" }}>
+                    {active && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Check className="w-5 h-5 text-white" strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[10px] font-semibold"
+                    style={{ color: active ? "var(--accent)" : "rgba(255,255,255,0.4)" }}>
+                    {t.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-      {/* Dark mode */}
-      <Section title="Appearance">
-        <div className="flex gap-3">
-          {[
-            { dark: false, label: "Light", Icon: Sun },
-            { dark: true,  label: "Dark",  Icon: Moon },
-          ].map(({ dark, label, Icon }) => {
-            const active = (account.darkMode ?? false) === dark;
-            return (
-              <button key={label} onClick={() => handleDarkMode(dark)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 transition text-sm font-semibold",
-                  active
-                    ? "border-primary bg-primary/5 text-primary"
-                    : "border-border text-muted-foreground hover:border-primary/40"
-                )}>
-                <Icon className="w-4 h-4" />
-                {label}
-              </button>
-            );
-          })}
+          {/* Dark / Light */}
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { dark: true,  label: "🌙 Dark" },
+              { dark: false, label: "☀️ Light" },
+            ] as const).map(({ dark, label }) => {
+              const active = (account.darkMode ?? true) === dark;
+              return (
+                <button key={label} onClick={() => handleDarkMode(dark)}
+                  className="py-3 rounded-xl text-sm font-bold transition active:scale-95"
+                  style={{
+                    background: active ? `rgba(var(--glow-rgb),0.18)` : "rgba(255,255,255,0.05)",
+                    border: active ? `1.5px solid rgba(var(--glow-rgb),0.5)` : "1.5px solid rgba(255,255,255,0.08)",
+                    color: active ? "var(--accent)" : "rgba(255,255,255,0.4)",
+                  }}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {saving && <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.35)" }}>Saving…</p>}
         </div>
-      </Section>
+      </div>
 
       {/* Women's Health */}
       <Section title="Women's Health">
@@ -198,15 +205,14 @@ export default function ProfilePage() {
       </Section>
 
       {/* Logout */}
-      <button
-        onClick={logout}
-        className="w-full flex items-center justify-center gap-2 py-4 mt-2 rounded-2xl border border-destructive/30 text-destructive font-semibold text-sm transition active:scale-95 hover:bg-destructive/5"
-      >
+      <button onClick={logout}
+        className="w-full flex items-center justify-center gap-2 py-4 mt-2 rounded-2xl font-semibold text-sm transition active:scale-95"
+        style={{ border: "1px solid rgba(239,68,68,0.3)", color: "#f87171", background: "rgba(239,68,68,0.06)" }}>
         <LogOut className="w-4 h-4" />
         Sign Out
       </button>
 
-      <p className="text-center text-xs text-muted-foreground mt-6">ERA Health · By ERA Systems</p>
+      <p className="text-center text-xs mt-6" style={{ color: "rgba(255,255,255,0.25)" }}>ERA Health · By ERA Systems</p>
     </div>
   );
 }
@@ -214,8 +220,12 @@ export default function ProfilePage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-4">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{title}</p>
-      <div className="bg-card border border-border rounded-2xl p-4">
+      <p className="text-xs font-semibold uppercase tracking-wider mb-3"
+        style={{ color: "rgba(255,255,255,0.35)" }}>
+        {title}
+      </p>
+      <div className="rounded-2xl p-4"
+        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
         {children}
       </div>
     </div>
@@ -225,12 +235,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function SettingsRow({ label, sublabel, onClick }: { label: string; sublabel?: string; onClick: () => void }) {
   return (
     <button onClick={onClick}
-      className="w-full flex items-center justify-between py-3 text-foreground text-sm font-medium hover:text-primary transition border-b border-border last:border-0">
+      className="w-full flex items-center justify-between py-3 text-sm font-medium transition"
+      style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.8)" }}
+      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--accent)")}
+      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.8)")}>
       <div className="text-left">
         <p>{label}</p>
-        {sublabel && <p className="text-xs text-muted-foreground font-normal mt-0.5">{sublabel}</p>}
+        {sublabel && <p className="text-xs font-normal mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>{sublabel}</p>}
       </div>
-      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+      <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
     </button>
   );
 }

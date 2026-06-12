@@ -27,27 +27,129 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const SESSION_KEY = "era_me_session";
 
-const THEME_PRIMARY: Record<string, string> = {
-  blue:   "217 91% 60%",
-  purple: "271 91% 65%",
-  green:  "158 64% 52%",
-  orange: "25 95% 53%",
-  teal:   "175 84% 32%",
-  rose:   "347 77% 50%",
-  slate:  "215 16% 47%",
+interface ThemePalette {
+  // HSL for Tailwind --primary
+  primaryHSL: string;
+  // Background (dark mode)
+  bgDark: string;
+  bgDarkMid: string;
+  // Background (light mode)
+  bgLight: string;
+  bgLightMid: string;
+  // Accent hex
+  accent: string;
+  accentLight: string;
+  // RGB string for rgba() glow e.g. "20,184,166"
+  glowRGB: string;
+  // Primary button gradient
+  btnGradient: string;
+  // Background HSL for Tailwind (dark)
+  backgroundDarkHSL: string;
+  backgroundLightHSL: string;
+}
+
+const PALETTES: Record<string, ThemePalette> = {
+  teal: {
+    primaryHSL: "175 84% 32%",
+    bgDark: "#060d1f", bgDarkMid: "#0a1628",
+    bgLight: "#f0fdfb", bgLightMid: "#ccfbf1",
+    accent: "#14b8a6", accentLight: "#5eead4",
+    glowRGB: "20,184,166",
+    btnGradient: "linear-gradient(135deg,#0d9488,#14b8a6)",
+    backgroundDarkHSL: "226 60% 10%",
+    backgroundLightHSL: "175 60% 97%",
+  },
+  blue: {
+    primaryHSL: "217 91% 60%",
+    bgDark: "#060e21", bgDarkMid: "#09162e",
+    bgLight: "#eff6ff", bgLightMid: "#dbeafe",
+    accent: "#3b82f6", accentLight: "#93c5fd",
+    glowRGB: "59,130,246",
+    btnGradient: "linear-gradient(135deg,#1d4ed8,#3b82f6)",
+    backgroundDarkHSL: "222 70% 10%",
+    backgroundLightHSL: "214 100% 97%",
+  },
+  purple: {
+    primaryHSL: "271 91% 65%",
+    bgDark: "#0d0618", bgDarkMid: "#130a24",
+    bgLight: "#faf5ff", bgLightMid: "#ede9fe",
+    accent: "#a78bfa", accentLight: "#c4b5fd",
+    glowRGB: "139,92,246",
+    btnGradient: "linear-gradient(135deg,#7c3aed,#a78bfa)",
+    backgroundDarkHSL: "271 70% 8%",
+    backgroundLightHSL: "270 100% 99%",
+  },
+  green: {
+    primaryHSL: "142 71% 45%",
+    bgDark: "#031209", bgDarkMid: "#051a0e",
+    bgLight: "#f0fdf4", bgLightMid: "#dcfce7",
+    accent: "#22c55e", accentLight: "#4ade80",
+    glowRGB: "34,197,94",
+    btnGradient: "linear-gradient(135deg,#15803d,#22c55e)",
+    backgroundDarkHSL: "142 65% 5%",
+    backgroundLightHSL: "142 76% 97%",
+  },
+  orange: {
+    primaryHSL: "25 95% 53%",
+    bgDark: "#160c03", bgDarkMid: "#1e1105",
+    bgLight: "#fff7ed", bgLightMid: "#fed7aa",
+    accent: "#f97316", accentLight: "#fb923c",
+    glowRGB: "249,115,22",
+    btnGradient: "linear-gradient(135deg,#c2410c,#f97316)",
+    backgroundDarkHSL: "25 80% 6%",
+    backgroundLightHSL: "33 100% 98%",
+  },
+  rose: {
+    primaryHSL: "347 77% 50%",
+    bgDark: "#160308", bgDarkMid: "#1e050e",
+    bgLight: "#fff1f2", bgLightMid: "#ffe4e6",
+    accent: "#f43f5e", accentLight: "#fb7185",
+    glowRGB: "244,63,94",
+    btnGradient: "linear-gradient(135deg,#be123c,#f43f5e)",
+    backgroundDarkHSL: "347 80% 6%",
+    backgroundLightHSL: "355 100% 98%",
+  },
+  slate: {
+    primaryHSL: "215 16% 47%",
+    bgDark: "#0a0d12", bgDarkMid: "#0e1118",
+    bgLight: "#f8fafc", bgLightMid: "#f1f5f9",
+    accent: "#94a3b8", accentLight: "#cbd5e1",
+    glowRGB: "148,163,184",
+    btnGradient: "linear-gradient(135deg,#475569,#94a3b8)",
+    backgroundDarkHSL: "215 20% 7%",
+    backgroundLightHSL: "210 40% 98%",
+  },
 };
 
 function applyTheme(account: Account) {
   const root = document.documentElement;
+  const dark = account.darkMode ?? true;
+  const palette = PALETTES[account.themeColor ?? "teal"] ?? PALETTES.teal;
+
   root.setAttribute("data-theme", account.themeColor ?? "teal");
-  const hsl = THEME_PRIMARY[account.themeColor ?? "teal"] ?? THEME_PRIMARY.teal;
-  root.style.setProperty("--primary", hsl);
-  root.style.setProperty("--ring", hsl);
-  if (account.darkMode) {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
+
+  // Tailwind theme vars
+  root.style.setProperty("--primary", palette.primaryHSL);
+  root.style.setProperty("--ring", palette.primaryHSL);
+  root.style.setProperty("--background", dark ? palette.backgroundDarkHSL : palette.backgroundLightHSL);
+
+  // Atmosphere vars used in inline styles
+  root.style.setProperty("--bg-base", dark ? palette.bgDark : palette.bgLight);
+  root.style.setProperty("--bg-mid",  dark ? palette.bgDarkMid : palette.bgLightMid);
+  root.style.setProperty("--glow-rgb", palette.glowRGB);
+  root.style.setProperty("--accent", palette.accent);
+  root.style.setProperty("--accent-light", palette.accentLight);
+  root.style.setProperty("--btn-gradient", palette.btnGradient);
+
+  // Glass card surfaces (flip for light mode)
+  root.style.setProperty("--glass-bg",     dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)");
+  root.style.setProperty("--glass-border", dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)");
+  root.style.setProperty("--text-main",    dark ? "#ffffff" : "#0f172a");
+  root.style.setProperty("--text-sub",     dark ? "rgba(255,255,255,0.45)" : "rgba(15,23,42,0.55)");
+  root.style.setProperty("--text-dim",     dark ? "rgba(255,255,255,0.25)" : "rgba(15,23,42,0.35)");
+
+  if (dark) root.classList.add("dark");
+  else root.classList.remove("dark");
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

@@ -375,13 +375,15 @@ router.post("/patient-app/onboard", async (req, res): Promise<void> => {
     gender: z.string().optional(),
     dateOfBirth: z.string().optional(),
     goals: z.array(z.string()).default([]),
+    themeColor: z.string().optional(),
+    darkMode: z.boolean().optional(),
     wakeTime: z.string().optional(),
     bedTime: z.string().optional(),
   }).safeParse(req.body);
 
   if (!body.success) { res.status(400).json({ error: body.error.issues[0]?.message ?? "Invalid input" }); return; }
 
-  const { displayName, gender, dateOfBirth, goals, wakeTime, bedTime } = body.data;
+  const { displayName, gender, dateOfBirth, goals, themeColor, darkMode, wakeTime, bedTime } = body.data;
 
   // Save profile data
   const profileUpdate: Record<string, unknown> = {
@@ -390,6 +392,8 @@ router.post("/patient-app/onboard", async (req, res): Promise<void> => {
   };
   if (gender) profileUpdate.gender = gender;
   if (dateOfBirth) profileUpdate.date_of_birth = dateOfBirth;
+  if (themeColor) profileUpdate.theme_color = themeColor;
+  if (darkMode !== undefined) profileUpdate.dark_mode = darkMode;
   await supabase.from("patient_accounts").update(profileUpdate).eq("id", account.id);
 
   // Map goals → modules to enable

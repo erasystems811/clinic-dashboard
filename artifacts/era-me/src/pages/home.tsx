@@ -99,9 +99,9 @@ export default function HomePage() {
       <div className="relative px-5 pt-8 pb-7 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full opacity-20"
-            style={{ background: "radial-gradient(circle,#14b8a6 0%,transparent 70%)", filter: "blur(56px)" }} />
-          <div className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full opacity-12"
-            style={{ background: "radial-gradient(circle,#6366f1 0%,transparent 70%)", filter: "blur(44px)" }} />
+            style={{ background: `radial-gradient(circle,rgba(var(--glow-rgb),1) 0%,transparent 70%)`, filter: "blur(56px)" }} />
+          <div className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full opacity-10"
+            style={{ background: `radial-gradient(circle,rgba(var(--glow-rgb),0.6) 0%,transparent 70%)`, filter: "blur(44px)" }} />
         </div>
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div>
@@ -137,7 +137,7 @@ export default function HomePage() {
               <svg className="w-full h-full -rotate-90" viewBox="0 0 76 76">
                 <circle cx="38" cy="38" r="30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="7" />
                 <circle cx="38" cy="38" r="30" fill="none"
-                  stroke={completionPct === 100 ? "#4ade80" : "#14b8a6"}
+                  stroke={completionPct === 100 ? "#4ade80" : "var(--accent)"}
                   strokeWidth="7" strokeLinecap="round"
                   strokeDasharray={`${2 * Math.PI * 30}`}
                   strokeDashoffset={`${2 * Math.PI * 30 * (1 - completionPct / 100)}`}

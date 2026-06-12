@@ -15,14 +15,14 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
 
   return (
-    <div className="min-h-screen bg-background/60" style={{ background: "linear-gradient(135deg, #060d1f 0%, #0a1628 50%, #060d1f 100%)" }}>
-      <div className="flex flex-col min-h-screen max-w-md mx-auto bg-background relative shadow-2xl">
+    <div className="min-h-screen" style={{ background: "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-mid) 50%, var(--bg-base) 100%)" }}>
+      <div className="flex flex-col min-h-screen max-w-md mx-auto relative shadow-2xl" style={{ background: "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-mid) 50%, var(--bg-base) 100%)" }}>
       <main className="flex-1 overflow-y-auto pb-20">
         {children}
       </main>
 
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md safe-bottom z-50"
-        style={{ background: "rgba(6,13,31,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: "1px solid rgba(255,255,255,0.07)" }}>
+        style={{ background: "color-mix(in srgb, var(--bg-base) 88%, transparent)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: "var(--glass-border)" }}>
         <div className="flex items-center">
           {NAV.map(({ href, label, Icon }) => {
             const active = href === "/" ? location === "/" : location.startsWith(href);
@@ -82,11 +82,11 @@ function NavTab({ href, label, Icon, active, onNavigate }: {
     >
       <div className="relative flex flex-col items-center gap-1 py-3 px-2 transition-all">
         <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center transition-all", active && "scale-105")}
-          style={active ? { background: "rgba(20,184,166,0.15)", boxShadow: "0 0 12px rgba(20,184,166,0.25)" } : {}}>
-          <Icon className="w-5 h-5" style={{ color: active ? "#14b8a6" : "rgba(255,255,255,0.35)" }} />
+          style={active ? { background: `rgba(var(--glow-rgb),0.15)`, boxShadow: `0 0 12px rgba(var(--glow-rgb),0.3)` } : {}}>
+          <Icon className="w-5 h-5" style={{ color: active ? "var(--accent)" : "rgba(255,255,255,0.35)" }} />
         </div>
         <span className="text-[10px] font-semibold leading-none"
-          style={{ color: active ? "#14b8a6" : "rgba(255,255,255,0.3)" }}>
+          style={{ color: active ? "var(--accent)" : "rgba(255,255,255,0.3)" }}>
           {label}
         </span>
       </div>

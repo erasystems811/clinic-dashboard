@@ -37,6 +37,7 @@ export default function VitalsPage() {
   const [trackBP, setTrackBP] = useState(settings.trackBP ?? true);
   const [trackSugar, setTrackSugar] = useState(settings.trackSugar ?? true);
   const [trackWeight, setTrackWeight] = useState(settings.trackWeight ?? true);
+  const [notes, setNotes] = useState(((settings as Record<string, unknown>).notes as string | undefined) ?? "");
 
   const todayStr = new Date().toISOString().split("T")[0];
   const todayLog = weekLogs?.find((l) => l.log_date === todayStr)?.data as VitalsLog | undefined;
@@ -48,7 +49,7 @@ export default function VitalsPage() {
   const [saved, setSaved] = useState(!!todayLog);
 
   function saveSetup() {
-    saveModule.mutate({ settings: { trackBP, trackSugar, trackWeight }, enabled: true });
+    saveModule.mutate({ settings: { trackBP, trackSugar, trackWeight, notes }, enabled: true });
     setSetupMode(false);
   }
 
@@ -113,6 +114,13 @@ export default function VitalsPage() {
               </div>
             </button>
           ))}
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+          <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+          <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I check my BP in the morning", "I weigh myself after waking"</p>
+          <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Anything that helps us plan better for you..."
+            className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
         </div>
         <button onClick={saveSetup} disabled={(!trackBP && !trackSugar && !trackWeight) || saveModule.isPending}
           className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">

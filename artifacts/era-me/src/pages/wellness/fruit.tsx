@@ -13,7 +13,7 @@ export default function FruitPage() {
       modules: {
         fruit: {
           enabled: boolean;
-          settings: { reminderTime?: string };
+          settings: { reminderTime?: string; notes?: string };
           log: { done?: boolean } | null;
         };
       };
@@ -33,9 +33,10 @@ export default function FruitPage() {
 
   const [setupMode, setSetupMode] = useState(false);
   const [reminderTime, setReminderTime] = useState(settings.reminderTime ?? "14:00");
+  const [notes, setNotes] = useState(settings.notes ?? "");
 
   function saveSetup() {
-    saveModule.mutate({ settings: { reminderTime }, enabled: true });
+    saveModule.mutate({ settings: { reminderTime, notes }, enabled: true });
     setSetupMode(false);
   }
 
@@ -80,6 +81,14 @@ export default function FruitPage() {
           <p className="text-sm text-muted-foreground">
             Aim for at least one portion of fresh fruit per day. You choose what counts — a banana, an orange, or a full fruit salad.
           </p>
+        </div>
+
+        <div className="bg-card border border-border rounded-2xl p-5 mb-5">
+          <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+          <p className="text-xs text-muted-foreground mb-3">Helps us tailor your weekly plan — e.g. "I like bananas and oranges", "I prefer fruit with breakfast"</p>
+          <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Anything that helps us plan better for you..."
+            className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
         </div>
 
         <button onClick={saveSetup} disabled={saveModule.isPending}

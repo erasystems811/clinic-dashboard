@@ -32,6 +32,7 @@ export default function EyeBreakPage() {
   const [startTime, setStartTime] = useState(settings.startTime ?? "09:00");
   const [endTime, setEndTime] = useState(settings.endTime ?? "18:00");
   const [targetBreaks, setTargetBreaks] = useState(settings.targetBreaks ?? suggestTarget("09:00", "18:00"));
+  const [notes, setNotes] = useState(((settings as Record<string, unknown>).notes as string | undefined) ?? "");
 
   const today = new Date().toISOString().split("T")[0];
   const todayLog = weekLogs?.find((l) => l.log_date === today);
@@ -41,7 +42,7 @@ export default function EyeBreakPage() {
   const done = count >= target;
 
   function saveSetup() {
-    saveModule.mutate({ settings: { startTime, endTime, targetBreaks }, enabled: true });
+    saveModule.mutate({ settings: { startTime, endTime, targetBreaks, notes }, enabled: true });
     setSetupMode(false);
   }
 
@@ -103,6 +104,14 @@ export default function EyeBreakPage() {
             </div>
             <p className="text-xs text-muted-foreground text-center mt-1">breaks per day</p>
           </Field>
+        </div>
+
+        <div className="bg-card border border-border rounded-2xl p-5 mb-5">
+          <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+          <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I work at a computer all day", "I struggle to remember breaks in the afternoon"</p>
+          <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Anything that helps us plan better for you..."
+            className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
         </div>
 
         <button onClick={saveSetup} disabled={saveModule.isPending}

@@ -24,7 +24,7 @@ export default function MedicationsPage() {
       modules: {
         medications: {
           enabled: boolean;
-          settings: { medications?: Medication[] };
+          settings: { medications?: Medication[]; notes?: string };
           log: { taken?: Record<string, boolean> } | null;
         };
       };
@@ -42,6 +42,7 @@ export default function MedicationsPage() {
   const enabled = module?.enabled ?? false;
   const streak = streakData?.streak ?? 0;
 
+  const [moduleNotes, setModuleNotes] = useState(settings.notes ?? "");
   const [addingMed, setAddingMed] = useState(false);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
   const [draft, setDraft] = useState<Medication>(newMed());
@@ -89,12 +90,16 @@ export default function MedicationsPage() {
     } else {
       updated = [...meds, draft];
     }
-    saveModule.mutate({ settings: { medications: updated }, enabled: true });
+    saveModule.mutate({ settings: { medications: updated, notes: moduleNotes }, enabled: true });
     setAddingMed(false);
   }
 
   function deleteMed(id: string) {
-    saveModule.mutate({ settings: { medications: meds.filter((m) => m.id !== id) }, enabled: meds.length > 1 });
+    saveModule.mutate({ settings: { medications: meds.filter((m) => m.id !== id), notes: moduleNotes }, enabled: meds.length > 1 });
+  }
+
+  function savePreferences() {
+    saveModule.mutate({ settings: { medications: meds, notes: moduleNotes }, enabled });
   }
 
   function addTime() {
@@ -311,6 +316,18 @@ export default function MedicationsPage() {
         <Plus className="w-4 h-4" />
         Add medication
       </button>
+
+      <div className="bg-card border border-border rounded-2xl p-5 mt-3">
+        <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+        <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I take my medications after meals", "I often forget evening doses"</p>
+        <textarea value={moduleNotes} rows={3} onChange={(e) => setModuleNotes(e.target.value)}
+          placeholder="Anything that helps us plan better for you..."
+          className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none resize-none mb-3" />
+        <button onClick={savePreferences} disabled={saveModule.isPending}
+          className="w-full py-2.5 bg-muted text-foreground rounded-xl text-sm font-semibold transition active:scale-95 disabled:opacity-60">
+          {saveModule.isPending ? "Saving…" : "Save preferences"}
+        </button>
+      </div>
     </div>
   );
 }

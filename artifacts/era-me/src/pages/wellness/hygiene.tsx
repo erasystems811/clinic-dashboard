@@ -51,6 +51,7 @@ export default function HygienePage() {
   const mod = modules?.hygiene;
   const items: HygieneItem[] = mod?.settings?.items ?? [];
   const enabled = mod?.enabled ?? false;
+  const [moduleNotes, setModuleNotes] = useState(((mod?.settings ?? {}) as Record<string, unknown>).notes as string ?? "");
 
   const [addMode, setAddMode] = useState(false);
   const [editItem, setEditItem] = useState<HygieneItem | null>(null);
@@ -76,24 +77,28 @@ export default function HygienePage() {
     const updated = editItem
       ? items.map((i) => i.id === editItem.id ? draft : i)
       : [...items, draft];
-    saveModule.mutate({ settings: { items: updated }, enabled: true });
+    saveModule.mutate({ settings: { items: updated, notes: moduleNotes }, enabled: true });
     setAddMode(false);
   }
 
   function deleteItem(id: string) {
     const updated = items.filter((i) => i.id !== id);
-    saveModule.mutate({ settings: { items: updated }, enabled: updated.length > 0 });
+    saveModule.mutate({ settings: { items: updated, notes: moduleNotes }, enabled: updated.length > 0 });
   }
 
   function replaceNow(id: string) {
     const updated = items.map((i) => i.id === id ? { ...i, lastReplaced: new Date().toISOString().split("T")[0] } : i);
-    saveModule.mutate({ settings: { items: updated }, enabled: true });
+    saveModule.mutate({ settings: { items: updated, notes: moduleNotes }, enabled: true });
   }
 
   function enableDefaults() {
     const today = new Date().toISOString().split("T")[0];
     const defaultItems: HygieneItem[] = DEFAULTS.map((d) => ({ ...d, id: crypto.randomUUID(), lastReplaced: today }));
-    saveModule.mutate({ settings: { items: defaultItems }, enabled: true });
+    saveModule.mutate({ settings: { items: defaultItems, notes: moduleNotes }, enabled: true });
+  }
+
+  function savePreferences() {
+    saveModule.mutate({ settings: { items, notes: moduleNotes }, enabled });
   }
 
   if (isLoading) return <Spinner />;
@@ -192,6 +197,18 @@ export default function HygienePage() {
         </div>
         <button onClick={openAdd} className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-2 rounded-xl text-xs font-semibold">
           <Plus className="w-3.5 h-3.5" />Add
+        </button>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+        <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+        <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I do my hygiene routine at 7am", "I shower at night"</p>
+        <textarea value={moduleNotes} rows={3} onChange={(e) => setModuleNotes(e.target.value)}
+          placeholder="Anything that helps us plan better for you..."
+          className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none resize-none mb-3" />
+        <button onClick={savePreferences} disabled={saveModule.isPending}
+          className="w-full py-2.5 bg-muted text-foreground rounded-xl text-sm font-semibold transition active:scale-95 disabled:opacity-60">
+          {saveModule.isPending ? "Saving…" : "Save preferences"}
         </button>
       </div>
 

@@ -14,7 +14,7 @@ const DAY_LABELS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 export default function MoodPage() {
   const [, navigate] = useLocation();
   const { data: today, isLoading } = useWellnessToday() as {
-    data: { modules: { mood_check: { enabled: boolean; log: { mood?: number; energy?: number; stress?: number } | null } } } | undefined;
+    data: { modules: { mood_check: { enabled: boolean; settings: { notes?: string }; log: { mood?: number; energy?: number; stress?: number } | null } } } | undefined;
     isLoading: boolean;
   };
   const { data: weekLogs } = useWellnessWeek("mood_check");
@@ -26,6 +26,7 @@ export default function MoodPage() {
   const enabled = module?.enabled ?? false;
   const log = module?.log;
   const streak = streakData?.streak ?? 0;
+  const [notes, setNotes] = useState(module?.settings?.notes ?? "");
 
   const [mood, setMood] = useState(log?.mood ?? 0);
   const [energy, setEnergy] = useState(log?.energy ?? 0);
@@ -55,7 +56,17 @@ export default function MoodPage() {
             A 10-second check-in on your mood, energy, and stress. Spot patterns over time.
           </p>
         </GlassCard>
-        <SaveButton onClick={() => saveModule.mutate({ settings: {}, enabled: true })} loading={saveModule.isPending} accent={ACCENT}>
+        <GlassCard accent={ACCENT} className="mb-4">
+          <p className="text-sm font-bold mb-1" style={{ color: "var(--text-main)" }}>
+            Your preferences <span style={{ color: "var(--text-sub)", fontWeight: 400, fontSize: "0.75rem" }}>(optional)</span>
+          </p>
+          <p className="text-xs mb-3" style={{ color: "var(--text-sub)" }}>Helps us tailor your plan — e.g. "I feel best in the mornings", "I usually get stressed on Mondays"</p>
+          <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Anything that helps us plan better for you..."
+            className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)" }} />
+        </GlassCard>
+        <SaveButton onClick={() => saveModule.mutate({ settings: { notes }, enabled: true })} loading={saveModule.isPending} accent={ACCENT}>
           Enable daily check-in
         </SaveButton>
       </div>

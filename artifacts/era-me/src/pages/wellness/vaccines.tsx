@@ -41,6 +41,7 @@ export default function VaccinesPage() {
   const mod = modules?.vaccines;
   const vaccines: Vaccine[] = mod?.settings?.vaccines ?? [];
   const enabled = mod?.enabled ?? false;
+  const [moduleNotes, setModuleNotes] = useState(((mod?.settings ?? {}) as Record<string, unknown>).notes as string ?? "");
 
   const [addMode, setAddMode] = useState(false);
   const [editVaccine, setEditVaccine] = useState<Vaccine | null>(null);
@@ -63,13 +64,17 @@ export default function VaccinesPage() {
     const updated = editVaccine
       ? vaccines.map((v) => v.id === editVaccine.id ? draft : v)
       : [...vaccines, draft];
-    saveModule.mutate({ settings: { vaccines: updated }, enabled: true });
+    saveModule.mutate({ settings: { vaccines: updated, notes: moduleNotes }, enabled: true });
     setAddMode(false);
   }
 
   function deleteVaccine(id: string) {
     const updated = vaccines.filter((v) => v.id !== id);
-    saveModule.mutate({ settings: { vaccines: updated }, enabled: updated.length > 0 });
+    saveModule.mutate({ settings: { vaccines: updated, notes: moduleNotes }, enabled: updated.length > 0 });
+  }
+
+  function savePreferences() {
+    saveModule.mutate({ settings: { vaccines, notes: moduleNotes }, enabled });
   }
 
   if (isLoading) return <Spinner />;
@@ -161,6 +166,18 @@ export default function VaccinesPage() {
         </div>
         <button onClick={openAdd} className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-2 rounded-xl text-xs font-semibold">
           <Plus className="w-3.5 h-3.5" />Add
+        </button>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+        <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+        <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I get my flu shot every October", "I react to some vaccines"</p>
+        <textarea value={moduleNotes} rows={3} onChange={(e) => setModuleNotes(e.target.value)}
+          placeholder="Anything that helps us plan better for you..."
+          className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none resize-none mb-3" />
+        <button onClick={savePreferences} disabled={saveModule.isPending}
+          className="w-full py-2.5 bg-muted text-foreground rounded-xl text-sm font-semibold transition active:scale-95 disabled:opacity-60">
+          {saveModule.isPending ? "Saving…" : "Save preferences"}
         </button>
       </div>
 

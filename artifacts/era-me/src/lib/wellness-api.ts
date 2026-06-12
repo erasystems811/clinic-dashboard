@@ -140,15 +140,12 @@ export function useLogToday(type: string) {
       void qc.invalidateQueries({ queryKey: ["wellness", "streak", type] });
       void qc.invalidateQueries({ queryKey: ["wellness", "summary"] });
       // Award 1 coin per log — fire-and-forget
+      const coinHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      const tkn = getToken();
+      if (tkn) coinHeaders["x-patient-token"] = tkn;
       void fetch("/api/patient-app/coins/award", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(() => {
-            const t = getToken();
-            return t ? { "x-patient-token": t } : {};
-          })(),
-        },
+        headers: coinHeaders,
         body: JSON.stringify({ amount: 1, reason: `wellness_log_${type}` }),
       }).then(() => qc.invalidateQueries({ queryKey: ["coins"] }));
     },

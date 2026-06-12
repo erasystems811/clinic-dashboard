@@ -31,7 +31,7 @@ export default function SleepPage() {
       modules: {
         sleep: {
           enabled: boolean;
-          settings: { bedtimeTarget?: string; wakeTarget?: string };
+          settings: { bedtimeTarget?: string; wakeTarget?: string; notes?: string };
           log: { bedtime?: string; wakeTime?: string; quality?: number } | null;
         };
       };
@@ -52,6 +52,7 @@ export default function SleepPage() {
   const [setupMode, setSetupMode] = useState(false);
   const [bedtimeTarget, setBedtimeTarget] = useState(settings.bedtimeTarget ?? "22:30");
   const [wakeTarget, setWakeTarget] = useState(settings.wakeTarget ?? "06:30");
+  const [notes, setNotes] = useState(settings.notes ?? "");
 
   const [logBedtime, setLogBedtime] = useState(log?.bedtime ?? settings.bedtimeTarget ?? "22:30");
   const [logWake, setLogWake] = useState(log?.wakeTime ?? settings.wakeTarget ?? "06:30");
@@ -60,7 +61,7 @@ export default function SleepPage() {
   const hasLog = !!(log?.bedtime && log?.wakeTime && log?.quality);
 
   function saveSetup() {
-    saveModule.mutate({ settings: { bedtimeTarget, wakeTarget }, enabled: true });
+    saveModule.mutate({ settings: { bedtimeTarget, wakeTarget, notes }, enabled: true });
     setSetupMode(false);
   }
 
@@ -110,6 +111,14 @@ export default function SleepPage() {
             <p className="text-sm text-muted-foreground">
               Target sleep: <strong className="text-foreground">{diffHours(bedtimeTarget, wakeTarget)}</strong>
             </p>
+          </div>
+
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+            <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I usually read before bed", "I nap at 2pm"</p>
+            <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
+              placeholder="Anything that helps us plan better for you..."
+              className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
           </div>
 
           <button onClick={saveSetup} disabled={saveModule.isPending}

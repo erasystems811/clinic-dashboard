@@ -51,6 +51,19 @@ export interface WeekPlan {
 
 type ModuleRow = { module_type: string; settings: Record<string, unknown>; enabled: boolean };
 
+function parseTimeHint(notes: string): string | null {
+  const n = notes.toLowerCase();
+  if (/\b(5am|6am|05:|06:|very early)\b/.test(n)) return "06:00";
+  if (/\b(7am|07:|morning|early|breakfast|after waking|wake up)\b/.test(n)) return "07:30";
+  if (/\b(8am|08:)\b/.test(n)) return "08:00";
+  if (/\b(10am|11am|10:|11:|mid.?morning|before lunch)\b/.test(n)) return "10:00";
+  if (/\b(midday|lunch|noon|12|afternoon)\b/.test(n)) return "13:00";
+  if (/\b(4pm|5pm|16:|17:|late afternoon|after work)\b/.test(n)) return "16:00";
+  if (/\b(6pm|7pm|18:|19:|evening|dinner|after dinner)\b/.test(n)) return "18:00";
+  if (/\b(9pm|10pm|11pm|21:|22:|23:|night|bedtime|before bed)\b/.test(n)) return "21:00";
+  return null;
+}
+
 function sortItems(items: PlanItem[]): PlanItem[] {
   return [...items].sort((a, b) => {
     if (!a.time && !b.time) return 0;
@@ -75,22 +88,30 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
 
     // Vitals — early morning
     if (enabledMap["vitals"]) {
-      items.push({ moduleType: "vitals", emoji: "❤️", label: "Log vitals", sub: "BP, sugar or weight", time: "07:00" });
+      const vNotes = enabledMap["vitals"].notes as string | undefined;
+      const vTime = (vNotes && parseTimeHint(vNotes)) ?? "07:00";
+      items.push({ moduleType: "vitals", emoji: "❤️", label: "Log vitals", sub: vNotes ?? "BP, sugar or weight", time: vTime });
     }
 
     // Hygiene — morning routine
     if (enabledMap["hygiene"]) {
-      items.push({ moduleType: "hygiene", emoji: "🪥", label: "Morning hygiene", sub: "Brush teeth & routine", time: "07:00" });
+      const hNotes = enabledMap["hygiene"].notes as string | undefined;
+      const hTime = (hNotes && parseTimeHint(hNotes)) ?? "07:00";
+      items.push({ moduleType: "hygiene", emoji: "🪥", label: "Morning hygiene", sub: hNotes ?? "Brush teeth & routine", time: hTime });
     }
 
     // Sunscreen — after morning routine
     if (enabledMap["sunscreen"]) {
-      items.push({ moduleType: "sunscreen", emoji: "☀️", label: "Apply sunscreen", sub: "Daily skin protection", time: "08:00" });
+      const ssNotes = enabledMap["sunscreen"].notes as string | undefined;
+      const ssTime = (ssNotes && parseTimeHint(ssNotes)) ?? "08:00";
+      items.push({ moduleType: "sunscreen", emoji: "☀️", label: "Apply sunscreen", sub: ssNotes ?? "Daily skin protection", time: ssTime });
     }
 
     // Fruit — with morning meal
     if (enabledMap["fruit"]) {
-      items.push({ moduleType: "fruit", emoji: "🍎", label: "Eat fruit", sub: "Daily fruit intake", time: "08:00" });
+      const fNotes = enabledMap["fruit"].notes as string | undefined;
+      const fTime = (fNotes && parseTimeHint(fNotes)) ?? "08:00";
+      items.push({ moduleType: "fruit", emoji: "🍎", label: "Eat fruit", sub: fNotes ?? "Daily fruit intake", time: fTime });
     }
 
     // Medications — one item per unique dose time
@@ -123,62 +144,75 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
 
     // Mood check-in — morning
     if (enabledMap["mood_check"]) {
-      items.push({ moduleType: "mood_check", emoji: "😊", label: "Daily mood check-in", sub: "Mood, energy & stress", time: "08:30" });
+      const mNotes = enabledMap["mood_check"].notes as string | undefined;
+      const mTime = (mNotes && parseTimeHint(mNotes)) ?? "08:30";
+      items.push({ moduleType: "mood_check", emoji: "😊", label: "Daily mood check-in", sub: mNotes ?? "Mood, energy & stress", time: mTime });
     }
 
     // Eye breaks — first break at work start
     if (enabledMap["eyebreak"]) {
+      const ebNotes = enabledMap["eyebreak"].notes as string | undefined;
       const startTime = (enabledMap["eyebreak"].startTime as string) ?? "09:00";
       const [sh, sm] = startTime.split(":").map(Number);
       const [eh, em] = ((enabledMap["eyebreak"].endTime as string) ?? "18:00").split(":").map(Number);
       const target = (enabledMap["eyebreak"].targetBreaks as number) ??
         Math.max(4, Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 25));
-      items.push({ moduleType: "eyebreak", emoji: "👁️", label: "Eye breaks", sub: `${target} breaks today`, time: startTime });
+      items.push({ moduleType: "eyebreak", emoji: "👁️", label: "Eye breaks", sub: ebNotes ?? `${target} breaks today`, time: startTime });
     }
 
     // Smoking status — mid-morning
     if (enabledMap["smoking"]) {
-      items.push({ moduleType: "smoking", emoji: "🚭", label: "Quit smoking", sub: "Log today's status", time: "09:00" });
+      const skNotes = enabledMap["smoking"].notes as string | undefined;
+      const skTime = (skNotes && parseTimeHint(skNotes)) ?? "09:00";
+      items.push({ moduleType: "smoking", emoji: "🚭", label: "Quit smoking", sub: skNotes ?? "Log today's status", time: skTime });
     }
 
     // Workout — use per-day settings
     if (enabledMap["workout"]) {
+      const wkNotes = enabledMap["workout"].notes as string | undefined;
       const workoutDays = (enabledMap["workout"].days as Record<string, Record<string, unknown>>) ?? {};
       const todayWorkout = workoutDays[dayKey];
       if (todayWorkout?.enabled) {
-        const workoutTime = (todayWorkout.time as string) ?? "07:00";
+        const workoutTime = (todayWorkout.time as string) ?? (wkNotes ? parseTimeHint(wkNotes) ?? "07:00" : "07:00");
+        const focus = (todayWorkout.focus as string | undefined);
         items.push({
           moduleType: "workout", emoji: "🏃", label: "Workout",
-          sub: (todayWorkout.focus as string | undefined) ?? undefined,
+          sub: focus ?? wkNotes ?? undefined,
           time: workoutTime,
         });
       } else if (Object.keys(workoutDays).length > 0) {
-        items.push({ moduleType: "workout", emoji: "😌", label: "Rest day", sub: "Recovery — no workout today", isRestDay: true, isDayOnly: true });
+        items.push({ moduleType: "workout", emoji: "😌", label: "Rest day", sub: wkNotes ?? "Recovery — no workout today", isRestDay: true, isDayOnly: true });
       }
     }
 
     // Water — one item per reminder time
     if (enabledMap["water"]) {
+      const wNotes = enabledMap["water"].notes as string | undefined;
       const target = (enabledMap["water"].target as number) ?? 8;
       const times: string[] = (enabledMap["water"].reminderTimes as string[])?.length
         ? (enabledMap["water"].reminderTimes as string[])
         : ["08:00", "13:00", "17:00"];
       times.forEach((time, i) => {
         const label = i === 0 ? "Water intake" : i === 1 ? "Water intake (midday)" : "Water intake (evening)";
-        items.push({ moduleType: "water", emoji: "💧", label, sub: `Goal: ${target} cups`, time });
+        const sub = i === 0 && wNotes ? wNotes : `Goal: ${target} cups`;
+        items.push({ moduleType: "water", emoji: "💧", label, sub, time });
       });
     }
 
     // Outdoors — afternoon
     if (enabledMap["outdoors"]) {
-      const target = (enabledMap["outdoors"].target as number) ?? 30;
-      items.push({ moduleType: "outdoors", emoji: "🌿", label: "Outdoor time", sub: `Goal: ${target} min`, time: "16:00" });
+      const oNotes = enabledMap["outdoors"].notes as string | undefined;
+      const oTarget = (enabledMap["outdoors"].targetMinutes as number) ?? 30;
+      const oTime = (oNotes && parseTimeHint(oNotes)) ?? "16:00";
+      items.push({ moduleType: "outdoors", emoji: "🌿", label: "Outdoor time", sub: oNotes ?? `Goal: ${oTarget} min`, time: oTime });
     }
 
     // Sleep — at bedtime target
     if (enabledMap["sleep"]) {
+      const slNotes = enabledMap["sleep"].notes as string | undefined;
       const bedtime = (enabledMap["sleep"].bedtimeTarget as string) ?? "22:30";
-      items.push({ moduleType: "sleep", emoji: "😴", label: "Sleep log", sub: "Log last night's sleep", time: bedtime });
+      const slTime = (slNotes && parseTimeHint(slNotes)) ?? bedtime;
+      items.push({ moduleType: "sleep", emoji: "😴", label: "Sleep log", sub: slNotes ?? "Log last night's sleep", time: slTime });
     }
 
     return { date, dayKey, dayLabel, items: sortItems(items) };

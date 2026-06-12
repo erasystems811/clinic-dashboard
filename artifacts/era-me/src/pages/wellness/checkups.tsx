@@ -56,6 +56,7 @@ export default function CheckupsPage() {
   const mod = modules?.checkups;
   const checkups: Checkup[] = mod?.settings?.checkups ?? [];
   const enabled = mod?.enabled ?? false;
+  const [moduleNotes, setModuleNotes] = useState(((mod?.settings ?? {}) as Record<string, unknown>).notes as string ?? "");
 
   const [addMode, setAddMode] = useState(false);
   const [editCheckup, setEditCheckup] = useState<Checkup | null>(null);
@@ -80,13 +81,17 @@ export default function CheckupsPage() {
     const updated = editCheckup
       ? checkups.map((c) => c.id === editCheckup.id ? draft : c)
       : [...checkups, draft];
-    saveModule.mutate({ settings: { checkups: updated }, enabled: true });
+    saveModule.mutate({ settings: { checkups: updated, notes: moduleNotes }, enabled: true });
     setAddMode(false);
   }
 
   function deleteCheckup(id: string) {
     const updated = checkups.filter((c) => c.id !== id);
-    saveModule.mutate({ settings: { checkups: updated }, enabled: updated.length > 0 });
+    saveModule.mutate({ settings: { checkups: updated, notes: moduleNotes }, enabled: updated.length > 0 });
+  }
+
+  function savePreferences() {
+    saveModule.mutate({ settings: { checkups, notes: moduleNotes }, enabled });
   }
 
   if (isLoading) return <Spinner />;
@@ -193,6 +198,18 @@ export default function CheckupsPage() {
         </div>
         <button onClick={openAdd} className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-2 rounded-xl text-xs font-semibold">
           <Plus className="w-3.5 h-3.5" />Add
+        </button>
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+        <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+        <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "My usual clinic is LUTH", "I prefer morning appointments"</p>
+        <textarea value={moduleNotes} rows={3} onChange={(e) => setModuleNotes(e.target.value)}
+          placeholder="Anything that helps us plan better for you..."
+          className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none resize-none mb-3" />
+        <button onClick={savePreferences} disabled={saveModule.isPending}
+          className="w-full py-2.5 bg-muted text-foreground rounded-xl text-sm font-semibold transition active:scale-95 disabled:opacity-60">
+          {saveModule.isPending ? "Saving…" : "Save preferences"}
         </button>
       </div>
 

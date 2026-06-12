@@ -10,7 +10,7 @@ const GRADIENT = "linear-gradient(135deg,#0c4a6e,#0369a1)";
 export default function WaterPage() {
   const [, navigate] = useLocation();
   const { data: today, isLoading } = useWellnessToday() as {
-    data: { modules: { water: { enabled: boolean; settings: { target?: number; reminderTimes?: string[] }; log: { cups?: number } | null } } } | undefined;
+    data: { modules: { water: { enabled: boolean; settings: { target?: number; reminderTimes?: string[]; notes?: string }; log: { cups?: number } | null } } } | undefined;
     isLoading: boolean;
   };
   const { data: weekLogs } = useWellnessWeek("water");
@@ -30,11 +30,12 @@ export default function WaterPage() {
   const [localTarget, setLocalTarget] = useState(target);
   const [reminderTimes, setReminderTimes] = useState<string[]>(settings.reminderTimes ?? ["09:00", "13:00", "17:00"]);
   const [newTime, setNewTime] = useState("09:00");
+  const [notes, setNotes] = useState(settings.notes ?? "");
 
   function addCup() { logToday.mutate({ cups: Math.min(currentCups + 1, 20) }); }
   function removeCup() { if (currentCups > 0) logToday.mutate({ cups: currentCups - 1 }); }
   function saveSetup() {
-    saveModule.mutate({ settings: { target: localTarget, reminderTimes }, enabled: true }, {
+    saveModule.mutate({ settings: { target: localTarget, reminderTimes, notes }, enabled: true }, {
       onSuccess: () => setSetupMode(false),
     });
   }
@@ -80,6 +81,17 @@ export default function WaterPage() {
               </button>
             ))}
           </div>
+        </GlassCard>
+
+        <GlassCard accent={ACCENT} className="mb-4">
+          <p className="text-sm font-bold mb-1" style={{ color: "var(--text-main)" }}>
+            Your preferences <span style={{ color: "var(--text-sub)", fontWeight: 400, fontSize: "0.75rem" }}>(optional)</span>
+          </p>
+          <p className="text-xs mb-3" style={{ color: "var(--text-sub)" }}>Helps us tailor your plan — e.g. "I drink mostly at work", "I prefer cold water in mornings"</p>
+          <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Anything that helps us plan better for you..."
+            className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)" }} />
         </GlassCard>
 
         <SaveButton onClick={saveSetup} loading={saveModule.isPending} accent={ACCENT}>

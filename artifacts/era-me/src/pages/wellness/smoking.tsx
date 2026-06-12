@@ -46,6 +46,7 @@ export default function SmokingPage() {
   const [perDay, setPerDay] = useState(settings.cigarettesPerDay ?? 10);
   const [costPerPack, setCostPerPack] = useState(settings.costPerPack ?? 1500);
   const [perPack, setPerPack] = useState(settings.cigarettesPerPack ?? 20);
+  const [notes, setNotes] = useState(((settings as Record<string, unknown>).notes as string | undefined) ?? "");
   const [showSlip, setShowSlip] = useState(false);
   const [slipCount, setSlipCount] = useState("1");
 
@@ -61,7 +62,7 @@ export default function SmokingPage() {
   const daysToNext = nextMilestone ? nextMilestone.days - daysFree : null;
 
   function saveSetup() {
-    saveModule.mutate({ settings: { quitDate, cigarettesPerDay: perDay, costPerPack, cigarettesPerPack: perPack }, enabled: true });
+    saveModule.mutate({ settings: { quitDate, cigarettesPerDay: perDay, costPerPack, cigarettesPerPack: perPack, notes }, enabled: true });
     setSetupMode(false);
   }
 
@@ -108,8 +109,15 @@ export default function SmokingPage() {
               className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
           </Field>
         </div>
+        <div className="bg-card border border-border rounded-2xl p-5 mt-1">
+          <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+          <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I tend to crave cigarettes after meals", "I smoke when stressed"</p>
+          <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Anything that helps us plan better for you..."
+            className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
+        </div>
         <button onClick={saveSetup} disabled={saveModule.isPending}
-          className="w-full mt-6 py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">
+          className="w-full mt-4 py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">
           {saveModule.isPending ? "Saving…" : "Start tracking"}
         </button>
       </div>

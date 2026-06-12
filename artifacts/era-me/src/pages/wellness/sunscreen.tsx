@@ -9,7 +9,7 @@ const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export default function SunscreenPage() {
   const [, navigate] = useLocation();
   const { data: modules, isLoading } = useWellnessModules() as {
-    data: Record<string, { settings: { reminderTime?: string }; enabled: boolean }> | undefined;
+    data: Record<string, { settings: { reminderTime?: string; notes?: string }; enabled: boolean }> | undefined;
     isLoading: boolean;
   };
   const { data: weekLogs } = useWellnessWeek("sunscreen");
@@ -22,12 +22,13 @@ export default function SunscreenPage() {
 
   const [setupMode, setSetupMode] = useState(false);
   const [reminderTime, setReminderTime] = useState(settings.reminderTime ?? "08:00");
+  const [notes, setNotes] = useState(settings.notes ?? "");
 
   const today = new Date().toISOString().split("T")[0];
   const done = weekLogs?.find((l) => l.log_date === today)?.data.done === true;
 
   function saveSetup() {
-    saveModule.mutate({ settings: { reminderTime }, enabled: true });
+    saveModule.mutate({ settings: { reminderTime, notes }, enabled: true });
     setSetupMode(false);
   }
 
@@ -54,6 +55,13 @@ export default function SunscreenPage() {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Morning reminder time</p>
           <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
             className="w-full bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
+        </div>
+        <div className="bg-card border border-border rounded-2xl p-5 mb-5">
+          <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+          <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I apply after my shower", "I forget on cloudy days"</p>
+          <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
+            placeholder="Anything that helps us plan better for you..."
+            className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
         </div>
         <button onClick={saveSetup} disabled={saveModule.isPending}
           className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">

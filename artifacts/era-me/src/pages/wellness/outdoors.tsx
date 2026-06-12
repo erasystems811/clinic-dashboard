@@ -9,7 +9,7 @@ const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export default function OutdoorsPage() {
   const [, navigate] = useLocation();
   const { data: modules, isLoading } = useWellnessModules() as {
-    data: Record<string, { settings: { targetMinutes?: number; reminderTime?: string }; enabled: boolean }> | undefined;
+    data: Record<string, { settings: { targetMinutes?: number; reminderTime?: string; notes?: string }; enabled: boolean }> | undefined;
     isLoading: boolean;
   };
   const { data: weekLogs } = useWellnessWeek("outdoors");
@@ -24,6 +24,7 @@ export default function OutdoorsPage() {
   const [setupMode, setSetupMode] = useState(false);
   const [localTarget, setLocalTarget] = useState(target);
   const [reminderTime, setReminderTime] = useState(settings.reminderTime ?? "07:00");
+  const [notes, setNotes] = useState(settings.notes ?? "");
 
   const today = new Date().toISOString().split("T")[0];
   const todayLog = weekLogs?.find((l) => l.log_date === today);
@@ -31,7 +32,7 @@ export default function OutdoorsPage() {
   const pct = Math.min(100, Math.round((minutes / target) * 100));
 
   function saveSetup() {
-    saveModule.mutate({ settings: { targetMinutes: localTarget, reminderTime }, enabled: true });
+    saveModule.mutate({ settings: { targetMinutes: localTarget, reminderTime, notes }, enabled: true });
     setSetupMode(false);
   }
 
@@ -78,6 +79,13 @@ export default function OutdoorsPage() {
             <p className="text-sm font-semibold text-foreground mb-3">Reminder time</p>
             <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
               className="w-full bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
+          </div>
+          <div className="bg-card border border-border rounded-2xl p-5">
+            <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+            <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I walk in the evenings", "I prefer mornings before work"</p>
+            <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
+              placeholder="Anything that helps us plan better for you..."
+              className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
           </div>
           <button onClick={saveSetup} disabled={saveModule.isPending}
             className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">

@@ -62,6 +62,7 @@ export default function WorkoutPage() {
   const [setupMode, setSetupMode] = useState(false);
   const [localDays, setLocalDays] = useState<DaySettings>(daySettings);
   const [activeDay, setActiveDay] = useState<DayKey>("mon");
+  const [moduleNotes, setModuleNotes] = useState(((module?.settings ?? {}) as Record<string, unknown>).notes as string ?? "");
 
   function toggleDay(key: DayKey) {
     setLocalDays((p) => ({ ...p, [key]: { ...p[key], enabled: !p[key].enabled } }));
@@ -72,7 +73,7 @@ export default function WorkoutPage() {
   }
 
   function saveSetup() {
-    saveModule.mutate({ settings: { days: localDays }, enabled: Object.values(localDays).some((d) => d.enabled) });
+    saveModule.mutate({ settings: { days: localDays, notes: moduleNotes }, enabled: Object.values(localDays).some((d) => d.enabled) });
     setSetupMode(false);
   }
 
@@ -170,6 +171,14 @@ export default function WorkoutPage() {
           ) : (
             <p className="text-sm text-muted-foreground">Enable a day above to edit its plan.</p>
           )}
+        </div>
+
+        <div className="bg-card border border-border rounded-2xl p-4 mb-4">
+          <p className="text-sm font-semibold text-foreground mb-1">Your general preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+          <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I prefer morning workouts", "I need at least 2 rest days"</p>
+          <textarea value={moduleNotes} rows={3} onChange={(e) => setModuleNotes(e.target.value)}
+            placeholder="Anything that helps us plan better for you..."
+            className="w-full bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none resize-none" />
         </div>
 
         <button onClick={saveSetup} disabled={saveModule.isPending}

@@ -7,6 +7,16 @@ import type { PlanItem, WeekPlan } from "@/lib/plan-api";
 import { useWellnessToday, useWeekSummary } from "@/lib/wellness-api";
 import { useAuth } from "@/contexts/auth-context";
 
+const PALETTES: Record<string, { accent: string; accentLight: string; btnGradient: string; bgDark: string; bgLight: string }> = {
+  teal:   { accent: "#14b8a6", accentLight: "#5eead4", btnGradient: "linear-gradient(135deg,#0d9488,#14b8a6)", bgDark: "#060d1f", bgLight: "#f0fdfb" },
+  blue:   { accent: "#3b82f6", accentLight: "#93c5fd", btnGradient: "linear-gradient(135deg,#1d4ed8,#3b82f6)", bgDark: "#060e21", bgLight: "#eff6ff" },
+  purple: { accent: "#a78bfa", accentLight: "#c4b5fd", btnGradient: "linear-gradient(135deg,#7c3aed,#a78bfa)", bgDark: "#0d0618", bgLight: "#faf5ff" },
+  green:  { accent: "#22c55e", accentLight: "#4ade80", btnGradient: "linear-gradient(135deg,#15803d,#22c55e)", bgDark: "#031209", bgLight: "#f0fdf4" },
+  orange: { accent: "#f97316", accentLight: "#fb923c", btnGradient: "linear-gradient(135deg,#c2410c,#f97316)", bgDark: "#160c03", bgLight: "#fff7ed" },
+  pink:   { accent: "#ec4899", accentLight: "#f472b6", btnGradient: "linear-gradient(135deg,#be185d,#ec4899)", bgDark: "#1a0515", bgLight: "#fdf2f8" },
+  slate:  { accent: "#94a3b8", accentLight: "#cbd5e1", btnGradient: "linear-gradient(135deg,#475569,#94a3b8)", bgDark: "#0a0d12", bgLight: "#f8fafc" },
+};
+
 const MODULE_ACCENT: Record<string, string> = {
   water: "#38bdf8", medications: "#14b8a6", workout: "#f97316",
   sleep: "#8b5cf6", mood_check: "#fbbf24", fruit: "#22c55e",
@@ -111,7 +121,10 @@ export default function PlanPage() {
     if (!plan) return;
     const win = window.open("", "_blank");
     if (!win) { alert("Allow popups to save/print"); return; }
-    win.document.write(buildPrintHTML(plan, today, firstName));
+    const themeKey = account?.themeColor ?? "teal";
+    const darkMode = account?.darkMode ?? true;
+    const palette = PALETTES[themeKey] ?? PALETTES.teal;
+    win.document.write(buildPrintHTML(plan, today, firstName, palette, darkMode));
     win.document.close();
     setTimeout(() => { win.focus(); win.print(); }, 600);
   }
@@ -600,85 +613,151 @@ function TodayView({ timedItems, dayOnlyItems, todayDoneMap, todayDoneCount, tod
   );
 }
 
-// ── Print HTML ────────────────────────────────────────────────────────────────
+// ── Print HTML — card layout using the user's theme color ─────────────────────
 
-function buildPrintHTML(plan: WeekPlan, today: string, firstName: string): string {
-  const weekStart = new Date(plan.weekStart + "T12:00:00");
-  const weekEnd   = new Date(plan.weekStart + "T12:00:00");
-  weekEnd.setDate(weekEnd.getDate() + 6);
-  const weekLabel = `${weekStart.toLocaleDateString("en-NG", { month: "long", day: "numeric" })} – ${weekEnd.toLocaleDateString("en-NG", { month: "long", day: "numeric", year: "numeric" })}`;
-  const todayIdx  = plan.days.findIndex(d => d.date === today);
+type PrintPalette = { accent: string; accentLight: string; btnGradient: string; bgDark: string; bgLight: string };
 
-  const timesSet = new Set<string>();
-  plan.days.forEach(d => d.items.forEach(i => { if (i.time) timesSet.add(i.time); }));
-  const timeSlots = [...timesSet].sort();
-  const hasAllDay = plan.days.some(d => d.items.some(i => !i.time && !i.isRestDay));
+function buildPrintHTML(plan: WeekPlan, today: string, firstName: string, palette: PrintPalette, darkMode: boolean): string {
+  const weekStartObj = new Date(plan.weekStart + "T12:00:00");
+  const weekEndObj   = new Date(plan.weekStart + "T12:00:00");
+  weekEndObj.setDate(weekEndObj.getDate() + 6);
+  const weekLabel = `${weekStartObj.toLocaleDateString("en-NG", { month: "long", day: "numeric" })} – ${weekEndObj.toLocaleDateString("en-NG", { month: "long", day: "numeric", year: "numeric" })}`;
 
-  function cell(items: PlanItem[], isToday: boolean): string {
-    const cls = [isToday ? "today-col" : "", items.length > 0 ? "has-item" : "empty"].filter(Boolean).join(" ");
-    if (items.length === 0) return `<td class="${cls}"></td>`;
-    const names = items.map(i => `<div class="task-name">${i.label}${i.sub ? `<br><small>${i.sub}</small>` : ""}</div>`).join("");
-    return `<td class="${cls}">${names}</td>`;
-  }
+  const bg      = darkMode ? palette.bgDark : palette.bgLight;
+  const cardBg  = darkMode ? "rgba(255,255,255,0.05)" : "#ffffff";
+  const cardBdr = darkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)";
+  const textMain = darkMode ? "#f1f5f9" : "#0f172a";
+  const textSub  = darkMode ? "#94a3b8" : "#475569";
+  const textDim  = darkMode ? "#64748b" : "#94a3b8";
+  const todayCardBg  = darkMode ? `${palette.accent}18` : `${palette.accent}12`;
+  const todayCardBdr = `${palette.accent}50`;
 
-  const dayHeaders = plan.days.map((d, i) => {
-    const date = new Date(d.date + "T12:00:00").getDate();
-    return `<th class="${i === todayIdx ? "today-header" : ""}">${SHORT_DAY[i]}<br><span class="date-num">${date}</span>${i === todayIdx ? "<br><span class='today-badge'>TODAY</span>" : ""}</th>`;
+  const dayCards = plan.days.map((day, i) => {
+    const isToday = day.date === today;
+    const dateObj = new Date(day.date + "T12:00:00");
+    const dateNum = dateObj.getDate();
+    const monthAbbr = dateObj.toLocaleDateString("en-NG", { month: "short" });
+
+    const sortedItems = [...day.items]
+      .filter(it => !it.isRestDay)
+      .sort((a, b) => (a.time ?? "99:99").localeCompare(b.time ?? "99:99"));
+
+    // Deduplicate by moduleType for the print card too
+    const seen = new Set<string>();
+    const uniqueItems = sortedItems.filter(it => {
+      if (seen.has(it.moduleType)) return false;
+      seen.add(it.moduleType);
+      return true;
+    });
+
+    const taskRows = uniqueItems.length > 0
+      ? uniqueItems.map(item => `
+          <div class="task-row">
+            <span class="task-time">${item.time ? formatTimeShort(item.time) : "–"}</span>
+            <span class="task-label">${item.moduleType === "water" ? "Water intake" : item.label}</span>
+          </div>`).join("")
+      : `<div class="rest-label">Rest day</div>`;
+
+    return `
+      <div class="day-card${isToday ? " today-card" : ""}">
+        <div class="card-header${isToday ? " today-header" : ""}">
+          <div class="day-name">${FULL_DAY[i]}</div>
+          <div class="day-date">${dateNum} ${monthAbbr}${isToday ? ' <span class="today-pill">TODAY</span>' : ""}</div>
+        </div>
+        <div class="card-body">${taskRows}</div>
+      </div>`;
   }).join("");
-
-  const allDayRow = hasAllDay ? `<tr>
-    <td class="time-col">Any time</td>
-    ${plan.days.map((d, i) => cell(d.items.filter(x => !x.time && !x.isRestDay), i === todayIdx)).join("")}
-  </tr>` : "";
-
-  const timeRows = timeSlots.map(time => `<tr>
-    <td class="time-col">${formatTimeShort(time)}</td>
-    ${plan.days.map((d, i) => cell(d.items.filter(x => x.time === time), i === todayIdx)).join("")}
-  </tr>`).join("");
 
   return `<!DOCTYPE html>
 <html>
 <head>
-  <title>${firstName}'s Weekly Health Plan</title>
+  <title>${firstName}'s Weekly Plan</title>
   <meta charset="utf-8">
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;padding:20px;background:#fff;color:#111}
-    .hdr{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #0d9488}
-    .hdr h1{font-size:20px;font-weight:800;color:#0d9488}
-    .hdr .sub{font-size:12px;color:#64748b;margin-top:4px}
-    .hdr .brand{font-size:10px;color:#94a3b8;font-weight:700;letter-spacing:1px;text-transform:uppercase}
-    table{width:100%;border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
-    th{padding:8px 6px;text-align:center;font-size:11px;font-weight:700;background:#1e293b;color:#fff;border-right:1px solid #334155;line-height:1.3}
-    th.time-col{width:54px;background:#0f172a;font-size:10px}
-    th.today-header{background:#0d9488}
-    .date-num{font-size:14px;font-weight:900;display:block;margin-top:2px}
-    .today-badge{font-size:8px;display:inline-block;margin-top:2px;background:rgba(255,255,255,0.25);padding:1px 5px;border-radius:8px;font-weight:700}
-    td{padding:7px 5px;border:1px solid #e2e8f0;vertical-align:middle;text-align:center}
-    td.time-col{font-weight:700;font-size:10px;color:#0d9488;background:#f8fafc;width:54px;text-align:center;white-space:nowrap}
-    td.empty{background:#fafafa;opacity:.35}
-    td.has-item{background:#f0fdf4}
-    td.today-col{background:#f0fdfa}
-    td.today-col.has-item{background:#d1fae5}
-    .task-name{font-size:11px;font-weight:600;color:#1e293b;line-height:1.3;text-align:left;padding:2px 0}
-    .task-name small{font-size:9px;color:#64748b;display:block}
-    .footer{margin-top:14px;font-size:10px;color:#94a3b8;text-align:center}
-    @media print{body{padding:6px}@page{size:landscape;margin:0.4cm}}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+      background:${bg};
+      color:${textMain};
+      padding:20px;
+      min-height:100vh;
+    }
+
+    /* ── Page header ── */
+    .page-header{
+      display:flex;justify-content:space-between;align-items:flex-end;
+      margin-bottom:20px;padding-bottom:14px;
+      border-bottom:2px solid ${palette.accent};
+    }
+    .page-title{font-size:22px;font-weight:900;color:${palette.accent}}
+    .page-sub{font-size:12px;color:${textSub};margin-top:4px}
+    .page-brand{font-size:10px;color:${textDim};font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
+
+    /* ── 7-column card grid ── */
+    .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+
+    /* ── Individual day card ── */
+    .day-card{
+      border-radius:14px;overflow:hidden;
+      background:${cardBg};
+      border:1px solid ${cardBdr};
+    }
+    .today-card{
+      background:${todayCardBg};
+      border:2px solid ${todayCardBdr};
+      box-shadow:0 4px 20px ${palette.accent}25;
+    }
+
+    /* ── Card header ── */
+    .card-header{
+      padding:10px 10px 8px;
+      background:${darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"};
+      border-bottom:1px solid ${cardBdr};
+    }
+    .today-header{background:${palette.btnGradient}}
+    .day-name{font-size:12px;font-weight:800;color:${textMain};line-height:1}
+    .today-header .day-name,.today-header .day-date{color:#fff}
+    .day-date{font-size:10px;color:${textSub};margin-top:3px;line-height:1}
+    .today-pill{
+      display:inline-block;background:rgba(255,255,255,0.25);
+      color:#fff;font-size:8px;font-weight:700;padding:1px 5px;
+      border-radius:10px;vertical-align:middle;margin-left:3px;
+    }
+
+    /* ── Task rows ── */
+    .card-body{padding:8px 10px}
+    .task-row{
+      display:flex;align-items:flex-start;gap:6px;
+      padding:4px 0;
+      border-bottom:1px solid ${darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"};
+    }
+    .task-row:last-child{border-bottom:none}
+    .task-time{
+      font-size:9px;font-weight:700;color:${palette.accent};
+      min-width:30px;padding-top:1px;white-space:nowrap;
+    }
+    .task-label{font-size:10px;font-weight:600;color:${textMain};line-height:1.35}
+    .rest-label{font-size:10px;color:${textDim};text-align:center;padding:8px 0;font-style:italic}
+
+    /* ── Footer ── */
+    .footer{margin-top:16px;font-size:10px;color:${textDim};text-align:center}
+
+    @media print{
+      body{padding:8px}
+      @page{size:landscape;margin:0.4cm}
+    }
   </style>
 </head>
 <body>
-  <div class="hdr">
+  <div class="page-header">
     <div>
-      <h1>${firstName}'s Weekly Health Plan</h1>
-      <p class="sub">Week of ${weekLabel}</p>
+      <div class="page-title">${firstName}'s Weekly Health Plan</div>
+      <div class="page-sub">Week of ${weekLabel}</div>
     </div>
-    <p class="brand">ERA Health</p>
+    <div class="page-brand">ERA Health</div>
   </div>
-  <table>
-    <thead><tr><th class="time-col">TIME</th>${dayHeaders}</tr></thead>
-    <tbody>${allDayRow}${timeRows}</tbody>
-  </table>
-  <p class="footer">Generated by ERA Health · era.erasystems.com.ng</p>
+  <div class="grid">${dayCards}</div>
+  <div class="footer">Generated by ERA Health · era.erasystems.com.ng</div>
   <script>setTimeout(function(){window.print()},500)</script>
 </body>
 </html>`;

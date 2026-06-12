@@ -1096,9 +1096,17 @@ async function runCarePlanRemindersHourly() {
         const patientName = `${patient.first_name} ${patient.last_name}`;
 
         if (dept === "General Outpatient") {
-          // Skip if treatment has ended
-          const endDate = patient.treatment_end_date as string | undefined;
-          if (endDate && today > endDate) continue;
+          // Compute effective end date — use patient.treatment_end_date if set, otherwise
+          // fall back to plan creation date + (durationDays - 1) from template_data.
+          const storedEnd = patient.treatment_end_date as string | undefined;
+          const fallbackEnd = (() => {
+            const dur = Math.max(1, (td.durationDays as number | undefined) ?? 1);
+            const created = new Date(plan.created_at as string);
+            const last = new Date(created.getTime() + (dur - 1) * 86400000);
+            return last.toISOString().split("T")[0];
+          })();
+          const effectiveEndDate = storedEnd ?? fallbackEnd;
+          if (today > effectiveEndDate) continue;
 
           const treatmentType = (td.treatmentType as string) ?? "";
           const medTiming = (td.medicationTiming as string[]) ?? [];
@@ -1140,6 +1148,7 @@ async function runCarePlanRemindersHourly() {
               } else {
                 await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"], dept);
               }
+              await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: key, status: "sent", channel: "email", message_preview: `GenOut med reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
               if (beneficiaryName && beneficiaryEmail) {
                 await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication", beneficiaryRelationship);
               }
@@ -1163,6 +1172,7 @@ async function runCarePlanRemindersHourly() {
               } else {
                 await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["hosp"], dept);
               }
+              await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: key, status: "sent", channel: "email", message_preview: `GenOut hospital reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
               if (beneficiaryName && beneficiaryEmail) {
                 await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "attend their hospital visit", beneficiaryRelationship);
               }
@@ -1188,6 +1198,7 @@ async function runCarePlanRemindersHourly() {
               } else {
                 await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med", "hosp"], dept);
               }
+              await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: key, status: "sent", channel: "email", message_preview: `GenOut combo reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
               if (beneficiaryName && beneficiaryEmail) {
                 await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication and attend their hospital visit", beneficiaryRelationship);
               }
@@ -1209,6 +1220,7 @@ async function runCarePlanRemindersHourly() {
               h.id, patient.id as number, patientName, patient.email as string,
               dept, plan.summary as string, entry.date, plan.id as number, entry.time,
             );
+            await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: key, status: "sent", channel: "email", message_preview: `${dept} visit reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
             if (beneficiaryName && beneficiaryEmail) {
               await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, `attend their ${dept} visit`, beneficiaryRelationship);
             }

@@ -22,6 +22,11 @@ import systemFeedbackRouter from "./system-feedback";
 import doctorsRouter from "./doctors";
 import selfBookingRouter from "./self-booking";
 import patientAppRouter from "./patient-app";
+import patientAppWellnessRouter from "./patient-app-wellness";
+import patientAppHospitalsRouter from "./patient-app-hospitals";
+import patientAppCompanionRouter from "./patient-app-companion";
+import patientAppSocialRouter from "./patient-app-social";
+import patientAppWomensHealthRouter from "./patient-app-womens-health";
 
 const router: IRouter = Router();
 
@@ -48,5 +53,10 @@ router.use(systemFeedbackRouter);
 router.use(doctorsRouter);
 router.use(selfBookingRouter);
 router.use(patientAppRouter);
+router.use(patientAppWellnessRouter);
+router.use(patientAppHospitalsRouter);
+router.use(patientAppCompanionRouter);
+router.use(patientAppSocialRouter);
+router.use(patientAppWomensHealthRouter);
 
 export default router;

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Crown, Moon, Sun, LogOut, ChevronRight, Check } from "lucide-react";
 
 const THEMES = [
@@ -19,6 +19,7 @@ type ThemeId = typeof THEMES[number]["id"];
 
 export default function ProfilePage() {
   const { account, logout, updateAccount } = useAuth();
+  const [, navigate] = useLocation();
   const [saving, setSaving] = useState(false);
   const isPremium = account?.isPremium ?? false;
 
@@ -137,6 +138,27 @@ export default function ProfilePage() {
         </div>
       </Section>
 
+      {/* Women's Health */}
+      <Section title="Women's Health">
+        <div className="space-y-1">
+          <SettingsRow label="Cycle & Period Tracker" sublabel="Track your cycle, fertile window & symptoms" onClick={() => navigate("/womens-health")} />
+        </div>
+      </Section>
+
+      {/* Social */}
+      <Section title="Social">
+        <div className="space-y-1">
+          <SettingsRow label="Accountability Partners" sublabel="Share streaks, stay motivated" onClick={() => navigate("/social")} />
+        </div>
+      </Section>
+
+      {/* Private companion */}
+      <Section title="Private">
+        <div className="space-y-1">
+          <SettingsRow label="My Companion" sublabel="Journal, AI chat & personality profile" onClick={() => navigate("/companion")} />
+        </div>
+      </Section>
+
       {/* Account settings */}
       <Section title="Account">
         <div className="space-y-1">
@@ -173,12 +195,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function SettingsRow({ label, onClick }: { label: string; onClick: () => void }) {
+function SettingsRow({ label, sublabel, onClick }: { label: string; sublabel?: string; onClick: () => void }) {
   return (
     <button onClick={onClick}
       className="w-full flex items-center justify-between py-3 text-foreground text-sm font-medium hover:text-primary transition border-b border-border last:border-0">
-      {label}
-      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+      <div className="text-left">
+        <p>{label}</p>
+        {sublabel && <p className="text-xs text-muted-foreground font-normal mt-0.5">{sublabel}</p>}
+      </div>
+      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
     </button>
   );
 }

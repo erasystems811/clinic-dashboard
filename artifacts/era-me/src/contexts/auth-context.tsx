@@ -10,6 +10,7 @@ export interface Account {
   themeColor: string;
   darkMode: boolean;
   isPremium?: boolean;
+  dateOfBirth?: string | null;
 }
 
 interface AuthContextValue {

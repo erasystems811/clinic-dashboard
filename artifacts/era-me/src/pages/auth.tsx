@@ -34,7 +34,7 @@ export default function AuthPage() {
   const [loginUsername, setLoginUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotUsername, setForgotUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [error, setError] = useState("");
@@ -86,7 +86,7 @@ export default function AuthPage() {
     try {
       await apiFetch("/api/patient-app/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ email: forgotEmail.trim().toLowerCase() }),
+        body: JSON.stringify({ username: forgotUsername.trim() }),
       });
       setStep("forgot-sent");
     } catch (err) { setError((err as Error).message); }
@@ -304,7 +304,7 @@ export default function AuthPage() {
               <GlassButton type="submit" loading={loading}>
                 {loading ? "Signing in…" : "Sign In"}
               </GlassButton>
-              <button type="button" onClick={() => { setForgotEmail(""); setStep("forgot-request"); }}
+              <button type="button" onClick={() => { setForgotUsername(""); setStep("forgot-request"); }}
                 className="w-full text-sm font-medium py-2" style={{ color: "rgba(20,184,166,0.8)" }}>
                 Forgot password?
               </button>
@@ -323,10 +323,12 @@ export default function AuthPage() {
           <div>
             <GlassBack onClick={() => setStep("login")} />
             <h2 className="text-2xl font-bold text-white mb-1">Reset password</h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>Enter your email and we'll send a reset link.</p>
+            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Enter your username — we'll send the reset link to the email address on your account.
+            </p>
             <form onSubmit={handleForgot} className="space-y-4">
-              <GlassInput type="email" required autoComplete="email" value={forgotEmail}
-                onChange={(e) => setForgotEmail(e.target.value)} placeholder="your@email.com" />
+              <GlassInput type="text" required autoComplete="username" value={forgotUsername}
+                onChange={(e) => setForgotUsername(e.target.value)} placeholder="your_username" />
               {error && <GlassError>{error}</GlassError>}
               <GlassButton type="submit" loading={loading}>
                 {loading ? "Sending…" : "Send Reset Link"}

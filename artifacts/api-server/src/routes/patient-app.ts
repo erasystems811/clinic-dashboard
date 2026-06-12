@@ -238,14 +238,15 @@ router.post("/patient-app/login", async (req, res): Promise<void> => {
 });
 
 // ── Forgot password ────────────────────────────────────────────────────────────
+// Accepts username — reset link is sent to the email on the account, not user-supplied.
 router.post("/patient-app/forgot-password", async (req, res): Promise<void> => {
-  const body = z.object({ email: z.email() }).safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "Valid email required" }); return; }
+  const body = z.object({ username: z.string().min(1) }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Username is required" }); return; }
 
   const { data: account } = await supabase
     .from("patient_accounts")
-    .select("id, username")
-    .eq("email", body.data.email)
+    .select("id, username, email")
+    .eq("username", body.data.username.trim().toLowerCase())
     .maybeSingle();
 
   if (!account) { res.json({ ok: true }); return; } // no enumeration
@@ -259,7 +260,7 @@ router.post("/patient-app/forgot-password", async (req, res): Promise<void> => {
 
   const appUrl = (process.env.ERA_ME_URL ?? "http://localhost:3001").replace(/\/$/, "");
   sendEmail({
-    to: body.data.email,
+    to: account.email as string,
     from: FROM,
     subject: "Reset your ERA Health password",
     html: resetEmail(account.username as string, `${appUrl}/reset-password?token=${token}`),

@@ -39,10 +39,10 @@ export default function HospitalsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold" style={{ background: "linear-gradient(135deg,#fff,#7dd3fc)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          <h1 className="text-2xl font-bold" style={{ background: "linear-gradient(135deg,var(--text-main),#7dd3fc)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
             Hospitals
           </h1>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <p className="text-xs mt-0.5" style={{ color: "var(--text-sub)" }}>
             {connections?.length ?? 0} connected · Search & message your hospital
           </p>
         </div>
@@ -93,7 +93,7 @@ function HospitalCard({ conn, unreadCount, removing, onChat, onRemove }: {
 
   return (
     <div className="rounded-2xl overflow-hidden"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(96,165,250,0.15)", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}>
+      style={{ background: "var(--glass-bg)", border: "1px solid rgba(96,165,250,0.15)", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}>
       {/* Hospital header */}
       <div className="flex items-center gap-3 p-4">
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
@@ -106,7 +106,7 @@ function HospitalCard({ conn, unreadCount, removing, onChat, onRemove }: {
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-white text-sm truncate">{conn.hospitalName}</p>
-          <p className="text-xs truncate mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{conn.patientName}</p>
+          <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-sub)" }}>{conn.patientName}</p>
           <div className="flex gap-2 mt-1.5">
             {conn.stage && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
@@ -124,7 +124,7 @@ function HospitalCard({ conn, unreadCount, removing, onChat, onRemove }: {
         </div>
         <button onClick={() => setShowOptions((p) => !p)} className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition"
           style={{ background: "rgba(255,255,255,0.06)" }}>
-          <ChevronRight className={`w-4 h-4 transition-transform ${showOptions ? "rotate-90" : ""}`} style={{ color: "rgba(255,255,255,0.4)" }} />
+          <ChevronRight className={`w-4 h-4 transition-transform ${showOptions ? "rotate-90" : ""}`} style={{ color: "var(--text-sub)" }} />
         </button>
       </div>
 
@@ -152,7 +152,7 @@ function HospitalCard({ conn, unreadCount, removing, onChat, onRemove }: {
 
       {/* Remove option */}
       {showOptions && (
-        <div className="px-4 pb-4 pt-0" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="px-4 pb-4 pt-0" style={{ borderTop: "1px solid var(--glass-border)" }}>
           <button onClick={onRemove} disabled={removing}
             className="flex items-center gap-2 text-xs font-semibold mt-3 active:opacity-70 transition disabled:opacity-50"
             style={{ color: "#f87171" }}>
@@ -204,10 +204,10 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
     <div className="flex flex-col h-screen">
       {/* Header */}
       <div className="px-4 pt-6 pb-4 flex items-center gap-3 shrink-0"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.07)", background: "rgba(6,13,31,0.9)", backdropFilter: "blur(20px)" }}>
+        style={{ borderBottom: "1px solid var(--glass-border)", background: "rgba(var(--glow-rgb),0.02)", backdropFilter: "blur(20px)" }}>
         <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-xl active:scale-90 transition"
           style={{ background: "rgba(255,255,255,0.06)" }}>
-          <ArrowLeft className="w-5 h-5" style={{ color: "rgba(255,255,255,0.7)" }} />
+          <ArrowLeft className="w-5 h-5" style={{ color: "var(--text-sub)" }} />
         </button>
         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
           style={{ background: "linear-gradient(135deg,#1e3a5f,#1e40af)" }}>
@@ -218,7 +218,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-white text-sm truncate">{connection.hospitalName}</p>
-          <p className="text-[11px] truncate" style={{ color: "rgba(255,255,255,0.4)" }}>Hospital messaging</p>
+          <p className="text-[11px] truncate" style={{ color: "var(--text-sub)" }}>Hospital messaging</p>
         </div>
         <button onClick={() => setShowBook(!showBook)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold active:scale-95 transition"
@@ -232,27 +232,27 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
       {showBook && (
         <div className="mx-4 mt-3 p-4 rounded-2xl shrink-0"
           style={{ background: "rgba(20,184,166,0.08)", border: "1px solid rgba(20,184,166,0.2)" }}>
-          <p className="text-sm font-bold text-white mb-3">📅 Request a consultation</p>
+          <p className="text-sm font-bold mb-3" style={{ color: "var(--text-main)" }}>📅 Request a consultation</p>
           <textarea
             value={bookReason}
             onChange={(e) => setBookReason(e.target.value)}
             placeholder="What's the reason for your visit?"
             rows={2}
-            className="w-full rounded-xl px-3 py-2.5 text-sm text-white outline-none resize-none mb-2"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", caretColor: "#14b8a6" }}
+            className="w-full rounded-xl px-3 py-2.5 text-sm outline-none resize-none mb-2"
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", caretColor: "#14b8a6", color: "var(--text-main)" }}
           />
           <input
             type="date"
             value={bookDate}
             onChange={(e) => setBookDate(e.target.value)}
             min={new Date().toISOString().split("T")[0]}
-            className="w-full rounded-xl px-3 py-2.5 text-sm text-white outline-none mb-3"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", colorScheme: "dark" }}
+            className="w-full rounded-xl px-3 py-2.5 text-sm outline-none mb-3"
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)" }}
           />
           <div className="flex gap-2">
             <button onClick={() => setShowBook(false)}
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold active:scale-95 transition"
-              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
+              style={{ background: "var(--glass-bg)", color: "var(--text-sub)" }}>
               Cancel
             </button>
             <button onClick={handleBookConsultation} disabled={!bookReason.trim() || sendMessage.isPending}
@@ -273,8 +273,8 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
             <p style={{ fontSize: 44, marginBottom: 12 }}>💬</p>
-            <p style={{ fontWeight: 700, color: "#fff", fontSize: 15, marginBottom: 6 }}>No messages yet</p>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.5 }}>
+            <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 15, marginBottom: 6 }}>No messages yet</p>
+            <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>
               Send a message to {connection.hospitalName} or book a consultation above.
             </p>
           </div>
@@ -288,7 +288,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
 
       {/* Message input */}
       <div className="px-4 py-4 shrink-0"
-        style={{ borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgba(6,13,31,0.9)", backdropFilter: "blur(20px)" }}>
+        style={{ borderTop: "1px solid var(--glass-border)", background: "rgba(var(--glow-rgb),0.02)", backdropFilter: "blur(20px)" }}>
         <div className="flex items-end gap-2">
           <textarea
             value={message}
@@ -296,10 +296,11 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder={`Message ${connection.hospitalName}…`}
             rows={1}
-            className="flex-1 rounded-2xl px-4 py-3 text-sm text-white outline-none resize-none"
+            className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none resize-none"
             style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.1)",
+              background: "var(--input-bg)",
+              border: "1px solid var(--input-border)",
+              color: "var(--text-main)",
               caretColor: "#14b8a6",
               maxHeight: 120,
               lineHeight: 1.5,
@@ -327,14 +328,14 @@ function MessageBubble({ message, hospitalName }: { message: import("@/lib/hospi
     <div className={`flex ${isPatient ? "justify-end" : "justify-start"}`}>
       <div style={{ maxWidth: "80%" }}>
         {!isPatient && (
-          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginBottom: 4, paddingLeft: 4 }}>{hospitalName}</p>
+          <p style={{ fontSize: 10, color: "var(--text-dim)", marginBottom: 4, paddingLeft: 4 }}>{hospitalName}</p>
         )}
         <div className="rounded-2xl px-4 py-3"
           style={{
             background: isPatient
               ? isConsultation ? "linear-gradient(135deg,#0d9488,#14b8a6)" : "linear-gradient(135deg,#1e3a5f,#1e40af)"
               : "rgba(255,255,255,0.07)",
-            border: isPatient ? "none" : "1px solid rgba(255,255,255,0.1)",
+            border: isPatient ? "none" : "1px solid var(--glass-border)",
             borderTopRightRadius: isPatient ? 4 : 16,
             borderTopLeftRadius: isPatient ? 16 : 4,
           }}>
@@ -346,8 +347,8 @@ function MessageBubble({ message, hospitalName }: { message: import("@/lib/hospi
               </span>
             </div>
           )}
-          <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{message.content}</p>
-          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 4, textAlign: isPatient ? "right" : "left" }}>{time}</p>
+          <p style={{ fontSize: 14, color: isPatient ? "#fff" : "var(--text-main)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{message.content}</p>
+          <p style={{ fontSize: 10, color: isPatient ? "rgba(255,255,255,0.65)" : "var(--text-dim)", marginTop: 4, textAlign: isPatient ? "right" : "left" }}>{time}</p>
         </div>
       </div>
     </div>
@@ -359,10 +360,10 @@ function EmptyHospitals({ onAdd }: { onAdd: () => void }) {
   return (
     <div>
       <div className="rounded-2xl p-7 text-center mb-4"
-        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         <p style={{ fontSize: 48, marginBottom: 14 }}>🏥</p>
-        <p style={{ fontWeight: 700, color: "#fff", fontSize: 16, marginBottom: 8 }}>No hospitals connected</p>
-        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", lineHeight: 1.55, marginBottom: 22 }}>
+        <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 16, marginBottom: 8 }}>No hospitals connected</p>
+        <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.55, marginBottom: 22 }}>
           Connect your hospital to see your records, message your care team, and book consultations — all in one place.
         </p>
         <button onClick={onAdd}
@@ -373,8 +374,8 @@ function EmptyHospitals({ onAdd }: { onAdd: () => void }) {
       </div>
 
       <div className="rounded-2xl p-4" style={{ background: "rgba(96,165,250,0.07)", border: "1px solid rgba(96,165,250,0.18)" }}>
-        <p className="text-sm font-bold text-white mb-1">How it works</p>
-        <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+        <p className="text-sm font-bold mb-1" style={{ color: "var(--text-main)" }}>How it works</p>
+        <p className="text-xs leading-relaxed" style={{ color: "var(--text-sub)" }}>
           Search for your hospital, enter your patient ID, and we'll send a verification code to the email your hospital has on file. Once verified, you can message your care team directly.
         </p>
       </div>
@@ -407,7 +408,7 @@ function AddHospitalFlow({ onDone }: { onDone: () => void }) {
     if (!selectedHospital || !patientRecordId.trim()) return;
     setError("");
     requestConnection.mutate(
-      { hospitalId: selectedHospital.id, patientRecordId: parseInt(patientRecordId, 10) },
+      { hospitalId: selectedHospital.id, patientRecordId: patientRecordId.trim() },
       {
         onSuccess: (data) => { setMaskedEmail(data.maskedEmail); setPatientName(data.patientName); setStep("otp"); },
         onError: (err) => setError(err.message),
@@ -419,7 +420,7 @@ function AddHospitalFlow({ onDone }: { onDone: () => void }) {
     if (!selectedHospital || !otp.trim()) return;
     setError("");
     verifyConnection.mutate(
-      { hospitalId: selectedHospital.id, patientRecordId: parseInt(patientRecordId, 10), otp: otp.trim() },
+      { hospitalId: selectedHospital.id, patientRecordId: patientRecordId.trim(), otp: otp.trim() },
       {
         onSuccess: () => setStep("done"),
         onError: (err) => setError(err.message),
@@ -431,12 +432,12 @@ function AddHospitalFlow({ onDone }: { onDone: () => void }) {
     return (
       <div className="px-4 pt-16 pb-8 flex flex-col items-center text-center">
         <p style={{ fontSize: 60, marginBottom: 20 }}>🏥</p>
-        <p className="text-xl font-bold text-white mb-2">Hospital connected!</p>
-        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 8 }}>
-          <strong style={{ color: "#fff" }}>{selectedHospital?.name}</strong> has been linked to your ERA Health account.
+        <p className="text-xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Hospital connected!</p>
+        <p style={{ fontSize: 14, color: "var(--text-sub)", marginBottom: 8 }}>
+          <strong style={{ color: "var(--text-main)" }}>{selectedHospital?.name}</strong> has been linked to your ERA Health account.
         </p>
-        <p style={{ fontSize: 14, color: "rgba(255,255,255,0.5)", marginBottom: 32 }}>
-          Your records for <strong style={{ color: "#fff" }}>{patientName}</strong> are now accessible.
+        <p style={{ fontSize: 14, color: "var(--text-sub)", marginBottom: 32 }}>
+          Your records for <strong style={{ color: "var(--text-main)" }}>{patientName}</strong> are now accessible.
         </p>
         <button onClick={onDone}
           className="w-full py-4 rounded-2xl font-bold text-white text-base active:scale-95 transition"
@@ -450,7 +451,7 @@ function AddHospitalFlow({ onDone }: { onDone: () => void }) {
   return (
     <div className="px-4 pt-6 pb-8">
       <button onClick={step === "search" ? onDone : () => { setStep(step === "otp" ? "patientId" : "search"); setError(""); }}
-        className="flex items-center gap-1.5 mb-6" style={{ color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: 500 }}>
+        className="flex items-center gap-1.5 mb-6" style={{ color: "var(--text-sub)", fontSize: 13, fontWeight: 500 }}>
         <ArrowLeft className="w-4 h-4" />
         {step === "search" ? "Cancel" : "Previous step"}
       </button>
@@ -465,13 +466,13 @@ function AddHospitalFlow({ onDone }: { onDone: () => void }) {
             <div key={s} className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center transition"
                 style={{
-                  background: isCurrent ? "linear-gradient(135deg,#1e3a5f,#1e40af)" : isDone ? "rgba(20,184,166,0.2)" : "rgba(255,255,255,0.06)",
-                  border: isCurrent ? "1px solid rgba(96,165,250,0.5)" : isDone ? "1px solid rgba(20,184,166,0.4)" : "1px solid rgba(255,255,255,0.1)",
-                  color: isCurrent ? "#fff" : isDone ? "#14b8a6" : "rgba(255,255,255,0.35)",
+                  background: isCurrent ? "linear-gradient(135deg,#1e3a5f,#1e40af)" : isDone ? "rgba(20,184,166,0.2)" : "var(--glass-bg)",
+                  border: isCurrent ? "1px solid rgba(96,165,250,0.5)" : isDone ? "1px solid rgba(20,184,166,0.4)" : "1px solid var(--glass-border)",
+                  color: isCurrent ? "#fff" : isDone ? "#14b8a6" : "var(--text-dim)",
                 }}>
                 {isDone ? <CheckCircle2 className="w-3.5 h-3.5" /> : i + 1}
               </div>
-              {i < 2 && <div className="w-6 h-px" style={{ background: isDone ? "rgba(20,184,166,0.4)" : "rgba(255,255,255,0.08)" }} />}
+              {i < 2 && <div className="w-6 h-px" style={{ background: isDone ? "rgba(20,184,166,0.4)" : "var(--glass-border)" }} />}
             </div>
           );
         })}
@@ -505,19 +506,19 @@ function SearchStep({ onSelect }: { onSelect: (h: HospitalSearchResult) => void 
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-white mb-1">Find your hospital</h2>
-      <p className="text-sm mb-5" style={{ color: "rgba(255,255,255,0.45)" }}>Search by hospital name</p>
+      <h2 className="text-xl font-bold mb-1" style={{ color: "var(--text-main)" }}>Find your hospital</h2>
+      <p className="text-sm mb-5" style={{ color: "var(--text-sub)" }}>Search by hospital name</p>
 
       <div className="relative mb-4">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "rgba(255,255,255,0.35)" }} />
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-dim)" }} />
         <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)}
           placeholder="e.g. Lagos University Teaching Hospital"
-          className="w-full rounded-2xl pl-10 pr-10 py-3.5 text-sm text-white outline-none"
-          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", caretColor: "#60a5fa" }}
+          className="w-full rounded-2xl pl-10 pr-10 py-3.5 text-sm outline-none"
+          style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", caretColor: "#60a5fa", color: "var(--text-main)" }}
         />
         {q && (
           <button onClick={() => setQ("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-            <X className="w-4 h-4" style={{ color: "rgba(255,255,255,0.35)" }} />
+            <X className="w-4 h-4" style={{ color: "var(--text-dim)" }} />
           </button>
         )}
       </div>
@@ -530,8 +531,8 @@ function SearchStep({ onSelect }: { onSelect: (h: HospitalSearchResult) => void 
       {!isFetching && results && results.length === 0 && q.length >= 2 && (
         <div className="text-center py-10">
           <p style={{ fontSize: 36, marginBottom: 10 }}>🏥</p>
-          <p className="font-bold text-white mb-1">No hospitals found</p>
-          <p className="text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>Try a different spelling or shorter search.</p>
+          <p className="font-bold mb-1" style={{ color: "var(--text-main)" }}>No hospitals found</p>
+          <p className="text-sm" style={{ color: "var(--text-sub)" }}>Try a different spelling or shorter search.</p>
         </div>
       )}
       {results && results.length > 0 && (
@@ -539,7 +540,7 @@ function SearchStep({ onSelect }: { onSelect: (h: HospitalSearchResult) => void 
           {results.map((h) => (
             <button key={h.id} onClick={() => onSelect(h)}
               className="w-full flex items-center gap-3 rounded-2xl p-4 text-left active:scale-[0.98] transition"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                 style={{ background: "linear-gradient(135deg,#1e3a5f,#1e40af)" }}>
                 {h.logo_url
@@ -547,14 +548,14 @@ function SearchStep({ onSelect }: { onSelect: (h: HospitalSearchResult) => void 
                   : <Building2 className="w-5 h-5" style={{ color: "#60a5fa" }} />
                 }
               </div>
-              <p className="flex-1 font-semibold text-white text-sm">{h.name}</p>
-              <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.35)" }} />
+              <p className="flex-1 font-semibold text-sm" style={{ color: "var(--text-main)" }}>{h.name}</p>
+              <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--text-dim)" }} />
             </button>
           ))}
         </div>
       )}
       {q.length < 2 && (
-        <p className="text-center text-sm py-8" style={{ color: "rgba(255,255,255,0.3)" }}>Type at least 2 characters to search</p>
+        <p className="text-center text-sm py-8" style={{ color: "var(--text-dim)" }}>Type at least 2 characters to search</p>
       )}
     </div>
   );
@@ -573,25 +574,25 @@ function PatientIdStep({ hospital, patientRecordId, onChange, onSubmit, loading,
           <Building2 className="w-5 h-5" style={{ color: "#60a5fa" }} />
         </div>
         <div>
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Connecting to</p>
-          <p className="font-semibold text-white text-sm">{hospital.name}</p>
+          <p className="text-xs" style={{ color: "var(--text-dim)" }}>Connecting to</p>
+          <p className="font-semibold text-sm" style={{ color: "var(--text-main)" }}>{hospital.name}</p>
         </div>
       </div>
-      <h2 className="text-xl font-bold text-white mb-1">Enter your patient ID</h2>
-      <p className="text-sm mb-5 leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
+      <h2 className="text-xl font-bold mb-1" style={{ color: "var(--text-main)" }}>Enter your patient ID</h2>
+      <p className="text-sm mb-5 leading-relaxed" style={{ color: "var(--text-sub)" }}>
         Your patient ID is on your clinic card, appointment slip, or ask a staff member.
       </p>
-      <input type="number" inputMode="numeric" value={patientRecordId} onChange={(e) => onChange(e.target.value)}
-        placeholder="Patient ID number"
-        className="w-full rounded-2xl px-4 py-4 text-2xl font-bold text-white text-center outline-none mb-3 tracking-widest"
-        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", caretColor: "#60a5fa" }}
+      <input type="text" value={patientRecordId} onChange={(e) => onChange(e.target.value)}
+        placeholder="e.g. 1234 or P001-2024"
+        className="w-full rounded-2xl px-4 py-4 text-2xl font-bold text-center outline-none mb-3"
+        style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", caretColor: "#60a5fa", color: "var(--text-main)" }}
       />
       {error && (
         <div className="rounded-xl px-4 py-3 mb-4" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}>
           <p className="text-sm" style={{ color: "#fca5a5" }}>{error}</p>
         </div>
       )}
-      <p className="text-xs text-center mb-5" style={{ color: "rgba(255,255,255,0.35)" }}>
+      <p className="text-xs text-center mb-5" style={{ color: "var(--text-dim)" }}>
         We'll send a code to the email {hospital.name} has on file.
       </p>
       <button onClick={onSubmit} disabled={!patientRecordId.trim() || loading}
@@ -616,19 +617,19 @@ function OtpStep({ hospital, maskedEmail, otp, onChange, onSubmit, onResend, loa
           <Building2 className="w-5 h-5" style={{ color: "#60a5fa" }} />
         </div>
         <div>
-          <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Connecting to</p>
-          <p className="font-semibold text-white text-sm">{hospital.name}</p>
+          <p className="text-xs" style={{ color: "var(--text-dim)" }}>Connecting to</p>
+          <p className="font-semibold text-sm" style={{ color: "var(--text-main)" }}>{hospital.name}</p>
         </div>
       </div>
-      <h2 className="text-xl font-bold text-white mb-1">Enter the code</h2>
-      <p className="text-sm mb-6 leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
-        We sent a 6-digit code to <strong style={{ color: "#fff" }}>{maskedEmail}</strong>
+      <h2 className="text-xl font-bold mb-1" style={{ color: "var(--text-main)" }}>Enter the code</h2>
+      <p className="text-sm mb-6 leading-relaxed" style={{ color: "var(--text-sub)" }}>
+        We sent a 6-digit code to <strong style={{ color: "var(--text-main)" }}>{maskedEmail}</strong>
       </p>
       <input type="text" inputMode="numeric" maxLength={6} value={otp}
         onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
         placeholder="000000"
-        className="w-full rounded-2xl px-4 py-4 text-3xl font-bold text-white text-center outline-none mb-3"
-        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", letterSpacing: "0.4em", caretColor: "#60a5fa" }}
+        className="w-full rounded-2xl px-4 py-4 text-3xl font-bold text-center outline-none mb-3"
+        style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", letterSpacing: "0.4em", caretColor: "#60a5fa", color: "var(--text-main)" }}
       />
       {error && (
         <div className="rounded-xl px-4 py-3 mb-4" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)" }}>
@@ -642,10 +643,10 @@ function OtpStep({ hospital, maskedEmail, otp, onChange, onSubmit, onResend, loa
       </button>
       <button onClick={onResend} disabled={resending}
         className="w-full py-2 text-sm font-semibold disabled:opacity-50"
-        style={{ color: "rgba(255,255,255,0.4)" }}>
+        style={{ color: "var(--text-sub)" }}>
         {resending ? "Sending…" : "Didn't receive it? Resend code"}
       </button>
-      <p className="text-xs text-center mt-3" style={{ color: "rgba(255,255,255,0.3)" }}>
+      <p className="text-xs text-center mt-3" style={{ color: "var(--text-dim)" }}>
         Code expires in 10 minutes. Check spam folder if not received.
       </p>
     </div>

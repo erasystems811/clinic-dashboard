@@ -79,6 +79,9 @@ export function useSaveModule(type: string) {
     mutationFn: (body: { settings?: unknown; enabled?: boolean }) => put(`${BASE}/modules/${type}`, body),
     onSuccess: () => {
       void qc.refetchQueries({ queryKey: ["wellness"] });
+      // Regenerate the weekly plan immediately so it reflects the new settings
+      void fetch("/api/patient-app/plan/regenerate", { method: "POST", headers: headers() })
+        .then(() => qc.invalidateQueries({ queryKey: ["plan"] }));
     },
   });
 }

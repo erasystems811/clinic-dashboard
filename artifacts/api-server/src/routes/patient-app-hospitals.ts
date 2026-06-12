@@ -121,13 +121,27 @@ router.post("/patient-app/hospitals/connect/request", async (req, res): Promise<
 
   const hospitalCode = (hospital.hospital_code as string | null) ?? (hospital.username as string);
 
-  // Look up patient record at this hospital using the provided record ID
-  const { data: patientRecord } = await supabase
+  // Look up patient by hospital-assigned patient_number first, then fall back to numeric DB id
+  const idStr = String(patientRecordId).trim();
+  let patientRecord: { id: number; first_name: string; last_name: string; email: string } | null = null;
+
+  const { data: byNumber } = await supabase
     .from("patients")
     .select("id, first_name, last_name, email")
-    .eq("id", patientRecordId)
+    .ilike("patient_number", idStr)
     .eq("hospital_id", hospitalCode)
-    .single();
+    .maybeSingle();
+  patientRecord = byNumber as typeof patientRecord;
+
+  if (!patientRecord && /^\d+$/.test(idStr)) {
+    const { data: byId } = await supabase
+      .from("patients")
+      .select("id, first_name, last_name, email")
+      .eq("id", parseInt(idStr, 10))
+      .eq("hospital_id", hospitalCode)
+      .maybeSingle();
+    patientRecord = byId as typeof patientRecord;
+  }
 
   if (!patientRecord) {
     res.status(404).json({ error: "No patient record found with that ID at this hospital. Please check the ID and try again." });
@@ -204,12 +218,26 @@ router.post("/patient-app/hospitals/connect/verify", async (req, res): Promise<v
 
   const hospitalCode = (hospital.hospital_code as string | null) ?? (hospital.username as string);
 
-  const { data: patientRecord } = await supabase
+  const verifyIdStr = String(patientRecordId).trim();
+  let patientRecord: { id: number; email: string } | null = null;
+
+  const { data: verifyByNumber } = await supabase
     .from("patients")
     .select("id, email")
-    .eq("id", patientRecordId)
+    .ilike("patient_number", verifyIdStr)
     .eq("hospital_id", hospitalCode)
-    .single();
+    .maybeSingle();
+  patientRecord = verifyByNumber as typeof patientRecord;
+
+  if (!patientRecord && /^\d+$/.test(verifyIdStr)) {
+    const { data: verifyById } = await supabase
+      .from("patients")
+      .select("id, email")
+      .eq("id", parseInt(verifyIdStr, 10))
+      .eq("hospital_id", hospitalCode)
+      .maybeSingle();
+    patientRecord = verifyById as typeof patientRecord;
+  }
 
   if (!patientRecord) { res.status(404).json({ error: "Patient record not found" }); return; }
 

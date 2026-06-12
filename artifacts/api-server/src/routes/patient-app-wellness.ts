@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase } from "../lib/supabase.js";
 import { getPatientFromRequest } from "../lib/patient-auth.js";
+import { getWeekStart, type WeekPlan } from "./patient-app-plan.js";
 
 const router: IRouter = Router();
 
@@ -127,9 +128,12 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
   const today = todayDateStr();
   const dayKey = todayDayKey();
 
-  const [modulesResult, logsResult] = await Promise.all([
+  const weekStart = getWeekStart();
+
+  const [modulesResult, logsResult, planResult] = await Promise.all([
     supabase.from("wellness_modules").select("module_type, settings, enabled").eq("account_id", account.id),
     supabase.from("wellness_logs").select("module_type, data").eq("account_id", account.id).eq("log_date", today),
+    supabase.from("weekly_plans").select("plan_data").eq("account_id", account.id).eq("week_start", weekStart).maybeSingle(),
   ]);
 
   const moduleMap: Record<string, { settings: Record<string, unknown>; enabled: boolean }> = {};
@@ -144,55 +148,65 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
     logMap[l.module_type as string] = (l.data as Record<string, unknown>) ?? {};
   }
 
-  // Build server-side checklist for ALL enabled daily modules
+  // Build checklist from the weekly plan (falls back to module-based logic if no plan)
   const checklist: Array<{ id: string; emoji: string; label: string; sub?: string; done: boolean }> = [];
-  for (const type of DAILY_HABIT_TYPES) {
-    const mod = moduleMap[type];
-    if (!mod?.enabled) continue;
-    const log = logMap[type] ?? null;
-    const settings = mod.settings;
+  const plan = planResult.data?.plan_data as WeekPlan | null;
+  const todayPlanDay = plan?.days.find((d) => d.date === today);
 
-    // Workout: special label and rest-day handling
-    if (type === "workout") {
-      const workoutDays = (settings.days as Record<string, Record<string, unknown>>) ?? {};
-      const todayWorkout = workoutDays[dayKey];
-      if (todayWorkout?.enabled) {
-        checklist.push({
-          id: "workout", emoji: "🏃", label: "Workout",
-          sub: (todayWorkout.focus as string | undefined) ?? undefined,
-          done: log?.completed === true,
-        });
-      } else if (dayKey in workoutDays) {
-        checklist.push({ id: "workout", emoji: "😌", label: "Rest day", sub: "No workout today", done: true });
+  if (todayPlanDay && todayPlanDay.items.length > 0) {
+    for (const item of todayPlanDay.items) {
+      const log = logMap[item.moduleType] ?? null;
+      const settings = moduleMap[item.moduleType]?.settings ?? {};
+
+      if (item.isRestDay) {
+        checklist.push({ id: item.moduleType, emoji: item.emoji, label: item.label, sub: item.sub, done: true });
+        continue;
       }
-      continue;
-    }
 
-    // Medications: only show if there are active meds
-    if (type === "medications") {
-      const meds = ((settings.medications as Array<Record<string, unknown>>) ?? []).filter((m) => {
-        const start = m.startDate as string;
-        const dur = m.durationDays as number | null;
-        if (today < start) return false;
-        if (dur && new Date(start).getTime() + dur * 86400000 < new Date(today).getTime()) return false;
-        return true;
-      });
-      if (meds.length === 0) continue;
-      const taken = (log?.taken as Record<string, boolean>) ?? {};
-      const total = meds.reduce((a, m) => a + (m.times as string[]).length, 0);
-      const done  = meds.reduce((a, m) => a + (m.times as string[]).filter((t) => taken[`${m.id}_${t}`]).length, 0);
-      checklist.push({
-        id: "medications", emoji: "💊", label: "Medications",
-        sub: `${done} / ${total} doses taken`,
-        done: done === total,
-      });
-      continue;
+      const done = isModuleCompleted(item.moduleType, log ?? undefined, settings, today);
+      const sub = log ? (checklistSub(item.moduleType, log, settings, today) ?? item.sub) : item.sub;
+      checklist.push({ id: item.moduleType, emoji: item.emoji, label: item.label, sub, done });
     }
+  } else {
+    // No plan yet — fall back to direct module-based checklist
+    for (const type of DAILY_HABIT_TYPES) {
+      const mod = moduleMap[type];
+      if (!mod?.enabled) continue;
+      const log = logMap[type] ?? null;
+      const settings = mod.settings;
 
-    const meta = MODULE_META[type];
-    const done = isModuleCompleted(type, log ?? undefined, settings, today);
-    const sub = log ? checklistSub(type, log, settings, today) : (type === "sleep" ? "Log last night's sleep" : type === "mood_check" ? "Mood, energy & stress" : undefined);
-    checklist.push({ id: type, emoji: meta.emoji, label: meta.label, sub, done });
+      if (type === "workout") {
+        const workoutDays = (settings.days as Record<string, Record<string, unknown>>) ?? {};
+        const todayWorkout = workoutDays[dayKey];
+        if (todayWorkout?.enabled) {
+          checklist.push({ id: "workout", emoji: "🏃", label: "Workout", sub: (todayWorkout.focus as string | undefined) ?? undefined, done: log?.completed === true });
+        } else if (dayKey in workoutDays) {
+          checklist.push({ id: "workout", emoji: "😌", label: "Rest day", sub: "No workout today", done: true });
+        }
+        continue;
+      }
+
+      if (type === "medications") {
+        const meds = ((settings.medications as Array<Record<string, unknown>>) ?? []).filter((m) => {
+          const start = m.startDate as string;
+          const dur = m.durationDays as number | null;
+          if (today < start) return false;
+          if (dur && new Date(start).getTime() + dur * 86400000 < new Date(today).getTime()) return false;
+          return true;
+        });
+        if (meds.length === 0) continue;
+        const taken = (log?.taken as Record<string, boolean>) ?? {};
+        const total = meds.reduce((a, m) => a + (m.times as string[]).length, 0);
+        const done  = meds.reduce((a, m) => a + (m.times as string[]).filter((t) => taken[`${m.id}_${t}`]).length, 0);
+        checklist.push({ id: "medications", emoji: "💊", label: "Medications", sub: `${done} / ${total} doses taken`, done: done === total });
+        continue;
+      }
+
+      const meta = MODULE_META[type];
+      const done = isModuleCompleted(type, log ?? undefined, settings, today);
+      const sub = log ? checklistSub(type, log, settings, today) : (type === "sleep" ? "Log last night's sleep" : type === "mood_check" ? "Mood, energy & stress" : undefined);
+      checklist.push({ id: type, emoji: meta.emoji, label: meta.label, sub, done });
+    }
   }
 
   // Keep legacy `modules` object for backwards compat with other pages

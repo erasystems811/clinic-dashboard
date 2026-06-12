@@ -86,3 +86,25 @@ body {
 @media (hover: none) {
   button:active { opacity: 0.75; transform: scale(0.98); }
 }
+
+/* ── Light mode: teal glassmorphism ──────────────────────────────────── */
+html:not(.dark) body {
+  background: linear-gradient(150deg, var(--light-bg-from, #f0fdfb) 0%, var(--light-bg-to, #ccfbf1) 60%, var(--light-bg-from, #f0fdfb) 100%);
+  min-height: 100vh;
+}
+
+/* Glass cards: frosted-blur panels over the teal gradient */
+html:not(.dark) section > .rounded-2xl,
+html:not(.dark) .glass-card {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Override hardcoded white Tailwind utilities in light mode */
+html:not(.dark) .text-white { color: var(--text-main) !important; }
+html:not(.dark) .text-gray-400 { color: var(--text-sub) !important; }
+html:not(.dark) .text-gray-500 { color: var(--text-sub) !important; }
+html:not(.dark) input { color: var(--text-main) !important; }
+html:not(.dark) input::placeholder { color: var(--text-dim) !important; }
+html:not(.dark) textarea { color: var(--text-main) !important; }
+html:not(.dark) textarea::placeholder { color: var(--text-dim) !important; }

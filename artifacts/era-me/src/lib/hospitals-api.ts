@@ -50,7 +50,7 @@ export interface HospitalConnection {
   hospitalName: string;
   hospitalSlug: string;
   hospitalLogo: string | null;
-  patientRecordId: number;
+  patientRecordId: string;
   patientName: string;
   stage: string | null;
   department: string | null;
@@ -98,7 +98,7 @@ export function useRequestConnection() {
   return useMutation<
     { ok: boolean; maskedEmail: string; patientName: string; hospitalName: string },
     Error,
-    { hospitalId: number; patientRecordId: number }
+    { hospitalId: number; patientRecordId: string }
   >({
     mutationFn: (body) => post(`${BASE}/connect/request`, body),
   });
@@ -109,7 +109,7 @@ export function useVerifyConnection() {
   return useMutation<
     { ok: boolean },
     Error,
-    { hospitalId: number; patientRecordId: number; otp: string }
+    { hospitalId: number; patientRecordId: string; otp: string }
   >({
     mutationFn: (body) => post(`${BASE}/connect/verify`, body),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["hospitals"] }),

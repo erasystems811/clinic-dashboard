@@ -121,7 +121,7 @@ export default function HomePage() {
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <p style={{ color: "rgba(255,255,255,0.38)", fontSize: 12, fontWeight: 500 }}>{formatDate()}</p>
+              <p style={{ color: "var(--text-dim)", fontSize: 12, fontWeight: 500 }}>{formatDate()}</p>
               {coins > 0 && (
                 <Link href="/profile">
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded-full active:scale-95 transition"
@@ -132,14 +132,14 @@ export default function HomePage() {
                 </Link>
               )}
             </div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, color: "#fff" }}>
+            <h1 style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, color: "var(--text-main)" }}>
               {greeting()},<br />
               <span style={{ background: "linear-gradient(120deg,var(--accent-light),var(--accent))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                 {displayName} 👋
               </span>
             </h1>
             {total > 0 && (
-              <p style={{ marginTop: 7, fontSize: 13, color: "rgba(255,255,255,0.45)", fontWeight: 500 }}>
+              <p style={{ marginTop: 7, fontSize: 13, color: "var(--text-sub)", fontWeight: 500 }}>
                 {doneCount === total ? "All tasks complete today 🎉" : `${doneCount} of ${total} tasks done`}
               </p>
             )}
@@ -160,8 +160,8 @@ export default function HomePage() {
                 {completionPct === 100
                   ? <span style={{ fontSize: 24 }}>🎉</span>
                   : <>
-                      <span style={{ fontSize: 15, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{completionPct}%</span>
-                      <span style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>done</span>
+                      <span style={{ fontSize: 15, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{completionPct}%</span>
+                      <span style={{ fontSize: 9, color: "var(--text-sub)" }}>done</span>
                     </>
                 }
               </div>
@@ -200,10 +200,10 @@ export default function HomePage() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-baseline gap-2">
-                    <span style={{ fontSize: 40, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{waterCups}</span>
-                    <span style={{ fontSize: 15, color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>/ {waterGoal} cups</span>
+                    <span style={{ fontSize: 40, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{waterCups}</span>
+                    <span style={{ fontSize: 15, color: "var(--text-sub)", fontWeight: 500 }}>/ {waterGoal} cups</span>
                   </div>
-                  <p style={{ fontSize: 12, marginTop: 3, color: waterPct >= 100 ? "#4ade80" : "rgba(255,255,255,0.45)" }}>
+                  <p style={{ fontSize: 12, marginTop: 3, color: waterPct >= 100 ? "#4ade80" : "var(--text-sub)" }}>
                     {waterPct >= 100 ? "Goal reached! 🎉" : `${waterLeft} more cup${waterLeft !== 1 ? "s" : ""} to go`}
                   </p>
                 </div>
@@ -217,21 +217,21 @@ export default function HomePage() {
                   <button onClick={() => { if (waterCups > 0) logWater.mutate({ cups: waterCups - 1 }); }}
                     disabled={logWater.isPending || waterCups === 0}
                     className="w-12 h-12 rounded-2xl flex items-center justify-center active:scale-90 transition"
-                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>
+                    style={{ background: "var(--glass-bg)", border: "1px solid var(--input-border)", color: "var(--text-sub)" }}>
                     <Minus className="w-5 h-5" />
                   </button>
                 </div>
               </div>
-              <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+              <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ background: "var(--glass-track)" }}>
                 <div className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${waterPct}%`, background: "linear-gradient(90deg,#0ea5e9,#38bdf8)", boxShadow: "0 0 8px rgba(56,189,248,0.6)" }} />
               </div>
               <div className="flex gap-1 mt-2 flex-wrap">
                 {Array.from({ length: Math.min(waterGoal, 14) }, (_, i) => (
                   <div key={i} className="w-4 h-4 rounded-full transition-colors duration-200"
-                    style={{ background: i < waterCups ? "rgba(56,189,248,0.7)" : "rgba(255,255,255,0.07)" }} />
+                    style={{ background: i < waterCups ? "rgba(56,189,248,0.7)" : "var(--glass-track)" }} />
                 ))}
-                {waterGoal > 14 && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginLeft: 2 }}>+{waterGoal - 14}</span>}
+                {waterGoal > 14 && <span style={{ fontSize: 10, color: "var(--text-dim)", marginLeft: 2 }}>+{waterGoal - 14}</span>}
               </div>
             </div>
           </div>
@@ -241,12 +241,12 @@ export default function HomePage() {
         {total > 0 ? (
           <section>
             <div className="flex items-center justify-between mb-2.5">
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>Today's plan</h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>Today's plan</h2>
               <Link href="/plan">
                 <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>View week →</span>
               </Link>
             </div>
-            <div className="mb-3 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+            <div className="mb-3 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--glass-track)" }}>
               <div className="h-full rounded-full transition-all duration-700"
                 style={{ width: `${completionPct}%`, background: completionPct === 100 ? "#4ade80" : "var(--btn-gradient)", boxShadow: `0 0 8px rgba(var(--glow-rgb),0.5)` }} />
             </div>
@@ -257,10 +257,10 @@ export default function HomePage() {
           </section>
         ) : (
           <div className="rounded-2xl p-6 text-center"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
             <p style={{ fontSize: 40, marginBottom: 12 }}>✨</p>
-            <p style={{ fontWeight: 700, color: "#fff", fontSize: 15, marginBottom: 6 }}>Your plan is empty</p>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 20, lineHeight: 1.5 }}>
+            <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 15, marginBottom: 6 }}>Your plan is empty</p>
+            <p style={{ fontSize: 13, color: "var(--text-sub)", marginBottom: 20, lineHeight: 1.5 }}>
               Set up wellness modules to see your daily plan and weekly habit tracker here.
             </p>
             <Link href="/wellness">
@@ -279,7 +279,7 @@ export default function HomePage() {
 
         {/* ── Quick Access ───────────────────────────────────────── */}
         <section>
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 12 }}>Quick access</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", marginBottom: 12 }}>Quick access</h2>
           <div className="grid grid-cols-2 gap-3">
             <QuickCard href="/wellness"  emoji="💚" label="My Wellness"  description="Habits & modules" />
             <QuickCard href="/plan"      emoji="📅" label="Weekly Plan"  description="Your habit grid" />
@@ -307,17 +307,17 @@ function EraScoreCard({ score, label, color, completionPct, weekRate, aiInsight,
         {/* Text side */}
         <div className="flex-1 min-w-0">
           <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.5, marginBottom: 3 }}>ERA SCORE</p>
-          <p style={{ fontSize: 32, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{score}</p>
+          <p style={{ fontSize: 32, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{score}</p>
           <p style={{ fontSize: 12, fontWeight: 700, color, marginTop: 4, lineHeight: 1.3 }}>{label}</p>
           <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
             <div>
-              <p style={{ fontSize: 17, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{completionPct}%</p>
-              <p style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginTop: 2 }}>TODAY</p>
+              <p style={{ fontSize: 17, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{completionPct}%</p>
+              <p style={{ fontSize: 9, color: "var(--text-dim)", fontWeight: 600, marginTop: 2 }}>TODAY</p>
             </div>
-            <div style={{ width: 1, background: "rgba(255,255,255,0.08)" }} />
+            <div style={{ width: 1, background: "var(--glass-border)" }} />
             <div>
-              <p style={{ fontSize: 17, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{weekRate}%</p>
-              <p style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, marginTop: 2 }}>THIS WEEK</p>
+              <p style={{ fontSize: 17, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{weekRate}%</p>
+              <p style={{ fontSize: 9, color: "var(--text-dim)", fontWeight: 600, marginTop: 2 }}>THIS WEEK</p>
             </div>
           </div>
         </div>
@@ -334,22 +334,22 @@ function EraScoreCard({ score, label, color, completionPct, weekRate, aiInsight,
             />
           </svg>
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 15, fontWeight: 900, color: "#fff" }}>{score}</span>
+            <span style={{ fontSize: 15, fontWeight: 900, color: "var(--text-main)" }}>{score}</span>
           </div>
         </div>
       </div>
 
       {/* AI insight strip */}
       {(aiInsight || aiLoading) && (
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", padding: "10px 16px 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div style={{ borderTop: "1px solid var(--glass-border)", padding: "10px 16px 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
           <span style={{ fontSize: 16, flexShrink: 0 }}>🤖</span>
           {aiLoading && !aiInsight ? (
             <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center" }}>
-              <div className="h-2 rounded-full animate-pulse" style={{ width: "60%", background: "rgba(255,255,255,0.12)" }} />
-              <div className="h-2 rounded-full animate-pulse" style={{ width: "30%", background: "rgba(255,255,255,0.08)" }} />
+              <div className="h-2 rounded-full animate-pulse" style={{ width: "60%", background: "var(--glass-border)" }} />
+              <div className="h-2 rounded-full animate-pulse" style={{ width: "30%", background: "var(--glass-bg)" }} />
             </div>
           ) : (
-            <p style={{ flex: 1, fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 500, lineHeight: 1.5 }}>{aiInsight}</p>
+            <p style={{ flex: 1, fontSize: 12, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.5 }}>{aiInsight}</p>
           )}
         </div>
       )}
@@ -371,7 +371,7 @@ function UrgencyBanner({ pending, level, hoursLeft, minutesLeft }: {
       }}>
       <span style={{ fontSize: 20, animation: red ? "pulse 1.5s infinite" : undefined }}>{red ? "🔴" : "⚡"}</span>
       <div style={{ flex: 1 }}>
-        <p style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>
           {pending} habit{pending > 1 ? "s" : ""} left · {timeStr} to midnight
         </p>
         <p style={{ fontSize: 11, marginTop: 2, color: red ? "#f87171" : "#fb923c", fontWeight: 600 }}>
@@ -397,9 +397,9 @@ function NotifPrompt({ onDismiss }: { onDismiss: () => void }) {
 
   return (
     <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)" }}>
+      style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
       <span style={{ fontSize: 18 }}>🔔</span>
-      <p style={{ flex: 1, fontSize: 12, color: "rgba(255,255,255,0.55)", fontWeight: 500, lineHeight: 1.4 }}>
+      <p style={{ flex: 1, fontSize: 12, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.4 }}>
         Get evening reminders to complete your daily plan
       </p>
       <button onClick={handleEnable} disabled={asking}
@@ -408,7 +408,7 @@ function NotifPrompt({ onDismiss }: { onDismiss: () => void }) {
         Enable
       </button>
       <button onClick={onDismiss} className="active:scale-95 transition"
-        style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0, padding: "2px 4px" }}>
+        style={{ color: "var(--text-dim)", flexShrink: 0, padding: "2px 4px" }}>
         <X className="w-4 h-4" />
       </button>
     </div>
@@ -434,16 +434,16 @@ function CheckRow({ item, isUrgent }: { item: ChecklistItem; isUrgent: boolean }
         </div>
         <span style={{ fontSize: 18, flexShrink: 0 }}>{item.emoji}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, color: item.done ? "rgba(255,255,255,0.3)" : "#fff", textDecoration: item.done ? "line-through" : "none" }}>
+          <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none" }}>
             {item.label}
           </p>
           {item.sub && (
-            <p style={{ fontSize: 11, marginTop: 1.5, color: item.done ? "rgba(255,255,255,0.2)" : accent }}>
+            <p style={{ fontSize: 11, marginTop: 1.5, color: item.done ? "var(--text-dim)" : accent }}>
               {item.sub}
             </p>
           )}
         </div>
-        <ChevronRight style={{ width: 15, height: 15, flexShrink: 0, color: item.done ? "rgba(255,255,255,0.14)" : accent }} />
+        <ChevronRight style={{ width: 15, height: 15, flexShrink: 0, color: item.done ? "var(--text-dim)" : accent }} />
       </div>
     </Link>
   );
@@ -458,31 +458,31 @@ function ThisWeekCard({ summary }: { summary: WeekSummary }) {
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: "#fff" }}>This week</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>This week</h2>
         <Link href="/plan">
           <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>Full plan →</span>
         </Link>
       </div>
-      <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         {/* Rate header */}
         <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.45)", fontWeight: 500 }}>Overall completion</p>
+          <p style={{ fontSize: 13, color: "var(--text-sub)", fontWeight: 500 }}>Overall completion</p>
           <p style={{ fontSize: 22, fontWeight: 900, color: rateColor, filter: `drop-shadow(0 0 6px ${rateColor}70)`, lineHeight: 1 }}>{overallRate}%</p>
         </div>
         <div className="px-4 pb-3">
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--glass-track)" }}>
             <div className="h-full rounded-full transition-all duration-800"
               style={{ width: `${overallRate}%`, background: rateColor, boxShadow: `0 0 8px ${rateColor}60` }} />
           </div>
         </div>
         {/* Day headers */}
-        <div className="px-4 pb-1" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+        <div className="px-4 pb-1" style={{ borderTop: "1px solid var(--glass-border)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: 3, paddingTop: 8 }}>
             <div />
             {DAY_CHARS.map((d, i) => (
               <div key={i} style={{
                 textAlign: "center", fontSize: 9, fontWeight: 700,
-                color: i === todayIdx ? "var(--accent)" : "rgba(255,255,255,0.25)",
+                color: i === todayIdx ? "var(--accent)" : "var(--text-dim)",
                 padding: "2px 0", borderRadius: 3,
                 background: i === todayIdx ? `rgba(var(--glow-rgb),0.1)` : "transparent",
               }}>{d}</div>
@@ -495,7 +495,7 @@ function ThisWeekCard({ summary }: { summary: WeekSummary }) {
             const accent = MODULE_ACCENT[stat.type] ?? "var(--accent)";
             return (
               <Link key={stat.type} href={moduleHref(stat.type)}>
-                <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: 3, padding: "7px 16px", borderTop: "1px solid rgba(255,255,255,0.04)", alignItems: "center", cursor: "pointer" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: 3, padding: "7px 16px", borderTop: "1px solid var(--glass-bg)", alignItems: "center", cursor: "pointer" }}>
                   <span style={{ fontSize: 13, textAlign: "center" }}>{stat.emoji}</span>
                   {stat.days.map((done, i) => {
                     const isFuture = i > todayIdx;
@@ -503,7 +503,7 @@ function ThisWeekCard({ summary }: { summary: WeekSummary }) {
                     return (
                       <div key={i} style={{
                         height: 18, borderRadius: 4,
-                        background: done ? accent : isFuture ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.09)",
+                        background: done ? accent : isFuture ? "var(--glass-bg)" : "var(--glass-track)",
                         border: isToday ? `1.5px solid ${accent}80` : "1px solid transparent",
                         boxShadow: done ? `0 0 5px ${accent}55` : "none",
                         opacity: isFuture ? 0.4 : 1,
@@ -529,8 +529,8 @@ function QuickCard({ href, emoji, label, description }: { href: string; emoji: s
         <div className="absolute inset-0 opacity-10 pointer-events-none"
           style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.25) 0%,transparent 60%)" }} />
         <p style={{ fontSize: 24, marginBottom: 6 }}>{emoji}</p>
-        <p style={{ fontWeight: 700, color: "#fff", fontSize: 13 }}>{label}</p>
-        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>{description}</p>
+        <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 13 }}>{label}</p>
+        <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>{description}</p>
       </div>
     </Link>
   );

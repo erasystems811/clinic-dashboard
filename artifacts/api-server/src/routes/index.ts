@@ -27,6 +27,7 @@ import patientAppHospitalsRouter from "./patient-app-hospitals";
 import patientAppCompanionRouter from "./patient-app-companion";
 import patientAppSocialRouter from "./patient-app-social";
 import patientAppWomensHealthRouter from "./patient-app-womens-health";
+import patientAppPlanRouter from "./patient-app-plan";
 
 const router: IRouter = Router();
 
@@ -58,5 +59,6 @@ router.use(patientAppHospitalsRouter);
 router.use(patientAppCompanionRouter);
 router.use(patientAppSocialRouter);
 router.use(patientAppWomensHealthRouter);
+router.use(patientAppPlanRouter);
 
 export default router;

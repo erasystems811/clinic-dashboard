@@ -259,9 +259,158 @@ router.delete("/patient-app/hospitals/:connectionId", async (req, res): Promise<
     .from("patient_hospital_connections")
     .delete()
     .eq("id", connectionId)
-    .eq("account_id", account.id); // ensures ownership
+    .eq("account_id", account.id);
 
   res.json({ ok: true });
+});
+
+// ── GET /api/patient-app/hospitals/:connectionId/messages ─────────────────────
+router.get("/patient-app/hospitals/:connectionId/messages", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const connectionId = parseInt(req.params.connectionId, 10);
+
+  // Verify ownership
+  const { data: conn } = await supabase
+    .from("patient_hospital_connections")
+    .select("id")
+    .eq("id", connectionId)
+    .eq("account_id", account.id)
+    .maybeSingle();
+
+  if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
+
+  // Mark hospital messages as read by patient
+  await supabase
+    .from("patient_hospital_messages")
+    .update({ patient_read_at: new Date().toISOString() })
+    .eq("connection_id", connectionId)
+    .eq("sender", "hospital")
+    .is("patient_read_at", null);
+
+  const { data: messages } = await supabase
+    .from("patient_hospital_messages")
+    .select("id, sender, message_type, content, metadata, created_at")
+    .eq("connection_id", connectionId)
+    .order("created_at", { ascending: true })
+    .limit(100);
+
+  res.json(messages ?? []);
+});
+
+// ── POST /api/patient-app/hospitals/:connectionId/messages ────────────────────
+router.post("/patient-app/hospitals/:connectionId/messages", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const connectionId = parseInt(req.params.connectionId, 10);
+  const { content, messageType = "text", metadata = {} } = req.body ?? {};
+
+  if (!content || typeof content !== "string" || content.trim().length === 0) {
+    res.status(400).json({ error: "content is required" }); return;
+  }
+
+  // Verify ownership
+  const { data: conn } = await supabase
+    .from("patient_hospital_connections")
+    .select("id")
+    .eq("id", connectionId)
+    .eq("account_id", account.id)
+    .maybeSingle();
+
+  if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
+
+  const { data: message, error } = await supabase
+    .from("patient_hospital_messages")
+    .insert({
+      connection_id: connectionId,
+      sender: "patient",
+      message_type: messageType,
+      content: content.trim(),
+      metadata,
+    })
+    .select("id, sender, message_type, content, metadata, created_at")
+    .single();
+
+  if (error) { res.status(500).json({ error: "Failed to send message" }); return; }
+
+  res.json(message);
+});
+
+// ── GET /api/patient-app/hospitals/unread ─────────────────────────────────────
+// Returns unread message counts per connection
+router.get("/patient-app/hospitals/unread", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: connections } = await supabase
+    .from("patient_hospital_connections")
+    .select("id")
+    .eq("account_id", account.id);
+
+  if (!connections || connections.length === 0) { res.json({}); return; }
+
+  const connectionIds = connections.map((c) => c.id as number);
+  const { data: unread } = await supabase
+    .from("patient_hospital_messages")
+    .select("connection_id")
+    .in("connection_id", connectionIds)
+    .eq("sender", "hospital")
+    .is("patient_read_at", null);
+
+  const counts: Record<number, number> = {};
+  for (const row of unread ?? []) {
+    const id = row.connection_id as number;
+    counts[id] = (counts[id] ?? 0) + 1;
+  }
+
+  res.json(counts);
+});
+
+// ── GET /api/patient-app/coins ────────────────────────────────────────────────
+router.get("/patient-app/coins", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data } = await supabase
+    .from("patient_accounts")
+    .select("coins")
+    .eq("id", account.id)
+    .single();
+
+  res.json({ coins: (data?.coins as number | undefined) ?? 0 });
+});
+
+// ── POST /api/patient-app/coins/award ────────────────────────────────────────
+// Internal — called after module logging to award coins
+router.post("/patient-app/coins/award", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { amount, reason } = req.body ?? {};
+  if (!amount || typeof amount !== "number" || amount <= 0) {
+    res.status(400).json({ error: "amount must be a positive number" }); return;
+  }
+
+  await supabase
+    .from("patient_accounts")
+    .update({ coins: (account.coins as number ?? 0) + amount })
+    .eq("id", account.id);
+
+  await supabase.from("patient_coin_transactions").insert({
+    account_id: account.id,
+    amount,
+    reason: reason ?? "wellness_log",
+  });
+
+  const { data } = await supabase
+    .from("patient_accounts")
+    .select("coins")
+    .eq("id", account.id)
+    .single();
+
+  res.json({ coins: (data?.coins as number | undefined) ?? 0 });
 });
 
 export default router;

@@ -3,6 +3,7 @@ import { ChevronRight, CheckCircle2, Circle, Plus, Minus } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate } from "@/lib/utils";
 import { useWellnessToday, useWeekSummary, useLogToday } from "@/lib/wellness-api";
+import { useCoins } from "@/lib/hospitals-api";
 import type { WeekSummary } from "@/lib/wellness-api";
 
 interface ChecklistItem {
@@ -72,6 +73,9 @@ export default function HomePage() {
   const { data: summary } = useWeekSummary();
   const logWater = useLogToday("water");
 
+  const { data: coinsData } = useCoins();
+  const coins = coinsData?.coins ?? 0;
+
   const mods = todayData?.modules ?? {};
   const waterMod = mods.water;
   const waterEnabled = waterMod?.enabled ?? false;
@@ -101,9 +105,20 @@ export default function HomePage() {
         </div>
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div>
-            <p style={{ color: "rgba(255,255,255,0.38)", fontSize: 12, marginBottom: 6, fontWeight: 500 }}>
-              {formatDate()}
-            </p>
+            <div className="flex items-center gap-2 mb-1">
+              <p style={{ color: "rgba(255,255,255,0.38)", fontSize: 12, fontWeight: 500 }}>
+                {formatDate()}
+              </p>
+              {coins > 0 && (
+                <Link href="/profile">
+                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full active:scale-95 transition"
+                    style={{ background: "linear-gradient(135deg,#92400e,#d97706)", boxShadow: "0 2px 8px rgba(217,119,6,0.4)" }}>
+                    <span style={{ fontSize: 10 }}>🪙</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{coins}</span>
+                  </div>
+                </Link>
+              )}
+            </div>
             <h1 style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, color: "#fff" }}>
               {greeting()},<br />
               <span style={{ background: "linear-gradient(120deg,#5eead4,#14b8a6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>

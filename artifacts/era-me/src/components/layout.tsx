@@ -1,13 +1,14 @@
 import { type ReactNode, useRef } from "react";
 import { useLocation } from "wouter";
-import { Home, Heart, CalendarDays, User } from "lucide-react";
+import { Home, Heart, CalendarDays, Building2, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
-  { href: "/",         label: "Home",     Icon: Home },
-  { href: "/wellness", label: "Wellness", Icon: Heart },
-  { href: "/plan",     label: "Plan",     Icon: CalendarDays },
-  { href: "/profile",  label: "Profile",  Icon: User },
+  { href: "/",          label: "Home",      Icon: Home },
+  { href: "/wellness",  label: "Wellness",  Icon: Heart },
+  { href: "/plan",      label: "Plan",      Icon: CalendarDays },
+  { href: "/hospitals", label: "Hospitals", Icon: Building2 },
+  { href: "/profile",   label: "Profile",   Icon: User },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {

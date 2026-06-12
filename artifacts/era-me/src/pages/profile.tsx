@@ -4,6 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
 import { Crown, Moon, Sun, LogOut, ChevronRight, Check } from "lucide-react";
+import { useCoins } from "@/lib/hospitals-api";
 
 const THEMES = [
   { id: "blue",   label: "Blue",   color: "bg-blue-500" },
@@ -22,6 +23,8 @@ export default function ProfilePage() {
   const [, navigate] = useLocation();
   const [saving, setSaving] = useState(false);
   const isPremium = account?.isPremium ?? false;
+  const { data: coinsData } = useCoins();
+  const coins = coinsData?.coins ?? 0;
 
   async function handleTheme(color: ThemeId) {
     updateAccount({ themeColor: color });
@@ -54,25 +57,49 @@ export default function ProfilePage() {
       <h1 className="text-2xl font-bold text-foreground mb-6">Profile</h1>
 
       {/* Account card */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-4 flex items-center gap-4">
-        <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center shrink-0">
-          <span className="text-primary-foreground font-bold text-2xl">
-            {(account.displayName ?? account.username)[0].toUpperCase()}
-          </span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-bold text-foreground text-base truncate">
-            {account.displayName ?? account.username}
-          </p>
-          <p className="text-sm text-muted-foreground truncate">@{account.username}</p>
-          <p className="text-xs text-muted-foreground truncate">{account.email}</p>
-        </div>
-        {isPremium && (
-          <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2.5 py-1 rounded-full">
-            <Crown className="w-3.5 h-3.5" />
-            <span className="text-xs font-semibold">Premium</span>
+      <div className="rounded-2xl p-5 mb-4"
+        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: "linear-gradient(135deg,#0d9488,#14b8a6)", boxShadow: "0 4px 16px rgba(20,184,166,0.4)" }}>
+            <span className="font-bold text-white text-2xl">
+              {(account.displayName ?? account.username)[0].toUpperCase()}
+            </span>
           </div>
-        )}
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-white text-base truncate">
+              {account.displayName ?? account.username}
+            </p>
+            <p className="text-sm truncate" style={{ color: "rgba(255,255,255,0.45)" }}>@{account.username}</p>
+            <p className="text-xs truncate" style={{ color: "rgba(255,255,255,0.35)" }}>{account.email}</p>
+          </div>
+        </div>
+
+        {/* Coins + premium row */}
+        <div className="flex gap-2">
+          <div className="flex-1 rounded-xl p-3 flex items-center gap-2"
+            style={{ background: "linear-gradient(135deg,rgba(146,64,14,0.3),rgba(217,119,6,0.2))", border: "1px solid rgba(217,119,6,0.3)" }}>
+            <span style={{ fontSize: 18 }}>🪙</span>
+            <div>
+              <p style={{ fontSize: 18, fontWeight: 900, color: "#fbbf24", lineHeight: 1 }}>{coins}</p>
+              <p style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                Health Coins
+              </p>
+            </div>
+          </div>
+          <div className="flex-1 rounded-xl p-3 flex items-center gap-2"
+            style={{ background: isPremium ? "linear-gradient(135deg,rgba(146,64,14,0.3),rgba(217,119,6,0.2))" : "rgba(255,255,255,0.04)", border: `1px solid ${isPremium ? "rgba(217,119,6,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+            <Crown style={{ width: 18, height: 18, color: isPremium ? "#fbbf24" : "rgba(255,255,255,0.25)" }} />
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: isPremium ? "#fbbf24" : "rgba(255,255,255,0.4)" }}>
+                {isPremium ? "Premium" : "Free"}
+              </p>
+              <p style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                {isPremium ? "Member" : "Plan"}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Premium upsell */}

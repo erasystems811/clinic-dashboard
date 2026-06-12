@@ -73,6 +73,18 @@ export function useLogToday(type: string) {
       void qc.invalidateQueries({ queryKey: ["wellness", "week", type] });
       void qc.invalidateQueries({ queryKey: ["wellness", "streak", type] });
       void qc.invalidateQueries({ queryKey: ["wellness", "summary"] });
+      // Award 1 coin per log — fire-and-forget
+      void fetch("/api/patient-app/coins/award", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(() => {
+            const t = localStorage.getItem("era_me_session");
+            return t ? { "x-patient-token": t } : {};
+          })(),
+        },
+        body: JSON.stringify({ amount: 1, reason: `wellness_log_${type}` }),
+      }).then(() => qc.invalidateQueries({ queryKey: ["coins"] }));
     },
   });
 }

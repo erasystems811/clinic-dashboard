@@ -14,7 +14,8 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [location, navigate] = useLocation();
 
   return (
-    <div className="flex flex-col min-h-screen max-w-md mx-auto bg-background">
+    <div className="min-h-screen bg-background/60" style={{ background: "linear-gradient(135deg, #060d1f 0%, #0a1628 50%, #060d1f 100%)" }}>
+      <div className="flex flex-col min-h-screen max-w-md mx-auto bg-background relative shadow-2xl">
       <main className="flex-1 overflow-y-auto pb-20">
         {children}
       </main>
@@ -36,6 +37,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           })}
         </div>
       </nav>
+    </div>
     </div>
   );
 }

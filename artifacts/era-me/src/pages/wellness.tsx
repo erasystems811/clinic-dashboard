@@ -48,8 +48,8 @@ function moduleHref(m: Module): string {
 function SectionDivider({ title }: { title: string }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.3)" }}>{title}</p>
-      <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
+      <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>{title}</p>
+      <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
     </div>
   );
 }
@@ -58,10 +58,10 @@ export default function WellnessPage() {
   return (
     <div className="px-4 pt-6 pb-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold" style={{ background: "linear-gradient(135deg,#fff,#94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--accent)" }}>
           Wellness
         </h1>
-        <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>Choose what to track — tap any module to set it up</p>
+        <p className="text-xs mt-0.5" style={{ color: "var(--text-sub)" }}>Choose what to track — tap any module to set it up</p>
       </div>
 
       <div className="mb-5">
@@ -93,7 +93,7 @@ function ModuleCard({ module }: { module: Module }) {
 
   return (
     <Link href={module.comingSoon ? "#" : href}>
-      <div className="relative rounded-2xl p-4 cursor-pointer active:scale-95 transition overflow-hidden"
+      <div className="on-gradient relative rounded-2xl p-4 cursor-pointer active:scale-95 transition overflow-hidden"
         style={{
           background: module.gradient,
           border: `1px solid ${module.accent}30`,

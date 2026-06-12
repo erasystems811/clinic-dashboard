@@ -22,7 +22,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </main>
 
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md safe-bottom z-50"
-        style={{ background: "color-mix(in srgb, var(--bg-base) 88%, transparent)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: "var(--glass-border)" }}>
+        style={{ background: "color-mix(in srgb, var(--bg-base) 88%, transparent)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: "1px solid var(--glass-border)" }}>
         <div className="flex items-center">
           {NAV.map(({ href, label, Icon }) => {
             const active = href === "/" ? location === "/" : location.startsWith(href);
@@ -83,10 +83,10 @@ function NavTab({ href, label, Icon, active, onNavigate }: {
       <div className="relative flex flex-col items-center gap-1 py-3 px-2 transition-all">
         <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center transition-all", active && "scale-105")}
           style={active ? { background: `rgba(var(--glow-rgb),0.15)`, boxShadow: `0 0 12px rgba(var(--glow-rgb),0.3)` } : {}}>
-          <Icon className="w-5 h-5" style={{ color: active ? "var(--accent)" : "rgba(255,255,255,0.35)" }} />
+          <Icon className="w-5 h-5" style={{ color: active ? "var(--accent)" : "var(--text-sub)" }} />
         </div>
         <span className="text-[10px] font-semibold leading-none"
-          style={{ color: active ? "var(--accent)" : "rgba(255,255,255,0.3)" }}>
+          style={{ color: active ? "var(--accent)" : "var(--text-dim)" }}>
           {label}
         </span>
       </div>

@@ -50,11 +50,11 @@ export default function WaterPage() {
         <ModuleHero emoji="💧" title="Water Intake" subtitle="Set your daily hydration goal" gradient={GRADIENT} accent={ACCENT} />
 
         <GlassCard accent={ACCENT} className="mb-4">
-          <p className="text-sm font-bold text-white mb-4">Daily target (cups)</p>
+          <p className="text-sm font-bold mb-4" style={{ color: "var(--text-main)" }}>Daily target (cups)</p>
           <div className="flex items-center justify-between">
             <StepBtn onClick={() => setLocalTarget((p) => Math.max(1, p - 1))}><Minus className="w-4 h-4" /></StepBtn>
             <div className="text-center">
-              <p className="text-5xl font-black text-white">{localTarget}</p>
+              <p className="text-5xl font-black" style={{ color: "var(--text-main)" }}>{localTarget}</p>
               <p className="text-xs mt-1" style={{ color: ACCENT }}>≈ {Math.round(localTarget * 250)}ml/day</p>
             </div>
             <StepBtn onClick={() => setLocalTarget((p) => Math.min(20, p + 1))}><Plus className="w-4 h-4" /></StepBtn>
@@ -62,11 +62,11 @@ export default function WaterPage() {
         </GlassCard>
 
         <GlassCard accent={ACCENT} className="mb-6">
-          <p className="text-sm font-bold text-white mb-3">Reminder times</p>
+          <p className="text-sm font-bold mb-3" style={{ color: "var(--text-main)" }}>Reminder times</p>
           <div className="flex gap-2 mb-3">
             <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)}
-              className="flex-1 rounded-xl px-3 py-2.5 text-sm font-bold text-white outline-none"
-              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }} />
+              className="flex-1 rounded-xl px-3 py-2.5 text-sm font-bold outline-none"
+              style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)" }} />
             <button onClick={addReminder}
               className="px-4 py-2.5 rounded-xl text-sm font-bold text-white"
               style={{ background: GRADIENT }}>Add</button>
@@ -108,16 +108,16 @@ export default function WaterPage() {
               style={{ filter: `drop-shadow(0 0 8px ${ACCENT})`, transition: "stroke-dashoffset 0.6s ease" }} />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <p className="text-5xl font-black text-white">{currentCups}</p>
-            <p className="text-sm" style={{ color: "rgba(255,255,255,0.5)" }}>of {target} cups</p>
+            <p className="text-5xl font-black" style={{ color: "var(--text-main)" }}>{currentCups}</p>
+            <p className="text-sm" style={{ color: "var(--text-sub)" }}>of {target} cups</p>
           </div>
         </div>
 
         <div className="flex items-center gap-5">
           <button onClick={removeCup} disabled={currentCups === 0 || logToday.isPending}
             className="w-14 h-14 rounded-2xl flex items-center justify-center active:scale-90 transition disabled:opacity-30"
-            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
-            <Minus className="w-6 h-6 text-white" />
+            style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }}>
+            <Minus className="w-6 h-6" />
           </button>
           <button onClick={addCup} disabled={logToday.isPending}
             className="w-20 h-20 rounded-2xl flex items-center justify-center active:scale-90 transition"
@@ -127,7 +127,7 @@ export default function WaterPage() {
           <div className="w-14 h-14" />
         </div>
 
-        <p className="text-sm mt-4" style={{ color: pct >= 100 ? "#4ade80" : "rgba(255,255,255,0.5)" }}>
+        <p className="text-sm mt-4" style={{ color: pct >= 100 ? "#4ade80" : "var(--text-sub)" }}>
           {pct >= 100 ? "Goal reached! 🎉" : `${target - currentCups} more to go`}
         </p>
       </GlassCard>
@@ -156,7 +156,7 @@ export default function WaterPage() {
 
       <button onClick={() => setSetupMode(true)}
         className="w-full mt-4 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2"
-        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}>
+        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-sub)" }}>
         <Settings2 className="w-4 h-4" /> Edit settings
       </button>
     </div>
@@ -177,7 +177,7 @@ function PageLoader({ color }: { color: string }) {
 function PageBack({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button onClick={onClick} className="flex items-center gap-1.5 text-sm font-medium transition"
-      style={{ color: "rgba(255,255,255,0.45)" }}>
+      style={{ color: "var(--text-sub)" }}>
       <ArrowLeft className="w-4 h-4" /> {label}
     </button>
   );
@@ -191,8 +191,8 @@ function ModuleHero({ emoji, title, subtitle, gradient, accent }: { emoji: strin
         {emoji}
       </div>
       <div>
-        <h1 className="text-xl font-bold text-white">{title}</h1>
-        <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{subtitle}</p>
+        <h1 className="text-xl font-bold" style={{ color: "var(--text-main)" }}>{title}</h1>
+        <p className="text-xs mt-0.5" style={{ color: "var(--text-sub)" }}>{subtitle}</p>
       </div>
     </div>
   );
@@ -201,7 +201,7 @@ function ModuleHero({ emoji, title, subtitle, gradient, accent }: { emoji: strin
 function GlassCard({ children, accent, className = "" }: { children: React.ReactNode; accent: string; className?: string }) {
   return (
     <div className={`rounded-2xl p-5 ${className}`}
-      style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${accent}20` }}>
+      style={{ background: "var(--glass-bg)", border: `1px solid ${accent}20` }}>
       {children}
     </div>
   );
@@ -210,8 +210,8 @@ function GlassCard({ children, accent, className = "" }: { children: React.React
 function StepBtn({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick}
-      className="w-12 h-12 rounded-xl flex items-center justify-center active:scale-90 transition text-white"
-      style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+      className="w-12 h-12 rounded-xl flex items-center justify-center active:scale-90 transition"
+      style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }}>
       {children}
     </button>
   );
@@ -244,8 +244,8 @@ function WeekGrid({ weekLogs, accent, renderDay }: {
   renderDay: (log: { log_date: string; data: Record<string, unknown> } | undefined, isToday: boolean) => { text: string; done: boolean; isToday: boolean };
 }) {
   return (
-    <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-      <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>This week</p>
+    <div className="rounded-2xl p-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+      <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: "var(--text-dim)" }}>This week</p>
       <div className="grid grid-cols-7 gap-1">
         {Array.from({ length: 7 }, (_, i) => {
           const d = new Date();
@@ -256,14 +256,14 @@ function WeekGrid({ weekLogs, accent, renderDay }: {
           const { text, done } = renderDay(log, isToday);
           return (
             <div key={i} className="flex flex-col items-center gap-1.5">
-              <span className="text-[10px] font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>
+              <span className="text-[10px] font-medium" style={{ color: "var(--text-dim)" }}>
                 {DAY_LABELS[d.getDay()]}
               </span>
               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold transition"
                 style={{
-                  background: done ? `${accent}25` : isToday ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
-                  border: isToday ? `1.5px solid ${accent}60` : done ? `1px solid ${accent}40` : "1px solid transparent",
-                  color: done ? accent : isToday ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.3)",
+                  background: done ? `${accent}25` : isToday ? "var(--glass-track)" : "var(--glass-bg)",
+                  border: isToday ? `1.5px solid ${accent}60` : done ? `1px solid ${accent}40` : "1px solid var(--glass-border)",
+                  color: done ? accent : isToday ? "var(--text-main)" : "var(--text-dim)",
                   boxShadow: done ? `0 0 8px ${accent}30` : "none",
                 }}>
                 {text}

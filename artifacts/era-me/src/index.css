@@ -112,6 +112,11 @@ div.rounded-xl {
 html:not(.dark) .text-white { color: var(--text-main) !important; }
 html:not(.dark) .text-gray-400 { color: var(--text-sub) !important; }
 html:not(.dark) .text-gray-500 { color: var(--text-sub) !important; }
+
+/* Preserve white text on elements that are intentionally on a dark gradient background */
+html:not(.dark) .on-gradient .text-white { color: #ffffff !important; }
+html:not(.dark) .on-gradient .text-white\/80 { color: rgba(255,255,255,0.8) !important; }
+html:not(.dark) .on-gradient .text-white\/70 { color: rgba(255,255,255,0.7) !important; }
 html:not(.dark) input { color: var(--text-main) !important; }
 html:not(.dark) input::placeholder { color: var(--text-dim) !important; }
 html:not(.dark) textarea { color: var(--text-main) !important; }

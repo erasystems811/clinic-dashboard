@@ -50,8 +50,8 @@ export default function MoodPage() {
         <ModuleHero emoji="😊" title="Daily Check-in" subtitle="Mood, energy & stress" gradient={GRADIENT} accent={ACCENT} />
         <GlassCard accent={ACCENT} className="mb-5 text-center">
           <p className="text-4xl mb-3">😊⚡🧘</p>
-          <p className="font-bold text-white mb-1">Know how you feel each day</p>
-          <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+          <p className="font-bold mb-1" style={{ color: "var(--text-main)" }}>Know how you feel each day</p>
+          <p className="text-sm leading-relaxed" style={{ color: "var(--text-sub)" }}>
             A 10-second check-in on your mood, energy, and stress. Spot patterns over time.
           </p>
         </GlassCard>
@@ -74,7 +74,7 @@ export default function MoodPage() {
       {/* Current mood hero */}
       <GlassCard accent={ACCENT} className="mb-4 text-center py-6">
         <p className="text-7xl mb-2">{currentMoodEmoji}</p>
-        <p className="text-sm font-bold" style={{ color: saved ? "#4ade80" : "rgba(255,255,255,0.5)" }}>
+        <p className="text-sm font-bold" style={{ color: saved ? "#4ade80" : "var(--text-sub)" }}>
           {saved ? "Logged for today ✓" : "How are you today?"}
         </p>
       </GlassCard>
@@ -82,9 +82,9 @@ export default function MoodPage() {
       {/* Scale pickers */}
       <GlassCard accent={ACCENT} className="mb-4 space-y-5">
         <ScaleRow label="Mood" options={MOOD_OPTIONS} value={mood} onChange={setMood} accent={ACCENT} />
-        <div style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
+        <div style={{ height: "1px", background: "var(--glass-border)" }} />
         <ScaleRow label="Energy" options={ENERGY_OPTIONS} value={energy} onChange={setEnergy} accent="#84cc16" />
-        <div style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
+        <div style={{ height: "1px", background: "var(--glass-border)" }} />
         <ScaleRow label="Stress" options={STRESS_OPTIONS} value={stress} onChange={setStress} accent="#a855f7" />
 
         <button onClick={saveLog} disabled={!mood || !energy || !stress || logToday.isPending}
@@ -109,18 +109,18 @@ function ScaleRow({ label, options, value, onChange, accent }: {
 }) {
   return (
     <div>
-      <p className="text-xs font-bold mb-2.5" style={{ color: "rgba(255,255,255,0.6)" }}>{label}</p>
+      <p className="text-xs font-bold mb-2.5" style={{ color: "var(--text-sub)" }}>{label}</p>
       <div className="flex gap-1.5">
         {options.map((o) => (
           <button key={o.value} onClick={() => onChange(o.value)}
             className="flex-1 flex flex-col items-center gap-0.5 py-2.5 rounded-xl transition active:scale-90"
             style={{
-              background: value === o.value ? `${accent}20` : "rgba(255,255,255,0.05)",
+              background: value === o.value ? `${accent}20` : "var(--glass-bg)",
               border: value === o.value ? `1.5px solid ${accent}60` : "1.5px solid transparent",
               boxShadow: value === o.value ? `0 0 12px ${accent}30` : "none",
             }}>
             <span className="text-xl">{o.emoji}</span>
-            <span className="text-[9px] font-medium leading-tight text-center" style={{ color: value === o.value ? accent : "rgba(255,255,255,0.35)" }}>{o.label}</span>
+            <span className="text-[9px] font-medium leading-tight text-center" style={{ color: value === o.value ? accent : "var(--text-dim)" }}>{o.label}</span>
           </button>
         ))}
       </div>

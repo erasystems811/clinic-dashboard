@@ -44,9 +44,79 @@ async function getAccountInfo(accountId: number) {
   return data;
 }
 
+// Fetch 2-week wellness summary string for companion system prompt
+async function getWellnessContext(accountId: number): Promise<string> {
+  try {
+    const today = new Date().toISOString().split("T")[0];
+    const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 13);
+    const fromDate = twoWeeksAgo.toISOString().split("T")[0];
+
+    const DAILY_TYPES = ["water","medications","workout","sleep","mood_check","fruit","vitals","eyebreak","sunscreen","outdoors"];
+    const MODULE_LABELS: Record<string, string> = {
+      water:"water intake", medications:"medications", workout:"workouts", sleep:"sleep",
+      mood_check:"mood check-ins", fruit:"eating fruit", vitals:"vitals", eyebreak:"eye breaks",
+      sunscreen:"sunscreen", outdoors:"outdoor time",
+    };
+
+    const [{ data: modules }, { data: logs }] = await Promise.all([
+      supabase.from("wellness_modules").select("module_type, enabled").eq("account_id", accountId).eq("enabled", true),
+      supabase.from("wellness_logs").select("module_type, log_date")
+        .eq("account_id", accountId).gte("log_date", fromDate).in("module_type", DAILY_TYPES),
+    ]);
+
+    // Use log existence as proxy for "did something" (good enough for companion context)
+    const logDates: Record<string, Set<string>> = {};
+    for (const l of logs ?? []) {
+      const t = l.module_type as string, d = l.log_date as string;
+      if (!logDates[t]) logDates[t] = new Set();
+      logDates[t].add(d);
+    }
+
+    const lines: string[] = [];
+    let thisTotal = 0, lastTotal = 0, possible = 0;
+    const skippedThis: string[] = [], improvedThis: string[] = [], droppedThis: string[] = [];
+
+    for (const m of modules ?? []) {
+      if (!DAILY_TYPES.includes(m.module_type as string)) continue;
+      const dates = logDates[m.module_type as string] ?? new Set<string>();
+      let thisW = 0, lastW = 0;
+      for (let i = 0; i < 7; i++) {
+        const d1 = new Date(); d1.setDate(d1.getDate() - i);
+        const d1s = d1.toISOString().split("T")[0];
+        if (d1s <= today && dates.has(d1s)) thisW++;
+        const d2 = new Date(); d2.setDate(d2.getDate() - (i + 7));
+        if (dates.has(d2.toISOString().split("T")[0])) lastW++;
+      }
+      const label = MODULE_LABELS[m.module_type as string] ?? m.module_type as string;
+      lines.push(`  ${label}: this week ${thisW}/7, last week ${lastW}/7`);
+      thisTotal += thisW; lastTotal += lastW; possible += 7;
+      if (thisW <= 1) skippedThis.push(label);
+      if (thisW >= lastW + 2) improvedThis.push(label);
+      if (lastW >= thisW + 2) droppedThis.push(label);
+    }
+
+    if (lines.length === 0) return "";
+
+    const thisRate = possible > 0 ? Math.round((thisTotal / possible) * 100) : 0;
+    const lastRate = possible > 0 ? Math.round((lastTotal / possible) * 100) : 0;
+    const change = thisRate - lastRate;
+    const changeTxt = change > 0 ? `up ${change}% from last week` : change < 0 ? `down ${Math.abs(change)}% from last week` : "same as last week";
+
+    let ctx = `Overall consistency: ${thisRate}% this week (${changeTxt}, ${lastRate}% last week)\n`;
+    ctx += `Per habit (days logged):\n${lines.join("\n")}`;
+    if (skippedThis.length) ctx += `\nMostly skipping: ${skippedThis.join(", ")}`;
+    if (improvedThis.length) ctx += `\nNoticeably improved: ${improvedThis.join(", ")}`;
+    if (droppedThis.length) ctx += `\nDropped off vs last week: ${droppedThis.join(", ")}`;
+    return ctx;
+  } catch {
+    return "";
+  }
+}
+
 function buildSystemPrompt(
   name: string, age: number | null, isBirthday: boolean,
-  personality: Record<string, unknown>, recentMoods: number[]
+  personality: Record<string, unknown>, recentMoods: number[],
+  wellnessContext?: string
 ): string {
   const moodLabels = ["", "very sad", "down", "neutral", "good", "great"];
   const moodSummary = recentMoods.length
@@ -69,6 +139,8 @@ function buildSystemPrompt(
     ? `🎂 Today is ${name}'s birthday! Acknowledge it warmly.`
     : "";
 
+  const wellnessSection = wellnessContext ? `\n\n${name}'s wellness data (last 2 weeks):\n${wellnessContext}\n\nUse this naturally — don't read it out like a report. Weave in ONE specific observation when the moment is right. Say things like "I noticed you've been struggling with workouts lately" or "You've been so consistent with your water this week!" Make them feel seen, not tracked.` : "";
+
   return `You are ERA Health's private companion — a warm, emotionally intelligent, psychologically-aware presence in ${name}'s life.
 
 ${age ? `${name} is ${age} years old.` : ""}
@@ -77,13 +149,14 @@ ${birthdaySection}
 ${personalitySection}
 
 ${moodSummary}
+${wellnessSection}
 
 How you show up:
 - Warm but never clingy or performative
 - You listen deeply and reflect back what you notice, when the moment calls for it
 - You ask thoughtful follow-up questions — but only one at a time, never interrogating
 - You celebrate wins genuinely and sit with losses without rushing to fix them
-- You notice emotional patterns and gently name them over time
+- You notice patterns — wellness and emotional — and gently name them when it feels right
 - Brief when they're brief, expansive when they want to talk
 - You never give medical diagnoses — you are a companion, not a doctor
 - If they seem distressed, gently check in and, where appropriate, encourage them to speak to someone they trust
@@ -331,12 +404,13 @@ router.post("/patient-app/companion/conversation", async (req, res): Promise<voi
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const [accountInfo, settings, recentMoodLogs] = await Promise.all([
+  const [accountInfo, settings, recentMoodLogs, wellnessCtx] = await Promise.all([
     getAccountInfo(account.id),
     getOrCreateSettings(account.id),
     supabase.from("wellness_logs").select("data").eq("account_id", account.id)
       .eq("module_type", "mood_check").gte("log_date", (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0]; })())
       .order("log_date", { ascending: false }).limit(7),
+    getWellnessContext(account.id),
   ]);
 
   const name = (accountInfo?.display_name as string | null) || (accountInfo?.username as string) || "friend";
@@ -345,7 +419,7 @@ router.post("/patient-app/companion/conversation", async (req, res): Promise<voi
   const birthday = isBirthdayToday(dob);
   const personality = (settings?.personality as Record<string, unknown>) ?? {};
   const recentMoods = (recentMoodLogs.data ?? []).map((l) => (l.data as Record<string, number>).mood).filter(Boolean);
-  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods);
+  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods, wellnessCtx);
 
   // Create entry row
   const { data: entry, error: entryErr } = await supabase.from("diary_entries").insert({
@@ -392,12 +466,13 @@ router.post("/patient-app/companion/entries/:id/chat", async (req, res): Promise
   const { data: history } = await supabase
     .from("diary_messages").select("role, content").eq("entry_id", entry.id).order("created_at", { ascending: true });
 
-  const [accountInfo, settings, recentMoodLogs] = await Promise.all([
+  const [accountInfo, settings, recentMoodLogs, wellnessCtx] = await Promise.all([
     getAccountInfo(account.id),
     getOrCreateSettings(account.id),
     supabase.from("wellness_logs").select("data").eq("account_id", account.id)
       .eq("module_type", "mood_check").gte("log_date", (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0]; })())
       .limit(7),
+    getWellnessContext(account.id),
   ]);
 
   const name = (accountInfo?.display_name as string | null) || (accountInfo?.username as string) || "friend";
@@ -406,7 +481,7 @@ router.post("/patient-app/companion/entries/:id/chat", async (req, res): Promise
   const birthday = isBirthdayToday(dob);
   const personality = (settings?.personality as Record<string, unknown>) ?? {};
   const recentMoods = (recentMoodLogs.data ?? []).map((l) => (l.data as Record<string, number>).mood).filter(Boolean);
-  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods);
+  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods, wellnessCtx);
 
   // Build messages array for API
   const msgs: { role: "user" | "assistant"; content: string }[] = [

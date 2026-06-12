@@ -110,37 +110,53 @@ router.post("/patient-app/hospitals/connect/request", async (req, res): Promise<
   if (existing) { res.status(409).json({ error: "Already connected to this hospital" }); return; }
 
   // Look up the hospital to get its code (UUID used as hospital_id in patients table)
+  // Use select("*") so that absent/optional columns like hospital_code don't error.
   const { data: hospital } = await supabase
     .from("hospitals")
-    .select("id, name, hospital_code, username")
+    .select("*")
     .eq("id", hospitalId)
     .eq("active", true)
     .single();
 
   if (!hospital) { res.status(404).json({ error: "Hospital not found" }); return; }
 
+  // hospital_code is a UUID column added later; fall back to username for older hospitals
   const hospitalCode = (hospital.hospital_code as string | null) ?? (hospital.username as string);
+  const hospitalUsername = hospital.username as string;
 
-  // Look up patient by hospital-assigned patient_number first, then fall back to numeric DB id
+  // Look up patient.  patients.hospital_id may store the UUID (hospital_code) for newer records
+  // or the username string for older records — try both so backward-compat is preserved.
   const idStr = String(patientRecordId).trim();
-  let patientRecord: { id: number; first_name: string; last_name: string; email: string } | null = null;
+  type PatientRow = { id: number; first_name: string; last_name: string; email: string };
+  let patientRecord: PatientRow | null = null;
 
-  const { data: byNumber } = await supabase
-    .from("patients")
-    .select("id, first_name, last_name, email")
-    .ilike("patient_number", idStr)
-    .eq("hospital_id", hospitalCode)
-    .maybeSingle();
-  patientRecord = byNumber as typeof patientRecord;
-
-  if (!patientRecord && /^\d+$/.test(idStr)) {
-    const { data: byId } = await supabase
+  async function findByHospitalId(hid: string): Promise<PatientRow | null> {
+    // 1. Try patient_number (alphanumeric ID assigned by the clinic)
+    const { data: byNum } = await supabase
       .from("patients")
       .select("id, first_name, last_name, email")
-      .eq("id", parseInt(idStr, 10))
-      .eq("hospital_id", hospitalCode)
+      .ilike("patient_number", idStr)
+      .eq("hospital_id", hid)
       .maybeSingle();
-    patientRecord = byId as typeof patientRecord;
+    if (byNum) return byNum as PatientRow;
+
+    // 2. Try numeric DB id
+    if (/^\d+$/.test(idStr)) {
+      const { data: byId } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, email")
+        .eq("id", parseInt(idStr, 10))
+        .eq("hospital_id", hid)
+        .maybeSingle();
+      if (byId) return byId as PatientRow;
+    }
+    return null;
+  }
+
+  patientRecord = await findByHospitalId(hospitalCode);
+  // If not found with UUID code, also try with username (pre-hospital_code records)
+  if (!patientRecord && hospitalCode !== hospitalUsername) {
+    patientRecord = await findByHospitalId(hospitalUsername);
   }
 
   if (!patientRecord) {
@@ -210,33 +226,35 @@ router.post("/patient-app/hospitals/connect/verify", async (req, res): Promise<v
   // Resolve patient email at this hospital
   const { data: hospital } = await supabase
     .from("hospitals")
-    .select("id, hospital_code, username")
+    .select("*")
     .eq("id", hospitalId)
     .single();
 
   if (!hospital) { res.status(404).json({ error: "Hospital not found" }); return; }
 
   const hospitalCode = (hospital.hospital_code as string | null) ?? (hospital.username as string);
+  const hospitalUsername = hospital.username as string;
 
   const verifyIdStr = String(patientRecordId).trim();
-  let patientRecord: { id: number; email: string } | null = null;
+  type VerifyRow = { id: number; email: string };
 
-  const { data: verifyByNumber } = await supabase
-    .from("patients")
-    .select("id, email")
-    .ilike("patient_number", verifyIdStr)
-    .eq("hospital_id", hospitalCode)
-    .maybeSingle();
-  patientRecord = verifyByNumber as typeof patientRecord;
+  async function findVerifyRow(hid: string): Promise<VerifyRow | null> {
+    const { data: byNum } = await supabase
+      .from("patients").select("id, email")
+      .ilike("patient_number", verifyIdStr).eq("hospital_id", hid).maybeSingle();
+    if (byNum) return byNum as VerifyRow;
+    if (/^\d+$/.test(verifyIdStr)) {
+      const { data: byId } = await supabase
+        .from("patients").select("id, email")
+        .eq("id", parseInt(verifyIdStr, 10)).eq("hospital_id", hid).maybeSingle();
+      if (byId) return byId as VerifyRow;
+    }
+    return null;
+  }
 
-  if (!patientRecord && /^\d+$/.test(verifyIdStr)) {
-    const { data: verifyById } = await supabase
-      .from("patients")
-      .select("id, email")
-      .eq("id", parseInt(verifyIdStr, 10))
-      .eq("hospital_id", hospitalCode)
-      .maybeSingle();
-    patientRecord = verifyById as typeof patientRecord;
+  let patientRecord = await findVerifyRow(hospitalCode);
+  if (!patientRecord && hospitalCode !== hospitalUsername) {
+    patientRecord = await findVerifyRow(hospitalUsername);
   }
 
   if (!patientRecord) { res.status(404).json({ error: "Patient record not found" }); return; }
@@ -264,11 +282,11 @@ router.post("/patient-app/hospitals/connect/verify", async (req, res): Promise<v
   // Mark OTP used
   await supabase.from("patient_otp_codes").update({ used_at: new Date().toISOString() }).eq("id", otpRow.id);
 
-  // Create connection (or silently succeed if already exists)
+  // Create connection — store patientRecord.id (INTEGER), not the user-typed string
   const { error: connError } = await supabase.from("patient_hospital_connections").upsert({
     account_id: account.id,
     hospital_id: hospitalId,
-    patient_record_id: patientRecordId,
+    patient_record_id: patientRecord.id,
     verified_at: new Date().toISOString(),
   }, { onConflict: "account_id,hospital_id" });
 

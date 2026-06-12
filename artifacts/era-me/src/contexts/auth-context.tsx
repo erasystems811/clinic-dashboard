@@ -100,14 +100,14 @@ const PALETTES: Record<string, ThemePalette> = {
     backgroundLightHSL: "33 100% 98%",
   },
   rose: {
-    primaryHSL: "347 77% 50%",
-    bgDark: "#160308", bgDarkMid: "#1e050e",
-    bgLight: "#fff1f2", bgLightMid: "#ffe4e6",
-    accent: "#f43f5e", accentLight: "#fb7185",
-    glowRGB: "244,63,94",
-    btnGradient: "linear-gradient(135deg,#be123c,#f43f5e)",
-    backgroundDarkHSL: "347 80% 6%",
-    backgroundLightHSL: "355 100% 98%",
+    primaryHSL: "328 81% 60%",
+    bgDark: "#1a0515", bgDarkMid: "#250a1e",
+    bgLight: "#fdf2f8", bgLightMid: "#fce7f3",
+    accent: "#ec4899", accentLight: "#f472b6",
+    glowRGB: "236,72,153",
+    btnGradient: "linear-gradient(135deg,#be185d,#ec4899)",
+    backgroundDarkHSL: "328 65% 8%",
+    backgroundLightHSL: "322 100% 99%",
   },
   slate: {
     primaryHSL: "215 16% 47%",
@@ -124,7 +124,7 @@ const PALETTES: Record<string, ThemePalette> = {
 function applyTheme(account: Account) {
   const root = document.documentElement;
   const dark = account.darkMode ?? true;
-  const palette = PALETTES[account.themeColor ?? "teal"] ?? PALETTES.teal;
+  const palette = PALETTES[account.themeColor ?? "slate"] ?? PALETTES.slate;
 
   root.setAttribute("data-theme", account.themeColor ?? "teal");
 

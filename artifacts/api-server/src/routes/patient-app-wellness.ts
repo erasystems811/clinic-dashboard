@@ -72,6 +72,8 @@ export function isModuleCompleted(
     const defaultTarget = Math.max(4, Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 25));
     return ((log.count as number) ?? 0) >= ((settings.targetBreaks as number) ?? defaultTarget);
   }
+  if (type === "smoking") return log.smoked === false;
+  if (type === "hygiene") return log.done === true;
   return false;
 }
 
@@ -315,6 +317,105 @@ router.get("/patient-app/wellness/week-summary", async (req, res): Promise<void>
   });
 });
 
+// ── GET /api/patient-app/wellness/weekly-report?weekStart=YYYY-MM-DD ──────────
+// Returns this week vs previous week per-module comparison
+router.get("/patient-app/wellness/weekly-report", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const today = todayDateStr();
+
+  // Resolve the requested week start (defaults to current Mon)
+  const rawWeekStart = req.query.weekStart as string | undefined;
+  const weekStart: string = rawWeekStart ?? getWeekStart();
+
+  function buildWeekDates(start: string): string[] {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start + "T12:00:00"); d.setDate(d.getDate() + i);
+      return d.toISOString().split("T")[0];
+    });
+  }
+
+  const thisWeekDates = buildWeekDates(weekStart);
+  const prevStart = new Date(weekStart + "T12:00:00");
+  prevStart.setDate(prevStart.getDate() - 7);
+  const prevWeekStart = prevStart.toISOString().split("T")[0];
+  const prevWeekDates = buildWeekDates(prevWeekStart);
+
+  const allDates = [...prevWeekDates, ...thisWeekDates];
+
+  const [{ data: modules }, { data: logs }] = await Promise.all([
+    supabase.from("wellness_modules").select("module_type, settings, enabled").eq("account_id", account.id),
+    supabase.from("wellness_logs").select("module_type, log_date, data")
+      .eq("account_id", account.id)
+      .gte("log_date", allDates[0]).lte("log_date", allDates[allDates.length - 1]),
+  ]);
+
+  const enabledModules = (modules ?? []).filter((m) => m.enabled && DAILY_HABIT_TYPES.includes(m.module_type as string));
+
+  const logIndex: Record<string, Record<string, Record<string, unknown>>> = {};
+  for (const l of logs ?? []) {
+    const t = l.module_type as string, d = l.log_date as string;
+    if (!logIndex[t]) logIndex[t] = {};
+    logIndex[t][d] = (l.data as Record<string, unknown>) ?? {};
+  }
+
+  function buildWeekStats(dates: string[]) {
+    let totalPossible = 0, totalCompleted = 0;
+    const moduleData = enabledModules.map((m) => {
+      const settings = (m.settings as Record<string, unknown>) ?? {};
+      const dayData = dates.filter((d) => d <= today).map((date) => {
+        const log = logIndex[m.module_type as string]?.[date];
+        return { date, completed: isModuleCompleted(m.module_type as string, log, settings, date) };
+      });
+      const possible = dayData.length;
+      const completed = dayData.filter((d) => d.completed).length;
+      totalPossible += possible;
+      totalCompleted += completed;
+      const meta = MODULE_META[m.module_type as string] ?? { label: m.module_type as string, emoji: "📋" };
+      return {
+        type: m.module_type as string,
+        label: meta.label,
+        emoji: meta.emoji,
+        completed,
+        possible,
+        rate: possible > 0 ? Math.round((completed / possible) * 100) : 0,
+        dayData,
+      };
+    });
+    return {
+      modules: moduleData,
+      rate: totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0,
+      totalCompleted,
+      totalPossible,
+    };
+  }
+
+  const thisWeek = buildWeekStats(thisWeekDates);
+  const prevWeek = buildWeekStats(prevWeekDates);
+  const rateChange = thisWeek.rate - prevWeek.rate;
+
+  // Best day this week (most modules completed)
+  const dayScores = thisWeekDates.filter((d) => d <= today).map((date) => ({
+    date,
+    dayLabel: new Date(date + "T12:00:00").toLocaleDateString("en-NG", { weekday: "long" }),
+    count: thisWeek.modules.filter((m) => m.dayData.find((d2) => d2.date === date)?.completed).length,
+  })).sort((a, b) => b.count - a.count);
+
+  const weekLabel = `${new Date(weekStart + "T12:00:00").toLocaleDateString("en-NG", { month: "short", day: "numeric" })}–${new Date(thisWeekDates[6] + "T12:00:00").toLocaleDateString("en-NG", { month: "short", day: "numeric" })}`;
+  const prevWeekLabel = `${new Date(prevWeekStart + "T12:00:00").toLocaleDateString("en-NG", { month: "short", day: "numeric" })}–${new Date(prevWeekDates[6] + "T12:00:00").toLocaleDateString("en-NG", { month: "short", day: "numeric" })}`;
+
+  res.json({
+    weekStart, weekEnd: thisWeekDates[6], weekLabel,
+    prevWeekStart, prevWeekEnd: prevWeekDates[6], prevWeekLabel,
+    thisWeek, prevWeek, rateChange,
+    thisWeekDates, prevWeekDates,
+    today,
+    bestDay: dayScores[0] ?? null,
+    worstDay: dayScores[dayScores.length - 1] ?? null,
+  });
+});
+
 // ── GET /api/patient-app/wellness/modules ─────────────────────────────────────
 router.get("/patient-app/wellness/modules", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
@@ -445,55 +546,95 @@ router.get("/patient-app/wellness/streak/:type", async (req, res): Promise<void>
   res.json({ streak });
 });
 
-// ── AI Daily Insight ─────────────────────────────────────────────────────────
-// Cached per account per day — only one Claude call per user per day
+// ── Daily Insight ─────────────────────────────────────────────────────────────
+// Cached per account per day. Returns a warm, personal observation from the user's data.
 const insightCache = new Map<string, string>();
 
 router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayDateStr();
   const cacheKey = `${account.id}:${today}`;
 
-  if (insightCache.has(cacheKey)) {
-    res.json({ insight: insightCache.get(cacheKey) });
-    return;
-  }
+  if (insightCache.has(cacheKey)) { res.json({ insight: insightCache.get(cacheKey) }); return; }
+  for (const k of insightCache.keys()) { if (!k.endsWith(`:${today}`)) insightCache.delete(k); }
 
-  // Evict old entries
-  for (const k of insightCache.keys()) {
-    if (!k.endsWith(`:${today}`)) insightCache.delete(k);
-  }
+  // Gather 2 weeks of data for a richer, pattern-aware insight
+  const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 13);
+  const fromDate = twoWeeksAgo.toISOString().split("T")[0];
+  const lastWeekStart = new Date(); lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const lastWeekDate = lastWeekStart.toISOString().split("T")[0];
 
-  // Fetch context
   const [{ data: modules }, { data: logs }] = await Promise.all([
-    supabase.from("wellness_modules").select("module_type, enabled").eq("account_id", account.id).eq("enabled", true),
-    supabase.from("wellness_logs")
-      .select("module_type, log_date")
-      .eq("account_id", account.id)
-      .gte("log_date", new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0])
-      .order("log_date", { ascending: false }),
+    supabase.from("wellness_modules").select("module_type, settings, enabled").eq("account_id", account.id).eq("enabled", true),
+    supabase.from("wellness_logs").select("module_type, log_date, data")
+      .eq("account_id", account.id).gte("log_date", fromDate)
+      .in("module_type", DAILY_HABIT_TYPES).order("log_date"),
   ]);
 
-  const activeTypes = (modules ?? []).map((m: Record<string, string>) => m.module_type).join(", ");
-  const daysLogged = [...new Set((logs ?? []).map((l: Record<string, string>) => l.log_date))].length;
-  const logCount = logs?.length ?? 0;
-  const name = (account as Record<string, unknown>).display_name as string ?? "there";
+  // Build per-module completion for this week and last
+  const logIndex: Record<string, Record<string, Record<string, unknown>>> = {};
+  for (const l of logs ?? []) {
+    const t = l.module_type as string, d = l.log_date as string;
+    if (!logIndex[t]) logIndex[t] = {};
+    logIndex[t][d] = (l.data as Record<string, unknown>) ?? {};
+  }
+
+  const thisWeekLines: string[] = [];
+  const lastWeekLines: string[] = [];
+  for (const m of modules ?? []) {
+    if (!DAILY_HABIT_TYPES.includes(m.module_type as string)) continue;
+    const settings = (m.settings as Record<string, unknown>) ?? {};
+    const meta = MODULE_META[m.module_type as string];
+    if (!meta) continue;
+    let thisW = 0, lastW = 0;
+    for (let i = 0; i < 7; i++) {
+      const d1 = new Date(); d1.setDate(d1.getDate() - i);
+      const d1s = d1.toISOString().split("T")[0];
+      if (isModuleCompleted(m.module_type as string, logIndex[m.module_type as string]?.[d1s], settings, d1s)) thisW++;
+      const d2 = new Date(); d2.setDate(d2.getDate() - i - 7);
+      const d2s = d2.toISOString().split("T")[0];
+      if (isModuleCompleted(m.module_type as string, logIndex[m.module_type as string]?.[d2s], settings, d2s)) lastW++;
+    }
+    thisWeekLines.push(`${meta.label}: ${thisW}/7 days`);
+    lastWeekLines.push(`${meta.label}: ${lastW}/7 days`);
+  }
+
+  // Day-of-week logging pattern
+  const dayTotals: Record<string, number> = {};
+  for (const l of logs ?? []) {
+    const day = new Date((l.log_date as string) + "T12:00:00").toLocaleDateString("en-NG", { weekday: "long" });
+    dayTotals[day] = (dayTotals[day] ?? 0) + 1;
+  }
+  const bestDay = Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const worstDay = Object.entries(dayTotals).sort((a, b) => a[1] - b[1])[0]?.[0] ?? null;
+
+  const accountData = account as Record<string, unknown>;
+  const name = (accountData.display_name as string | null) ?? (accountData.username as string) ?? "there";
   const hour = new Date().getHours();
-  const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  const timeOfDay = hour < 6 ? "early morning" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+
+  const prompt = `You are ERA Health's companion speaking to ${name}. It is ${timeOfDay}.
+Here is ${name}'s wellness data:
+
+THIS WEEK so far:
+${thisWeekLines.join("\n") || "No data yet this week."}
+
+LAST WEEK:
+${lastWeekLines.join("\n") || "No data yet."}
+
+Day pattern: Tends to log most on ${bestDay ?? "no clear day"}, least on ${worstDay ?? "no clear day"}.
+
+Write 1–2 short sentences (max 30 words total) that feel like a real person who noticed something specific — not a report. You can celebrate improvement, notice a drop with warmth, spot a pattern, or gently nudge. Sound like a caring friend, not a health app. Use ${name}'s name once. No lists. No emojis. No quotes.`;
 
   try {
     const anthropic = new Anthropic();
     const msg = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 60,
-      messages: [{
-        role: "user",
-        content: `You are ERA Health, a caring wellness companion. Write ONE short, warm, personal insight (max 18 words) for ${name} based on: active habits = [${activeTypes}], days logged this week = ${daysLogged}/7, total logs this week = ${logCount}, time of day = ${timeOfDay}. Be specific, encouraging, and actionable. No generic advice. No quotes.`,
-      }],
+      max_tokens: 80,
+      messages: [{ role: "user", content: prompt }],
     });
-
     const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : null;
     if (text) insightCache.set(cacheKey, text);
     res.json({ insight: text ?? null });

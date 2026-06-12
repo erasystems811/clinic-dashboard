@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { ChevronRight, CheckCircle2, Circle, Plus, Minus, X } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate } from "@/lib/utils";
-import { useWellnessToday, useWeekSummary, useLogToday, useAiInsight } from "@/lib/wellness-api";
+import { useWellnessToday, useWeekSummary, useLogToday, useQuickLog, useAiInsight } from "@/lib/wellness-api";
 import { useCoins } from "@/lib/hospitals-api";
 import { canNotify, notifPermission, requestNotifPermission, fireNotification, maybeFireEveningReminder } from "@/lib/notifications";
 import type { WeekSummary } from "@/lib/wellness-api";
@@ -73,6 +73,7 @@ export default function HomePage() {
   const { data: summary } = useWeekSummary();
   const { data: aiData, isLoading: aiLoading } = useAiInsight();
   const logWater = useLogToday("water");
+  const quickLog = useQuickLog();
   const { data: coinsData } = useCoins();
   const coins = coinsData?.coins ?? 0;
 
@@ -251,7 +252,13 @@ export default function HomePage() {
                 style={{ width: `${completionPct}%`, background: completionPct === 100 ? "#4ade80" : "var(--btn-gradient)", boxShadow: `0 0 8px rgba(var(--glow-rgb),0.5)` }} />
             </div>
             <div className="space-y-2">
-              {pendingItems.map((item) => <CheckRow key={item.id} item={item} isUrgent={!!urgency} />)}
+              {pendingItems.map((item) => (
+                <CheckRow key={item.id} item={item} isUrgent={!!urgency}
+                  onQuickDone={QUICK_LOG_DATA[item.id]
+                    ? () => quickLog.mutate({ moduleType: item.id, data: QUICK_LOG_DATA[item.id] })
+                    : undefined}
+                />
+              ))}
               {doneItems.map((item) => <CheckRow key={item.id} item={item} isUrgent={false} />)}
             </div>
           </section>
@@ -415,36 +422,67 @@ function NotifPrompt({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-function CheckRow({ item, isUrgent }: { item: ChecklistItem; isUrgent: boolean }) {
+// Minimal log payload to mark a module done with one tap.
+// Modules NOT in this map require detail entry → tap navigates to the module page.
+const QUICK_LOG_DATA: Record<string, Record<string, unknown>> = {
+  fruit:     { done: true },
+  sunscreen: { done: true },
+  hygiene:   { done: true },
+  smoking:   { smoked: false },
+  workout:   { completed: true },
+};
+
+function CheckRow({ item, isUrgent, onQuickDone }: {
+  item: ChecklistItem;
+  isUrgent: boolean;
+  onQuickDone?: () => void;
+}) {
   const accent = MODULE_ACCENT[item.id] ?? "var(--accent)";
   const urgentGlow = isUrgent && !item.done;
+
+  const rowContent = (
+    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl transition"
+      style={{
+        background: item.done ? "var(--glass-bg)" : urgentGlow ? `${accent}12` : `${accent}0c`,
+        border: `1px solid ${item.done ? "var(--glass-border)" : urgentGlow ? `${accent}55` : `${accent}28`}`,
+        boxShadow: urgentGlow ? `0 0 12px ${accent}25` : "none",
+      }}>
+
+      {/* Left: tappable check circle */}
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickDone?.(); }}
+        disabled={item.done || !onQuickDone}
+        className="shrink-0 active:scale-90 transition disabled:cursor-default"
+        style={{ lineHeight: 0 }}>
+        {item.done
+          ? <CheckCircle2 style={{ width: 22, height: 22, color: "var(--accent)" }} />
+          : onQuickDone
+            ? <Circle style={{ width: 22, height: 22, color: accent }} />
+            : <Circle style={{ width: 22, height: 22, color: accent, opacity: 0.5 }} />
+        }
+      </button>
+
+      <span style={{ fontSize: 18, flexShrink: 0 }}>{item.emoji}</span>
+
+      {/* Middle: label + sub — this whole area navigates */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none" }}>
+          {item.label}
+        </p>
+        {item.sub && (
+          <p style={{ fontSize: 11, marginTop: 1.5, color: item.done ? "var(--text-dim)" : accent }}>
+            {item.sub}
+          </p>
+        )}
+      </div>
+
+      <ChevronRight style={{ width: 15, height: 15, flexShrink: 0, color: item.done ? "var(--text-dim)" : accent }} />
+    </div>
+  );
+
   return (
     <Link href={moduleHref(item.id)}>
-      <div className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer active:scale-[0.98] transition"
-        style={{
-          background: item.done ? "var(--glass-bg)" : urgentGlow ? `${accent}12` : `${accent}0c`,
-          border: `1px solid ${item.done ? "var(--glass-border)" : urgentGlow ? `${accent}55` : `${accent}28`}`,
-          boxShadow: urgentGlow ? `0 0 12px ${accent}25` : "none",
-        }}>
-        <div style={{ flexShrink: 0 }}>
-          {item.done
-            ? <CheckCircle2 style={{ width: 20, height: 20, color: "var(--accent)" }} />
-            : <Circle style={{ width: 20, height: 20, color: accent, opacity: 0.6 }} />
-          }
-        </div>
-        <span style={{ fontSize: 18, flexShrink: 0 }}>{item.emoji}</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none" }}>
-            {item.label}
-          </p>
-          {item.sub && (
-            <p style={{ fontSize: 11, marginTop: 1.5, color: item.done ? "var(--text-dim)" : accent }}>
-              {item.sub}
-            </p>
-          )}
-        </div>
-        <ChevronRight style={{ width: 15, height: 15, flexShrink: 0, color: item.done ? "var(--text-dim)" : accent }} />
-      </div>
+      <div className="cursor-pointer active:scale-[0.98] transition">{rowContent}</div>
     </Link>
   );
 }

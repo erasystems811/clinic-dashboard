@@ -32,6 +32,8 @@ export interface PlanItem {
   emoji: string;
   label: string;
   sub?: string;
+  time?: string;       // "HH:MM" — scheduled clock time
+  isDayOnly?: boolean; // true = no specific time (day-sensitive tasks)
   isRestDay?: boolean;
 }
 

@@ -12,7 +12,7 @@ const THEMES = [
   { id: "purple", label: "Purple", bg: "linear-gradient(135deg,#7c3aed,#a78bfa)", accent: "#a78bfa" },
   { id: "green",  label: "Green",  bg: "linear-gradient(135deg,#15803d,#22c55e)", accent: "#22c55e" },
   { id: "orange", label: "Sunset", bg: "linear-gradient(135deg,#c2410c,#f97316)", accent: "#f97316" },
-  { id: "rose",   label: "Rose",   bg: "linear-gradient(135deg,#be123c,#f43f5e)", accent: "#f43f5e" },
+  { id: "rose",   label: "Pink",   bg: "linear-gradient(135deg,#be185d,#ec4899)", accent: "#ec4899" },
   { id: "slate",  label: "Silver", bg: "linear-gradient(135deg,#475569,#94a3b8)", accent: "#94a3b8" },
 ] as const;
 

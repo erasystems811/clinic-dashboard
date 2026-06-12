@@ -302,7 +302,7 @@ function EraScoreCard({ score, label, color, completionPct, weekRate, aiInsight,
 }) {
   const c = 2 * Math.PI * 22;
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: `rgba(var(--glow-rgb),0.06)`, border: `1px solid rgba(var(--glow-rgb),0.2)` }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--accent-tint-border)" }}>
       <div className="p-4 flex items-center gap-4">
         {/* Text side */}
         <div className="flex-1 min-w-0">
@@ -422,8 +422,8 @@ function CheckRow({ item, isUrgent }: { item: ChecklistItem; isUrgent: boolean }
     <Link href={moduleHref(item.id)}>
       <div className="flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer active:scale-[0.98] transition"
         style={{
-          background: item.done ? `rgba(var(--glow-rgb),0.06)` : urgentGlow ? `${accent}12` : `${accent}0c`,
-          border: `1px solid ${item.done ? `rgba(var(--glow-rgb),0.15)` : urgentGlow ? `${accent}55` : `${accent}28`}`,
+          background: item.done ? "var(--glass-bg)" : urgentGlow ? `${accent}12` : `${accent}0c`,
+          border: `1px solid ${item.done ? "var(--glass-border)" : urgentGlow ? `${accent}55` : `${accent}28`}`,
           boxShadow: urgentGlow ? `0 0 12px ${accent}25` : "none",
         }}>
         <div style={{ flexShrink: 0 }}>
@@ -525,7 +525,7 @@ function QuickCard({ href, emoji, label, description }: { href: string; emoji: s
   return (
     <Link href={href}>
       <div className="relative rounded-2xl p-4 cursor-pointer active:scale-95 transition overflow-hidden"
-        style={{ background: `rgba(var(--glow-rgb),0.06)`, border: `1px solid rgba(var(--glow-rgb),0.15)`, minHeight: 92 }}>
+        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", minHeight: 92 }}>
         <div className="absolute inset-0 opacity-10 pointer-events-none"
           style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.25) 0%,transparent 60%)" }} />
         <p style={{ fontSize: 24, marginBottom: 6 }}>{emoji}</p>

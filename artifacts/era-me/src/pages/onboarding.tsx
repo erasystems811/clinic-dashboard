@@ -297,7 +297,7 @@ export default function OnboardingPage() {
 
             {/* Live preview strip */}
             <div className="rounded-xl p-3 mb-3 flex items-center gap-3"
-              style={{ background: `rgba(var(--glow-rgb),0.08)`, border: `1px solid rgba(var(--glow-rgb),0.2)` }}>
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--accent-tint-border)" }}>
               <span style={{ fontSize: 20 }}>✨</span>
               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", fontWeight: 500, lineHeight: 1.4 }}>
                 The whole app is now previewing your chosen colour — swipe between colours to see it live.
@@ -323,9 +323,9 @@ export default function OnboardingPage() {
               <TimeCard emoji="🌅" label="I usually wake up at" value={wakeTime} onChange={setWakeTime} />
               <TimeCard emoji="🌙" label="I usually sleep at" value={bedTime} onChange={setBedTime} />
 
-              <div className="rounded-2xl p-4" style={{ background: `rgba(var(--glow-rgb),0.08)`, border: `1px solid rgba(var(--glow-rgb),0.18)` }}>
-                <p className="text-sm font-bold text-white mb-1">You're all set, {displayName}! 🎉</p>
-                <p className="text-xs leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+              <div className="rounded-2xl p-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+                <p className="text-sm font-bold mb-1" style={{ color: "var(--text-main)" }}>You're all set, {displayName}! 🎉</p>
+                <p className="text-xs leading-relaxed" style={{ color: "var(--text-sub)" }}>
                   {goals.length > 0
                     ? `We'll activate ${goals.length} wellness module${goals.length > 1 ? "s" : ""} based on your goals.`
                     : "We'll start with the essentials — mood, energy & hydration."}

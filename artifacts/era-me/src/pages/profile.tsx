@@ -58,7 +58,7 @@ export default function ProfilePage() {
 
       {/* Account card */}
       <div className="rounded-2xl p-5 mb-4"
-        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         <div className="flex items-center gap-4 mb-4">
           <div className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
             style={{ background: "var(--btn-gradient)", boxShadow: `0 4px 16px rgba(var(--glow-rgb),0.4)` }}>
@@ -67,11 +67,11 @@ export default function ProfilePage() {
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-white text-base truncate">
+            <p className="font-bold text-base truncate" style={{ color: "var(--text-main)" }}>
               {account.displayName ?? account.username}
             </p>
-            <p className="text-sm truncate" style={{ color: "rgba(255,255,255,0.45)" }}>@{account.username}</p>
-            <p className="text-xs truncate" style={{ color: "rgba(255,255,255,0.35)" }}>{account.email}</p>
+            <p className="text-sm truncate" style={{ color: "var(--text-sub)" }}>@{account.username}</p>
+            <p className="text-xs truncate" style={{ color: "var(--text-dim)" }}>{account.email}</p>
           </div>
         </div>
 
@@ -82,19 +82,19 @@ export default function ProfilePage() {
             <span style={{ fontSize: 18 }}>🪙</span>
             <div>
               <p style={{ fontSize: 18, fontWeight: 900, color: "#fbbf24", lineHeight: 1 }}>{coins}</p>
-              <p style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              <p style={{ fontSize: 9, color: "var(--text-sub)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
                 Health Coins
               </p>
             </div>
           </div>
           <div className="flex-1 rounded-xl p-3 flex items-center gap-2"
-            style={{ background: isPremium ? "linear-gradient(135deg,rgba(146,64,14,0.3),rgba(217,119,6,0.2))" : "rgba(255,255,255,0.04)", border: `1px solid ${isPremium ? "rgba(217,119,6,0.3)" : "rgba(255,255,255,0.08)"}` }}>
-            <Crown style={{ width: 18, height: 18, color: isPremium ? "#fbbf24" : "rgba(255,255,255,0.25)" }} />
+            style={{ background: isPremium ? "linear-gradient(135deg,rgba(146,64,14,0.3),rgba(217,119,6,0.2))" : "var(--glass-bg)", border: `1px solid ${isPremium ? "rgba(217,119,6,0.3)" : "var(--glass-border)"}` }}>
+            <Crown style={{ width: 18, height: 18, color: isPremium ? "#fbbf24" : "var(--text-dim)" }} />
             <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: isPremium ? "#fbbf24" : "rgba(255,255,255,0.4)" }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: isPremium ? "#fbbf24" : "var(--text-sub)" }}>
                 {isPremium ? "Premium" : "Free"}
               </p>
-              <p style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              <p style={{ fontSize: 9, color: "var(--text-dim)", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
                 {isPremium ? "Member" : "Plan"}
               </p>
             </div>
@@ -118,10 +118,10 @@ export default function ProfilePage() {
 
       {/* Theme + appearance */}
       <div className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-dim)" }}>
           App Colour & Mood
         </p>
-        <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        <div className="rounded-2xl p-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
           <div className="grid grid-cols-4 gap-3 mb-4">
             {THEMES.map((t) => {
               const active = (account.themeColor ?? "teal") === t.id;
@@ -130,7 +130,7 @@ export default function ProfilePage() {
                   className="flex flex-col items-center gap-1.5 transition active:scale-90">
                   <div className="relative w-12 h-12 rounded-xl"
                     style={{ background: t.bg,
-                      border: active ? `2.5px solid ${t.accent}` : "2px solid rgba(255,255,255,0.1)",
+                      border: active ? `2.5px solid ${t.accent}` : "2px solid var(--glass-border)",
                       boxShadow: active ? `0 0 14px ${t.accent}70` : "none" }}>
                     {active && (
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -139,7 +139,7 @@ export default function ProfilePage() {
                     )}
                   </div>
                   <span className="text-[10px] font-semibold"
-                    style={{ color: active ? "var(--accent)" : "rgba(255,255,255,0.4)" }}>
+                    style={{ color: active ? "var(--accent)" : "var(--text-sub)" }}>
                     {t.label}
                   </span>
                 </button>
@@ -158,9 +158,9 @@ export default function ProfilePage() {
                 <button key={label} onClick={() => handleDarkMode(dark)}
                   className="py-3 rounded-xl text-sm font-bold transition active:scale-95"
                   style={{
-                    background: active ? `rgba(var(--glow-rgb),0.18)` : "rgba(255,255,255,0.05)",
-                    border: active ? `1.5px solid rgba(var(--glow-rgb),0.5)` : "1.5px solid rgba(255,255,255,0.08)",
-                    color: active ? "var(--accent)" : "rgba(255,255,255,0.4)",
+                    background: active ? "var(--accent-tint-bg)" : "var(--glass-bg)",
+                    border: active ? "1.5px solid var(--accent-tint-border)" : "1.5px solid var(--glass-border)",
+                    color: active ? "var(--accent)" : "var(--text-sub)",
                   }}>
                   {label}
                 </button>
@@ -168,7 +168,7 @@ export default function ProfilePage() {
             })}
           </div>
 
-          {saving && <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.35)" }}>Saving…</p>}
+          {saving && <p className="text-xs mt-2" style={{ color: "var(--text-dim)" }}>Saving…</p>}
         </div>
       </div>
 
@@ -212,7 +212,7 @@ export default function ProfilePage() {
         Sign Out
       </button>
 
-      <p className="text-center text-xs mt-6" style={{ color: "rgba(255,255,255,0.25)" }}>ERA Health · By ERA Systems</p>
+      <p className="text-center text-xs mt-6" style={{ color: "var(--text-dim)" }}>ERA Health · By ERA Systems</p>
     </div>
   );
 }
@@ -221,11 +221,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <div className="mb-4">
       <p className="text-xs font-semibold uppercase tracking-wider mb-3"
-        style={{ color: "rgba(255,255,255,0.35)" }}>
+        style={{ color: "var(--text-dim)" }}>
         {title}
       </p>
       <div className="rounded-2xl p-4"
-        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         {children}
       </div>
     </div>
@@ -236,14 +236,14 @@ function SettingsRow({ label, sublabel, onClick }: { label: string; sublabel?: s
   return (
     <button onClick={onClick}
       className="w-full flex items-center justify-between py-3 text-sm font-medium transition"
-      style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.8)" }}
+      style={{ borderBottom: "1px solid var(--glass-border)", color: "var(--text-main)" }}
       onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--accent)")}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "rgba(255,255,255,0.8)")}>
+      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "var(--text-main)")}>
       <div className="text-left">
         <p>{label}</p>
-        {sublabel && <p className="text-xs font-normal mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>{sublabel}</p>}
+        {sublabel && <p className="text-xs font-normal mt-0.5" style={{ color: "var(--text-sub)" }}>{sublabel}</p>}
       </div>
-      <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+      <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--text-dim)" }} />
     </button>
   );
 }

@@ -141,18 +141,22 @@ function applyTheme(account: Account) {
   root.style.setProperty("--accent-light", palette.accentLight);
   root.style.setProperty("--btn-gradient", palette.btnGradient);
 
-  // Glass card surfaces — dark: subtle dim glow, light: frosted white over teal gradient
+  // Neutral glass card surfaces — never flooded with accent color
   root.style.setProperty("--glass-bg",     dark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.55)");
   root.style.setProperty("--glass-border", dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.70)");
   root.style.setProperty("--glass-track",  dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.40)");
+  root.style.setProperty("--input-bg",     dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.60)");
+  root.style.setProperty("--input-border", dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.75)");
+  // Accent tints — used ONLY on intentionally highlighted panels (e.g. ERA score card border, today badge)
+  root.style.setProperty("--accent-tint-bg",     dark ? `rgba(${palette.glowRGB},0.08)` : `rgba(${palette.glowRGB},0.10)`);
+  root.style.setProperty("--accent-tint-border",  dark ? `rgba(${palette.glowRGB},0.22)` : `rgba(${palette.glowRGB},0.30)`);
+  // Text
   root.style.setProperty("--text-main",    dark ? "#ffffff" : "#0f172a");
   root.style.setProperty("--text-sub",     dark ? "rgba(255,255,255,0.45)" : "rgba(15,23,42,0.60)");
   root.style.setProperty("--text-dim",     dark ? "rgba(255,255,255,0.25)" : "rgba(15,23,42,0.40)");
-  root.style.setProperty("--input-bg",     dark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.60)");
-  root.style.setProperty("--input-border", dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.75)");
   // Tailwind --foreground for body text
-  root.style.setProperty("--foreground", dark ? "214 32% 91%" : "222 47% 11%");
-  // Light-mode gradient body background (set as data attribute, applied via CSS)
+  root.style.setProperty("--foreground",   dark ? "214 32% 91%" : "222 47% 11%");
+  // Light-mode gradient body background
   root.style.setProperty("--light-bg-from", palette.bgLight);
   root.style.setProperty("--light-bg-to",   palette.bgLightMid);
 

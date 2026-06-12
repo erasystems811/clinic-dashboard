@@ -32,6 +32,7 @@ import ChatPage from "@/pages/companion/chat";
 import PersonalityPage from "@/pages/companion/personality";
 import CompanionSettingsPage from "@/pages/companion/settings";
 import OnboardingPage from "@/pages/onboarding";
+import PlanPage from "@/pages/plan";
 import Layout from "@/components/layout";
 
 const queryClient = new QueryClient({
@@ -89,6 +90,7 @@ function AppRoutes() {
         <Layout>
           <Switch>
             <Route path="/" component={HomePage} />
+            <Route path="/plan" component={PlanPage} />
             <Route path="/wellness" component={WellnessPage} />
             <Route path="/wellness/water" component={WaterPage} />
             <Route path="/wellness/medications" component={MedicationsPage} />

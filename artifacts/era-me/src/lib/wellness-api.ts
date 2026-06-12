@@ -28,7 +28,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 // ── Queries ───────────────────────────────────────────────────────────────────
 
 export function useWellnessToday() {
-  return useQuery({ queryKey: ["wellness", "today"], queryFn: () => get(`${BASE}/today`) });
+  return useQuery({ queryKey: ["wellness", "today"], queryFn: () => get(`${BASE}/today`), staleTime: 0, refetchOnMount: "always" });
 }
 
 export function useWellnessModules() {
@@ -47,7 +47,8 @@ export function useWeekSummary() {
   return useQuery<WeekSummary>({
     queryKey: ["wellness", "summary"],
     queryFn: () => get<WeekSummary>(`${BASE}/week-summary`),
-    staleTime: 2 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -58,7 +59,7 @@ export function useSaveModule(type: string) {
   return useMutation({
     mutationFn: (body: { settings?: unknown; enabled?: boolean }) => put(`${BASE}/modules/${type}`, body),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["wellness"] });
+      void qc.refetchQueries({ queryKey: ["wellness"] });
     },
   });
 }

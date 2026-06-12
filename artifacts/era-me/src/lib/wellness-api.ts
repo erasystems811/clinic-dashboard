@@ -2,8 +2,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const BASE = "/api/patient-app/wellness";
 
+function getToken(): string | null {
+  try {
+    const stored = localStorage.getItem("era_me_session");
+    if (!stored) return null;
+    return (JSON.parse(stored) as { token: string }).token ?? null;
+  } catch { return null; }
+}
+
 function headers() {
-  const token = localStorage.getItem("era_me_session");
+  const token = getToken();
   return { "Content-Type": "application/json", ...(token ? { "x-patient-token": token } : {}) };
 }
 
@@ -90,7 +98,7 @@ export function useLogToday(type: string) {
         headers: {
           "Content-Type": "application/json",
           ...(() => {
-            const t = localStorage.getItem("era_me_session");
+            const t = getToken();
             return t ? { "x-patient-token": t } : {};
           })(),
         },

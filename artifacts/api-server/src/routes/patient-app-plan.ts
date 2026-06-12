@@ -127,17 +127,29 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
         return true;
       });
       if (activeMeds.length > 0) {
-        // Group active meds by dose time
-        const timeGroups: Record<string, string[]> = {};
+        // Group active meds by dose time, keeping name + dosage
+        const timeGroups: Record<string, { name: string; dosage?: string }[]> = {};
         activeMeds.forEach((m) => {
           const times: string[] = m.times?.length ? m.times : ["08:00"];
           times.forEach((t) => {
             if (!timeGroups[t]) timeGroups[t] = [];
-            timeGroups[t].push(m.name);
+            timeGroups[t].push({ name: m.name, dosage: m.dosage });
           });
         });
-        Object.entries(timeGroups).forEach(([time, names]) => {
-          items.push({ moduleType: "medications", emoji: "💊", label: "Medications", sub: names.join(" · "), time });
+        Object.entries(timeGroups).forEach(([time, drugs]) => {
+          let label: string;
+          let sub: string;
+          if (drugs.length === 1) {
+            label = `Take ${drugs[0].name}`;
+            sub = drugs[0].dosage ?? "";
+          } else if (drugs.length === 2) {
+            label = `${drugs[0].name} & ${drugs[1].name}`;
+            sub = drugs.map((d) => d.dosage ? `${d.name} ${d.dosage}` : d.name).join(" · ");
+          } else {
+            label = "Medications";
+            sub = drugs.map((d) => d.dosage ? `${d.name} ${d.dosage}` : d.name).join(" · ");
+          }
+          items.push({ moduleType: "medications", emoji: "💊", label, sub, time });
         });
       }
     }

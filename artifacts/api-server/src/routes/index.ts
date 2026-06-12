@@ -21,6 +21,7 @@ import walletRouter from "./wallet";
 import systemFeedbackRouter from "./system-feedback";
 import doctorsRouter from "./doctors";
 import selfBookingRouter from "./self-booking";
+import patientAppRouter from "./patient-app";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(walletRouter);
 router.use(systemFeedbackRouter);
 router.use(doctorsRouter);
 router.use(selfBookingRouter);
+router.use(patientAppRouter);
 
 export default router;

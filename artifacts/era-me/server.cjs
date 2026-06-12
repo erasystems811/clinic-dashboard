@@ -6,7 +6,8 @@ const url = require('url');
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const ROOT = path.resolve(__dirname, 'dist', 'public');
-const API_URL = (process.env.API_URL || '').replace(/\/$/, '');
+const _rawApi = (process.env.API_URL || '').replace(/\/$/, '');
+const API_URL = _rawApi && !_rawApi.startsWith('http') ? 'https://' + _rawApi : _rawApi;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'application/javascript',

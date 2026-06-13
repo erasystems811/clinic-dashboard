@@ -125,8 +125,12 @@ export default function OnboardingPage() {
         {step === 1 && (
           <div>
             <div className="mb-10">
-              <p className="text-5xl mb-5">👋</p>
-              <h1 className="text-3xl font-bold mb-3" style={{ color: "var(--text-main)" }}>Welcome to ERA Health</h1>
+              <div className="mb-6" style={{ height: 80 }}>
+                <img src="/era-logo.png" alt="ERA Health" fetchPriority="high"
+                  style={{ height: "100%", objectFit: "contain", opacity: 0, transition: "opacity 0.3s ease" }}
+                  onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "1"; }} />
+              </div>
+              <h1 className="text-3xl font-extrabold mb-3 tracking-tight" style={{ color: "var(--text-main)" }}>Welcome to ERA Health</h1>
               <p className="text-base leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 Let's personalise the app just for you. First — what should we call you?
               </p>
@@ -150,7 +154,7 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div>
             <div className="mb-7">
-              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>About you, {displayName}</h1>
+              <h1 className="text-3xl font-extrabold mb-2 tracking-tight" style={{ color: "var(--text-main)" }}>About you, {displayName}</h1>
               <p className="text-base leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 Your age and gender help us give you relevant guidance.
               </p>
@@ -197,7 +201,7 @@ export default function OnboardingPage() {
         {step === 3 && (
           <div>
             <div className="mb-5">
-              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Your health goals</h1>
+              <h1 className="text-3xl font-extrabold mb-2 tracking-tight" style={{ color: "var(--text-main)" }}>Your health goals</h1>
               <p className="text-sm leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 Pick what matters most — we'll activate the right modules to get you started.
               </p>
@@ -235,8 +239,7 @@ export default function OnboardingPage() {
         {step === 4 && (
           <div>
             <div className="mb-5">
-              <p className="text-4xl mb-4">🎨</p>
-              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Pick your colour</h1>
+              <h1 className="text-3xl font-extrabold mb-2 tracking-tight" style={{ color: "var(--text-main)" }}>Pick your colour</h1>
               <p className="text-sm leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 This transforms the entire look of your app — backgrounds, glows, everything. You can change it later in Profile.
               </p>
@@ -290,9 +293,9 @@ export default function OnboardingPage() {
             {/* Live preview strip */}
             <div className="rounded-xl p-3 flex items-center gap-3"
               style={{ background: "var(--glass-bg)", border: "1px solid var(--accent-tint-border)" }}>
-              <span style={{ fontSize: 20 }}>✨</span>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--accent)", boxShadow: "0 0 8px rgba(var(--glow-rgb),0.9)", flexShrink: 0, animation: "era-pulse 2s ease-in-out infinite" }} />
               <p style={{ fontSize: 12, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.4 }}>
-                The whole app is now previewing your chosen colour — swipe between colours to see it live.
+                The whole app is now previewing your chosen colour — tap each swatch to see it live.
               </p>
             </div>
           </div>
@@ -302,7 +305,7 @@ export default function OnboardingPage() {
         {step === 5 && (
           <div>
             <div className="mb-7">
-              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Your daily schedule</h1>
+              <h1 className="text-3xl font-extrabold mb-2 tracking-tight" style={{ color: "var(--text-main)" }}>Your daily schedule</h1>
               <p className="text-base leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 We use this for your sleep tracker and reminder timings.
               </p>

@@ -118,12 +118,12 @@ export default function AuthPage() {
 
       {/* Glow orbs — fixed so they stay in place while content scrolls */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden" style={{ zIndex: 0 }}>
-        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-25"
-          style={{ background: "radial-gradient(circle, #14b8a6 0%, transparent 70%)", filter: "blur(60px)" }} />
-        <div className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full opacity-20"
-          style={{ background: "radial-gradient(circle, #6366f1 0%, transparent 70%)", filter: "blur(60px)" }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, #14b8a6 0%, transparent 70%)", filter: "blur(80px)" }} />
+        <div className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full"
+          style={{ background: "radial-gradient(circle, #14b8a6 0%, transparent 70%)", filter: "blur(72px)", opacity: 0.32 }} />
+        <div className="absolute -bottom-32 -left-32 w-[440px] h-[440px] rounded-full"
+          style={{ background: "radial-gradient(circle, #6366f1 0%, transparent 70%)", filter: "blur(72px)", opacity: 0.24 }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full"
+          style={{ background: "radial-gradient(circle, #14b8a6 0%, transparent 70%)", filter: "blur(80px)", opacity: 0.12 }} />
       </div>
 
       {/* Content wrapper: centers card when short, scrolls when tall (e.g. register form on small phones) */}
@@ -150,21 +150,22 @@ export default function AuthPage() {
                 onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "1"; }}
               />
             </div>
-            <h1 className="text-2xl font-bold mb-1" style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <h1 className="text-3xl font-extrabold mb-1 tracking-tight"
+              style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               ERA Health
             </h1>
-            <p className="text-sm mb-8 leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <p className="text-sm mb-8 leading-relaxed" style={{ color: "rgba(255,255,255,0.48)", letterSpacing: "0.01em" }}>
               Track your wellness · Manage your health<br />Connect with your care team
             </p>
 
             <button onClick={() => setStep("register-type")}
-              className="w-full py-4 rounded-2xl font-semibold text-base mb-3 transition active:scale-95 text-white"
-              style={{ background: "linear-gradient(135deg, #0d9488, #14b8a6)", boxShadow: "0 8px 32px rgba(20,184,166,0.35)" }}>
+              className="w-full py-4 rounded-2xl font-bold text-[15px] tracking-wide mb-3 transition active:scale-95 text-white"
+              style={{ background: "linear-gradient(135deg, #0d9488, #14b8a6)", boxShadow: "0 8px 40px rgba(20,184,166,0.4), inset 0 1px 0 rgba(255,255,255,0.15)" }}>
               Create Account
             </button>
             <button onClick={() => { clearError(); setStep("login"); }}
-              className="w-full py-4 rounded-2xl font-semibold text-base transition active:scale-95"
-              style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.85)" }}>
+              className="w-full py-4 rounded-2xl font-bold text-[15px] tracking-wide transition active:scale-95"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "rgba(255,255,255,0.88)" }}>
               Sign In
             </button>
 
@@ -180,7 +181,7 @@ export default function AuthPage() {
           <div>
             <GlassBack onClick={() => setStep("welcome")} />
             <h2 className="text-2xl font-bold mb-1"
-              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
               How will you use ERA Health?
             </h2>
             <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>Choose the account type that fits you.</p>
@@ -216,7 +217,7 @@ export default function AuthPage() {
           <div>
             <GlassBack onClick={() => setStep("register-type")} />
             <h2 className="text-2xl font-bold mb-1"
-              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
               Create your account
             </h2>
             <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>We'll send a code to verify your email.</p>
@@ -246,7 +247,7 @@ export default function AuthPage() {
           <div>
             <GlassBack onClick={() => setStep("register-details")} />
             <h2 className="text-2xl font-bold mb-1"
-              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
               Check your email
             </h2>
             <p className="text-sm mb-1" style={{ color: "rgba(255,255,255,0.65)" }}>
@@ -287,14 +288,20 @@ export default function AuthPage() {
               <CheckCircle2 className="w-10 h-10" style={{ color: "#14b8a6" }} />
             </div>
             <h2 className="text-2xl font-bold mb-2"
-              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
               You're in!
             </h2>
             <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>
               Your ERA Health account is ready. Check your email for your password — change it in Profile after you log in.
             </p>
-            <div className="mt-8 w-5 h-5 rounded-full border-2 border-t-transparent animate-spin"
-              style={{ borderColor: "#14b8a6", borderTopColor: "transparent" }} />
+            <div style={{
+              marginTop: 32,
+              width: 28, height: 28, borderRadius: "50%",
+              background: "conic-gradient(from 0deg, #14b8a6, rgba(20,184,166,0.06) 72%)",
+              animation: "era-spin 0.75s linear infinite",
+              mask: "radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px))",
+              WebkitMask: "radial-gradient(farthest-side, transparent calc(100% - 3px), black calc(100% - 3px))",
+            }} />
           </div>
         )}
 
@@ -303,7 +310,7 @@ export default function AuthPage() {
           <div>
             <GlassBack onClick={() => setStep("welcome")} />
             <h2 className="text-2xl font-bold mb-1"
-              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
               Welcome back
             </h2>
             <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>
@@ -349,7 +356,7 @@ export default function AuthPage() {
           <div>
             <GlassBack onClick={() => setStep("login")} />
             <h2 className="text-2xl font-bold mb-1"
-              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
               Reset password
             </h2>
             <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>
@@ -374,7 +381,7 @@ export default function AuthPage() {
               <CheckCircle2 className="w-10 h-10" style={{ color: "#14b8a6" }} />
             </div>
             <h2 className="text-2xl font-bold mb-2"
-              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
               Check your email
             </h2>
             <p className="text-sm leading-relaxed mb-8" style={{ color: "rgba(255,255,255,0.65)" }}>
@@ -388,7 +395,7 @@ export default function AuthPage() {
         {step === "reset-password" && (
           <div>
             <h2 className="text-2xl font-bold mb-1"
-              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
               Set a new password
             </h2>
             <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>Choose something you'll remember.</p>
@@ -469,7 +476,7 @@ function GlassButton({
 }) {
   return (
     <button type={type} onClick={onClick} disabled={loading || disabled}
-      className={cn("w-full py-4 rounded-2xl font-semibold text-base transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 text-white", className)}
+      className={cn("w-full py-4 rounded-2xl font-bold text-[15px] tracking-wide transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 text-white", className)}
       style={{ background: "linear-gradient(135deg, #0d9488, #14b8a6)", boxShadow: "0 8px 32px rgba(20,184,166,0.3)" }}>
       {loading && <Loader2 className="w-4 h-4 animate-spin" />}
       {children}

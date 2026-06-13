@@ -346,6 +346,91 @@ async function migrateAccountabilityGroupsTables() {
   }
 }
 
+async function migrateIntimacyTables() {
+  const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!projectRef || !token) return;
+  const sql = `
+    CREATE TABLE IF NOT EXISTS patient_intimacy_settings (
+      account_id INTEGER PRIMARY KEY REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      mode TEXT NOT NULL DEFAULT 'celibacy',
+      pin_hash TEXT NOT NULL DEFAULT '',
+      freaky_mode_enabled BOOLEAN NOT NULL DEFAULT false,
+      weekly_frequency_goal INTEGER,
+      contraception TEXT,
+      last_sti_test DATE,
+      sti_test_interval_months INTEGER NOT NULL DEFAULT 6,
+      partner_id INTEGER REFERENCES patient_accounts(id) ON DELETE SET NULL,
+      partner_invite_code TEXT,
+      partner_invite_expires_at TIMESTAMPTZ,
+      notes TEXT,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS patient_celibacy_streaks (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      start_date DATE NOT NULL,
+      end_date DATE,
+      reason TEXT DEFAULT 'personal',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS patient_celibacy_checkins (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      check_date DATE NOT NULL,
+      maintained BOOLEAN NOT NULL,
+      notes TEXT,
+      UNIQUE(account_id, check_date)
+    );
+    CREATE TABLE IF NOT EXISTS patient_intimacy_sessions (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      session_date DATE NOT NULL,
+      type TEXT NOT NULL DEFAULT 'partnered',
+      duration_minutes INTEGER,
+      protection_used BOOLEAN,
+      postinor_taken BOOLEAN NOT NULL DEFAULT false,
+      satisfaction INTEGER CHECK (satisfaction BETWEEN 1 AND 5),
+      emotional_connection INTEGER CHECK (emotional_connection BETWEEN 1 AND 5),
+      libido_level INTEGER CHECK (libido_level BETWEEN 1 AND 5),
+      physical_comfort INTEGER CHECK (physical_comfort BETWEEN 1 AND 5),
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS patient_session_positions (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL REFERENCES patient_intimacy_sessions(id) ON DELETE CASCADE,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      position_id TEXT NOT NULL,
+      satisfaction INTEGER CHECK (satisfaction BETWEEN 1 AND 5)
+    );
+    CREATE TABLE IF NOT EXISTS patient_postinor_logs (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      taken_at DATE NOT NULL,
+      next_safe_date DATE NOT NULL,
+      notes TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_celibacy_streaks_account ON patient_celibacy_streaks(account_id);
+    CREATE INDEX IF NOT EXISTS idx_intimacy_sessions_account ON patient_intimacy_sessions(account_id);
+    CREATE INDEX IF NOT EXISTS idx_session_positions_account ON patient_session_positions(account_id);
+    CREATE INDEX IF NOT EXISTS idx_postinor_logs_account ON patient_postinor_logs(account_id);
+    NOTIFY pgrst, 'reload schema';
+  `;
+  try {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (resp.ok) logger.info("[migration] Intimacy tables ready");
+    else logger.warn({ body: await resp.text() }, "[migration] Intimacy tables migration failed (non-fatal)");
+  } catch (err) {
+    logger.warn({ err }, "[migration] Intimacy tables migration error (non-fatal)");
+  }
+}
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -365,6 +450,7 @@ app.listen(port, (err) => {
   migrateWomensHealthTables();
   migrateAccountabilityGroupsTables();
   migrateRagSearchFunction();
+  migrateIntimacyTables();
 });
 
 async function migrateRagSearchFunction() {

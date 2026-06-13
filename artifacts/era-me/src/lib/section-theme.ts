@@ -33,3 +33,33 @@ export function useWLTheme() {
     return restoreAppTheme;
   }, [dark, restoreAppTheme]);
 }
+
+// Applies the crimson/rose CSS variable set for the intimacy mini-app.
+export function applyCrimsonVars() {
+  const r = document.documentElement;
+  r.style.setProperty('--accent',              '#e11d48');
+  r.style.setProperty('--accent-light',        '#fb7185');
+  r.style.setProperty('--glow-rgb',            '225,29,72');
+  r.style.setProperty('--btn-gradient',        'linear-gradient(135deg,#9f1239,#e11d48)');
+  r.style.setProperty('--bg-base',             '#0d0006');
+  r.style.setProperty('--bg-mid',              '#1a0008');
+  r.style.setProperty('--text-main',           '#fecdd3');
+  r.style.setProperty('--text-sub',            'rgba(253,164,175,0.75)');
+  r.style.setProperty('--text-dim',            'rgba(253,164,175,0.40)');
+  r.style.setProperty('--glass-bg',            'rgba(225,29,72,0.07)');
+  r.style.setProperty('--glass-border',        'rgba(225,29,72,0.18)');
+  r.style.setProperty('--glass-track',         'rgba(225,29,72,0.10)');
+  r.style.setProperty('--input-bg',            'rgba(225,29,72,0.06)');
+  r.style.setProperty('--input-border',        'rgba(225,29,72,0.16)');
+  r.style.setProperty('--accent-tint-bg',      'rgba(225,29,72,0.09)');
+  r.style.setProperty('--accent-tint-border',  'rgba(225,29,72,0.24)');
+}
+
+export function useIntimacyTheme() {
+  const { restoreAppTheme } = useAuth();
+
+  useEffect(() => {
+    applyCrimsonVars();
+    return restoreAppTheme;
+  }, [restoreAppTheme]);
+}

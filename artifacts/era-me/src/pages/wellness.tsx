@@ -1,7 +1,6 @@
 import { type MouseEvent } from "react";
 import { Link } from "wouter";
 import { X } from "lucide-react";
-import { isCompanionHidden } from "@/lib/companion-api";
 import { useWellnessModules, useDisableModule } from "@/lib/wellness-api";
 
 interface Module {
@@ -11,8 +10,6 @@ interface Module {
   description: string;
   gradient: string;
   accent: string;
-  comingSoon?: boolean;
-  href?: string;
 }
 
 const DAILY_MODULES: Module[] = [
@@ -38,17 +35,8 @@ const HEALTH_MODULES: Module[] = [
   { id: "hygiene",   emoji: "🪥", label: "Hygiene",           description: "Toothbrush & sponge reminders",     gradient: "linear-gradient(135deg,#0e1a2e,#1e40af)", accent: "#93c5fd" },
 ];
 
-const COMPANION_MODULES: Module[] = [
-  { id: "women",    emoji: "🌸", label: "Women's Health",      description: "Cycle, pregnancy & more",       gradient: "linear-gradient(135deg,#4a044e,#a21caf)", accent: "#f0abfc", comingSoon: true, href: "/womens-health" },
-  { id: "intimacy", emoji: "💗", label: "Sex Life & Intimacy", description: "Celibacy or active tracking",   gradient: "linear-gradient(135deg,#4c0519,#be123c)", accent: "#fda4af" },
-];
-
-const DIARY_MODULES: Module[] = [
-  { id: "my-diary", emoji: "📔", label: "My Diary", description: "Private journal, chats & personality", gradient: "linear-gradient(135deg,#1e1b4b,#4c1d95)", accent: "#c084fc", href: "/companion" },
-];
 
 function moduleHref(m: Module): string {
-  if (m.href) return m.href;
   if (m.id === "mood_check") return "/wellness/mood";
   return `/wellness/${m.id}`;
 }
@@ -63,7 +51,6 @@ function SectionDivider({ title }: { title: string }) {
 }
 
 export default function WellnessPage() {
-  const diaryHidden = isCompanionHidden();
   const { data: modules } = useWellnessModules() as { data: Record<string, { enabled: boolean }> | undefined };
   const disable = useDisableModule();
 
@@ -103,18 +90,6 @@ export default function WellnessPage() {
           ))}
         </div>
       </div>
-
-      <div>
-        <SectionDivider title="Personal" />
-        <div className="grid grid-cols-2 gap-2.5">
-          {COMPANION_MODULES.map((m) => (
-            <ModuleCard key={m.id} module={m} enabled={isEnabled(m.id)} onDisable={(e) => handleDisable(m.id, e)} />
-          ))}
-          {!diaryHidden && DIARY_MODULES.map((m) => (
-            <ModuleCard key={m.id} module={m} enabled={isEnabled(m.id)} onDisable={(e) => handleDisable(m.id, e)} />
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -127,13 +102,13 @@ function ModuleCard({ module, enabled, onDisable }: {
   const href = moduleHref(module);
 
   return (
-    <Link href={module.comingSoon ? "#" : href}>
+    <Link href={href}>
       <div className="relative rounded-2xl p-4 cursor-pointer active:scale-95 transition overflow-hidden"
         style={{
           background: module.gradient,
           border: enabled ? `1px solid ${module.accent}55` : `1px solid ${module.accent}22`,
           boxShadow: enabled ? `0 4px 20px ${module.accent}25` : `0 2px 10px ${module.accent}08`,
-          opacity: module.comingSoon ? 0.7 : enabled ? 1 : 0.55,
+          opacity: enabled ? 1 : 0.55,
           minHeight: 90,
         }}>
 
@@ -154,15 +129,8 @@ function ModuleCard({ module, enabled, onDisable }: {
         <p className="text-xs font-bold leading-tight text-white">{module.label}</p>
         <p className="text-[10px] mt-0.5 leading-snug" style={{ color: `${module.accent}cc` }}>{module.description}</p>
 
-        {module.comingSoon && (
-          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
-            style={{ background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)" }}>
-            Soon
-          </div>
-        )}
-
-        {/* Stop button — only on active, non-comingSoon modules */}
-        {enabled && !module.comingSoon && (
+        {/* Stop button — only on active modules */}
+        {enabled && (
           <button
             onClick={onDisable}
             className="absolute bottom-2 right-2 flex items-center gap-0.5 active:scale-90 transition"

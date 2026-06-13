@@ -54,6 +54,7 @@ import CycleCalendarPage from "@/pages/womens-health/calendar";
 import CycleHistoryPage from "@/pages/womens-health/history";
 import SocialPage from "@/pages/social/index";
 import PartnerPage from "@/pages/social/partner";
+import GroupPage from "@/pages/social/group";
 import CompanionGate from "@/pages/companion/index";
 import { NewJournalPage, JournalViewPage } from "@/pages/companion/journal";
 import ChatPage from "@/pages/companion/chat";
@@ -149,6 +150,7 @@ function AppRoutes() {
         <Route path="/womens-health/history" component={CycleHistoryPage} />
         <Route path="/social" component={SocialPage} />
         <Route path="/social/partner/:id" component={PartnerPage} />
+        <Route path="/social/group/:id" component={GroupPage} />
         <Route path="/hospitals" component={HospitalsPage} />
             <Route path="/profile" component={ProfilePage} />
             <Route path="/pricing" component={PricingPage} />

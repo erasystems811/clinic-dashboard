@@ -302,6 +302,50 @@ async function migrateSystemFeedbackTable() {
   }
 }
 
+async function migrateAccountabilityGroupsTables() {
+  const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!projectRef || !token) return;
+  const sql = `
+    ALTER TABLE accountability_partners
+      ADD COLUMN IF NOT EXISTS shared_modules JSONB DEFAULT '[]',
+      ADD COLUMN IF NOT EXISTS shared_goal JSONB,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+    CREATE TABLE IF NOT EXISTS accountability_groups (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_by INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      goal_module TEXT NOT NULL,
+      goal_target INTEGER,
+      goal_label TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS accountability_group_members (
+      id SERIAL PRIMARY KEY,
+      group_id INTEGER NOT NULL REFERENCES accountability_groups(id) ON DELETE CASCADE,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      invited_by INTEGER REFERENCES patient_accounts(id),
+      joined_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(group_id, account_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_group_members_account ON accountability_group_members(account_id);
+    NOTIFY pgrst, 'reload schema';
+  `;
+  try {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (resp.ok) logger.info("[migration] Accountability groups tables ready");
+    else logger.warn({ body: await resp.text() }, "[migration] Accountability groups migration failed (non-fatal)");
+  } catch (err) {
+    logger.warn({ err }, "[migration] Accountability groups migration error (non-fatal)");
+  }
+}
+
 app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
@@ -319,4 +363,5 @@ app.listen(port, (err) => {
   migrateSystemFeedbackTable();
   migratePushNotificationTables();
   migrateWomensHealthTables();
+  migrateAccountabilityGroupsTables();
 });

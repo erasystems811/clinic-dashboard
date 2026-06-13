@@ -10,6 +10,7 @@ import {
 } from "@/lib/companion-api";
 import { cn } from "@/lib/utils";
 import type { DiaryEntry, GestureConfig } from "@/lib/companion-api";
+import CompanionIntro from "./intro";
 
 const MOOD_EMOJIS: Record<number, string> = { 1: "😢", 2: "😔", 3: "😐", 4: "😊", 5: "😄" };
 type Tab = "me" | "chat" | "journal" | "memories";
@@ -31,8 +32,14 @@ export default function CompanionGate() {
     content = <SetupScreen accountId={account.id} />;
   } else if (!unlocked) {
     content = <PinScreen accountId={account.id} onUnlock={() => setUnlocked(true)} />;
+  } else if (!settings.introComplete) {
+    content = <CompanionIntro
+      themeColor={settings.companionThemeColor}
+      onComplete={() => { void (async () => { /* refetch settings after intro */ window.location.reload(); })(); }}
+    />;
   } else {
-    content = <CompanionHome account={account} isBirthday={settings.isBirthday} birthdayAge={settings.birthdayAge} />;
+    content = <CompanionHome account={account} isBirthday={settings.isBirthday} birthdayAge={settings.birthdayAge}
+      companionName={settings.companionName ?? "My Companion"} />;
   }
 
   return (
@@ -45,8 +52,8 @@ export default function CompanionGate() {
 }
 
 // ── Companion home with tabs ──────────────────────────────────────────────────
-function CompanionHome({ account, isBirthday, birthdayAge }: {
-  account: Account; isBirthday: boolean; birthdayAge: number | null;
+function CompanionHome({ account, isBirthday, birthdayAge, companionName }: {
+  account: Account; isBirthday: boolean; birthdayAge: number | null; companionName: string;
 }) {
   const [, navigate] = useLocation();
   const [tab, setTab] = useState<Tab>("me");
@@ -106,7 +113,7 @@ function CompanionHome({ account, isBirthday, birthdayAge }: {
               <ArrowLeft className="w-4 h-4 text-muted-foreground" />
             </button>
             <span className="text-xl">📔</span>
-            <h1 className="text-lg font-bold text-foreground">My Diary</h1>
+            <h1 className="text-lg font-bold text-foreground">{companionName}</h1>
           </div>
           <button onClick={() => navigate("/companion/settings")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
             <Settings className="w-4 h-4 text-muted-foreground" />
@@ -116,7 +123,7 @@ function CompanionHome({ account, isBirthday, birthdayAge }: {
         {isBirthday && (
           <div className="mb-3 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl p-4 text-white">
             <p className="text-lg font-bold">🎂 Happy birthday!</p>
-            {birthdayAge && <p className="text-sm opacity-90 mt-0.5">You're {birthdayAge} today. Your companion has something special to say.</p>}
+            {birthdayAge && <p className="text-sm opacity-90 mt-0.5">You're {birthdayAge} today. {companionName} has something special to say.</p>}
           </div>
         )}
 

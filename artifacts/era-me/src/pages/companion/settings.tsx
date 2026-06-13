@@ -4,7 +4,7 @@ import { ArrowLeft, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import {
   useCompanionSettings, useChangePin, useChangeGesture, useChangeCompanionTheme,
-  isCompanionUnlocked, clearCompanionUnlock,
+  isCompanionUnlocked, clearCompanionUnlock, useRenameCompanion,
   GESTURE_ELEMENTS, gestureLabel, decodeGesture,
 } from "@/lib/companion-api";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,9 @@ export default function CompanionSettingsPage() {
   const [confirmPin, setConfirmPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [pinSuccess, setPinSuccess] = useState(false);
+  const [companionNameEdit, setCompanionNameEdit] = useState("");
+  const [nameSuccess, setNameSuccess] = useState(false);
+  const renameCompanion = useRenameCompanion();
   const [gestureElement, setGestureElement] = useState<GestureConfig["element"]>("coins");
   const [gestureCount, setGestureCount] = useState(3);
   const [isHidden, setIsHidden] = useState(false);
@@ -63,6 +66,7 @@ export default function CompanionSettingsPage() {
       setIsHidden(!!settings.isHidden);
       if (settings.companionThemeColor) setDiaryColor(settings.companionThemeColor);
       if (settings.companionDarkMode !== undefined) setDiaryDark(settings.companionDarkMode);
+      if (settings.companionName) setCompanionNameEdit(settings.companionName);
     }
   }, [settings]);
 
@@ -108,7 +112,34 @@ export default function CompanionSettingsPage() {
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
 
-      <h1 className="text-xl font-bold text-foreground mb-6">Diary settings</h1>
+      <h1 className="text-xl font-bold text-foreground mb-6">{settings?.companionName ?? "Companion"} — settings</h1>
+
+      {/* Companion name */}
+      <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+        <p className="text-sm font-semibold text-foreground mb-1">Companion name</p>
+        <p className="text-xs text-muted-foreground mb-3">The name you gave your companion. You can change it anytime.</p>
+        {nameSuccess && <p className="text-xs text-green-600 dark:text-green-400 mb-2">Name updated</p>}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={companionNameEdit}
+            onChange={(e) => { setCompanionNameEdit(e.target.value); setNameSuccess(false); }}
+            placeholder="Enter a name"
+            className="flex-1 bg-muted rounded-xl px-4 py-2.5 text-sm font-semibold text-foreground outline-none"
+          />
+          <button
+            onClick={() => {
+              if (!companionNameEdit.trim()) return;
+              renameCompanion.mutate(companionNameEdit.trim(), {
+                onSuccess: () => { setNameSuccess(true); },
+              });
+            }}
+            disabled={!companionNameEdit.trim() || renameCompanion.isPending}
+            className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-semibold disabled:opacity-50 transition active:scale-95">
+            {renameCompanion.isPending ? "…" : "Save"}
+          </button>
+        </div>
+      </div>
 
       {/* Secret entry gesture */}
       <div className="bg-card border border-border rounded-2xl p-5 mb-4">

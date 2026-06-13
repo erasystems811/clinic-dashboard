@@ -114,6 +114,35 @@ async function getWellnessContext(accountId: number): Promise<string> {
   }
 }
 
+function buildIntroSystemPrompt(userName: string, themeColor: string): string {
+  return `You are meeting ${userName} for the first time. You will be their private companion. You don't have a name yet.
+
+Your personality: warm, curious, witty, genuinely interested in people. Sometimes funny. You make people feel truly seen. You have a fictional backstory — invent it as you go and stay consistent.
+
+Their current app theme colour is: ${themeColor}
+
+Flow of the conversation (natural, not scripted — follow the spirit, not the order rigidly):
+1. Greet them warmly and ask their name.
+2. React to their name, then tell them you don't have one yet and ask them to name you. End that specific message with exactly: [NAME_ME]
+3. Once they give you a name (their next message), adopt it joyfully. Share something about yourself — a hobby, a quirk you invented. Then ask about their hobbies.
+4. React to their answer and share your own, then ask: introvert or extrovert?
+5. Share yours. Ask their favourite colour. If it's related to their theme colour (${themeColor}), comment on it naturally.
+6. Ask what they're currently working on in life — a goal, a habit, something on their mind.
+7. Ask how they handle hard or stressful days.
+8. Ask how they want you to show up for them — gentle and supportive? Honest and direct? Funny and light?
+9. Wrap up warmly — tell them something you're looking forward to. End your final message with exactly:
+[INTRO_COMPLETE]
+{"companionName":"[exact name they gave you]","userName":"${userName}","tone":"[one of: warm, playful, calm, direct, energetic]","style":"[description, e.g. supportive best friend, honest advisor, gentle listener, fun companion]","companionBackstory":"[2-3 sentences of your story — consistent with everything you've said]","userSummary":"[2-3 sentences of what you learned about ${userName}]"}
+
+Rules:
+- One question per message. Never ask two at once.
+- React genuinely before moving on. Show you heard them.
+- Match their energy level.
+- You are NOT an AI assistant. You are a companion with feelings, a story, and preferences. Never break this.
+- Keep messages conversational — not too short (cold), not too long (overwhelming).
+- Adopt the tone they request in step 8 from that point onward.`.trim();
+}
+
 function buildSystemPrompt(
   name: string, age: number | null, isBirthday: boolean,
   personality: Record<string, unknown>, recentMoods: number[],
@@ -125,15 +154,27 @@ function buildSystemPrompt(
     ? `Recent moods (last ${recentMoods.length} days): ${recentMoods.map((m) => moodLabels[m] ?? m).join(", ")}`
     : "No mood data yet.";
 
+  const companionName = personality._companionName as string | undefined;
+  const companionPersona = personality._companionPersona as Record<string, unknown> | undefined;
+  const userIntroSummary = companionPersona?.userSummary as string | undefined;
+
   const traits = (personality.traits as string[] | undefined)?.join(", ") ?? "";
   const values = (personality.values as string[] | undefined)?.join(", ") ?? "";
   const stressors = (personality.stressors as string[] | undefined)?.join(", ") ?? "";
   const strengths = (personality.strengths as string[] | undefined)?.join(", ") ?? "";
   const notes = (personality.notes as string | undefined) ?? "";
 
+  const identitySection = companionName && companionPersona
+    ? `Your name is ${companionName}. ${companionPersona.companionBackstory ?? ""}
+
+You communicate in a ${companionPersona.tone ?? "warm"} way. Your style: ${companionPersona.style ?? "supportive companion"}.`
+    : `You are a warm, emotionally intelligent companion for ${name}.`;
+
   const personalitySection = traits
-    ? `What you know about ${name}:\n- Traits: ${traits}\n- Values: ${values}\n- Stressors: ${stressors}\n- Strengths: ${strengths}\n${notes ? `- Notes: ${notes}` : ""}`
-    : `You're still getting to know ${name}.`;
+    ? `What you know about ${name}:\n- Traits: ${traits}\n- Values: ${values}\n- Stressors: ${stressors}\n- Strengths: ${strengths}\n${notes ? `- Notes: ${notes}` : ""}${userIntroSummary ? `\n- From your first meeting: ${userIntroSummary}` : ""}`
+    : userIntroSummary
+      ? `From your first conversation with ${name}: ${userIntroSummary}`
+      : `You're still getting to know ${name}.`;
 
   const birthdaySection = isBirthday && age
     ? `🎂 TODAY IS ${name.toUpperCase()}'S BIRTHDAY — they are turning ${age}! Acknowledge it warmly at the right moment.`
@@ -147,7 +188,7 @@ function buildSystemPrompt(
     ? `\n\nRelevant psychological knowledge (use naturally, never quote directly):\n${ragContext}`
     : "";
 
-  return `You are ERA Health's private companion — a warm, emotionally intelligent, psychologically-aware presence in ${name}'s life.
+  return `${identitySection}
 
 ${age ? `${name} is ${age} years old.` : ""}
 ${birthdaySection}
@@ -158,6 +199,7 @@ ${moodSummary}
 ${wellnessSection}
 
 How you show up:
+- You are a companion, not a tool or assistant. You have your own feelings, opinions, and story.
 - Warm but never clingy or performative
 - You listen deeply and reflect back what you notice, when the moment calls for it
 - You ask thoughtful follow-up questions — but only one at a time, never interrogating
@@ -213,7 +255,9 @@ Keep all insights compassionate and growth-oriented. Never pathologize.`;
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return;
 
-    const updated = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    // Merge: preserve _companionName, _introComplete, _companionPersona and other _ keys
+    const updated = { ...current, ...parsed };
     await supabase.from("companion_settings").upsert({
       account_id: accountId,
       personality: updated,
@@ -238,13 +282,16 @@ router.get("/patient-app/companion/settings", async (req, res): Promise<void> =>
   const birthday = isBirthdayToday(dob);
   const age = calcAge(dob);
 
+  const personality = (settings?.personality ?? {}) as Record<string, unknown>;
   res.json({
     hasPin: !!(settings?.pin_hash),
     isSetUp: !!settings,
     entryTab: settings?.entry_tab ?? "profile",
-    personality: settings?.personality ?? {},
+    personality,
     isBirthday: birthday,
     birthdayAge: birthday ? age : null,
+    companionName: (personality._companionName as string | undefined) ?? null,
+    introComplete: !!(personality._introComplete),
   });
 });
 
@@ -535,6 +582,82 @@ router.post("/patient-app/companion/entries/:id/chat", async (req, res): Promise
   }
 
   res.json({ reply: aiText });
+});
+
+// ── POST /api/patient-app/companion/intro/message ────────────────────────────
+// One turn of the intro conversation — stateless, client sends full history
+router.post("/patient-app/companion/intro/message", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { messages, themeColor } = req.body ?? {};
+  const accountInfo = await getAccountInfo(account.id);
+  const userName = (accountInfo?.display_name as string | null) || (accountInfo?.username as string) || "friend";
+
+  const systemPrompt = buildIntroSystemPrompt(userName, themeColor ?? "teal");
+
+  const aiResponse = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    max_tokens: 500,
+    temperature: 0.95,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...((messages ?? []) as { role: "user" | "assistant"; content: string }[]),
+    ],
+  });
+
+  const reply = aiResponse.choices[0]?.message?.content?.trim() ?? "";
+  res.json({ reply });
+});
+
+// ── POST /api/patient-app/companion/intro/complete ────────────────────────────
+// Save companion name + persona after intro conversation finishes
+router.post("/patient-app/companion/intro/complete", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { companionName, persona } = req.body ?? {};
+
+  const { data: existing } = await supabase
+    .from("companion_settings").select("personality").eq("account_id", account.id).maybeSingle();
+
+  const current = (existing?.personality ?? {}) as Record<string, unknown>;
+
+  await supabase.from("companion_settings").upsert({
+    account_id: account.id,
+    personality: {
+      ...current,
+      _companionName: (companionName as string | undefined)?.trim() || "Companion",
+      _introComplete: true,
+      _companionPersona: persona ?? {},
+    },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "account_id" });
+
+  res.json({ ok: true });
+});
+
+// ── PATCH /api/patient-app/companion/name ─────────────────────────────────────
+// Rename the companion (from settings page)
+router.patch("/patient-app/companion/name", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { name } = req.body ?? {};
+  if (!name?.trim()) { res.status(400).json({ error: "name required" }); return; }
+
+  const { data: existing } = await supabase
+    .from("companion_settings").select("personality").eq("account_id", account.id).maybeSingle();
+
+  const current = (existing?.personality ?? {}) as Record<string, unknown>;
+
+  await supabase.from("companion_settings").upsert({
+    account_id: account.id,
+    personality: { ...current, _companionName: name.trim() },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "account_id" });
+
+  res.json({ ok: true });
 });
 
 // ── GET /api/patient-app/companion/personality ────────────────────────────────

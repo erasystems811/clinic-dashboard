@@ -89,6 +89,8 @@ export interface CompanionSettings {
   personality: Record<string, unknown>;
   isBirthday: boolean;
   birthdayAge: number | null;
+  companionName: string | null;
+  introComplete: boolean;
 }
 
 export interface DiaryEntry {
@@ -117,7 +119,7 @@ export function useCompanionSettings() {
     queryFn: async () => {
       const raw = await get<Omit<CompanionSettings, "gestureElement" | "gestureCount" | "isHidden" | "companionThemeColor" | "companionDarkMode">>(`${BASE}/settings`);
       const g = decodeGesture(raw.entryTab);
-      return { ...raw, gestureElement: g.element, gestureCount: g.count, isHidden: !!g.hidden, companionThemeColor: g.themeColor, companionDarkMode: g.darkMode };
+      return { ...raw, gestureElement: g.element, gestureCount: g.count, isHidden: !!g.hidden, companionThemeColor: g.themeColor, companionDarkMode: g.darkMode, companionName: raw.companionName ?? null, introComplete: raw.introComplete ?? false };
     },
   });
 }
@@ -230,6 +232,37 @@ export function useSendMessage(entryId: number) {
   return useMutation<{ reply: string }, Error, string>({
     mutationFn: (message) => post(`${BASE}/entries/${entryId}/chat`, { message }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ["companion", "entry", entryId] }); void qc.invalidateQueries({ queryKey: ["companion", "personality"] }); },
+  });
+}
+
+// ── Intro conversation ────────────────────────────────────────────────────────
+export async function sendIntroMessage(
+  messages: { role: "user" | "assistant"; content: string }[],
+  themeColor?: string,
+): Promise<string> {
+  const r = await fetch(`${BASE}/intro/message`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ messages, themeColor: themeColor ?? "teal" }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const data = await r.json() as { reply: string };
+  return data.reply;
+}
+
+export function useCompleteIntro() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: boolean }, Error, { companionName: string; persona: Record<string, unknown> }>({
+    mutationFn: (b) => post(`${BASE}/intro/complete`, b),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["companion"] }),
+  });
+}
+
+export function useRenameCompanion() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: boolean }, Error, string>({
+    mutationFn: (name) => patch(`${BASE}/name`, { name }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["companion", "settings"] }),
   });
 }
 

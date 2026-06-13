@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Send, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
@@ -38,7 +38,6 @@ export default function ChatPage() {
   const [failedText, setFailedText] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const { applyCompanionTheme, restoreAppTheme } = useAuth();
 
   useEffect(() => {
@@ -67,35 +66,17 @@ export default function ChatPage() {
     }
   }, [isLoading, entry?.messages, refetch]);
 
-  // Pin the container to the visual viewport so the keyboard never moves the chat.
-  // Rules:
-  //   - `top` and `height` are owned exclusively by this effect (direct DOM mutation).
-  //   - React's `style` prop on the root div must NOT include `top`, `bottom`, or `height`
-  //     so that React re-renders (triggered by user typing) never reset these values.
-  //   - useLayoutEffect runs before paint → zero-lag on mount; the resize handler runs
-  //     synchronously in the event callback → zero-lag on keyboard show/hide.
-  useLayoutEffect(() => {
+  // Scroll to bottom when keyboard opens so latest message stays visible
+  useEffect(() => {
     const vv = window.visualViewport;
-    const el = containerRef.current;
-    if (!vv || !el) return;
+    if (!vv) return;
     let prevH = vv.height;
-
-    function update() {
-      if (!containerRef.current) return;
-      const h = vv!.height;
-      containerRef.current.style.height = `${h}px`;
-      if (h < prevH) {
-        bottomRef.current?.scrollIntoView({ behavior: "instant" });
-      }
-      prevH = h;
+    function onResize() {
+      if (vv!.height < prevH) bottomRef.current?.scrollIntoView({ behavior: "instant" });
+      prevH = vv!.height;
     }
-
-    vv.addEventListener("resize", update);
-    update();
-
-    return () => {
-      vv.removeEventListener("resize", update);
-    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
   }, []);
 
   const messages = entry?.messages ?? [];
@@ -147,9 +128,8 @@ export default function ChatPage() {
     }
   }
 
-  // top: 0 is static — React owns it. JS owns only `height` via the effect above.
   const rootStyle: React.CSSProperties = {
-    position: "fixed", top: 0, left: 0, right: 0,
+    position: "fixed", inset: 0,
     background: "var(--bg-base)",
     display: "flex", flexDirection: "column",
     overflow: "hidden",
@@ -162,7 +142,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div ref={containerRef} style={rootStyle}>
+    <div style={rootStyle}>
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-card shrink-0">
         <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">

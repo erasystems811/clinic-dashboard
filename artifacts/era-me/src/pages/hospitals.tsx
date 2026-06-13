@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Building2, Plus, Search, ArrowLeft, X, ChevronRight, Trash2, MessageCircle, Send, Calendar, CheckCircle2, Star, Clock, RefreshCw } from "lucide-react";
 import {
@@ -473,7 +473,6 @@ function BookingPage({ connection, onBack }: { connection: HospitalConnection; o
 function HospitalChatPage({ connection, onBack }: { connection: HospitalConnection; onBack: () => void }) {
   const [message, setMessage] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: messages = [], isLoading } = useHospitalMessages(connection.connectionId);
   const sendMessage = useSendMessage(connection.connectionId);
@@ -482,24 +481,17 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Same pattern as companion chat: own `top` and `height` via direct DOM mutation.
-  // React must NOT include these in the style prop or it will reset them on every keystroke.
-  useLayoutEffect(() => {
+  // Scroll to bottom when keyboard opens so latest message stays visible
+  useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     let prevH = vv.height;
-
-    function update() {
-      const el = containerRef.current;
-      if (!el) return;
-      el.style.height = `${vv!.height}px`;
+    function onResize() {
       if (vv!.height < prevH) bottomRef.current?.scrollIntoView({ behavior: "instant" });
       prevH = vv!.height;
     }
-
-    vv.addEventListener("resize", update);
-    update();
-    return () => vv.removeEventListener("resize", update);
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
   }, []);
 
   function handleSend() {
@@ -510,7 +502,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
   }
 
   return (
-    <div ref={containerRef} style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--bg-base)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "var(--bg-base)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="px-4 pt-6 pb-4 flex items-center gap-3 shrink-0"
         style={{ borderBottom: "1px solid var(--glass-border)" }}>
         <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-xl active:scale-90 transition"

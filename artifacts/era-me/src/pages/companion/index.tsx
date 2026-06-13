@@ -36,8 +36,8 @@ export default function CompanionGate() {
   }
 
   return (
-    <div style={{ background: "var(--bg-base)", minHeight: "100vh" }}>
-      <div className="max-w-md mx-auto shadow-2xl" style={{ minHeight: "100vh" }}>
+    <div className="fixed inset-0 overflow-hidden" style={{ background: "var(--bg-base)" }}>
+      <div className="max-w-md mx-auto h-full flex flex-col shadow-2xl">
         {content}
       </div>
     </div>
@@ -97,7 +97,7 @@ function CompanionHome({ account, isBirthday, birthdayAge }: {
   ];
 
   return (
-    <div className="flex flex-col" style={{ minHeight: "100vh" }}>
+    <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-5 pt-6 pb-0 shrink-0">
         <div className="flex items-center justify-between mb-3">
@@ -136,7 +136,7 @@ function CompanionHome({ account, isBirthday, birthdayAge }: {
       </div>
 
       {/* Tab content — scrollable */}
-      <div className="flex-1 overflow-y-auto px-5 pt-4 pb-8">
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-4 pb-8">
         {tab === "me" && (
           <MeTab account={account} age={age} entries={entries ?? []} personalityData={personalityData}
             onSwitchToChat={() => setTab("chat")} />
@@ -535,7 +535,7 @@ function SetupScreen({ accountId }: { accountId: number }) {
 
   if (step === "intro") {
     return (
-      <div className="px-5 pt-16 pb-8 flex flex-col items-center text-center">
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-16 pb-8 flex flex-col items-center text-center">
         <div className="text-6xl mb-6">📔</div>
         <h1 className="text-2xl font-bold text-foreground mb-3">Your private diary</h1>
         <p className="text-muted-foreground text-sm leading-relaxed mb-8 max-w-sm">
@@ -565,7 +565,7 @@ function SetupScreen({ accountId }: { accountId: number }) {
 
   if (step === "pin") {
     return (
-      <div className="px-5 pt-6 pb-8">
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-6 pb-8">
         <button onClick={() => setStep("intro")} className="flex items-center gap-1.5 text-muted-foreground mb-8 -ml-1">
           <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
         </button>
@@ -584,7 +584,7 @@ function SetupScreen({ accountId }: { accountId: number }) {
   }
 
   return (
-    <div className="px-5 pt-6 pb-8">
+    <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-6 pb-8">
       <button onClick={() => setStep("pin")} className="flex items-center gap-1.5 text-muted-foreground mb-8 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
@@ -679,7 +679,7 @@ function PinScreen({ accountId, onUnlock }: { accountId: number; onUnlock: () =>
   function handleDelete() { setPin((p) => p.slice(0, -1)); }
 
   return (
-    <div className="px-5 pt-6 pb-8 flex flex-col items-center">
+    <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-6 pb-8 flex flex-col items-center">
       <button onClick={() => window.history.back()} className="self-start flex items-center gap-1.5 text-muted-foreground mb-8 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>

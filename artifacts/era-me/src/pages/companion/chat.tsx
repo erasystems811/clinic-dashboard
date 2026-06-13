@@ -37,15 +37,17 @@ export default function ChatPage() {
     if (!text || sendMessage.isPending) return;
     setInput("");
 
-    setOptimisticMessages((p) => [...p, { role: "user", content: text, temp: true }]);
+    setOptimisticMessages((p) => [...p, { role: "user" as const, content: text, temp: true }]);
 
     sendMessage.mutate(text, {
       onSuccess: async ({ reply }) => {
-        setOptimisticMessages([]);
+        // Confirm the user message + show AI reply immediately — no flash
+        setOptimisticMessages((p) => [
+          ...p.map((m) => ({ ...m, temp: false })),
+          { role: "assistant" as const, content: reply },
+        ]);
         await refetch();
-        setOptimisticMessages((p) => [...p.filter((m) => !m.temp)]);
-        // Temporarily show reply before refetch settles
-        void reply; // already in DB, refetch will get it
+        setOptimisticMessages([]);
       },
       onError: () => {
         setOptimisticMessages((p) => p.filter((m) => !m.temp));
@@ -60,13 +62,19 @@ export default function ChatPage() {
     }
   }
 
-  if (isLoading) return <div className="flex items-center justify-center min-h-screen"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  const pageStyle = { background: "var(--bg-base)", minHeight: "100vh" } as const;
+
+  if (isLoading) return (
+    <div style={pageStyle} className="flex items-center justify-center">
+      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
   return (
-    <div className="flex flex-col h-screen max-h-screen bg-background">
+    <div style={pageStyle} className="flex flex-col h-screen max-h-screen">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-card shrink-0">
-        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
+        <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2 flex-1 min-w-0">

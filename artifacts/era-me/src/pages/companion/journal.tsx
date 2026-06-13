@@ -13,6 +13,8 @@ const MOODS = [
   { v: 5, emoji: "😄", label: "Great" },
 ];
 
+const pageStyle = { background: "var(--bg-base)", minHeight: "100vh" } as const;
+
 export function NewJournalPage() {
   const [, navigate] = useLocation();
   const { account } = useAuth();
@@ -34,9 +36,9 @@ export function NewJournalPage() {
   }
 
   return (
-    <div className="px-5 pt-6 pb-8">
-      <div className="flex items-center justify-between mb-6">
-        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
+    <div style={pageStyle} className="px-5 pt-6 pb-8">
+      <div className="flex items-center justify-between mb-5">
+        <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
           <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
         </button>
         <button onClick={handleSave} disabled={!content.trim() || saveJournal.isPending}
@@ -45,12 +47,9 @@ export function NewJournalPage() {
         </button>
       </div>
 
-      <input value={title} onChange={(e) => setTitle(e.target.value)}
-        placeholder="Title (optional)"
-        className="w-full bg-transparent text-lg font-semibold text-foreground outline-none mb-3 placeholder:text-muted-foreground" />
-
+      {/* How are you feeling */}
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">How are you feeling?</p>
-      <div className="flex gap-2 mb-5">
+      <div className="flex gap-2 mb-4">
         {MOODS.map((m) => (
           <button key={m.v} onClick={() => setMood(mood === m.v ? 0 : m.v)}
             className={cn("flex-1 flex flex-col items-center gap-0.5 py-2 rounded-xl transition",
@@ -61,9 +60,15 @@ export function NewJournalPage() {
         ))}
       </div>
 
-      <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={14}
-        placeholder="Write freely. This space is only yours."
-        className="w-full bg-transparent text-foreground text-sm leading-relaxed outline-none resize-none placeholder:text-muted-foreground" />
+      {/* Writing card */}
+      <div className="bg-card border border-border rounded-2xl px-4 pt-4 pb-5">
+        <input value={title} onChange={(e) => setTitle(e.target.value)}
+          placeholder="Give it a title… (optional)"
+          className="w-full bg-transparent text-base font-semibold text-foreground outline-none mb-3 placeholder:text-muted-foreground border-b border-border pb-3" />
+        <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={12}
+          placeholder="Write freely. This space is only yours."
+          className="w-full bg-transparent text-foreground text-sm leading-relaxed outline-none resize-none placeholder:text-muted-foreground" />
+      </div>
     </div>
   );
 }
@@ -99,15 +104,24 @@ export function JournalViewPage() {
     });
   }
 
-  if (isLoading) return <div className="flex items-center justify-center min-h-screen"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
-  if (!entry) return <div className="px-5 pt-6"><p className="text-muted-foreground">Entry not found.</p></div>;
+  if (isLoading) return (
+    <div style={pageStyle} className="flex items-center justify-center">
+      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  if (!entry) return (
+    <div style={pageStyle} className="px-5 pt-6">
+      <p className="text-muted-foreground">Entry not found.</p>
+    </div>
+  );
 
   const dateStr = new Date(entry.createdAt).toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const moodEmoji = entry.mood ? MOODS[entry.mood - 1]?.emoji : null;
 
   if (editing) {
     return (
-      <div className="px-5 pt-6 pb-8">
+      <div style={pageStyle} className="px-5 pt-6 pb-8">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => setEditing(false)} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
             <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Cancel</span>
@@ -117,9 +131,6 @@ export function JournalViewPage() {
             <Save className="w-4 h-4" />{update.isPending ? "Saving…" : "Save"}
           </button>
         </div>
-        <input value={title} onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title (optional)"
-          className="w-full bg-transparent text-lg font-semibold text-foreground outline-none mb-3 placeholder:text-muted-foreground" />
         <div className="flex gap-2 mb-5">
           {MOODS.map((m) => (
             <button key={m.v} onClick={() => setMood(mood === m.v ? 0 : m.v)}
@@ -129,16 +140,21 @@ export function JournalViewPage() {
             </button>
           ))}
         </div>
-        <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={14}
-          className="w-full bg-transparent text-foreground text-sm leading-relaxed outline-none resize-none" />
+        <div className="bg-card border border-border rounded-2xl px-4 pt-4 pb-5">
+          <input value={title} onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title (optional)"
+            className="w-full bg-transparent text-base font-semibold text-foreground outline-none mb-3 placeholder:text-muted-foreground border-b border-border pb-3" />
+          <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={12}
+            className="w-full bg-transparent text-foreground text-sm leading-relaxed outline-none resize-none" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="px-5 pt-6 pb-8">
+    <div style={pageStyle} className="px-5 pt-6 pb-8">
       <div className="flex items-center justify-between mb-6">
-        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
+        <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
           <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
         </button>
         <button onClick={() => setEditing(true)} className="text-sm font-semibold text-primary">Edit</button>
@@ -147,7 +163,10 @@ export function JournalViewPage() {
       <p className="text-xs text-muted-foreground mb-1">{dateStr}</p>
       {moodEmoji && <span className="text-2xl mb-3 block">{moodEmoji}</span>}
       {entry.title && <h1 className="text-xl font-bold text-foreground mb-4">{entry.title}</h1>}
-      <p className="text-foreground text-sm leading-relaxed whitespace-pre-wrap">{entry.content}</p>
+
+      <div className="bg-card border border-border rounded-2xl px-4 py-5">
+        <p className="text-foreground text-sm leading-relaxed whitespace-pre-wrap">{entry.content}</p>
+      </div>
     </div>
   );
 }

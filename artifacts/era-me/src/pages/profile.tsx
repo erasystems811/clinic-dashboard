@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -62,23 +62,6 @@ export default function ProfilePage() {
   const [fbMessage, setFbMessage] = useState("");
   const [fbLoading, setFbLoading] = useState(false);
   const [fbDone, setFbDone] = useState(false);
-  const fbOverlayRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    if (!showFeedback) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    function update() {
-      const el = fbOverlayRef.current;
-      if (!el) return;
-      el.style.height = `${vv!.height}px`;
-      el.style.top    = `${vv!.offsetTop}px`;
-    }
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    update();
-    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
-  }, [showFeedback]);
 
   async function submitFeedback() {
     if (!fbMessage.trim()) return;
@@ -102,23 +85,6 @@ export default function ProfilePage() {
   const [pwdOk, setPwdOk] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
 
-  // Change password modal — visualViewport tracks keyboard so the sheet doesn't hide behind it
-  const pwdOverlayRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (!showPwd) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    function update() {
-      const el = pwdOverlayRef.current;
-      if (!el) return;
-      el.style.height = `${vv!.height}px`;
-      el.style.top    = `${vv!.offsetTop}px`;
-    }
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    update();
-    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
-  }, [showPwd]);
 
   async function handleChangePassword() {
     setPwdError("");
@@ -288,15 +254,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* My Companion / Diary */}
-      {!isCompanionHidden() && (
-        <Section title="Private">
-          <div className="space-y-1">
-            <SettingsRow label="My Diary" sublabel="Journal, chats & secret settings" onClick={() => navigate("/companion")} />
-          </div>
-        </Section>
-      )}
-
       {/* Premium Feature Cards */}
       <ProfileFeatureCards />
 
@@ -325,131 +282,142 @@ export default function ProfilePage() {
 
     {/* Feedback modal */}
     {showFeedback && (
-      <div ref={fbOverlayRef} className="fixed left-0 right-0 z-50 flex items-end justify-center"
+      <div className="fixed inset-0 z-50 flex items-end justify-center"
         style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
-        <div className="w-full max-w-md rounded-t-3xl p-6 overflow-y-auto"
-          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "100%" }}>
-          <div className="flex items-center justify-between mb-5">
+        <div className="w-full max-w-md rounded-t-3xl flex flex-col"
+          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "90dvh" }}>
+
+          {/* Fixed header — never scrolls */}
+          <div className="flex items-center justify-between px-6 pt-5 pb-4 shrink-0"
+            style={{ borderBottom: "1px solid var(--glass-border)" }}>
             <p className="font-bold text-base" style={{ color: "var(--text-main)" }}>Send Feedback</p>
             <button onClick={() => setShowFeedback(false)} className="text-xl leading-none" style={{ color: "var(--text-dim)" }}>✕</button>
           </div>
 
-          {fbDone ? (
-            <div className="flex flex-col items-center py-6 gap-3">
-              <p style={{ fontSize: 40 }}>🙏</p>
-              <p className="font-semibold text-center" style={{ color: "var(--text-main)" }}>Thank you for your feedback!</p>
-            </div>
-          ) : (
-            <>
-              {/* Star rating */}
-              <div className="mb-4">
-                <p className="text-xs font-medium mb-2" style={{ color: "var(--text-sub)" }}>How are you finding ERA Health?</p>
-                <div className="flex gap-2">
-                  {[1,2,3,4,5].map((s) => (
-                    <button key={s} onClick={() => setFbRating(s === fbRating ? 0 : s)}
-                      className="text-2xl transition active:scale-110"
-                      style={{ opacity: fbRating === 0 || s <= fbRating ? 1 : 0.35 }}>
-                      ⭐
-                    </button>
-                  ))}
+          {/* Scrollable body */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain" }}>
+            {fbDone ? (
+              <div className="flex flex-col items-center py-6 gap-3">
+                <p style={{ fontSize: 40 }}>🙏</p>
+                <p className="font-semibold text-center" style={{ color: "var(--text-main)" }}>Thank you for your feedback!</p>
+              </div>
+            ) : (
+              <>
+                {/* Star rating */}
+                <div className="mb-4">
+                  <p className="text-xs font-medium mb-2" style={{ color: "var(--text-sub)" }}>How are you finding ERA Health?</p>
+                  <div className="flex gap-2">
+                    {[1,2,3,4,5].map((s) => (
+                      <button key={s} onClick={() => setFbRating(s === fbRating ? 0 : s)}
+                        className="text-2xl transition active:scale-110"
+                        style={{ opacity: fbRating === 0 || s <= fbRating ? 1 : 0.35 }}>
+                        ⭐
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Category */}
-              <div className="mb-4">
-                <p className="text-xs font-medium mb-2" style={{ color: "var(--text-sub)" }}>Category</p>
-                <div className="flex flex-wrap gap-2">
-                  {(["general", "praise", "feature", "bug"] as const).map((c) => (
-                    <button key={c} onClick={() => setFbCategory(c)}
-                      className="px-3 py-1.5 rounded-xl text-xs font-semibold transition active:scale-95"
-                      style={{
-                        background: fbCategory === c ? "var(--accent-tint-bg)" : "var(--glass-bg)",
-                        border: fbCategory === c ? "1.5px solid var(--accent)" : "1.5px solid var(--glass-border)",
-                        color: fbCategory === c ? "var(--accent)" : "var(--text-sub)",
-                      }}>
-                      {c === "general" ? "General" : c === "praise" ? "Love it" : c === "feature" ? "Feature idea" : "Bug report"}
-                    </button>
-                  ))}
+                {/* Category */}
+                <div className="mb-4">
+                  <p className="text-xs font-medium mb-2" style={{ color: "var(--text-sub)" }}>Category</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(["general", "praise", "feature", "bug"] as const).map((c) => (
+                      <button key={c} onClick={() => setFbCategory(c)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-semibold transition active:scale-95"
+                        style={{
+                          background: fbCategory === c ? "var(--accent-tint-bg)" : "var(--glass-bg)",
+                          border: fbCategory === c ? "1.5px solid var(--accent)" : "1.5px solid var(--glass-border)",
+                          color: fbCategory === c ? "var(--accent)" : "var(--text-sub)",
+                        }}>
+                        {c === "general" ? "General" : c === "praise" ? "Love it" : c === "feature" ? "Feature idea" : "Bug report"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Message */}
-              <div className="mb-5">
-                <p className="text-xs font-medium mb-2" style={{ color: "var(--text-sub)" }}>Your message</p>
-                <textarea value={fbMessage} onChange={(e) => setFbMessage(e.target.value)} rows={4}
-                  placeholder="Tell us what you think…"
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
-                  style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
-              </div>
+                {/* Message */}
+                <div className="mb-5">
+                  <p className="text-xs font-medium mb-2" style={{ color: "var(--text-sub)" }}>Your message</p>
+                  <textarea value={fbMessage} onChange={(e) => setFbMessage(e.target.value)} rows={4}
+                    placeholder="Tell us what you think…"
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
+                    style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
+                </div>
 
-              <button onClick={() => void submitFeedback()}
-                disabled={fbLoading || !fbMessage.trim()}
-                className="w-full py-3.5 rounded-2xl font-bold text-sm transition active:scale-95 disabled:opacity-50"
-                style={{ background: "var(--accent)", color: "#fff" }}>
-                {fbLoading ? "Sending…" : "Submit Feedback"}
-              </button>
-            </>
-          )}
+                <button onClick={() => void submitFeedback()}
+                  disabled={fbLoading || !fbMessage.trim()}
+                  className="w-full py-3.5 rounded-2xl font-bold text-sm transition active:scale-95 disabled:opacity-50"
+                  style={{ background: "var(--accent)", color: "#fff" }}>
+                  {fbLoading ? "Sending…" : "Submit Feedback"}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     )}
 
-    {/* Change password modal — overlay is pinned to the visual viewport via ref+useLayoutEffect
-        so the sheet stays just above the keyboard on iOS (same pattern as companion chat) */}
+    {/* Change password modal */}
     {showPwd && (
-      <div ref={pwdOverlayRef} className="fixed left-0 right-0 z-50 flex items-end justify-center"
+      <div className="fixed inset-0 z-50 flex items-end justify-center"
         style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
-        <div className="w-full max-w-md rounded-t-3xl p-6 overflow-y-auto"
-          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "100%" }}>
-          <div className="flex items-center justify-between mb-5">
+        <div className="w-full max-w-md rounded-t-3xl flex flex-col"
+          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "90dvh" }}>
+
+          {/* Fixed header — never scrolls */}
+          <div className="flex items-center justify-between px-6 pt-5 pb-4 shrink-0"
+            style={{ borderBottom: "1px solid var(--glass-border)" }}>
             <p className="font-bold text-base" style={{ color: "var(--text-main)" }}>Change Password</p>
             <button onClick={() => setShowPwd(false)}
               className="text-xl leading-none"
               style={{ color: "var(--text-dim)" }}>✕</button>
           </div>
 
-          <div className="space-y-3">
-            {(["Current password", "New password", "Confirm new password"] as const).map((lbl, i) => {
-              const val = i === 0 ? pwdCurrent : i === 1 ? pwdNew : pwdConfirm;
-              const set = i === 0 ? setPwdCurrent : i === 1 ? setPwdNew : setPwdConfirm;
-              return (
-                <div key={lbl}>
-                  <p className="text-xs mb-1 font-medium" style={{ color: "var(--text-sub)" }}>{lbl}</p>
-                  <input
-                    type="password"
-                    value={val}
-                    onChange={(e) => set(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                    style={{
-                      background: "var(--glass-bg)",
-                      border: "1px solid var(--glass-border)",
-                      color: "var(--text-main)",
-                    }}
-                  />
-                </div>
-              );
-            })}
+          {/* Scrollable body */}
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain" }}>
+            <div className="space-y-3">
+              {(["Current password", "New password", "Confirm new password"] as const).map((lbl, i) => {
+                const val = i === 0 ? pwdCurrent : i === 1 ? pwdNew : pwdConfirm;
+                const set = i === 0 ? setPwdCurrent : i === 1 ? setPwdNew : setPwdConfirm;
+                return (
+                  <div key={lbl}>
+                    <p className="text-xs mb-1 font-medium" style={{ color: "var(--text-sub)" }}>{lbl}</p>
+                    <input
+                      type="password"
+                      value={val}
+                      onChange={(e) => set(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                      style={{
+                        background: "var(--glass-bg)",
+                        border: "1px solid var(--glass-border)",
+                        color: "var(--text-main)",
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {pwdError && (
+              <p className="text-xs mt-3 font-medium" style={{ color: "#f87171" }}>{pwdError}</p>
+            )}
+            {pwdOk && (
+              <p className="text-xs mt-3 font-medium" style={{ color: "#4ade80" }}>Password changed successfully!</p>
+            )}
+
+            <button
+              onClick={() => { void handleChangePassword(); }}
+              disabled={pwdLoading || !pwdCurrent || !pwdNew || !pwdConfirm}
+              className="w-full mt-5 py-3.5 rounded-2xl font-bold text-sm transition active:scale-95"
+              style={{
+                background: "var(--accent)",
+                color: "#fff",
+                opacity: pwdLoading || !pwdCurrent || !pwdNew || !pwdConfirm ? 0.5 : 1,
+              }}>
+              {pwdLoading ? "Saving…" : "Update Password"}
+            </button>
           </div>
-
-          {pwdError && (
-            <p className="text-xs mt-3 font-medium" style={{ color: "#f87171" }}>{pwdError}</p>
-          )}
-          {pwdOk && (
-            <p className="text-xs mt-3 font-medium" style={{ color: "#4ade80" }}>Password changed successfully!</p>
-          )}
-
-          <button
-            onClick={() => { void handleChangePassword(); }}
-            disabled={pwdLoading || !pwdCurrent || !pwdNew || !pwdConfirm}
-            className="w-full mt-5 py-3.5 rounded-2xl font-bold text-sm transition active:scale-95"
-            style={{
-              background: "var(--accent)",
-              color: "#fff",
-              opacity: pwdLoading || !pwdCurrent || !pwdNew || !pwdConfirm ? 0.5 : 1,
-            }}>
-            {pwdLoading ? "Saving…" : "Update Password"}
-          </button>
         </div>
       </div>
     )}
@@ -498,54 +466,27 @@ function ProfileFeatureCards() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
-        {/* Weight Loss Coach — hero card */}
+        {/* ── 1. WEIGHT LOSS COACH — hero ── */}
         <Link href="/weightloss">
           <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.985] transition"
-            style={{
-              background: "linear-gradient(135deg, #030d07 0%, #052e16 35%, #064e3b 70%, #065f46 100%)",
-              border: "1px solid rgba(16,185,129,0.3)",
-              boxShadow: "0 6px 32px rgba(16,185,129,0.18)",
-            }}>
-            {/* Top-right glow */}
+            style={{ background: "linear-gradient(135deg, #030d07 0%, #052e16 35%, #064e3b 70%, #065f46 100%)", border: "1px solid rgba(16,185,129,0.3)", boxShadow: "0 6px 32px rgba(16,185,129,0.18)" }}>
             <div className="absolute top-0 right-0 pointer-events-none"
-              style={{
-                width: 180, height: 180,
-                background: "radial-gradient(circle, rgba(16,185,129,0.28) 0%, transparent 65%)",
-                transform: "translate(35%, -35%)",
-                filter: "blur(6px)",
-              }} />
-            {/* Bottom-left secondary glow */}
+              style={{ width: 190, height: 190, background: "radial-gradient(circle, rgba(16,185,129,0.28) 0%, transparent 63%)", transform: "translate(38%,-38%)", filter: "blur(7px)" }} />
             <div className="absolute bottom-0 left-0 pointer-events-none"
-              style={{
-                width: 100, height: 100,
-                background: "radial-gradient(circle, rgba(52,211,153,0.12) 0%, transparent 70%)",
-                transform: "translate(-30%, 30%)",
-              }} />
-
+              style={{ width: 110, height: 110, background: "radial-gradient(circle, rgba(52,211,153,0.1) 0%, transparent 70%)", transform: "translate(-28%,28%)" }} />
             <div className="relative" style={{ padding: "18px 18px 14px" }}>
-              {/* Badge + icon row */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.32)" }}>
                   <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#10b981", display: "inline-block", boxShadow: "0 0 5px #10b981" }} />
                   <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: "#10b981" }}>COACH-GUIDED</span>
                 </div>
-                <div className="relative" style={{ flexShrink: 0 }}>
+                <div style={{ flexShrink: 0, position: "relative" }}>
                   <div style={{ position: "absolute", inset: 0, borderRadius: 14, background: "#10b981", filter: "blur(10px)", opacity: 0.35, transform: "scale(1.1)" }} />
-                  <div style={{ position: "relative", width: 46, height: 46, borderRadius: 14, background: "linear-gradient(135deg, #34d399, #10b981)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>
-                    🏋️
-                  </div>
+                  <div style={{ position: "relative", width: 46, height: 46, borderRadius: 14, background: "linear-gradient(135deg,#34d399,#10b981)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🏋️</div>
                 </div>
               </div>
-
-              {/* Title + desc */}
-              <p style={{ fontSize: 21, fontWeight: 900, color: "#fff", lineHeight: 1.2, marginBottom: 5 }}>
-                Weight Loss<br />Coach
-              </p>
-              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.48)", lineHeight: 1.6, maxWidth: 220 }}>
-                Personalised meal plans · Nigerian food calorie calculator · daily accountability & rewards
-              </p>
-
-              {/* CTA */}
+              <p style={{ fontSize: 21, fontWeight: 900, color: "#fff", lineHeight: 1.2, marginBottom: 5 }}>Weight Loss<br />Coach</p>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.48)", lineHeight: 1.65, maxWidth: 220 }}>Personalised meal plans · Nigerian food calorie calculator · daily accountability & rewards</p>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(16,185,129,0.15)" }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#10b981" }}>Open coach</span>
                 <ChevronRight style={{ width: 14, height: 14, color: "#10b981" }} />
@@ -554,29 +495,88 @@ function ProfileFeatureCards() {
           </div>
         </Link>
 
-        {/* 2-column: Women's Health + Social */}
+        {/* ── 2. MY DIARY & COMPANION — full-width hero ── */}
+        <Link href="/companion">
+          <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.985] transition"
+            style={{ background: "linear-gradient(135deg, #06020f 0%, #130528 35%, #1e0845 65%, #2a0d5e 100%)", border: "1px solid rgba(139,92,246,0.32)", boxShadow: "0 6px 32px rgba(139,92,246,0.2)" }}>
+            <div className="absolute top-0 right-0 pointer-events-none"
+              style={{ width: 190, height: 190, background: "radial-gradient(circle, rgba(139,92,246,0.3) 0%, transparent 63%)", transform: "translate(38%,-38%)", filter: "blur(8px)" }} />
+            <div className="absolute bottom-0 left-0 pointer-events-none"
+              style={{ width: 110, height: 110, background: "radial-gradient(circle, rgba(167,139,250,0.08) 0%, transparent 70%)", transform: "translate(-28%,28%)" }} />
+            {/* Star speckles */}
+            <div className="absolute inset-0 pointer-events-none" style={{ overflow: "hidden" }}>
+              {([[18,20],[60,12],[85,40],[38,62],[74,70],[26,82],[90,52],[50,30],[10,50]] as [number,number][]).map(([x,y],i) => (
+                <span key={i} style={{ position: "absolute", left: `${x}%`, top: `${y}%`, width: i%3===0?2:1.5, height: i%3===0?2:1.5, borderRadius: "50%", background: "rgba(167,139,250,0.45)", display: "block" }} />
+              ))}
+            </div>
+            <div className="relative" style={{ padding: "18px 18px 14px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(139,92,246,0.18)", border: "1px solid rgba(139,92,246,0.35)" }}>
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#8b5cf6", display: "inline-block", boxShadow: "0 0 6px #8b5cf6" }} />
+                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: "#a78bfa" }}>PRIVATE · YOURS ONLY</span>
+                </div>
+                <div style={{ flexShrink: 0, position: "relative" }}>
+                  <div style={{ position: "absolute", inset: 0, borderRadius: 14, background: "#7c3aed", filter: "blur(11px)", opacity: 0.4, transform: "scale(1.12)" }} />
+                  <div style={{ position: "relative", width: 46, height: 46, borderRadius: 14, background: "linear-gradient(135deg,#a78bfa,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>📓</div>
+                </div>
+              </div>
+              <p style={{ fontSize: 21, fontWeight: 900, color: "#fff", lineHeight: 1.2, marginBottom: 5 }}>
+                My Diary<br /><span style={{ fontSize: 15, fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>& Companion</span>
+              </p>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.65, maxWidth: 220 }}>Your private space — journal entries, personal chats & reflections only you can read</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(139,92,246,0.18)" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#a78bfa" }}>Open diary</span>
+                <ChevronRight style={{ width: 14, height: 14, color: "#a78bfa" }} />
+              </div>
+            </div>
+          </div>
+        </Link>
+
+        {/* ── 3. WOMEN'S HEALTH — full-width ── */}
+        <Link href="/womens-health">
+          <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.985] transition"
+            style={{ background: "linear-gradient(135deg, #0f0208 0%, #3b0a24 35%, #7c1040 70%, #9d174d 100%)", border: "1px solid rgba(244,114,182,0.3)", boxShadow: "0 6px 32px rgba(236,72,153,0.2)" }}>
+            <div className="absolute top-0 right-0 pointer-events-none"
+              style={{ width: 190, height: 190, background: "radial-gradient(circle, rgba(244,114,182,0.32) 0%, transparent 63%)", transform: "translate(38%,-38%)", filter: "blur(8px)" }} />
+            <div className="absolute bottom-0 left-0 pointer-events-none"
+              style={{ width: 110, height: 110, background: "radial-gradient(circle, rgba(251,113,133,0.08) 0%, transparent 70%)", transform: "translate(-28%,28%)" }} />
+            <div className="relative" style={{ padding: "18px 18px 14px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(244,114,182,0.15)", border: "1px solid rgba(244,114,182,0.32)" }}>
+                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#f472b6", display: "inline-block", boxShadow: "0 0 5px #f472b6" }} />
+                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: "#f472b6" }}>CYCLE TRACKING</span>
+                </div>
+                <div style={{ flexShrink: 0, position: "relative" }}>
+                  <div style={{ position: "absolute", inset: 0, borderRadius: 14, background: "#be185d", filter: "blur(10px)", opacity: 0.4, transform: "scale(1.1)" }} />
+                  <div style={{ position: "relative", width: 46, height: 46, borderRadius: 14, background: "linear-gradient(135deg,#f9a8d4,#ec4899)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🌸</div>
+                </div>
+              </div>
+              <p style={{ fontSize: 21, fontWeight: 900, color: "#fff", lineHeight: 1.2, marginBottom: 5 }}>Women's<br />Health</p>
+              <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", lineHeight: 1.65, maxWidth: 220 }}>Cycle tracking · hormones · fertility insights & personalised care</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(244,114,182,0.15)" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#f9a8d4" }}>Track cycle</span>
+                <ChevronRight style={{ width: 14, height: 14, color: "#f9a8d4" }} />
+              </div>
+            </div>
+          </div>
+        </Link>
+
+        {/* ── 4 & 5. SEX LIFE + SOCIAL (2-col) ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
 
-          {/* Women's Health */}
-          <Link href="/womens-health">
+          {/* Sex Life */}
+          <Link href="/intimacy">
             <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.97] transition"
-              style={{
-                background: "linear-gradient(160deg, #3b0a1e 0%, #7c1040 45%, #9d174d 100%)",
-                border: "1px solid rgba(236,72,153,0.28)",
-                boxShadow: "0 5px 24px rgba(236,72,153,0.18)",
-                minHeight: 145,
-              }}>
+              style={{ background: "linear-gradient(160deg, #130008 0%, #4c0519 45%, #7f1d1d 100%)", border: "1px solid rgba(251,113,133,0.28)", boxShadow: "0 5px 22px rgba(239,68,68,0.18)", minHeight: 148 }}>
               <div className="absolute top-0 right-0 pointer-events-none"
-                style={{ width: 80, height: 80, background: "radial-gradient(circle, rgba(244,114,182,0.45) 0%, transparent 70%)", transform: "translate(25%, -25%)" }} />
+                style={{ width: 80, height: 80, background: "radial-gradient(circle, rgba(251,113,133,0.42) 0%, transparent 70%)", transform: "translate(25%,-25%)" }} />
               <div className="relative" style={{ padding: 15 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(244,114,182,0.2)", border: "1px solid rgba(244,114,182,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, marginBottom: 10 }}>
-                  🌸
-                </div>
-                <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", lineHeight: 1.3 }}>Women's<br />Health</p>
-                <p style={{ fontSize: 10, color: "rgba(255,255,255,0.42)", marginTop: 4, lineHeight: 1.5 }}>Cycle · hormones<br />& fertility</p>
+                <div style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(251,113,133,0.18)", border: "1px solid rgba(251,113,133,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, marginBottom: 10 }}>🌹</div>
+                <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", lineHeight: 1.3 }}>Sex<br />Life</p>
+                <p style={{ fontSize: 10, color: "rgba(255,255,255,0.42)", marginTop: 4, lineHeight: 1.5 }}>Intimacy · drive<br />& connection</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 10 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#f472b6" }}>Track</span>
-                  <ChevronRight style={{ width: 11, height: 11, color: "#f472b6" }} />
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#fca5a5" }}>Explore</span>
+                  <ChevronRight style={{ width: 11, height: 11, color: "#fca5a5" }} />
                 </div>
               </div>
             </div>
@@ -585,18 +585,11 @@ function ProfileFeatureCards() {
           {/* Social Health */}
           <Link href="/social">
             <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.97] transition"
-              style={{
-                background: "linear-gradient(160deg, #030712 0%, #1e3a8a 45%, #1d4ed8 100%)",
-                border: "1px solid rgba(59,130,246,0.28)",
-                boxShadow: "0 5px 24px rgba(59,130,246,0.16)",
-                minHeight: 145,
-              }}>
+              style={{ background: "linear-gradient(160deg, #030712 0%, #1e3a8a 45%, #1d4ed8 100%)", border: "1px solid rgba(59,130,246,0.28)", boxShadow: "0 5px 22px rgba(59,130,246,0.16)", minHeight: 148 }}>
               <div className="absolute top-0 right-0 pointer-events-none"
-                style={{ width: 80, height: 80, background: "radial-gradient(circle, rgba(96,165,250,0.4) 0%, transparent 70%)", transform: "translate(25%, -25%)" }} />
+                style={{ width: 80, height: 80, background: "radial-gradient(circle, rgba(96,165,250,0.4) 0%, transparent 70%)", transform: "translate(25%,-25%)" }} />
               <div className="relative" style={{ padding: 15 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(96,165,250,0.2)", border: "1px solid rgba(96,165,250,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, marginBottom: 10 }}>
-                  👥
-                </div>
+                <div style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(96,165,250,0.2)", border: "1px solid rgba(96,165,250,0.35)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, marginBottom: 10 }}>👥</div>
                 <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", lineHeight: 1.3 }}>Social<br />Health</p>
                 <p style={{ fontSize: 10, color: "rgba(255,255,255,0.42)", marginTop: 4, lineHeight: 1.5 }}>Partner · groups<br />& community</p>
                 <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 10 }}>
@@ -607,25 +600,6 @@ function ProfileFeatureCards() {
             </div>
           </Link>
         </div>
-
-        {/* Hospitals — slim discovery row */}
-        <Link href="/hospitals">
-          <div className="relative rounded-2xl overflow-hidden cursor-pointer active:scale-[0.985] transition"
-            style={{ background: "linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.9) 100%)", border: "1px solid rgba(148,163,184,0.14)" }}>
-            <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
-              style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px" }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: "rgba(239,68,68,0.14)", border: "1px solid rgba(239,68,68,0.22)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>
-                🏥
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", lineHeight: 1.3 }}>Hospitals & Clinics</p>
-                <p style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 1 }}>Find & book appointments near you</p>
-              </div>
-              <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)", flexShrink: 0, opacity: 0.45 }} />
-            </div>
-          </div>
-        </Link>
 
       </div>
     </div>

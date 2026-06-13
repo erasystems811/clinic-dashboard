@@ -433,11 +433,11 @@ export default function HomePage() {
                             </span>
                           )}
                         </div>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none", lineHeight: 1.3 }}>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none", lineHeight: 1.3 }}>
                           {item.label}
                         </p>
                         {item.sub && (
-                          <p style={{ fontSize: 10, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1, lineHeight: 1.3 }}>
+                          <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1, lineHeight: 1.3 }}>
                             {item.sub}
                           </p>
                         )}
@@ -473,8 +473,8 @@ export default function HomePage() {
                               style={{ borderTop: "1px solid var(--glass-border)" }}>
                               <span style={{ fontSize: 20, flexShrink: 0 }}>{item.emoji}</span>
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: 13, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", lineHeight: 1.3 }}>{item.label}</p>
-                                {item.sub && <p style={{ fontSize: 11, color: item.done ? "var(--text-dim)" : accent, marginTop: 1 }}>{item.sub}</p>}
+                                <p style={{ fontSize: 13, fontWeight: 700, color: item.done ? "var(--text-dim)" : "var(--text-main)", lineHeight: 1.3 }}>{item.label}</p>
+                                {item.sub && <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1 }}>{item.sub}</p>}
                               </div>
                               {item.done
                                 ? <CheckCircle2 style={{ width: 16, height: 16, color: "var(--accent)", flexShrink: 0 }} />
@@ -1163,10 +1163,10 @@ function SpecialFeatureCards() {
                 🏥
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", lineHeight: 1.3 }}>Find hospitals & clinics</p>
-                <p style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>Book appointments near you</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", lineHeight: 1.3 }}>Find hospitals & clinics</p>
+                <p style={{ fontSize: 11, color: "rgba(148,163,184,0.8)", marginTop: 2 }}>Book appointments near you</p>
               </div>
-              <ChevronRight style={{ width: 15, height: 15, color: "var(--text-dim)", flexShrink: 0, opacity: 0.5 }} />
+              <ChevronRight style={{ width: 15, height: 15, color: "rgba(148,163,184,0.6)", flexShrink: 0 }} />
             </div>
           </div>
         </Link>

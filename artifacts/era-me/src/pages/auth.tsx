@@ -142,11 +142,11 @@ export default function AuthPage() {
         {/* ── Welcome ──────────────────────────────────────────── */}
         {step === "welcome" && (
           <div className="flex flex-col items-center text-center">
-            <div className="w-48 mb-4" style={{ height: 96 }}>
-              <img src="/era-logo.png" alt="ERA Systems" width={192} height={96}
+            <div className="w-28 h-28 mb-5 mx-auto">
+              <img src="/era-logo.png" alt="ERA Health" width={112} height={112}
                 fetchPriority="high"
-                className="w-full h-full object-contain"
-                style={{ opacity: 0, transition: "opacity 0.2s ease" }}
+                className="w-full h-full object-contain rounded-3xl"
+                style={{ opacity: 0, transition: "opacity 0.25s ease" }}
                 onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "1"; }}
               />
             </div>

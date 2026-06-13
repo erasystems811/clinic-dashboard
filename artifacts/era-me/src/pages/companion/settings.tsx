@@ -102,7 +102,8 @@ export default function CompanionSettingsPage() {
   const currentLabel = gestureLabel({ element: gestureElement, count: gestureCount });
 
   return (
-    <div style={{ background: "var(--bg-base)" }} className="px-5 pt-6 pb-8">
+    <div className="fixed inset-0 overflow-y-auto" style={{ background: "var(--bg-base)" }}>
+    <div className="px-5 pt-6 pb-8">
       <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
@@ -239,6 +240,7 @@ export default function CompanionSettingsPage() {
         className="w-full flex items-center justify-center gap-2 py-4 border border-border rounded-2xl text-sm font-semibold text-muted-foreground transition active:scale-95">
         <LogOut className="w-4 h-4" />Lock diary now
       </button>
+    </div>
     </div>
   );
 }

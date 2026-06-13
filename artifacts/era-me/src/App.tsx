@@ -28,6 +28,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 import { Switch, Route, Redirect } from "wouter";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
+import { HealthProvider } from "@/contexts/health-context";
 import AuthPage from "@/pages/auth";
 import HomePage from "@/pages/home";
 import WellnessPage from "@/pages/wellness";
@@ -213,9 +214,11 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <ErrorBoundary>
-            <AppRoutes />
-          </ErrorBoundary>
+          <HealthProvider>
+            <ErrorBoundary>
+              <AppRoutes />
+            </ErrorBoundary>
+          </HealthProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

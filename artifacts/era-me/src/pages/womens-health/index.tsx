@@ -190,6 +190,11 @@ function MainDashboard({ onBack }: { onBack: () => void }) {
   const [showPregSetup, setShowPregSetup] = useState(false);
   const [showCycleSetup, setShowCycleSetup] = useState(false);
 
+  // Close pregnancy setup screen automatically once the query confirms isSetUp
+  useEffect(() => {
+    if (pregData?.isSetUp) setShowPregSetup(false);
+  }, [pregData?.isSetUp]);
+
   const [, navigate] = useLocation();
 
   function handleModeSwitch(m: "cycle" | "pregnancy") {
@@ -320,9 +325,9 @@ function PregnancySetupScreen({ onBack }: { onBack: () => void }) {
   function handleSubmit() {
     if (useWeeks) {
       const lmpDate = new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-      setup.mutate({ lmpDate }, { onSuccess: onBack });
+      setup.mutate({ lmpDate });
     } else {
-      setup.mutate({ dueDate }, { onSuccess: onBack });
+      setup.mutate({ dueDate });
     }
   }
 

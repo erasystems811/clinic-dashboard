@@ -366,7 +366,7 @@ router.post("/patient-app/womens-health/pregnancy/setup", async (req, res): Prom
     resolvedLmp = due.toISOString().split("T")[0];
   }
 
-  await supabase.from("womens_health_settings").upsert({
+  const { error } = await supabase.from("womens_health_settings").upsert({
     account_id: account.id,
     mode: "pregnancy",
     lmp_date: resolvedLmp,
@@ -374,6 +374,7 @@ router.post("/patient-app/womens-health/pregnancy/setup", async (req, res): Prom
     updated_at: new Date().toISOString(),
   }, { onConflict: "account_id" });
 
+  if (error) { res.status(500).json({ error: error.message }); return; }
   res.json({ ok: true, lmpDate: resolvedLmp, dueDate: resolvedDue });
 });
 

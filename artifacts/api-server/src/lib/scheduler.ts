@@ -2,6 +2,7 @@ import cron from "node-cron";
 import * as Sentry from "@sentry/node";
 import { supabase } from "./supabase.js";
 import { sendEmail, wrapHtml } from "./email.js";
+import { sendPushToAccount } from "./push-service.js";
 import {
   sendPostTreatmentCheckinEmail,
   sendPostCareEmail,
@@ -896,6 +897,121 @@ async function runCarePlanCompletionDetection() {
 }
 
 
+// ── Personal health reminder push — every minute ──────────────────────────────
+// Finds plan items whose time (in WAT) falls exactly lead_mins from now,
+// and sends a push notification to each patient who has enabled personal reminders.
+async function runPersonalReminderPush() {
+  try {
+    const WAT_OFFSET = 60 * 60 * 1000; // UTC+1
+    const now = new Date();
+    const nowWAT = new Date(now.getTime() + WAT_OFFSET);
+    const todayWAT = nowWAT.toISOString().slice(0, 10);
+
+    // Get all accounts with personal reminders enabled and a push subscription
+    const { data: prefs } = await supabase
+      .from("notification_preferences")
+      .select("account_id, lead_mins")
+      .eq("personal_enabled", true);
+
+    if (!prefs?.length) return;
+
+    const accountIds = prefs.map(p => p.account_id as number);
+
+    // Get this week's plans for those accounts
+    const weekStart = (() => {
+      const d = new Date(nowWAT);
+      const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      return d.toISOString().slice(0, 10);
+    })();
+
+    const { data: plans } = await supabase
+      .from("weekly_plans")
+      .select("account_id, plan_data")
+      .eq("week_start", weekStart)
+      .in("account_id", accountIds);
+
+    if (!plans?.length) return;
+
+    const prefMap = new Map(prefs.map(p => [p.account_id as number, p.lead_mins as number]));
+
+    for (const plan of plans) {
+      const accountId = plan.account_id as number;
+      const leadMins  = prefMap.get(accountId) ?? 10;
+
+      // Target time = now + leadMins, rounded to nearest minute, in WAT HH:MM
+      const target = new Date(nowWAT.getTime() + leadMins * 60 * 1000);
+      const targetHH = String(target.getHours()).padStart(2, "0");
+      const targetMM = String(target.getMinutes()).padStart(2, "0");
+      const targetTime = `${targetHH}:${targetMM}`;
+
+      const pd = plan.plan_data as { days?: Array<{ date: string; items: Array<{ time?: string; label: string; emoji: string }> }> };
+      const todayPlan = pd?.days?.find(d => d.date === todayWAT);
+      if (!todayPlan) continue;
+
+      const dueItems = todayPlan.items.filter(item => item.time === targetTime);
+      if (!dueItems.length) continue;
+
+      const firstItem = dueItems[0];
+      const title = dueItems.length === 1
+        ? `${firstItem.emoji} ${firstItem.label} in ${leadMins} mins`
+        : `${dueItems.length} health tasks in ${leadMins} mins`;
+      const body = dueItems.length === 1
+        ? "Tap to open your ERA Health plan"
+        : dueItems.map(i => `${i.emoji} ${i.label}`).join(" · ");
+
+      await sendPushToAccount(accountId, { title, body, url: "/", tag: `personal-${targetTime}` });
+      log(`Personal reminder push → account ${accountId} at ${targetTime} (${dueItems.length} item(s))`);
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Personal reminder push error: ${err}`);
+  }
+}
+
+// ── Companion evening nudge — daily at 8 PM WAT ───────────────────────────────
+// Sends a push to users who have companion notifications enabled and haven't
+// opened a diary entry today.
+async function runCompanionEveningNudge() {
+  try {
+    const WAT_OFFSET = 60 * 60 * 1000;
+    const nowWAT = new Date(Date.now() + WAT_OFFSET);
+    const todayWAT = nowWAT.toISOString().slice(0, 10);
+
+    const { data: prefs } = await supabase
+      .from("notification_preferences")
+      .select("account_id")
+      .eq("companion_enabled", true);
+
+    if (!prefs?.length) return;
+    const accountIds = prefs.map(p => p.account_id as number);
+
+    // Find accounts that already have a diary entry today
+    const { data: todayEntries } = await supabase
+      .from("diary_entries")
+      .select("account_id")
+      .in("account_id", accountIds)
+      .gte("created_at", `${todayWAT}T00:00:00+01:00`);
+
+    const alreadyCheckedIn = new Set((todayEntries ?? []).map(e => e.account_id as number));
+    const targets = accountIds.filter(id => !alreadyCheckedIn.has(id));
+
+    for (const accountId of targets) {
+      await sendPushToAccount(accountId, {
+        title: "Check in with your diary 📔",
+        body: "A moment of reflection can make a real difference. Your diary is waiting.",
+        url: "/companion",
+        tag: "companion-nudge",
+      });
+    }
+
+    if (targets.length) log(`Companion evening nudge → ${targets.length} account(s)`);
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Companion evening nudge error: ${err}`);
+  }
+}
+
 export function startScheduler() {
   if (process.env.ENABLE_SCHEDULER !== "true") {
     log("Scheduler disabled — set ENABLE_SCHEDULER=true to enable (production only)");
@@ -950,6 +1066,16 @@ export function startScheduler() {
   cron.schedule("*/5 * * * *", async () => {
     await runCarePlanEmailDelay();
   });
+
+  // Every minute: personal health reminder push notifications
+  cron.schedule("* * * * *", async () => {
+    await runPersonalReminderPush();
+  });
+
+  // Daily at 8 PM WAT: companion evening nudge
+  cron.schedule("0 20 * * *", async () => {
+    await runCompanionEveningNudge();
+  }, TZ);
 
   // Daily at 9:00 AM WAT: Termii credit balance alert
   cron.schedule("0 9 * * *", async () => {

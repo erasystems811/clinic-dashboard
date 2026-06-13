@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./lib/scheduler.js";
 import { supabase } from "./lib/supabase.js";
+import { initWebPush } from "./lib/push-service.js";
 
 // Reload Supabase PostgREST schema cache so custom columns (e.g. patient_id) are visible.
 // This runs once on boot — safe to fire-and-forget.
@@ -154,6 +155,60 @@ async function migrateHospitalIdToCode() {
   }
 }
 
+async function migratePushNotificationTables() {
+  const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!projectRef || !token) {
+    logger.warn("[migration] SUPABASE_ACCESS_TOKEN not set — skipping push notification tables migration");
+    return;
+  }
+  const sql = `
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'web',
+      endpoint TEXT,
+      subscription JSONB NOT NULL,
+      device_label TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(account_id, endpoint)
+    );
+    CREATE TABLE IF NOT EXISTS notification_preferences (
+      account_id INTEGER PRIMARY KEY REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      hospital_enabled BOOLEAN NOT NULL DEFAULT true,
+      personal_enabled BOOLEAN NOT NULL DEFAULT true,
+      lead_mins INTEGER NOT NULL DEFAULT 10,
+      companion_enabled BOOLEAN NOT NULL DEFAULT true,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS hospital_notifications (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      hospital_id INTEGER REFERENCES hospitals(id) ON DELETE SET NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      url TEXT,
+      read BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    ALTER TABLE patient_accounts ADD COLUMN IF NOT EXISTS hospital_id TEXT;
+    CREATE INDEX IF NOT EXISTS idx_push_subs_account ON push_subscriptions(account_id);
+    CREATE INDEX IF NOT EXISTS idx_hospital_notifs_account ON hospital_notifications(account_id);
+    NOTIFY pgrst, 'reload schema';
+  `;
+  try {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (resp.ok) logger.info("[migration] Push notification tables ready");
+    else logger.warn({ body: await resp.text() }, "[migration] Push notification tables migration failed (non-fatal)");
+  } catch (err) {
+    logger.warn({ err }, "[migration] Push notification tables migration error (non-fatal)");
+  }
+}
+
 async function migrateSystemFeedbackTable() {
   const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
   const token = process.env.SUPABASE_ACCESS_TOKEN;
@@ -197,6 +252,7 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  initWebPush();
   startScheduler();
   reloadSupabaseSchema();
   migrateHospitalIdColumns();
@@ -204,4 +260,5 @@ app.listen(port, (err) => {
   migrateInCareStageColumn();
   migrateHospitalIdToCode();
   migrateSystemFeedbackTable();
+  migratePushNotificationTables();
 });

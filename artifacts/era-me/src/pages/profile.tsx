@@ -230,7 +230,7 @@ export default function ProfilePage() {
       <Section title="Account">
         <div className="space-y-1">
           <SettingsRow label="Change Password" onClick={() => { setPwdError(""); setPwdOk(false); setShowPwd(true); }} />
-          <SettingsRow label="Notification Settings" onClick={() => {}} />
+          <SettingsRow label="Notification Settings" onClick={() => navigate("/notification-settings")} />
           {account.accountType === "family" && (
             <SettingsRow label="Manage Family Members" onClick={() => {}} />
           )}

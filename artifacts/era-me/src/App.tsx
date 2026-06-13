@@ -63,6 +63,7 @@ import OnboardingPage from "@/pages/onboarding";
 import PlanPage from "@/pages/plan";
 import ReportPage from "@/pages/report";
 import NotificationsPage from "@/pages/notifications";
+import NotificationSettingsPage from "@/pages/notification-settings";
 import Layout from "@/components/layout";
 
 const queryClient = new QueryClient({
@@ -123,6 +124,7 @@ function AppRoutes() {
             <Route path="/plan" component={PlanPage} />
             <Route path="/report" component={ReportPage} />
             <Route path="/notifications" component={NotificationsPage} />
+            <Route path="/notification-settings" component={NotificationSettingsPage} />
             <Route path="/wellness" component={WellnessPage} />
             <Route path="/wellness/water" component={WaterPage} />
             <Route path="/wellness/medications" component={MedicationsPage} />

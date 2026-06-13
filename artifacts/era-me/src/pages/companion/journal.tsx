@@ -13,7 +13,7 @@ const MOODS = [
   { v: 5, emoji: "😄", label: "Great" },
 ];
 
-const pageStyle = { background: "var(--bg-base)", minHeight: "100vh" } as const;
+const pageStyle = { background: "var(--bg-base)" } as const;
 
 export function NewJournalPage() {
   const [, navigate] = useLocation();

@@ -59,7 +59,7 @@ export default function CycleCalendarPage() {
   const canGoNext = monthKey < today.slice(0, 7);
 
   return (
-    <div className="min-h-screen pb-10" style={{ background: "var(--bg-base)" }}>
+    <div className="pb-10" style={{ background: "var(--bg-base)" }}>
       {/* Header */}
       <div className="sticky top-0 z-10 px-5 pt-6 pb-4"
         style={{ background: "var(--bg-base)", borderBottom: "1px solid var(--glass-border)" }}>

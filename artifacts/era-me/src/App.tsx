@@ -133,11 +133,12 @@ function SectionThemeManager() {
 }
 
 // Scroll container for section pages (body has overflow:hidden globally).
-// WLOnboarding and companion escape this via fixed inset-0 on their own roots.
+// Outer div is fixed (viewport-locked), inner div is the actual scroll target —
+// matching Layout's pattern so iOS PWA scroll works reliably.
 function SP({ children }: { children: ReactNode }) {
   return (
-    <div style={{ position: "fixed", inset: 0, overflowY: "auto", background: "var(--bg-base)" }}>
-      <div style={{ maxWidth: "448px", margin: "0 auto" }}>
+    <div style={{ position: "fixed", inset: 0, background: "var(--bg-base)" }}>
+      <div style={{ maxWidth: "448px", margin: "0 auto", height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
         {children}
       </div>
     </div>

@@ -380,30 +380,45 @@ export default function HomePage() {
                         ? { moduleType: "medications", data: { taken: Object.fromEntries(item.batchIds.map((bid) => [bid, true])) } }
                         : quickLogData[item.id];
                 const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
+                const canTick = !item.done && !!entry;
                 return (
-                  <Link key={item.id} href={moduleHref(item.id)}>
-                    <div className="flex items-start gap-2 p-3 cursor-pointer active:scale-[0.98] transition"
+                  <div key={item.id} style={{
+                    display: "flex", alignItems: "stretch",
+                    borderBottom: isLast ? "none" : `1px solid var(--glass-border)`,
+                    borderRight: hasRightBorder ? `1px solid var(--glass-border)` : "none",
+                    background: item.done ? "rgba(74,222,128,0.04)" : "transparent",
+                    minHeight: 62,
+                  }}>
+                    {/* BIG tick zone — left side, full height, easy to tap */}
+                    <button
+                      onClick={() => {
+                        if (item.done) return;
+                        if (canTick) quickLog.mutate({ moduleType: entry!.moduleType, data: entry!.data });
+                        else navigate(moduleHref(item.id));
+                      }}
+                      className="flex items-center justify-center shrink-0 active:scale-90 transition"
                       style={{
-                        borderBottom: isLast ? "none" : `1px solid var(--glass-border)`,
-                        borderRight: hasRightBorder ? `1px solid var(--glass-border)` : "none",
-                        background: item.done ? "rgba(74,222,128,0.04)" : "transparent",
-                        minHeight: 62,
+                        width: 54,
+                        alignSelf: "stretch",
+                        borderRight: `1px solid var(--glass-border)`,
+                        background: item.done ? "transparent" : canTick ? `${accent}08` : "transparent",
                       }}>
-                      <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); entry && !item.done && quickLog.mutate({ moduleType: entry.moduleType, data: entry.data }); }}
-                        disabled={item.done || !entry}
-                        className="shrink-0 mt-0.5 active:scale-90 transition disabled:cursor-default"
-                        style={{ lineHeight: 0 }}>
-                        {item.done
-                          ? <CheckCircle2 style={{ width: 18, height: 18, color: "var(--accent)" }} />
-                          : entry
-                            ? <Circle style={{ width: 18, height: 18, color: accent }} />
-                            : <Circle style={{ width: 18, height: 18, color: accent, opacity: 0.4 }} />
-                        }
-                      </button>
+                      {item.done
+                        ? <CheckCircle2 style={{ width: 22, height: 22, color: "var(--accent)" }} />
+                        : canTick
+                          ? <Circle style={{ width: 22, height: 22, color: accent }} />
+                          : <ChevronRight style={{ width: 18, height: 18, color: accent, opacity: 0.5 }} />
+                      }
+                    </button>
+
+                    {/* Content + navigate arrow */}
+                    <button
+                      onClick={() => navigate(moduleHref(item.id))}
+                      className="flex-1 flex items-center gap-1 py-3 pl-2.5 pr-2 text-left min-w-0 active:opacity-70 transition"
+                      style={{ background: "transparent", border: "none" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div className="flex items-center gap-1 mb-0.5">
-                          <span style={{ fontSize: 14 }}>{item.emoji}</span>
+                          <span style={{ fontSize: 13 }}>{item.emoji}</span>
                           {item.time && (
                             <span style={{ fontSize: 9, fontWeight: 700, color: item.done ? "var(--text-dim)" : accent, background: `${accent}18`, padding: "1px 5px", borderRadius: 6, flexShrink: 0 }}>
                               {fmtTime(item.time)}
@@ -424,8 +439,9 @@ export default function HomePage() {
                           </p>
                         )}
                       </div>
-                    </div>
-                  </Link>
+                      <ChevronRight style={{ width: 12, height: 12, color: "var(--text-dim)", flexShrink: 0, opacity: 0.45 }} />
+                    </button>
+                  </div>
                 );
               }
 

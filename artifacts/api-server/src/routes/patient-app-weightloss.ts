@@ -41,11 +41,27 @@ function mapWorkoutStyle(style: string): string {
   return "any";
 }
 
-function mapMealPref(pref: string): string[] {
-  if (pref === "vegetarian")  return ["vegetarian"];
-  if (pref === "lowcarb")     return ["lowcarb"];
-  if (pref === "highprotein") return ["highprotein"];
-  return []; // nigerian, balanced → no restrictions
+function buildFoodPrefs(pref: string, conditions: string[]): string[] {
+  const prefs: string[] = [pref];
+  if (conditions.includes("diabetes"))    prefs.push("low_sugar", "low_gi");
+  if (conditions.includes("hypertension")) prefs.push("low_sodium");
+  if (pref === "vegetarian")  prefs.push("no_meat");
+  if (pref === "lowcarb")     prefs.push("lowcarb");
+  if (pref === "highprotein") prefs.push("highprotein");
+  return [...new Set(prefs)];
+}
+
+function buildMedicalNotes(conditions: string[], foodDislikes: string): string | null {
+  const parts: string[] = [];
+  const conditionLabels: Record<string, string> = {
+    diabetes: "Diabetes", pcos: "PCOS", hypothyroidism: "Thyroid issue",
+    hypertension: "High blood pressure", pregnant: "Pregnant or breastfeeding",
+    heart: "Heart condition",
+  };
+  const active = conditions.filter((c) => c !== "none");
+  if (active.length > 0) parts.push("Health conditions: " + active.map((c) => conditionLabels[c] ?? c).join(", "));
+  if (foodDislikes.trim()) parts.push("Dislikes/allergies: " + foodDislikes.trim());
+  return parts.length > 0 ? parts.join(". ") : null;
 }
 
 const PACE_DEFICIT: Record<string, number> = {
@@ -139,18 +155,21 @@ router.post("/api/patient-app/weightloss/onboard", async (req, res): Promise<voi
 
   const {
     currentWeightKg, goalWeightKg, heightCm,
-    // From frontend form
     age: ageInput, gender: genderInput,
     activityLevel, workoutStyle, mealPreferences, weightLossPace,
     fastingEnabled, fastingStart, fastingEnd,
+    // New fields
+    cookingAbility, budget, workoutDaysPerWeek, activePeriod,
+    medicalConditions, foodDislikes, wakeTime, sleepTime,
   } = req.body as {
     currentWeightKg: number; goalWeightKg: number; heightCm: number;
     age?: number; gender?: string;
     activityLevel?: string; workoutStyle?: string; mealPreferences?: string; weightLossPace?: string;
     fastingEnabled?: boolean; fastingStart?: string; fastingEnd?: string;
+    cookingAbility?: string; budget?: string; workoutDaysPerWeek?: number; activePeriod?: string;
+    medicalConditions?: string[]; foodDislikes?: string; wakeTime?: string; sleepTime?: string;
   };
 
-  // Age/gender: use form values if provided, else fall back to patient profile
   const accountInfo = await getAccountInfo(account.id);
   const age = ageInput ?? calcAge(accountInfo?.date_of_birth ?? null);
   const gender = genderInput ?? accountInfo?.gender ?? "male";
@@ -159,14 +178,20 @@ router.post("/api/patient-app/weightloss/onboard", async (req, res): Promise<voi
   const bmr = calcBMR(currentWeightKg, heightCm, age, gender);
   const tdee = Math.round(bmr * activityFactor(level));
 
+  const conditions = medicalConditions ?? [];
+  const isPregnant = conditions.includes("pregnant");
+
   const weightToLose = Math.max(0, currentWeightKg - goalWeightKg);
-  const dailyCaloricDeficit = PACE_DEFICIT[weightLossPace ?? "moderate"] ?? 500;
-  // Timeline: how many weeks at chosen deficit (7700 kcal = 1 kg fat)
-  const timelineWeeks = weightToLose > 0
-    ? Math.ceil((weightToLose * 7700) / (dailyCaloricDeficit * 7))
-    : 12;
-  const weeklyLossTarget = dailyCaloricDeficit * 7 / 7700;
-  const dailyCalorieTarget = Math.max(1200, tdee - dailyCaloricDeficit);
+  // Pregnant/breastfeeding: no calorie deficit — maintenance only
+  const rawDeficit = isPregnant ? 0 : (PACE_DEFICIT[weightLossPace ?? "moderate"] ?? 500);
+  const timelineWeeks = (weightToLose > 0 && rawDeficit > 0)
+    ? Math.ceil((weightToLose * 7700) / (rawDeficit * 7))
+    : isPregnant ? 0 : 12;
+  const weeklyLossTarget = rawDeficit * 7 / 7700;
+  // Pregnant: never below TDEE; otherwise never below 1200 kcal
+  const dailyCalorieTarget = isPregnant ? tdee : Math.max(1200, tdee - rawDeficit);
+
+  const medicalNotes = buildMedicalNotes(conditions, foodDislikes ?? "");
 
   const { error } = await supabase.from("weightloss_profile").upsert({
     account_id: account.id,
@@ -174,20 +199,19 @@ router.post("/api/patient-app/weightloss/onboard", async (req, res): Promise<voi
     goal_weight_kg: goalWeightKg,
     height_cm: heightCm,
     timeline_weeks: timelineWeeks,
-    // Map simplified fields to DB columns with sensible defaults
     lifestyle: level,
-    cooking_ability: "can_cook",
-    budget: "moderate",
-    food_preferences: mapMealPref(mealPreferences ?? "nigerian"),
-    wake_time: "07:00",
-    sleep_time: "23:00",
-    active_period: "morning",
+    cooking_ability: cookingAbility ?? "can_cook",
+    budget: budget ?? "moderate",
+    food_preferences: buildFoodPrefs(mealPreferences ?? "nigerian", conditions),
+    wake_time: wakeTime ?? "07:00",
+    sleep_time: sleepTime ?? "23:00",
+    active_period: activePeriod ?? "morning",
     fasting_interested: fastingEnabled ?? false,
     fasting_start: (fastingEnabled && fastingStart) ? fastingStart : null,
     fasting_end: (fastingEnabled && fastingEnd) ? fastingEnd : null,
     workout_location: mapWorkoutStyle(workoutStyle ?? "mixed"),
-    workout_days_per_week: 3,
-    medical_notes: null,
+    workout_days_per_week: workoutDaysPerWeek ?? 3,
+    medical_notes: medicalNotes,
     bmr, tdee,
     daily_calorie_target: dailyCalorieTarget,
     weekly_loss_target_kg: weeklyLossTarget,
@@ -234,32 +258,61 @@ router.post("/api/patient-app/weightloss/generate-plan", async (req, res): Promi
   const step = Math.floor(7 / workoutDays);
   for (let i = 0; i < workoutDays; i++) workoutDayIndices.add(i * step);
 
-  const systemPrompt = `You are a strict but caring Nigerian weight loss coach. You know Nigerian food extremely well — jollof rice, eba, egusi soup, suya, bole, moi moi, akara, puff puff, ofada, fried plantain, pepper soup, ogbono soup, indomie, etc. You know their calorie counts accurately.
+  const cookingDesc = profile.cooking_ability === "cant_cook"
+    ? "cannot cook — must use street food, canteen, or bought meals only"
+    : profile.cooking_ability === "rarely"
+      ? "sometimes cooks, sometimes buys food — mix of home meals and street food"
+      : "cooks most meals at home";
+
+  const budgetDesc = profile.budget === "tight"
+    ? "very tight (₦500–₦1,000/day on food)"
+    : profile.budget === "generous"
+      ? "comfortable (₦3,000+/day on food)"
+      : "moderate (₦1,000–₦3,000/day on food)";
+
+  const activePeriodDesc = profile.active_period === "afternoon" ? "afternoon (12pm–4pm)"
+    : profile.active_period === "evening" ? "evening (5pm–9pm)"
+    : "morning (before 10am)";
+
+  const systemPrompt = `You are a strict but caring Nigerian weight loss coach. You know Nigerian food extremely well — jollof rice, eba, egusi soup, suya, bole, moi moi, akara, puff puff, ofada, fried plantain, pepper soup, ogbono soup, indomie, etc. You know their exact calorie counts.
 
 You are creating a personalised 7-day weight loss meal and workout plan for ${name}.
 
-Profile:
-- Current weight: ${profile.current_weight_kg}kg → Goal: ${profile.goal_weight_kg}kg
-- Daily calorie target: ${profile.daily_calorie_target} kcal
-- Timeline: ${profile.timeline_weeks} weeks
-- Lifestyle: ${profile.lifestyle}
-- Cooking ability: ${profile.cooking_ability}
-- Budget: ${profile.budget}
-- Food preferences/restrictions: ${(profile.food_preferences ?? []).join(", ") || "none"}
+PROFILE:
+- Body: ${profile.current_weight_kg}kg → Goal: ${profile.goal_weight_kg}kg
+- Daily calorie target: ${profile.daily_calorie_target} kcal (NEVER exceed this)
+- Timeline: ${profile.timeline_weeks > 0 ? `${profile.timeline_weeks} weeks` : "maintenance (no deficit)"}
+- Activity level: ${profile.lifestyle}
+- Food style: ${(profile.food_preferences ?? []).join(", ") || "any — prefer Nigerian foods"}
 - ${fastingNote}
-- Workout location: ${profile.workout_location}
-- Workout days this week: ${workoutDays} days (days ${[...workoutDayIndices].map(i => i + 1).join(", ")} of the week)
-- Active period: ${profile.active_period}
+- Wake time: ${profile.wake_time} | Sleep time: ${profile.sleep_time}
+- Workout: ${profile.workout_location} · ${workoutDays} days/week · preferred time: ${activePeriodDesc}
+- Workout days this week: days ${[...workoutDayIndices].map(i => i + 1).join(", ")} of the week
+
+COOKING & BUDGET:
+- Cooking: ${cookingDesc}
+- Budget: ${budgetDesc}
+
+HEALTH & RESTRICTIONS:
 - Medical notes: ${profile.medical_notes || "none"}
+
 ${ragCtx}
 
-Rules:
-1. Stay within the daily calorie target. Every meal must have an accurate calorie count.
-2. Use REAL Nigerian food — meals must be practical for their cooking ability and budget.
-3. If cooking_ability is "cant_cook" or "rarely", suggest street food, canteen food, or very simple no-cook options.
-4. Workouts must match their location (home/gym/outdoor). Include specific exercises, sets, reps, and estimated duration.
-5. If it is a rest day, say so — no workout needed.
-6. The plan must fit around their active period and fasting window.`;
+RULES:
+1. NEVER exceed the daily calorie target. Every meal must have an accurate calorie count.
+2. If medical_notes mentions DIABETES: avoid high-sugar foods, use low-GI carbs (oats, sweet potato, brown rice). No sugary drinks.
+3. If medical_notes mentions PCOS: favour anti-inflammatory, low-GI foods. Minimise refined carbs and processed food.
+4. If medical_notes mentions HYPERTENSION: keep sodium low. Avoid very salty street food. Suggest low-salt alternatives.
+5. If medical_notes mentions THYROID issue: avoid raw cruciferous veg in large amounts; focus on iodine-rich foods.
+6. If medical_notes mentions PREGNANT or BREASTFEEDING: NO calorie deficit. Focus on nutritious, balanced maintenance meals. No heavy workouts — suggest gentle walks or prenatal yoga only.
+7. If medical_notes mentions HEART condition: avoid high saturated fat. Lean proteins, vegetables, fibre-rich meals.
+8. If medical_notes lists dislikes/allergies, NEVER include those foods in any meal.
+9. Cooking ability matters: if they "cannot cook" or "rarely cook", suggest street food, canteen, or bought meals — never recipes that require 30+ minutes of cooking.
+10. Budget matters: if budget is tight, suggest affordable Nigerian staples (eba, beans, egg, indomie in moderation, market fish). If generous, can suggest grilled chicken, salmon, premium options.
+11. Workouts must match their location (home/gym/outdoor). Include specific exercises, sets, reps, and estimated duration.
+12. Schedule workouts in their preferred active period (${activePeriodDesc}).
+13. The plan must fit around their wake/sleep and fasting window.
+14. If it is a rest day, say so — gentle walk is always fine.`;
 
   const userPrompt = `Generate the weekly plan for the week starting ${weekStart} (${dates.join(", ")}).
 
@@ -542,8 +595,10 @@ ${name}'s stats:
 - Daily calorie target: ${profile?.daily_calorie_target ?? "?"}kcal
 - Timeline: ${profile?.timeline_weeks ?? "?"} weeks
 - Lifestyle: ${profile?.lifestyle ?? "unknown"}
-- Coins earned: ${profile?.total_coins_earned ?? 0}
-- Cheat days available: ${profile?.cheat_days_available ?? 0}
+- Budget: ${profile?.budget ?? "moderate"} | Cooking: ${profile?.cooking_ability ?? "can_cook"}
+- Medical notes: ${profile?.medical_notes ?? "none"}
+- Food preferences: ${(profile?.food_preferences ?? []).join(", ") || "none"}
+- Coins earned: ${profile?.total_coins_earned ?? 0} | Cheat days available: ${profile?.cheat_days_available ?? 0}
 ${adjContext}
 ${ragCtx}
 

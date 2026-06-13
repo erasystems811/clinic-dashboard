@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { isCompanionHidden } from "@/lib/companion-api";
 
 interface Module {
   id: string;
@@ -23,20 +24,20 @@ const DAILY_MODULES: Module[] = [
 ];
 
 const HEALTH_MODULES: Module[] = [
-  { id: "vitals",    emoji: "❤️", label: "Body Vitals",       description: "BP, sugar & weight trends",     gradient: "linear-gradient(135deg,#450a0a,#b91c1c)", accent: "#f87171" },
-  { id: "smoking",   emoji: "🚭", label: "Quit Smoking",      description: "Track days smoke-free",         gradient: "linear-gradient(135deg,#1c1917,#44403c)", accent: "#a8a29e" },
-  { id: "eyebreak",  emoji: "👁️", label: "Eye Break",         description: "20-20-20 rule for screens",     gradient: "linear-gradient(135deg,#1e1b4b,#3730a3)", accent: "#818cf8" },
-  { id: "sunscreen", emoji: "☀️", label: "Sunscreen",         description: "Daily skin protection",         gradient: "linear-gradient(135deg,#422006,#a16207)", accent: "#fde047" },
-  { id: "outdoors",  emoji: "🌿", label: "Outdoor Time",      description: "Sunlight & fresh air",          gradient: "linear-gradient(135deg,#052e16,#15803d)", accent: "#86efac" },
-  { id: "vaccines",  emoji: "💉", label: "Vaccinations",      description: "Track vaccines & next due",     gradient: "linear-gradient(135deg,#042f2e,#0e7490)", accent: "#22d3ee" },
-  { id: "checkups",  emoji: "🏥", label: "Annual Checkups",   description: "Dental, eye & general",         gradient: "linear-gradient(135deg,#0c1a4a,#1d4ed8)", accent: "#60a5fa" },
-  { id: "hygiene",   emoji: "🪥", label: "Hygiene",           description: "Toothbrush & sponge reminders", gradient: "linear-gradient(135deg,#0e1a2e,#1e40af)", accent: "#93c5fd" },
+  { id: "vitals",    emoji: "❤️", label: "Body Vitals",       description: "BP, sugar & weight trends",         gradient: "linear-gradient(135deg,#450a0a,#b91c1c)", accent: "#f87171" },
+  { id: "smoking",   emoji: "🚭", label: "Quit Smoking",      description: "Cigarettes, shisha & more",         gradient: "linear-gradient(135deg,#1c1917,#44403c)", accent: "#a8a29e" },
+  { id: "alcohol",   emoji: "🍷", label: "Alcohol Tracker",   description: "Quit or reduce your intake",        gradient: "linear-gradient(135deg,#431407,#92400e)", accent: "#fbbf24" },
+  { id: "eyebreak",  emoji: "👁️", label: "Eye Break",         description: "20-20-20 rule for screens",         gradient: "linear-gradient(135deg,#1e1b4b,#3730a3)", accent: "#818cf8" },
+  { id: "sunscreen", emoji: "☀️", label: "Sunscreen",         description: "Daily skin protection",             gradient: "linear-gradient(135deg,#422006,#a16207)", accent: "#fde047" },
+  { id: "outdoors",  emoji: "🌿", label: "Outdoor Time",      description: "Sunlight & fresh air",              gradient: "linear-gradient(135deg,#052e16,#15803d)", accent: "#86efac" },
+  { id: "vaccines",  emoji: "💉", label: "Vaccinations",      description: "Track vaccines & next due",         gradient: "linear-gradient(135deg,#042f2e,#0e7490)", accent: "#22d3ee" },
+  { id: "checkups",  emoji: "🏥", label: "Annual Checkups",   description: "Dental, eye & general",             gradient: "linear-gradient(135deg,#0c1a4a,#1d4ed8)", accent: "#60a5fa" },
+  { id: "hygiene",   emoji: "🪥", label: "Hygiene",           description: "Toothbrush & sponge reminders",     gradient: "linear-gradient(135deg,#0e1a2e,#1e40af)", accent: "#93c5fd" },
 ];
 
 const COMPANION_MODULES: Module[] = [
-  { id: "women",       emoji: "🌸", label: "Women's Health",      description: "Cycle, pregnancy & more",       gradient: "linear-gradient(135deg,#4a044e,#a21caf)", accent: "#f0abfc", comingSoon: true, href: "/womens-health" },
-  { id: "diary",       emoji: "📔", label: "My Diary",            description: "Private journal & AI chat",     gradient: "linear-gradient(135deg,#1c1917,#292524)", accent: "#d6d3d1", href: "/companion" },
-  { id: "personality", emoji: "🧠", label: "Personality Profile", description: "Discover your health patterns", gradient: "linear-gradient(135deg,#0f172a,#1e3a5f)", accent: "#7dd3fc", href: "/companion/personality" },
+  { id: "women",     emoji: "🌸", label: "Women's Health",      description: "Cycle, pregnancy & more",       gradient: "linear-gradient(135deg,#4a044e,#a21caf)", accent: "#f0abfc", comingSoon: true, href: "/womens-health" },
+  { id: "intimacy",  emoji: "💗", label: "Sex Life & Intimacy", description: "Celibacy or active tracking",   gradient: "linear-gradient(135deg,#4c0519,#be123c)", accent: "#fda4af" },
 ];
 
 function moduleHref(m: Module): string {
@@ -54,12 +55,18 @@ function SectionDivider({ title }: { title: string }) {
   );
 }
 
+const DIARY_MODULES: Module[] = [
+  { id: "my-diary", emoji: "📔", label: "My Diary", description: "Private journal, chats & personality", gradient: "linear-gradient(135deg,#1e1b4b,#4c1d95)", accent: "#c084fc", href: "/companion" },
+];
+
 export default function WellnessPage() {
+  const diaryHidden = isCompanionHidden();
+
   return (
     <div className="px-4 pt-6 pb-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold" style={{ color: "var(--accent)" }}>
-          Wellness
+          Personal Settings
         </h1>
         <p className="text-xs mt-0.5" style={{ color: "var(--text-sub)" }}>Choose what to track — tap any module to set it up</p>
       </div>
@@ -79,9 +86,10 @@ export default function WellnessPage() {
       </div>
 
       <div>
-        <SectionDivider title="Companion" />
+        <SectionDivider title="Personal" />
         <div className="grid grid-cols-2 gap-2.5">
           {COMPANION_MODULES.map((m) => <ModuleCard key={m.id} module={m} />)}
+          {!diaryHidden && DIARY_MODULES.map((m) => <ModuleCard key={m.id} module={m} />)}
         </div>
       </div>
     </div>

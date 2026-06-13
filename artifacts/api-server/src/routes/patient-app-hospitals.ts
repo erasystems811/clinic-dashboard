@@ -6,6 +6,45 @@ import { sendEmail } from "../lib/email.js";
 
 const FROM = `ERA Health <${process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev"}>`;
 
+// ── Shared slot generation (mirrors self-booking.ts logic) ─────────────────────
+function generateSlots(
+  blocks: { day_of_week: number; start_time: string; end_time: string; slot_minutes: number }[],
+  days = 30
+): string[] {
+  const slots: string[] = [];
+  const now = new Date();
+  for (let d = 1; d <= days; d++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + d);
+    date.setHours(0, 0, 0, 0);
+    const dow = date.getDay();
+    for (const block of blocks.filter(b => b.day_of_week === dow)) {
+      const [sH, sM] = block.start_time.split(":").map(Number);
+      const [eH, eM] = block.end_time.split(":").map(Number);
+      let cur = sH * 60 + sM;
+      const end = eH * 60 + eM;
+      while (cur + block.slot_minutes <= end) {
+        const slot = new Date(date);
+        slot.setHours(Math.floor(cur / 60), cur % 60, 0, 0);
+        if (slot > now) slots.push(slot.toISOString());
+        cur += block.slot_minutes;
+      }
+    }
+  }
+  return slots;
+}
+
+// Shared ownership check helper
+async function resolveConnection(connectionId: number, accountId: number) {
+  const { data } = await supabase
+    .from("patient_hospital_connections")
+    .select("id, hospital_id, patient_record_id")
+    .eq("id", connectionId)
+    .eq("account_id", accountId)
+    .maybeSingle();
+  return data as { id: number; hospital_id: number; patient_record_id: number } | null;
+}
+
 const router: IRouter = Router();
 
 // ── GET /api/patient-app/hospitals/search?q= ──────────────────────────────────
@@ -185,23 +224,36 @@ router.post("/patient-app/hospitals/connect/request", async (req, res): Promise<
   const patientName = `${patientRecord.first_name} ${patientRecord.last_name}`;
   const hospitalName = hospital.name as string;
 
-  await sendEmail({
-    to: patientEmail,
-    from: FROM,
-    subject: `Your ERA Health verification code — ${hospitalName}`,
-    html: `
-      <p>Hi ${patientName},</p>
-      <p>A request was made to link your patient record at <strong>${hospitalName}</strong> to an ERA Health account.</p>
-      <p>Your verification code is:</p>
-      <h2 style="font-size:32px;letter-spacing:8px;font-family:monospace;">${otp}</h2>
-      <p>This code expires in 10 minutes.</p>
-      <p>If you did not request this, please ignore this email — your hospital record is safe.</p>
-    `,
-  });
+  try {
+    await sendEmail({
+      to: patientEmail,
+      from: FROM,
+      subject: `Your ERA Health verification code — ${hospitalName}`,
+      html: `
+        <p>Hi ${patientName},</p>
+        <p>A request was made to link your patient record at <strong>${hospitalName}</strong> to your ERA Health account.</p>
+        <p>Your verification code is:</p>
+        <h2 style="font-size:36px;letter-spacing:10px;font-family:monospace;background:#f4f4f5;padding:16px 24px;border-radius:8px;display:inline-block;">${otp}</h2>
+        <p>This code expires in <strong>10 minutes</strong>.</p>
+        <p>If you did not request this, you can safely ignore this email.</p>
+      `,
+    });
+  } catch (emailErr) {
+    console.error("[hospital-connect] Failed to send OTP email to", patientEmail, emailErr);
+    // Clean up the OTP we just stored since it won't be usable
+    await supabase.from("patient_otp_codes").delete().eq("email", patientEmail).eq("code", otp);
+    res.status(503).json({
+      error: "Could not send verification email. Please check that the email address on your hospital record is correct, or contact the hospital.",
+      detail: process.env.NODE_ENV !== "production" ? String(emailErr) : undefined,
+    });
+    return;
+  }
 
   // Return masked email so the UI can show "We sent a code to j***@gmail.com"
   const [localPart, domain] = patientEmail.split("@");
   const masked = `${localPart.slice(0, 2)}***@${domain}`;
+
+  console.log(`[hospital-connect] OTP sent to ${masked} for patient ${patientName} at ${hospitalName}`);
 
   res.json({
     ok: true,
@@ -457,6 +509,160 @@ router.post("/patient-app/coins/award", async (req, res): Promise<void> => {
     .single();
 
   res.json({ coins: (data?.coins as number | undefined) ?? 0 });
+});
+
+// ── GET /api/patient-app/hospitals/:connectionId/booking-slots ────────────────
+router.get("/patient-app/hospitals/:connectionId/booking-slots", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const connectionId = parseInt(req.params.connectionId, 10);
+  const conn = await resolveConnection(connectionId, (account as { id: number }).id);
+  if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
+
+  const hospitalId = conn.hospital_id;
+
+  const { data: hospital } = await supabase.from("hospitals").select("name").eq("id", hospitalId).single();
+  if (!hospital) { res.status(404).json({ error: "Hospital not found" }); return; }
+
+  const [{ data: blocks }, { data: takenAppts }, { data: takenBookings }] = await Promise.all([
+    supabase.from("appointment_time_blocks").select("*").eq("hospital_id", hospitalId).eq("active", true),
+    supabase.from("appointments").select("scheduled_at")
+      .eq("hospital_id", hospitalId).gte("scheduled_at", new Date().toISOString())
+      .not("status", "in", '("cancelled","no_show")'),
+    supabase.from("self_bookings").select("requested_at")
+      .eq("hospital_id", hospitalId).in("status", ["pending", "confirmed"]),
+  ]);
+
+  const takenSet = new Set([
+    ...(takenAppts ?? []).map(a => new Date(a.scheduled_at as string).toISOString()),
+    ...(takenBookings ?? []).map(b => new Date(b.requested_at as string).toISOString()),
+  ]);
+
+  type Block = { day_of_week: number; start_time: string; end_time: string; slot_minutes: number };
+  const allSlots = generateSlots((blocks ?? []) as Block[]);
+  const available = allSlots
+    .filter(s => !takenSet.has(s))
+    .slice(0, 40)
+    .map(s => ({
+      datetime: s,
+      label: new Date(s).toLocaleString("en-GB", {
+        weekday: "short", day: "numeric", month: "short",
+        hour: "2-digit", minute: "2-digit", hour12: true,
+      }),
+    }));
+
+  res.json({ hospitalName: hospital.name as string, slots: available });
+});
+
+// ── POST /api/patient-app/hospitals/:connectionId/book ────────────────────────
+router.post("/patient-app/hospitals/:connectionId/book", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const connectionId = parseInt(req.params.connectionId, 10);
+  const conn = await resolveConnection(connectionId, (account as { id: number }).id);
+  if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
+
+  const { requestedAt, reason } = (req.body ?? {}) as Record<string, unknown>;
+  if (!requestedAt || !reason || typeof reason !== "string" || !reason.trim()) {
+    res.status(400).json({ error: "requestedAt and reason are required" }); return;
+  }
+
+  const { data: patient } = await supabase
+    .from("patients").select("first_name, last_name, phone").eq("id", conn.patient_record_id).single();
+  if (!patient) { res.status(404).json({ error: "Patient record not found" }); return; }
+
+  const requestedAtIso = new Date(requestedAt as string).toISOString();
+
+  // Slot collision check
+  const [{ count: apptCount }, { count: bookCount }] = await Promise.all([
+    supabase.from("appointments").select("*", { count: "exact", head: true })
+      .eq("hospital_id", conn.hospital_id).eq("scheduled_at", requestedAtIso)
+      .not("status", "in", '("cancelled","no_show")'),
+    supabase.from("self_bookings").select("*", { count: "exact", head: true })
+      .eq("hospital_id", conn.hospital_id).eq("requested_at", requestedAtIso)
+      .in("status", ["pending", "confirmed"]),
+  ]);
+
+  if ((apptCount ?? 0) > 0 || (bookCount ?? 0) > 0) {
+    res.status(409).json({ error: "This slot is no longer available. Please choose another time." }); return;
+  }
+
+  const { data: booking, error } = await supabase.from("self_bookings").insert({
+    hospital_id: conn.hospital_id,
+    patient_name: `${patient.first_name as string} ${patient.last_name as string}`,
+    patient_phone: patient.phone as string,
+    reason: reason.trim(),
+    requested_at: requestedAtIso,
+    status: "pending",
+  }).select("id").single();
+
+  if (error || !booking) { res.status(500).json({ error: "Failed to create booking request" }); return; }
+
+  res.status(201).json({
+    id: booking.id as number,
+    message: "Booking request submitted. The clinic will confirm it shortly.",
+  });
+});
+
+// ── GET /api/patient-app/notifications ───────────────────────────────────────
+router.get("/patient-app/notifications", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data } = await supabase
+    .from("patient_notifications")
+    .select("id, type, title, body, metadata, read_at, actioned_at, created_at")
+    .eq("account_id", (account as { id: number }).id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  res.json(data ?? []);
+});
+
+// ── GET /api/patient-app/notifications/unread-count ──────────────────────────
+router.get("/patient-app/notifications/unread-count", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { count } = await supabase
+    .from("patient_notifications")
+    .select("*", { count: "exact", head: true })
+    .eq("account_id", (account as { id: number }).id)
+    .is("read_at", null);
+
+  res.json({ count: count ?? 0 });
+});
+
+// ── POST /api/patient-app/notifications/:id/read ──────────────────────────────
+router.post("/patient-app/notifications/:id/read", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  await supabase
+    .from("patient_notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", parseInt(req.params.id, 10))
+    .eq("account_id", (account as { id: number }).id)
+    .is("read_at", null);
+
+  res.json({ ok: true });
+});
+
+// ── POST /api/patient-app/notifications/:id/action ────────────────────────────
+// Marks a notification as acted on (e.g. feedback submitted)
+router.post("/patient-app/notifications/:id/action", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  await supabase
+    .from("patient_notifications")
+    .update({ actioned_at: new Date().toISOString(), read_at: new Date().toISOString() })
+    .eq("id", parseInt(req.params.id, 10))
+    .eq("account_id", (account as { id: number }).id);
+
+  res.json({ ok: true });
 });
 
 export default router;

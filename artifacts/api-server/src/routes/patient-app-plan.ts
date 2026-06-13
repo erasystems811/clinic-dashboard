@@ -179,6 +179,27 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       items.push({ moduleType: "smoking", emoji: "🚭", label: "Quit smoking", sub: skNotes ?? "Log today's status", time: skTime });
     }
 
+    // Alcohol
+    if (enabledMap["alcohol"]) {
+      const alNotes = enabledMap["alcohol"].notes as string | undefined;
+      const alGoal = (enabledMap["alcohol"].goalType as string | undefined) ?? "quit";
+      const alTime = (alNotes && parseTimeHint(alNotes)) ?? "20:00";
+      const alLabel = alGoal === "reduce" ? "Alcohol check-in" : "Stay drink-free";
+      items.push({ moduleType: "alcohol", emoji: "🍷", label: alLabel, sub: alNotes ?? "Log today's intake", time: alTime });
+    }
+
+    // Intimacy / celibacy
+    if (enabledMap["intimacy"]) {
+      const imNotes = enabledMap["intimacy"].notes as string | undefined;
+      const imMode = (enabledMap["intimacy"].mode as string | undefined) ?? "celibacy";
+      const imTime = (imNotes && parseTimeHint(imNotes)) ?? "21:00";
+      if (imMode === "celibacy") {
+        items.push({ moduleType: "intimacy", emoji: "💗", label: "Celibacy check-in", sub: imNotes ?? "Log today", time: imTime });
+      } else {
+        items.push({ moduleType: "intimacy", emoji: "💗", label: "Intimacy log", sub: imNotes ?? "Log today", time: imTime, isDayOnly: true });
+      }
+    }
+
     // Workout — use per-day settings
     if (enabledMap["workout"]) {
       const wkNotes = enabledMap["workout"].notes as string | undefined;

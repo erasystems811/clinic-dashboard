@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
-import { ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { ArrowLeft, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
+import { isCompanionHidden } from "@/lib/companion-api";
 import { useWeeklyReport } from "@/lib/wellness-api";
 import type { WeeklyReportModule } from "@/lib/wellness-api";
 
@@ -140,20 +141,6 @@ export default function ReportPage() {
           </div>
         </div>
 
-        {/* ── Talk to companion ── */}
-        <button onClick={() => navigate("/companion")}
-          className="w-full flex items-center gap-3 px-4 py-4 rounded-2xl active:scale-[0.98] transition"
-          style={{ background: "var(--accent-tint-bg)", border: "1px solid var(--accent-tint-border)" }}>
-          <MessageCircle className="w-5 h-5 shrink-0" style={{ color: "var(--accent)" }} />
-          <div className="flex-1 text-left">
-            <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-main)" }}>Talk about your week</p>
-            <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 1 }}>
-              Your companion has seen your data — open a conversation
-            </p>
-          </div>
-          <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--accent)" }} />
-        </button>
-
         {/* ── What went well ── */}
         {wonModules.length > 0 && (
           <ReportSection
@@ -232,6 +219,21 @@ export default function ReportPage() {
               Log your habits throughout the week to see your report here.
             </p>
           </div>
+        )}
+
+        {/* Talk to companion */}
+        {!isCompanionHidden() && (
+          <Link href="/companion">
+            <div className="flex items-center gap-3 px-4 py-4 rounded-2xl cursor-pointer active:scale-[0.98] transition"
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+              <MessageCircle className="w-5 h-5 shrink-0" style={{ color: "var(--accent)" }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>Talk to my diary</p>
+                <p style={{ fontSize: 11, color: "var(--text-sub)" }}>Reflect on your week with a private chat</p>
+              </div>
+              <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--text-dim)" }} />
+            </div>
+          </Link>
         )}
 
       </div>

@@ -20,8 +20,9 @@ const PALETTES: Record<string, { accent: string; accentLight: string; btnGradien
 const MODULE_ACCENT: Record<string, string> = {
   water: "#38bdf8", medications: "#14b8a6", workout: "#f97316",
   sleep: "#8b5cf6", mood_check: "#fbbf24", fruit: "#22c55e",
-  vitals: "#ef4444", smoking: "#64748b", eyebreak: "#6366f1",
-  sunscreen: "#eab308", outdoors: "#16a34a", hygiene: "#93c5fd",
+  vitals: "#ef4444", smoking: "#64748b", alcohol: "#fbbf24",
+  eyebreak: "#6366f1", sunscreen: "#eab308", outdoors: "#16a34a",
+  hygiene: "#93c5fd", intimacy: "#fda4af",
 };
 
 const SHORT_DAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -56,7 +57,7 @@ interface ChecklistItem { id: string; done: boolean; sub?: string }
 
 export default function PlanPage() {
   const [, navigate] = useLocation();
-  const [view, setView] = useState<"week" | "today">("week");
+  const [view, setView] = useState<"week" | "today">("today");
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0); // 0 = current, -1 = last week, +1 = next week
   const { account } = useAuth();

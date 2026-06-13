@@ -20,6 +20,7 @@ import CallTasks from "@/pages/call-tasks";
 import FeedbackAdmin from "@/pages/feedback-admin";
 import FeedbackForm from "@/pages/feedback-form";
 import WellnessAdmin from "@/pages/wellness-admin";
+import EraMessages from "@/pages/era-messages";
 import Settings from "@/pages/settings";
 import PatientImport from "@/pages/patient-import";
 import HelpPage from "@/pages/help";
@@ -107,6 +108,7 @@ function ProtectedRouter() {
       {role === "admin" && <Route path="/settings" component={Settings} />}
       {role === "admin" && <Route path="/call-tasks" component={CallTasks} />}
       {role === "admin" && <Route path="/import" component={PatientImport} />}
+      {role === "admin" && <Route path="/era-messages" component={EraMessages} />}
       {role === "admin" && <Route path="/help" component={HelpPage} />}
 
       {/* Receptionist routes */}

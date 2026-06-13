@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeft, Plus, Minus } from "lucide-react";
 import { useSaveModule, useLogToday, useWellnessModules, useWellnessWeek } from "@/lib/wellness-api";
-import { cn } from "@/lib/utils";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function SunscreenPage() {
   const [, navigate] = useLocation();
   const { data: modules, isLoading } = useWellnessModules() as {
-    data: Record<string, { settings: { reminderTime?: string; notes?: string }; enabled: boolean }> | undefined;
+    data: Record<string, { settings: { reminderTime?: string; target?: number; notes?: string }; enabled: boolean }> | undefined;
     isLoading: boolean;
   };
   const { data: weekLogs } = useWellnessWeek("sunscreen");
@@ -19,17 +18,30 @@ export default function SunscreenPage() {
   const mod = modules?.sunscreen;
   const settings = mod?.settings ?? {};
   const enabled = mod?.enabled ?? false;
+  const target = settings.target ?? 2;
 
   const [setupMode, setSetupMode] = useState(false);
   const [reminderTime, setReminderTime] = useState(settings.reminderTime ?? "08:00");
+  const [targetInput, setTargetInput] = useState(target);
   const [notes, setNotes] = useState(settings.notes ?? "");
 
   const today = new Date().toISOString().split("T")[0];
-  const done = weekLogs?.find((l) => l.log_date === today)?.data.done === true;
+  const todayLog = weekLogs?.find((l) => l.log_date === today);
+  const count: number = (todayLog?.data.count as number) ?? 0;
+  const done = count >= target;
 
   function saveSetup() {
-    saveModule.mutate({ settings: { reminderTime, notes }, enabled: true });
+    saveModule.mutate({ settings: { reminderTime, target: targetInput, notes }, enabled: true });
     setSetupMode(false);
+  }
+
+  function addApplication() {
+    logToday.mutate({ count: count + 1 });
+  }
+
+  function removeApplication() {
+    if (count === 0) return;
+    logToday.mutate({ count: count - 1 });
   }
 
   if (isLoading) return <Spinner />;
@@ -44,28 +56,42 @@ export default function SunscreenPage() {
         <div className="flex items-center gap-3 mb-6">
           <div className="w-12 h-12 rounded-2xl bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center text-2xl">☀️</div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Sunscreen Reminder</h1>
+            <h1 className="text-xl font-bold text-foreground">Sunscreen</h1>
             <p className="text-sm text-muted-foreground">Daily skin protection</p>
           </div>
         </div>
         <div className="bg-muted rounded-2xl p-4 mb-5">
-          <p className="text-sm text-muted-foreground">Daily sunscreen use protects against UV damage and skin ageing. Apply before leaving the house every morning.</p>
+          <p className="text-sm text-muted-foreground">Daily sunscreen protects against UV damage. Track each application so nothing is missed.</p>
+        </div>
+        <div className="mb-5">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">How many times per day?</p>
+          <div className="flex items-center gap-4">
+            <button onClick={() => setTargetInput((p) => Math.max(1, p - 1))}
+              className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center text-xl font-bold text-foreground active:scale-90 transition">
+              <Minus className="w-5 h-5" />
+            </button>
+            <span className="text-3xl font-black text-foreground w-10 text-center">{targetInput}</span>
+            <button onClick={() => setTargetInput((p) => Math.min(8, p + 1))}
+              className="w-12 h-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center active:scale-90 transition">
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">e.g. morning + before going out = 2 times</p>
         </div>
         <div className="mb-6">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Morning reminder time</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">First reminder time</p>
           <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
             className="w-full bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
         </div>
         <div className="bg-card border border-border rounded-2xl p-5 mb-5">
-          <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
-          <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I apply after my shower", "I forget on cloudy days"</p>
-          <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
-            placeholder="Anything that helps us plan better for you..."
+          <p className="text-sm font-semibold text-foreground mb-1">Notes <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
+          <textarea value={notes} rows={2} onChange={(e) => setNotes(e.target.value)}
+            placeholder='e.g. "I apply after shower and before going out"'
             className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
         </div>
         <button onClick={saveSetup} disabled={saveModule.isPending}
           className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">
-          {saveModule.isPending ? "Saving…" : "Enable sunscreen reminder"}
+          {saveModule.isPending ? "Saving…" : "Enable sunscreen tracking"}
         </button>
       </div>
     );
@@ -81,37 +107,49 @@ export default function SunscreenPage() {
           <span className="text-3xl">☀️</span>
           <div>
             <h1 className="text-xl font-bold text-foreground">Sunscreen</h1>
-            <p className="text-xs text-muted-foreground">Reminder at {settings.reminderTime}</p>
+            <p className="text-xs text-muted-foreground">Goal: {target}× per day · First reminder {settings.reminderTime}</p>
           </div>
         </div>
       </div>
 
+      {/* Application counter */}
       <div className="bg-card border border-border rounded-2xl p-6 mb-5 flex flex-col items-center">
-        <div className="text-7xl mb-4">{done ? "✅" : "☀️"}</div>
-        <p className="text-lg font-bold text-foreground mb-1">{done ? "Applied today!" : "Applied sunscreen today?"}</p>
-        <p className="text-sm text-muted-foreground mb-5 text-center">Tap once you've applied your sunscreen this morning.</p>
-        <button onClick={() => logToday.mutate({ done: !done })} disabled={logToday.isPending}
-          className={cn("w-full py-4 rounded-2xl font-bold text-base transition active:scale-95 flex items-center justify-center gap-2",
-            done ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : "bg-primary text-primary-foreground shadow-lg shadow-primary/30")}>
-          {done && <Check className="w-5 h-5" />}
-          {logToday.isPending ? "Saving…" : done ? "Mark as not done" : "Yes, applied!"}
-        </button>
+        <p className="text-sm font-semibold text-muted-foreground mb-4">Today's applications</p>
+        <div className="flex items-center gap-6 mb-5">
+          <button onClick={removeApplication} disabled={count === 0 || logToday.isPending}
+            className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center active:scale-90 transition disabled:opacity-40">
+            <Minus className="w-6 h-6 text-foreground" />
+          </button>
+          <div className="text-center">
+            <p className="text-6xl font-black" style={{ color: done ? "#4ade80" : "var(--accent)" }}>{count}</p>
+            <p className="text-sm text-muted-foreground mt-1">of {target}</p>
+          </div>
+          <button onClick={addApplication} disabled={logToday.isPending}
+            className="w-14 h-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center active:scale-90 transition shadow-lg shadow-primary/30">
+            <Plus className="w-6 h-6" />
+          </button>
+        </div>
+        <p className="text-sm font-semibold" style={{ color: done ? "#4ade80" : "var(--text-sub)" }}>
+          {done ? `Goal reached! (${count}/${target})` : count === 0 ? "Tap + after each application" : `${target - count} more to go`}
+        </p>
       </div>
 
+      {/* Week view */}
       <div className="bg-card border border-border rounded-2xl p-4 mb-5">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">This week</p>
         <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: 7 }, (_, i) => {
             const d = new Date(); d.setDate(d.getDate() - (6 - i));
             const dateStr = d.toISOString().split("T")[0];
-            const wasDone = weekLogs?.find((l) => l.log_date === dateStr)?.data.done === true;
+            const dayLog = weekLogs?.find((l) => l.log_date === dateStr);
+            const dayCount: number = (dayLog?.data.count as number) ?? 0;
+            const dayDone = dayCount >= target;
             const isToday = dateStr === today;
             return (
               <div key={i} className="flex flex-col items-center gap-1">
                 <span className="text-[10px] text-muted-foreground">{DAY_LABELS[d.getDay()]}</span>
-                <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-sm",
-                  isToday ? "ring-2 ring-primary" : "", wasDone ? "bg-yellow-100 dark:bg-yellow-900/30" : "bg-muted text-muted-foreground")}>
-                  {wasDone ? "☀️" : "·"}
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-bold ${isToday ? "ring-2 ring-primary" : ""} ${dayDone ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300" : dayCount > 0 ? "bg-muted text-foreground" : "bg-muted text-muted-foreground"}`}>
+                  {dayCount > 0 ? `${dayCount}×` : "·"}
                 </div>
               </div>
             );
@@ -121,7 +159,7 @@ export default function SunscreenPage() {
 
       <button onClick={() => setSetupMode(true)}
         className="w-full py-3 border border-border bg-card rounded-2xl text-sm font-semibold text-muted-foreground transition active:scale-95">
-        Edit reminder time
+        Edit settings
       </button>
     </div>
   );

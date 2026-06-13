@@ -30,10 +30,48 @@ async function del(path: string): Promise<void> {
   await fetch(path, { method: "DELETE", headers: headers() });
 }
 
+export interface GestureConfig {
+  element: "score" | "coins" | "greeting";
+  count: number;
+  hidden?: boolean;
+}
+
+export const GESTURE_ELEMENTS: { value: GestureConfig["element"]; label: string; emoji: string; hint: string }[] = [
+  { value: "score",    label: "ERA Score",  emoji: "⭕", hint: "the ERA score ring" },
+  { value: "coins",    label: "My Coins",   emoji: "🪙", hint: "your coins badge" },
+  { value: "greeting", label: "My Name",    emoji: "👋", hint: "your greeting / name" },
+];
+
+export function decodeGesture(entryTab: string): GestureConfig {
+  try {
+    const parsed = JSON.parse(entryTab) as { element?: string; count?: number; hidden?: boolean };
+    if (parsed.element && parsed.count) {
+      return { element: parsed.element as GestureConfig["element"], count: Number(parsed.count), hidden: !!parsed.hidden };
+    }
+  } catch { /* */ }
+  return { element: "coins", count: 3, hidden: false };
+}
+
+export function isCompanionHidden(): boolean {
+  try {
+    const raw = localStorage.getItem("era_companion_tab");
+    if (!raw) return false;
+    return !!decodeGesture(raw).hidden;
+  } catch { return false; }
+}
+
+export function gestureLabel(g: GestureConfig): string {
+  const el = GESTURE_ELEMENTS.find((e) => e.value === g.element);
+  return `Tap ${el?.hint ?? g.element} ${g.count} time${g.count !== 1 ? "s" : ""}`;
+}
+
 export interface CompanionSettings {
   hasPin: boolean;
   isSetUp: boolean;
   entryTab: string;
+  gestureElement: GestureConfig["element"];
+  gestureCount: number;
+  isHidden: boolean;
   personality: Record<string, unknown>;
   isBirthday: boolean;
   birthdayAge: number | null;
@@ -60,7 +98,14 @@ export interface DiaryEntryDetail {
 }
 
 export function useCompanionSettings() {
-  return useQuery<CompanionSettings>({ queryKey: ["companion", "settings"], queryFn: () => get(`${BASE}/settings`) });
+  return useQuery<CompanionSettings>({
+    queryKey: ["companion", "settings"],
+    queryFn: async () => {
+      const raw = await get<Omit<CompanionSettings, "gestureElement" | "gestureCount" | "isHidden">>(`${BASE}/settings`);
+      const g = decodeGesture(raw.entryTab);
+      return { ...raw, gestureElement: g.element, gestureCount: g.count, isHidden: !!g.hidden };
+    },
+  });
 }
 
 export function useDiaryEntries() {
@@ -84,8 +129,9 @@ export function usePersonality() {
 
 export function useSetupCompanion() {
   const qc = useQueryClient();
-  return useMutation<{ ok: boolean }, Error, { pin: string; entryTab: string }>({
-    mutationFn: (b) => post(`${BASE}/setup`, b),
+  return useMutation<{ ok: boolean }, Error, { pin: string; gestureElement: GestureConfig["element"]; gestureCount: number }>({
+    mutationFn: ({ pin, gestureElement, gestureCount }) =>
+      post(`${BASE}/setup`, { pin, entryTab: JSON.stringify({ element: gestureElement, count: gestureCount }) }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["companion"] }),
   });
 }
@@ -102,10 +148,14 @@ export function useChangePin() {
   });
 }
 
-export function useChangeEntryTab() {
+export function useChangeGesture() {
   const qc = useQueryClient();
-  return useMutation<{ ok: boolean }, Error, string>({
-    mutationFn: (entryTab) => patch(`${BASE}/entry-tab`, { entryTab }),
+  return useMutation<{ ok: boolean }, Error, GestureConfig>({
+    mutationFn: ({ element, count, hidden }) => {
+      const encoded = JSON.stringify({ element, count, hidden: !!hidden });
+      localStorage.setItem("era_companion_tab", encoded);
+      return patch(`${BASE}/entry-tab`, { entryTab: encoded });
+    },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["companion", "settings"] }),
   });
 }

@@ -517,6 +517,22 @@ ALTER TABLE appointments ADD COLUMN IF NOT EXISTS confirmed_by                TE
 ALTER TABLE activity ADD COLUMN IF NOT EXISTS performed_by TEXT;
 ALTER TABLE activity ADD COLUMN IF NOT EXISTS staff_role   TEXT;
 
+-- ── Patient in-app notifications (023) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS patient_notifications (
+  id          SERIAL PRIMARY KEY,
+  account_id  INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+  type        TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  body        TEXT,
+  metadata    JSONB NOT NULL DEFAULT '{}',
+  read_at     TIMESTAMPTZ,
+  actioned_at TIMESTAMPTZ,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE patient_notifications DISABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS patient_notif_account_idx    ON patient_notifications(account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS patient_notif_unread_idx     ON patient_notifications(account_id) WHERE read_at IS NULL;
+
 -- ── Doctor-related indexes ────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS queue_doctor_id_idx        ON queue(doctor_id) WHERE doctor_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS appointments_doctor_id_idx ON appointments(doctor_id) WHERE doctor_id IS NOT NULL;

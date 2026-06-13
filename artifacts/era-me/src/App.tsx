@@ -12,6 +12,8 @@ import MoodPage from "@/pages/wellness/mood";
 import FruitPage from "@/pages/wellness/fruit";
 import VitalsPage from "@/pages/wellness/vitals";
 import SmokingPage from "@/pages/wellness/smoking";
+import AlcoholPage from "@/pages/wellness/alcohol";
+import IntimacyPage from "@/pages/wellness/intimacy";
 import EyeBreakPage from "@/pages/wellness/eyebreak";
 import SunscreenPage from "@/pages/wellness/sunscreen";
 import OutdoorsPage from "@/pages/wellness/outdoors";
@@ -34,6 +36,7 @@ import CompanionSettingsPage from "@/pages/companion/settings";
 import OnboardingPage from "@/pages/onboarding";
 import PlanPage from "@/pages/plan";
 import ReportPage from "@/pages/report";
+import NotificationsPage from "@/pages/notifications";
 import Layout from "@/components/layout";
 
 const queryClient = new QueryClient({
@@ -93,6 +96,7 @@ function AppRoutes() {
             <Route path="/" component={HomePage} />
             <Route path="/plan" component={PlanPage} />
             <Route path="/report" component={ReportPage} />
+            <Route path="/notifications" component={NotificationsPage} />
             <Route path="/wellness" component={WellnessPage} />
             <Route path="/wellness/water" component={WaterPage} />
             <Route path="/wellness/medications" component={MedicationsPage} />
@@ -104,6 +108,8 @@ function AppRoutes() {
             <Route path="/wellness/fruit" component={FruitPage} />
             <Route path="/wellness/vitals" component={VitalsPage} />
             <Route path="/wellness/smoking" component={SmokingPage} />
+            <Route path="/wellness/alcohol" component={AlcoholPage} />
+            <Route path="/wellness/intimacy" component={IntimacyPage} />
             <Route path="/wellness/eyebreak" component={EyeBreakPage} />
             <Route path="/wellness/sunscreen" component={SunscreenPage} />
             <Route path="/wellness/outdoors" component={OutdoorsPage} />

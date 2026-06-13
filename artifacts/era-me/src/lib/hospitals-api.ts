@@ -57,6 +57,22 @@ export interface HospitalConnection {
   verifiedAt: string;
 }
 
+export interface BookingSlot {
+  datetime: string;
+  label: string;
+}
+
+export interface PatientNotification {
+  id: number;
+  type: string;
+  title: string;
+  body: string | null;
+  metadata: Record<string, unknown>;
+  read_at: string | null;
+  actioned_at: string | null;
+  created_at: string;
+}
+
 export interface HospitalMessage {
   id: number;
   sender: "patient" | "hospital";
@@ -150,6 +166,65 @@ export function useSendMessage(connectionId: number) {
     onSuccess: () => {
       void qc.refetchQueries({ queryKey: ["hospital-messages", connectionId] });
       void qc.refetchQueries({ queryKey: ["hospital-unread"] });
+    },
+  });
+}
+
+// ── Booking ───────────────────────────────────────────────────────────────────
+
+export function useBookingSlots(connectionId: number, enabled: boolean) {
+  return useQuery<{ hospitalName: string; slots: BookingSlot[] }>({
+    queryKey: ["hospital-booking-slots", connectionId],
+    queryFn: () => get(`${BASE}/${connectionId}/booking-slots`),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useCreateBooking(connectionId: number) {
+  return useMutation<{ id: number; message: string }, Error, { requestedAt: string; reason: string }>({
+    mutationFn: (body) => post(`${BASE}/${connectionId}/book`, body),
+  });
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export function useNotifications() {
+  return useQuery<PatientNotification[]>({
+    queryKey: ["patient-notifications"],
+    queryFn: () => get("/api/patient-app/notifications"),
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
+  });
+}
+
+export function useUnreadNotifCount() {
+  return useQuery<{ count: number }>({
+    queryKey: ["patient-notif-unread"],
+    queryFn: () => get("/api/patient-app/notifications/unread-count"),
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
+  });
+}
+
+export function useMarkNotifRead() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: boolean }, Error, number>({
+    mutationFn: (id) => post(`/api/patient-app/notifications/${id}/read`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["patient-notifications"] });
+      void qc.invalidateQueries({ queryKey: ["patient-notif-unread"] });
+    },
+  });
+}
+
+export function useActionNotif() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: boolean }, Error, number>({
+    mutationFn: (id) => post(`/api/patient-app/notifications/${id}/action`, {}),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["patient-notifications"] });
+      void qc.invalidateQueries({ queryKey: ["patient-notif-unread"] });
     },
   });
 }

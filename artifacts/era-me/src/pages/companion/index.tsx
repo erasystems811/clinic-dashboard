@@ -5,9 +5,10 @@ import { useAuth } from "@/contexts/auth-context";
 import {
   useCompanionSettings, useDiaryEntries, useStartConversation, useDeleteEntry,
   isCompanionUnlocked, setCompanionUnlocked, useVerifyPin, useSetupCompanion,
+  GESTURE_ELEMENTS, gestureLabel, decodeGesture,
 } from "@/lib/companion-api";
 import { cn } from "@/lib/utils";
-import type { DiaryEntry } from "@/lib/companion-api";
+import type { DiaryEntry, GestureConfig } from "@/lib/companion-api";
 
 // ── Entry point — gates between setup / pin / home ────────────────────────────
 export default function CompanionGate() {
@@ -29,19 +30,15 @@ export default function CompanionGate() {
 }
 
 // ── Setup screen ──────────────────────────────────────────────────────────────
-const NAV_TABS = [
-  { value: "/",          label: "Home tab" },
-  { value: "/wellness",  label: "Wellness tab" },
-  { value: "/hospitals", label: "Hospitals tab" },
-  { value: "/profile",   label: "Profile tab" },
-];
+const COUNTS = [2, 3, 4, 5];
 
 function SetupScreen({ accountId }: { accountId: number }) {
   const [, navigate] = useLocation();
-  const [step, setStep] = useState<"intro" | "pin" | "tab">("intro");
+  const [step, setStep] = useState<"intro" | "pin" | "gesture" | "done">("intro");
   const [pin, setPin] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [entryTab, setEntryTab] = useState("/profile");
+  const [gestureElement, setGestureElement] = useState<GestureConfig["element"]>("coins");
+  const [gestureCount, setGestureCount] = useState(3);
   const [error, setError] = useState("");
   const setup = useSetupCompanion();
 
@@ -49,31 +46,59 @@ function SetupScreen({ accountId }: { accountId: number }) {
     if (pin.length < 4) { setError("PIN must be at least 4 digits"); return; }
     if (pin !== confirm) { setError("PINs don't match"); return; }
     setError("");
-    setStep("tab");
+    setStep("gesture");
   }
 
   function handleSave() {
-    setup.mutate({ pin, entryTab }, {
+    setup.mutate({ pin, gestureElement, gestureCount }, {
       onSuccess: () => {
+        const encoded = JSON.stringify({ element: gestureElement, count: gestureCount });
+        localStorage.setItem("era_companion_tab", encoded);
         setCompanionUnlocked(accountId);
-        localStorage.setItem("era_companion_tab", entryTab);
+        setStep("done");
       },
     });
+  }
+
+  if (step === "done") {
+    const label = gestureLabel({ element: gestureElement, count: gestureCount });
+    return (
+      <div className="px-5 pt-16 pb-8 flex flex-col items-center text-center">
+        <div className="text-6xl mb-6">🔑</div>
+        <h1 className="text-2xl font-bold text-foreground mb-3">Your diary is ready!</h1>
+        <p className="text-sm text-muted-foreground mb-8 leading-relaxed max-w-sm">
+          Remember this — it's the only way in.
+        </p>
+        <div className="w-full bg-primary/10 border-2 border-primary rounded-2xl p-5 mb-8 text-left">
+          <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">Your secret entrance</p>
+          <p className="text-lg font-bold text-foreground">{label}</p>
+          <p className="text-sm text-muted-foreground mt-1">Then enter your PIN.</p>
+        </div>
+        <p className="text-xs text-muted-foreground mb-6">
+          A reminder will always be available on the home screen — tap the 🔑 icon anytime.
+        </p>
+        <button onClick={() => navigate("/companion")}
+          className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95">
+          Open my diary
+        </button>
+      </div>
+    );
   }
 
   if (step === "intro") {
     return (
       <div className="px-5 pt-16 pb-8 flex flex-col items-center text-center">
         <div className="text-6xl mb-6">📔</div>
-        <h1 className="text-2xl font-bold text-foreground mb-3">Your private companion</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-3">Your private diary</h1>
         <p className="text-muted-foreground text-sm leading-relaxed mb-8 max-w-sm">
-          A safe space for journaling, honest conversations, and self-understanding. PIN-protected. Only yours.
+          A secret space for journaling, conversations, and knowing yourself. Protected by your PIN and a gesture only you know.
         </p>
         <div className="space-y-3 w-full text-left mb-8">
           {[
             { icon: "📝", label: "Daily journaling", sub: "Write freely, privately" },
-            { icon: "💬", label: "AI conversations", sub: "Your companion listens and remembers" },
-            { icon: "🧠", label: "Personality insights", sub: "Learns who you are over time" },
+            { icon: "💬", label: "Live conversations", sub: "Your companion listens and remembers" },
+            { icon: "🧠", label: "Personality profile", sub: "Learns who you are over time" },
+            { icon: "🔑", label: "Secret access", sub: "Hidden — only you know the way in" },
           ].map((f) => (
             <div key={f.label} className="flex items-center gap-4 bg-card border border-border rounded-2xl p-4">
               <span className="text-2xl shrink-0">{f.icon}</span>
@@ -84,7 +109,7 @@ function SetupScreen({ accountId }: { accountId: number }) {
         <button onClick={() => setStep("pin")} className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95">
           Set it up
         </button>
-        <button onClick={() => navigate("/profile")} className="mt-3 text-sm text-muted-foreground">Maybe later</button>
+        <button onClick={() => navigate("/")} className="mt-3 text-sm text-muted-foreground">Maybe later</button>
       </div>
     );
   }
@@ -96,7 +121,7 @@ function SetupScreen({ accountId }: { accountId: number }) {
           <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
         </button>
         <h2 className="text-xl font-bold text-foreground mb-1">Set your PIN</h2>
-        <p className="text-sm text-muted-foreground mb-6">This PIN protects your companion. You'll enter it each time you open it.</p>
+        <p className="text-sm text-muted-foreground mb-6">This PIN protects your diary. You'll enter it every time.</p>
 
         <PinPad label="Enter a PIN (4+ digits)" value={pin} onChange={setPin} />
         <div className="mt-4" />
@@ -112,32 +137,55 @@ function SetupScreen({ accountId }: { accountId: number }) {
     );
   }
 
+  // step === "gesture"
   return (
     <div className="px-5 pt-6 pb-8">
       <button onClick={() => setStep("pin")} className="flex items-center gap-1.5 text-muted-foreground mb-8 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
-      <h2 className="text-xl font-bold text-foreground mb-1">Choose your secret entry</h2>
+      <h2 className="text-xl font-bold text-foreground mb-1">Choose your secret gesture</h2>
       <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-        Long-pressing this tab in the navigation bar will open your companion. Pick one that feels natural to you.
+        Pick something you tap on the home screen and how many times. Nobody will know what it does.
       </p>
-      <div className="space-y-3 mb-6">
-        {NAV_TABS.map((t) => (
-          <button key={t.value} onClick={() => setEntryTab(t.value)}
+
+      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">What to tap</p>
+      <div className="space-y-2 mb-6">
+        {GESTURE_ELEMENTS.map((el) => (
+          <button key={el.value} onClick={() => setGestureElement(el.value)}
             className={cn("w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition",
-              entryTab === t.value ? "border-primary bg-primary/5" : "border-border bg-card")}>
+              gestureElement === el.value ? "border-primary bg-primary/5" : "border-border bg-card")}>
             <div className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0",
-              entryTab === t.value ? "border-primary bg-primary" : "border-muted-foreground")}>
-              {entryTab === t.value && <div className="w-2 h-2 rounded-full bg-white" />}
+              gestureElement === el.value ? "border-primary bg-primary" : "border-muted-foreground")}>
+              {gestureElement === el.value && <div className="w-2 h-2 rounded-full bg-white" />}
             </div>
-            <p className="font-semibold text-foreground text-sm">{t.label}</p>
+            <span className="text-xl shrink-0">{el.emoji}</span>
+            <div>
+              <p className="font-semibold text-foreground text-sm">{el.label}</p>
+              <p className="text-xs text-muted-foreground">Tap {el.hint}</p>
+            </div>
           </button>
         ))}
       </div>
-      <p className="text-xs text-muted-foreground text-center mb-5">You can change this later from inside the companion.</p>
+
+      <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">How many times</p>
+      <div className="flex gap-3 mb-8">
+        {COUNTS.map((n) => (
+          <button key={n} onClick={() => setGestureCount(n)}
+            className={cn("flex-1 py-3 rounded-2xl font-bold text-base border-2 transition",
+              gestureCount === n ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card text-foreground")}>
+            {n}×
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-muted rounded-2xl p-4 mb-6 text-center">
+        <p className="text-xs text-muted-foreground mb-1">Your secret will be</p>
+        <p className="font-bold text-foreground text-sm">{gestureLabel({ element: gestureElement, count: gestureCount })}</p>
+      </div>
+
       <button onClick={handleSave} disabled={setup.isPending}
         className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">
-        {setup.isPending ? "Setting up…" : "Open my companion"}
+        {setup.isPending ? "Setting up…" : "Save my secret & open diary"}
       </button>
     </div>
   );
@@ -150,6 +198,14 @@ function PinScreen({ accountId, onUnlock }: { accountId: number; onUnlock: () =>
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
   const verify = useVerifyPin();
+
+  const gestureHint = (() => {
+    try {
+      const raw = localStorage.getItem("era_companion_tab");
+      if (!raw) return null;
+      return gestureLabel(decodeGesture(raw));
+    } catch { return null; }
+  })();
 
   function handleDigit(d: string) {
     if (pin.length >= 8) return;
@@ -174,11 +230,17 @@ function PinScreen({ accountId, onUnlock }: { accountId: number; onUnlock: () =>
 
   return (
     <div className="px-5 pt-6 pb-8 flex flex-col items-center">
-      <button onClick={() => navigate("/profile")} className="self-start flex items-center gap-1.5 text-muted-foreground mb-8 -ml-1">
+      <button onClick={() => navigate("/")} className="self-start flex items-center gap-1.5 text-muted-foreground mb-8 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
-      <div className="text-5xl mb-6">🔒</div>
-      <h2 className="text-xl font-bold text-foreground mb-8">Enter your PIN</h2>
+      <div className="text-5xl mb-4">🔒</div>
+      <h2 className="text-xl font-bold text-foreground mb-2">Enter your PIN</h2>
+      {gestureHint && (
+        <p className="text-xs text-muted-foreground mb-6 text-center">
+          🔑 Secret: <span className="font-semibold">{gestureHint}</span>
+        </p>
+      )}
+      {!gestureHint && <div className="mb-6" />}
 
       <div className={cn("flex gap-3 mb-8 transition-all", shake && "animate-bounce")}>
         {Array.from({ length: Math.max(4, pin.length) }, (_, i) => (
@@ -238,7 +300,7 @@ function CompanionHome({ isBirthday, birthdayAge }: { isBirthday: boolean; birth
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <span className="text-2xl">📔</span>
-          <h1 className="text-xl font-bold text-foreground">My companion</h1>
+          <h1 className="text-xl font-bold text-foreground">My Diary</h1>
         </div>
         <button onClick={() => navigate("/companion/settings")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
           <Settings className="w-4 h-4 text-muted-foreground" />

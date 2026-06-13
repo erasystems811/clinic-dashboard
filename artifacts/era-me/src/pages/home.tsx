@@ -1,15 +1,25 @@
-import { useEffect, useState } from "react";
-import { Link } from "wouter";
-import { ChevronRight, CheckCircle2, Circle, Plus, Minus, X } from "lucide-react";
+import { useEffect, useState, useRef, type MouseEvent } from "react";
+import { Link, useLocation } from "wouter";
+import { ChevronRight, CheckCircle2, Circle, Plus, Minus, X, Bell } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate } from "@/lib/utils";
-import { useWellnessToday, useWeekSummary, useLogToday, useQuickLog, useAiInsight } from "@/lib/wellness-api";
-import { useCoins } from "@/lib/hospitals-api";
+import { useWellnessToday, useWeekSummary, useLogToday, useQuickLog, useAiInsight, useUpcomingEvents } from "@/lib/wellness-api";
+import type { UpcomingEvent } from "@/lib/wellness-api";
+import { useCoins, useUnreadNotifCount } from "@/lib/hospitals-api";
 import { canNotify, notifPermission, requestNotifPermission, fireNotification, maybeFireEveningReminder } from "@/lib/notifications";
+import { decodeGesture, gestureLabel, isCompanionHidden } from "@/lib/companion-api";
 import type { WeekSummary } from "@/lib/wellness-api";
+import type { GestureConfig } from "@/lib/companion-api";
 
 interface ChecklistItem {
-  id: string; emoji: string; label: string; sub?: string; done: boolean;
+  id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean;
+}
+
+function fmtTime(t: string): string {
+  const [h, m] = t.split(":").map(Number);
+  const p = h < 12 ? "AM" : "PM";
+  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m === 0 ? `${hr}${p}` : `${hr}:${String(m).padStart(2, "0")}${p}`;
 }
 interface ModuleEntry {
   enabled: boolean;
@@ -26,12 +36,24 @@ const MODULE_ACCENT: Record<string, string> = {
   water: "#38bdf8", medications: "#14b8a6", workout: "#f97316",
   sleep: "#8b5cf6", mood_check: "#fbbf24", energy: "#84cc16",
   stress: "#a855f7", fruit: "#22c55e", vitals: "#ef4444",
-  smoking: "#64748b", eyebreak: "#6366f1", sunscreen: "#eab308",
-  outdoors: "#16a34a", hygiene: "#93c5fd",
+  smoking: "#64748b", alcohol: "#fbbf24", eyebreak: "#6366f1",
+  sunscreen: "#eab308", outdoors: "#16a34a", hygiene: "#93c5fd",
+  intimacy: "#fda4af", vaccines: "#a78bfa", checkups: "#22d3ee",
 };
+
+function baseModule(id: string): string {
+  if (id.startsWith("med_"))     return "medications";
+  if (id.startsWith("hygiene_")) return "hygiene";
+  if (id.startsWith("vaccine_")) return "vaccines";
+  if (id.startsWith("checkup_")) return "checkups";
+  return id;
+}
 
 function moduleHref(id: string): string {
   if (id === "mood_check") return "/wellness/mood";
+  if (id === "energy" || id === "stress") return "/wellness/mood";
+  const base = baseModule(id);
+  if (base !== id) return `/wellness/${base}`;
   return `/wellness/${id}`;
 }
 
@@ -68,14 +90,47 @@ function getUrgency(pendingCount: number): { level: 1 | 2; hoursLeft: number; mi
 
 export default function HomePage() {
   const { account } = useAuth();
+  const [, navigate] = useLocation();
   const displayName = account?.displayName ?? account?.username ?? "there";
   const { data: todayData } = useWellnessToday() as { data: TodayData | undefined };
   const { data: summary } = useWeekSummary();
-  const { data: aiData, isLoading: aiLoading } = useAiInsight();
   const logWater = useLogToday("water");
   const quickLog = useQuickLog();
   const { data: coinsData } = useCoins();
   const coins = coinsData?.coins ?? 0;
+  const { data: aiData, isLoading: aiLoading } = useAiInsight();
+  const { data: upcomingData } = useUpcomingEvents();
+  const { data: notifData } = useUnreadNotifCount();
+  const unreadNotifs = notifData?.count ?? 0;
+
+  // ── Secret diary gesture ──────────────────────────────────────────────────
+  const [gesture, setGesture] = useState<GestureConfig | null>(null);
+  const [showHint, setShowHint] = useState(false);
+  const tapRef = useRef<{ element: string; count: number; timer: ReturnType<typeof setTimeout> | null }>({ element: "", count: 0, timer: null });
+
+  useEffect(() => {
+    const raw = localStorage.getItem("era_companion_tab");
+    if (raw) setGesture(decodeGesture(raw));
+  }, []);
+
+  function handleGestureTap(element: string, e?: MouseEvent) {
+    if (!gesture || gesture.element !== element) return;
+    if (element === "coins") e?.preventDefault();
+    if (tapRef.current.timer) clearTimeout(tapRef.current.timer);
+    if (tapRef.current.element !== element) {
+      tapRef.current = { element, count: 1, timer: null };
+    } else {
+      tapRef.current.count += 1;
+    }
+    if (tapRef.current.count >= gesture.count) {
+      tapRef.current = { element: "", count: 0, timer: null };
+      navigate("/companion");
+      return;
+    }
+    tapRef.current.timer = setTimeout(() => {
+      tapRef.current = { element: "", count: 0, timer: null };
+    }, 1500);
+  }
 
   const mods = todayData?.modules ?? {};
   const waterMod = mods.water;
@@ -94,7 +149,6 @@ export default function HomePage() {
   const weekRate = summary?.overallRate ?? 0;
   const eraScore = computeEraScore(completionPct, weekRate);
   const urgency = getUrgency(pendingItems.length);
-  const aiInsight = aiData?.insight ?? null;
 
   // Notification prompt — shown once when permission not yet asked
   const [showNotifPrompt, setShowNotifPrompt] = useState(() => {
@@ -122,8 +176,19 @@ export default function HomePage() {
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <p style={{ color: "var(--text-dim)", fontSize: 12, fontWeight: 500 }}>{formatDate()}</p>
-              {coins > 0 && (
+              <p
+                onClick={() => handleGestureTap("date")}
+                style={{ color: "var(--text-dim)", fontSize: 12, fontWeight: 500, cursor: gesture?.element === "date" ? "default" : undefined }}
+              >{formatDate()}</p>
+              {coins > 0 && (gesture?.element === "coins" ? (
+                <div
+                  onClick={(e) => handleGestureTap("coins", e)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full active:scale-95 transition"
+                  style={{ background: "linear-gradient(135deg,#92400e,#d97706)", boxShadow: "0 2px 8px rgba(217,119,6,0.4)", cursor: "pointer" }}>
+                  <span style={{ fontSize: 10 }}>🪙</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{coins}</span>
+                </div>
+              ) : (
                 <Link href="/profile">
                   <div className="flex items-center gap-1 px-2 py-0.5 rounded-full active:scale-95 transition"
                     style={{ background: "linear-gradient(135deg,#92400e,#d97706)", boxShadow: "0 2px 8px rgba(217,119,6,0.4)" }}>
@@ -131,9 +196,36 @@ export default function HomePage() {
                     <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{coins}</span>
                   </div>
                 </Link>
+              ))}
+              <Link href="/notifications">
+                <div className="relative active:scale-90 transition" style={{ lineHeight: 0 }}>
+                  <Bell className="w-5 h-5" style={{ color: unreadNotifs > 0 ? "var(--accent)" : "var(--text-dim)" }} />
+                  {unreadNotifs > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"
+                      style={{ background: "#ef4444", color: "#fff" }}>
+                      {unreadNotifs > 9 ? "9+" : unreadNotifs}
+                    </span>
+                  )}
+                </div>
+              </Link>
+              {gesture && (
+                <button
+                  onClick={() => setShowHint((p) => !p)}
+                  style={{ lineHeight: 0, opacity: 0.35, fontSize: 14, padding: 2 }}
+                  title="Your diary secret"
+                >🔑</button>
               )}
             </div>
-            <h1 style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, color: "var(--text-main)" }}>
+            {showHint && gesture && (
+              <div className="mb-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold"
+                style={{ background: "var(--accent-tint-bg)", color: "var(--accent)", border: "1px solid var(--accent-tint-border)" }}>
+                Secret: {gestureLabel(gesture)} → PIN
+              </div>
+            )}
+            <h1
+              onClick={() => handleGestureTap("greeting")}
+              style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, color: "var(--text-main)", cursor: gesture?.element === "greeting" ? "default" : undefined }}
+            >
               {greeting()},<br />
               <span style={{ background: "linear-gradient(120deg,var(--accent-light),var(--accent))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                 {displayName} 👋
@@ -146,7 +238,8 @@ export default function HomePage() {
             )}
           </div>
           {total > 0 && (
-            <div className="relative shrink-0" style={{ width: 76, height: 76 }}>
+            <div className="relative shrink-0" style={{ width: 76, height: 76 }}
+              onClick={() => handleGestureTap("score")}>
               <svg className="w-full h-full -rotate-90" viewBox="0 0 76 76">
                 <circle cx="38" cy="38" r="30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="7" />
                 <circle cx="38" cy="38" r="30" fill="none"
@@ -176,7 +269,8 @@ export default function HomePage() {
         {/* ── ERA Score + AI Insight Card ───────────────────────── */}
         {(total > 0 || summary) && (
           <EraScoreCard score={eraScore.score} label={eraScore.label} color={eraScore.color}
-            completionPct={completionPct} weekRate={weekRate} aiInsight={aiInsight} aiLoading={aiLoading} />
+            completionPct={completionPct} weekRate={weekRate}
+            aiInsight={aiData?.insight ?? null} aiLoading={aiLoading} />
         )}
 
         {/* ── Urgency Banner ────────────────────────────────────── */}
@@ -252,14 +346,21 @@ export default function HomePage() {
                 style={{ width: `${completionPct}%`, background: completionPct === 100 ? "#4ade80" : "var(--btn-gradient)", boxShadow: `0 0 8px rgba(var(--glow-rgb),0.5)` }} />
             </div>
             <div className="space-y-2">
-              {pendingItems.map((item) => (
-                <CheckRow key={item.id} item={item} isUrgent={!!urgency}
-                  onQuickDone={QUICK_LOG_DATA[item.id]
-                    ? () => quickLog.mutate({ moduleType: item.id, data: QUICK_LOG_DATA[item.id] })
-                    : undefined}
-                />
-              ))}
-              {doneItems.map((item) => <CheckRow key={item.id} item={item} isUrgent={false} />)}
+              {(() => {
+                const quickLogData = buildQuickLogData(mods);
+                return (
+                  <>
+                    {pendingItems.map((item) => (
+                      <CheckRow key={item.id} item={item} isUrgent={!!urgency}
+                        onQuickDone={quickLogData[item.id]
+                          ? () => quickLog.mutate({ moduleType: item.id, data: quickLogData[item.id] })
+                          : undefined}
+                      />
+                    ))}
+                    {doneItems.map((item) => <CheckRow key={item.id} item={item} isUrgent={false} />)}
+                  </>
+                );
+              })()}
             </div>
           </section>
         ) : (
@@ -284,6 +385,11 @@ export default function HomePage() {
           <ThisWeekCard summary={summary} />
         )}
 
+        {/* ── Coming Up ─────────────────────────────────────────── */}
+        {(upcomingData?.events?.length ?? 0) > 0 && (
+          <ComingUpCard events={upcomingData!.events} />
+        )}
+
         {/* ── Quick Access ───────────────────────────────────────── */}
         <section>
           <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", marginBottom: 12 }}>Quick access</h2>
@@ -291,7 +397,10 @@ export default function HomePage() {
             <QuickCard href="/wellness"  emoji="💚" label="My Wellness"  description="Habits & modules" />
             <QuickCard href="/plan"      emoji="📅" label="Weekly Plan"  description="Your habit grid" />
             <QuickCard href="/hospitals" emoji="🏥" label="Hospitals"    description="Chat & book" />
-            <QuickCard href="/companion" emoji="🤖" label="Companion"    description="Journal & AI chat" />
+            <QuickCard href="/notifications" emoji="🔔" label="Notifications" description="Alerts & messages" />
+            {!isCompanionHidden() && (
+              <QuickCard href="/companion" emoji="📔" label="My Diary" description="Private journal & chats" />
+            )}
           </div>
         </section>
 
@@ -346,18 +455,20 @@ function EraScoreCard({ score, label, color, completionPct, weekRate, aiInsight,
         </div>
       </div>
 
-      {/* AI insight strip */}
-      {(aiInsight || aiLoading) && (
-        <div style={{ borderTop: "1px solid var(--glass-border)", padding: "10px 16px 12px", display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <span style={{ fontSize: 16, flexShrink: 0 }}>🤖</span>
-          {aiLoading && !aiInsight ? (
-            <div style={{ flex: 1, display: "flex", gap: 6, alignItems: "center" }}>
-              <div className="h-2 rounded-full animate-pulse" style={{ width: "60%", background: "var(--glass-border)" }} />
-              <div className="h-2 rounded-full animate-pulse" style={{ width: "30%", background: "var(--glass-bg)" }} />
-            </div>
-          ) : (
-            <p style={{ flex: 1, fontSize: 12, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.5 }}>{aiInsight}</p>
-          )}
+      {/* Insight strip */}
+      {(aiLoading || aiInsight) && (
+        <div style={{ borderTop: "1px solid var(--glass-border)", padding: "8px 16px 10px", display: "flex", gap: 8, alignItems: "flex-start" }}>
+          <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>📊</span>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 1, marginBottom: 4 }}>INSIGHT</p>
+            {aiLoading
+              ? <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <div style={{ height: 9, borderRadius: 4, background: "var(--glass-track)", width: "90%", animation: "pulse 1.5s infinite" }} />
+                  <div style={{ height: 9, borderRadius: 4, background: "var(--glass-track)", width: "75%", animation: "pulse 1.5s infinite" }} />
+                </div>
+              : <p style={{ fontSize: 11, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.6, margin: 0 }}>{aiInsight}</p>
+            }
+          </div>
         </div>
       )}
     </div>
@@ -422,22 +533,30 @@ function NotifPrompt({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-// Minimal log payload to mark a module done with one tap.
-// Modules NOT in this map require detail entry → tap navigates to the module page.
-const QUICK_LOG_DATA: Record<string, Record<string, unknown>> = {
-  fruit:     { done: true },
-  sunscreen: { done: true },
-  hygiene:   { done: true },
-  smoking:   { smoked: false },
-  workout:   { completed: true },
-};
+// Build minimal one-tap log payloads. Modules missing from this map need detail input → tap navigates.
+function buildQuickLogData(mods: Record<string, ModuleEntry | undefined>): Record<string, Record<string, unknown>> {
+  const outdoorsTarget = (mods.outdoors?.settings?.targetMinutes as number | undefined) ?? 30;
+  const eyeTarget = (mods.eyebreak?.settings?.targetBreaks as number | undefined) ?? 6;
+  const intimacyMode = (mods.intimacy?.settings as { mode?: string } | undefined)?.mode;
+  const data: Record<string, Record<string, unknown>> = {
+    fruit:     { done: true },
+    sunscreen: { done: true },
+    smoking:   { smoked: false },
+    alcohol:   { drinks: 0 },
+    workout:   { completed: true },
+    outdoors:  { minutes: outdoorsTarget },
+    eyebreak:  { count: eyeTarget },
+  };
+  if (intimacyMode === "celibacy") data.intimacy = { active: false };
+  return data;
+}
 
 function CheckRow({ item, isUrgent, onQuickDone }: {
   item: ChecklistItem;
   isUrgent: boolean;
   onQuickDone?: () => void;
 }) {
-  const accent = MODULE_ACCENT[item.id] ?? "var(--accent)";
+  const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
   const urgentGlow = isUrgent && !item.done;
 
   const rowContent = (
@@ -464,13 +583,15 @@ function CheckRow({ item, isUrgent, onQuickDone }: {
 
       <span style={{ fontSize: 18, flexShrink: 0 }}>{item.emoji}</span>
 
-      {/* Middle: label + sub — this whole area navigates */}
+      {/* Middle: label + sub + time — this whole area navigates */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none" }}>
           {item.label}
         </p>
-        {item.sub && (
+        {(item.time || item.sub) && (
           <p style={{ fontSize: 11, marginTop: 1.5, color: item.done ? "var(--text-dim)" : accent }}>
+            {item.time && <span style={{ fontWeight: 700, marginRight: item.sub ? 4 : 0 }}>{fmtTime(item.time)}</span>}
+            {item.time && item.sub && <span style={{ opacity: 0.5, marginRight: 4 }}>·</span>}
             {item.sub}
           </p>
         )}
@@ -497,9 +618,14 @@ function ThisWeekCard({ summary }: { summary: WeekSummary }) {
     <section>
       <div className="flex items-center justify-between mb-3">
         <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>This week</h2>
-        <Link href="/plan">
-          <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>Full plan →</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/report">
+            <span style={{ fontSize: 11, color: "var(--text-sub)", fontWeight: 600 }}>Past weeks →</span>
+          </Link>
+          <Link href="/plan">
+            <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>Full plan →</span>
+          </Link>
+        </div>
       </div>
       <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         {/* Rate header */}
@@ -554,6 +680,61 @@ function ThisWeekCard({ summary }: { summary: WeekSummary }) {
             );
           })}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function dueDateLabel(daysUntil: number, dueDate: string): { text: string; color: string } {
+  if (daysUntil < 0) return { text: `Overdue ${Math.abs(daysUntil)}d ago`, color: "#f87171" };
+  if (daysUntil === 0) return { text: "Due today", color: "#fb923c" };
+  if (daysUntil === 1) return { text: "Due tomorrow", color: "#fbbf24" };
+  if (daysUntil <= 7) {
+    const d = new Date(dueDate + "T12:00:00");
+    return { text: `Due ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]}`, color: "#fbbf24" };
+  }
+  return { text: `Due in ${daysUntil}d`, color: "var(--text-sub)" };
+}
+
+function moduleHrefForEvent(module: string): string {
+  if (module === "hygiene") return "/wellness/hygiene";
+  if (module === "vaccines") return "/wellness/vaccines";
+  if (module === "checkups") return "/wellness/checkups";
+  return "/wellness";
+}
+
+function ComingUpCard({ events }: { events: UpcomingEvent[] }) {
+  const overdueCount = events.filter((e) => e.daysUntil < 0).length;
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-2.5">
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>
+          Coming up
+          {overdueCount > 0 && (
+            <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "rgba(248,113,113,0.15)", color: "#f87171" }}>
+              {overdueCount} overdue
+            </span>
+          )}
+        </h2>
+        <span style={{ fontSize: 11, color: "var(--text-dim)" }}>next 2 weeks</span>
+      </div>
+      <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+        {events.map((event, i) => {
+          const { text, color } = dueDateLabel(event.daysUntil, event.dueDate);
+          return (
+            <Link key={event.id} href={moduleHrefForEvent(event.module)}>
+              <div className="flex items-center gap-3 px-4 py-3 cursor-pointer active:scale-[0.98] transition"
+                style={{ borderTop: i > 0 ? "1px solid var(--glass-border)" : "none" }}>
+                <span style={{ fontSize: 22, flexShrink: 0 }}>{event.emoji}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", lineHeight: 1.3 }}>{event.label}</p>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>{text}</span>
+                <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)", flexShrink: 0 }} />
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

@@ -5,21 +5,25 @@ import { useSaveModule, useLogToday, useWellnessModules, useWellnessWeek } from 
 import { cn } from "@/lib/utils";
 
 const MILESTONES = [
-  { days: 1, label: "1 Day", emoji: "🌱" },
-  { days: 3, label: "3 Days", emoji: "💪" },
-  { days: 7, label: "1 Week", emoji: "⭐" },
-  { days: 14, label: "2 Weeks", emoji: "🔥" },
-  { days: 30, label: "1 Month", emoji: "🏆" },
-  { days: 90, label: "3 Months", emoji: "💎" },
+  { days: 1,   label: "1 Day",    emoji: "🌱" },
+  { days: 3,   label: "3 Days",   emoji: "💪" },
+  { days: 7,   label: "1 Week",   emoji: "⭐" },
+  { days: 14,  label: "2 Weeks",  emoji: "🔥" },
+  { days: 30,  label: "1 Month",  emoji: "🏆" },
+  { days: 90,  label: "3 Months", emoji: "💎" },
   { days: 180, label: "6 Months", emoji: "🌟" },
-  { days: 365, label: "1 Year", emoji: "👑" },
+  { days: 365, label: "1 Year",   emoji: "👑" },
 ];
 
 interface SmokingSettings {
   quitDate?: string;
+  smokesPerDay?: number;
+  costPerSession?: number;
+  // Legacy fields kept for backward compat
   cigarettesPerDay?: number;
   costPerPack?: number;
   cigarettesPerPack?: number;
+  notes?: string;
 }
 
 export default function SmokingPage() {
@@ -36,17 +40,23 @@ export default function SmokingPage() {
   const settings: SmokingSettings = mod?.settings ?? {};
   const enabled = mod?.enabled ?? false;
 
+  // Resolve legacy field names
+  const effectiveSmokesPerDay = settings.smokesPerDay ?? settings.cigarettesPerDay ?? 10;
+  const effectiveCostPerSession = settings.costPerSession
+    ?? (settings.costPerPack && settings.cigarettesPerPack
+      ? Math.round(settings.costPerPack / settings.cigarettesPerPack)
+      : 75);
+
   const today = new Date().toISOString().split("T")[0];
   const todayLog = weekLogs?.find((l) => l.log_date === today);
   const smokedToday = todayLog?.data.smoked === true;
-  const smokedCount = (todayLog?.data.count as number | undefined) ?? 0;
+  const smokeCount = (todayLog?.data.count as number | undefined) ?? 0;
 
   const [setupMode, setSetupMode] = useState(false);
   const [quitDate, setQuitDate] = useState(settings.quitDate ?? today);
-  const [perDay, setPerDay] = useState(settings.cigarettesPerDay ?? 10);
-  const [costPerPack, setCostPerPack] = useState(settings.costPerPack ?? 1500);
-  const [perPack, setPerPack] = useState(settings.cigarettesPerPack ?? 20);
-  const [notes, setNotes] = useState(((settings as Record<string, unknown>).notes as string | undefined) ?? "");
+  const [perDay, setPerDay] = useState(effectiveSmokesPerDay);
+  const [costPerSession, setCostPerSession] = useState(effectiveCostPerSession);
+  const [notes, setNotes] = useState(settings.notes ?? "");
   const [showSlip, setShowSlip] = useState(false);
   const [slipCount, setSlipCount] = useState("1");
 
@@ -54,21 +64,21 @@ export default function SmokingPage() {
     ? Math.max(0, Math.floor((Date.now() - new Date(settings.quitDate).getTime()) / 86400000))
     : 0;
 
-  const cigAvoided = daysFree * (settings.cigarettesPerDay ?? 10);
-  const packsSaved = cigAvoided / (settings.cigarettesPerPack ?? 20);
-  const moneySaved = Math.round(packsSaved * (settings.costPerPack ?? 1500));
+  const smokesAvoided = daysFree * effectiveSmokesPerDay;
+  const moneySaved = Math.round(smokesAvoided * effectiveCostPerSession);
 
   const nextMilestone = MILESTONES.find((m) => m.days > daysFree);
   const daysToNext = nextMilestone ? nextMilestone.days - daysFree : null;
 
   function saveSetup() {
-    saveModule.mutate({ settings: { quitDate, cigarettesPerDay: perDay, costPerPack, cigarettesPerPack: perPack, notes }, enabled: true });
+    saveModule.mutate({
+      settings: { quitDate, smokesPerDay: perDay, costPerSession, notes },
+      enabled: true,
+    });
     setSetupMode(false);
   }
 
-  function logClean() {
-    logToday.mutate({ smoked: false });
-  }
+  function logClean() { logToday.mutate({ smoked: false }); }
 
   function logSlip() {
     logToday.mutate({ smoked: true, count: parseInt(slipCount) || 1 });
@@ -87,8 +97,8 @@ export default function SmokingPage() {
         <div className="flex items-center gap-3 mb-8">
           <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl">🚭</div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Smoking Cessation</h1>
-            <p className="text-sm text-muted-foreground">Set your quit date & track progress</p>
+            <h1 className="text-xl font-bold text-foreground">Quit Smoking</h1>
+            <p className="text-sm text-muted-foreground">Any type — cigarettes, shisha, cannabis & more</p>
           </div>
         </div>
         <div className="space-y-4">
@@ -96,22 +106,18 @@ export default function SmokingPage() {
             <input type="date" value={quitDate} onChange={(e) => setQuitDate(e.target.value)}
               className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
           </Field>
-          <Field label="Average cigarettes per day (before quitting)">
-            <input type="number" value={perDay} onChange={(e) => setPerDay(parseInt(e.target.value) || 1)}
+          <Field label="Average smokes per day (before quitting)">
+            <input type="number" min={1} value={perDay} onChange={(e) => setPerDay(parseInt(e.target.value) || 1)}
               className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
           </Field>
-          <Field label="Cost per pack (₦)">
-            <input type="number" value={costPerPack} onChange={(e) => setCostPerPack(parseInt(e.target.value) || 0)}
-              className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
-          </Field>
-          <Field label="Cigarettes per pack">
-            <input type="number" value={perPack} onChange={(e) => setPerPack(parseInt(e.target.value) || 1)}
+          <Field label="Average cost per smoke session (₦)">
+            <input type="number" min={0} value={costPerSession} onChange={(e) => setCostPerSession(parseInt(e.target.value) || 0)}
               className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
           </Field>
         </div>
-        <div className="bg-card border border-border rounded-2xl p-5 mt-1">
+        <div className="bg-card border border-border rounded-2xl p-5 mt-4">
           <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
-          <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I tend to crave cigarettes after meals", "I smoke when stressed"</p>
+          <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I crave after meals", "I smoke shisha on weekends"</p>
           <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
             placeholder="Anything that helps us plan better for you..."
             className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
@@ -132,7 +138,7 @@ export default function SmokingPage() {
       <div className="flex items-center gap-3 mb-6">
         <span className="text-3xl">🚭</span>
         <div>
-          <h1 className="text-xl font-bold text-foreground">Smoking Cessation</h1>
+          <h1 className="text-xl font-bold text-foreground">Quit Smoking</h1>
           <p className="text-xs text-muted-foreground">Quit date: {settings.quitDate}</p>
         </div>
       </div>
@@ -149,7 +155,7 @@ export default function SmokingPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-5">
-        <StatCard emoji="🚬" value={cigAvoided.toLocaleString()} label="Cigs avoided" />
+        <StatCard emoji="🚭" value={smokesAvoided.toLocaleString()} label="Smokes avoided" />
         <StatCard emoji="💰" value={`₦${moneySaved.toLocaleString()}`} label="Saved" />
         <StatCard emoji="⏱️" value={`${Math.round(daysFree * 24)}h`} label="Smoke-free" />
       </div>
@@ -161,7 +167,7 @@ export default function SmokingPage() {
           <div className="text-center">
             <p className="text-2xl mb-2">😔</p>
             <p className="font-semibold text-foreground mb-1">You logged a slip today</p>
-            <p className="text-sm text-muted-foreground mb-3">{smokedCount} cigarette{smokedCount !== 1 ? "s" : ""}. That's okay — every day is a new chance. You've still come {daysFree} days.</p>
+            <p className="text-sm text-muted-foreground mb-3">{smokeCount} time{smokeCount !== 1 ? "s" : ""}. That's okay — every day is a new chance. You've come {daysFree} days.</p>
             <button onClick={logClean} className="text-sm text-primary font-semibold">Mark as clean day instead</button>
           </div>
         ) : (
@@ -169,7 +175,7 @@ export default function SmokingPage() {
             <button onClick={logClean} disabled={logToday.isPending}
               className={cn("w-full py-3.5 rounded-xl font-semibold text-sm transition active:scale-95",
                 todayLog ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : "bg-primary text-primary-foreground")}>
-              {logToday.isPending ? "Saving…" : todayLog ? "✓ Logged clean today" : "I stayed smoke-free today"}
+              {logToday.isPending ? "Saving…" : todayLog ? "✓ Logged smoke-free today" : "I stayed smoke-free today"}
             </button>
             {!showSlip ? (
               <button onClick={() => setShowSlip(true)} className="w-full py-2 text-xs text-muted-foreground font-semibold">

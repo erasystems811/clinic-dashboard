@@ -4,9 +4,59 @@ import { generateOpenAIMessage, generateClaudeMessage, buildToneDescription } fr
 import { sendEmail, wrapHtml } from "./email.js";
 import { deliverMobileMessage } from "./messaging.js";
 import { deductSmsFromWallet, hasSufficientSmsBalance } from "./wallet.js";
+import { signFeedbackToken } from "./feedbackToken.js";
 
 export type AutomationChannel = "whatsapp" | "sms" | "email";
 export type AutomationStatus = "queued" | "sent" | "failed";
+
+// ── ERA App dual-delivery helpers ─────────────────────────────────────────────
+// Called alongside email/SMS for patients who have the ERA app connected.
+// All helpers are non-fatal — a failure here must never block the main delivery.
+
+function stripEmailLine(text: string): string {
+  return text.replace(/Please do not reply to this email directly\.?/gi, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+async function pushEraNotification(
+  patientId: number, hospitalId: number,
+  type: string, title: string, notifBody: string,
+  metadata: Record<string, unknown> = {},
+): Promise<void> {
+  const { data: conn } = await supabase
+    .from("patient_hospital_connections")
+    .select("account_id")
+    .eq("patient_record_id", patientId)
+    .eq("hospital_id", hospitalId)
+    .maybeSingle();
+  if (!conn) return;
+  await supabase.from("patient_notifications").insert({
+    account_id: conn.account_id as number,
+    type,
+    title,
+    body: notifBody,
+    metadata,
+  });
+}
+
+async function pushEraChatMessage(
+  patientId: number, hospitalId: number,
+  content: string,
+): Promise<void> {
+  const { data: conn } = await supabase
+    .from("patient_hospital_connections")
+    .select("id")
+    .eq("patient_record_id", patientId)
+    .eq("hospital_id", hospitalId)
+    .maybeSingle();
+  if (!conn) return;
+  await supabase.from("patient_hospital_messages").insert({
+    connection_id: conn.id as number,
+    sender: "hospital",
+    message_type: "text",
+    content,
+    metadata: {},
+  });
+}
 
 async function setPatientDndBlocked(patientId: number, blocked: boolean): Promise<void> {
   await supabase.from("patients").update({ dnd_blocked: blocked }).eq("id", patientId);
@@ -322,6 +372,7 @@ export async function sendCarePlanEmail(
     });
 
     await updateAutomationLog(logId, "sent", `Care plan email → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(emailBody)); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendCarePlanEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -378,6 +429,7 @@ export async function sendPostTreatmentCheckinEmail(
     });
 
     await updateAutomationLog(logId, "sent", `Post-treatment Day ${day} email → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendPostTreatmentCheckinEmail] failed:", msg, { hospitalId, patientId, patientEmail, day });
@@ -421,6 +473,7 @@ export async function sendPostCareEmail(
     });
 
     await updateAutomationLog(logId, "sent", `Post-care email → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendPostCareEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -469,6 +522,7 @@ export async function sendAppointmentConfirmationEmail(
           await deductSmsFromWallet(hospitalId, `Appointment confirmation SMS — ${patientName}`);
           await setPatientDndBlocked(patientId, false);
           await updateAutomationLog(logId, "sent", `Appointment confirmation SMS → ${phone}`);
+          try { await pushEraChatMessage(patientId, hospitalId, smsBody); } catch { /* non-fatal */ }
           return { dndBlocked: false };
         } catch (smsErr) {
           const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
@@ -490,6 +544,7 @@ export async function sendAppointmentConfirmationEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: bookingUrl ? `${body}\n\nNeed to reschedule? Book online: ${bookingUrl}` : body });
     await updateAutomationLog(logId, "sent", `Appointment confirmation → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
     return { dndBlocked: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -538,6 +593,7 @@ export async function sendAppointmentRescheduleEmail(
           await deductSmsFromWallet(hospitalId, `Appointment reschedule SMS — ${patientName}`);
           await setPatientDndBlocked(patientId, false);
           await updateAutomationLog(logId, "sent", `Appointment reschedule SMS → ${phone}`);
+          try { await pushEraChatMessage(patientId, hospitalId, smsBody); } catch { /* non-fatal */ }
           return { dndBlocked: false };
         } catch (smsErr) {
           const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
@@ -559,6 +615,7 @@ export async function sendAppointmentRescheduleEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: bookingUrl ? `${body}\n\nNeed to make another change? Book online: ${bookingUrl}` : body });
     await updateAutomationLog(logId, "sent", `Appointment reschedule confirmation → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
     return { dndBlocked: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -619,6 +676,7 @@ export async function sendAppointmentReminderEmail(
         await deductSmsFromWallet(hospitalId, `Appointment reminder SMS (${hoursAway}h) — ${patientName}`);
         await setPatientDndBlocked(patientId, false);
         await updateAutomationLog(logId, "sent", `Appointment reminder SMS (${hoursAway}h) → ${phone}`);
+        try { await pushEraChatMessage(patientId, hospitalId, smsBody); } catch { /* non-fatal */ }
         return;
       } catch (smsErr) {
         const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
@@ -646,6 +704,7 @@ export async function sendAppointmentReminderEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: textBody });
     await updateAutomationLog(logId, "sent", `Appointment reminder (${hoursAway}h) → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendAppointmentReminderEmail] failed:", msg, { hospitalId, patientId, patientEmail, hoursAway });
@@ -687,6 +746,7 @@ export async function sendAppointmentNoShowEmail(
     });
 
     await updateAutomationLog(logId, "sent", `No-show email → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendAppointmentNoShowEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -740,6 +800,29 @@ export async function sendFeedbackEmail(
     });
 
     await updateAutomationLog(logId, "sent", `Feedback email → ${patientEmail}`);
+
+    // Also push an in-app notification if this patient has a connected ERA account
+    try {
+      const { data: conn } = await supabase
+        .from("patient_hospital_connections")
+        .select("account_id")
+        .eq("patient_record_id", patientId)
+        .eq("hospital_id", hospitalId)
+        .maybeSingle();
+
+      if (conn) {
+        const token = signFeedbackToken(patientId, hospitalId);
+        await supabase.from("patient_notifications").insert({
+          account_id: conn.account_id,
+          type: "feedback_request",
+          title: "Share your experience",
+          body: `${hCtx.hospitalName} would like to hear about your recent visit.`,
+          metadata: { token, hospitalId, patientId, hospitalName: hCtx.hospitalName },
+        });
+      }
+    } catch {
+      // Non-fatal — ERA notification is a bonus alongside the email
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendFeedbackEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -790,6 +873,7 @@ export async function sendBirthdayEmail(
     });
 
     await updateAutomationLog(logId, "sent", `Birthday email → ${patientEmail}`);
+    try { await pushEraNotification(patientId, hospitalId, "birthday", "Happy Birthday! 🎂", `${hCtx.hospitalName} sent you a birthday message.`, { hospitalName: hCtx.hospitalName }); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendBirthdayEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -844,6 +928,7 @@ export async function sendCareVisitReminderEmail(
     const html = wrapHtml(`<p>${message.replace(/\n/g, "</p><p>")}</p>${bookingHtml2}`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: bookingUrl2 ? `${message}\n\nBook an appointment online: ${bookingUrl2}` : message });
     await updateAutomationLog(logId, "sent");
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(message)); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendCareVisitReminderEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -918,6 +1003,7 @@ export async function sendCallTaskConfirmedMessage(
       await deductSmsFromWallet(hospitalId, `Call task SMS — ${patientName}`);
       await setPatientDndBlocked(patientId, false);
       await updateAutomationLog(logId, "sent", `SMS → ${phone}`);
+      try { await pushEraChatMessage(patientId, hospitalId, message); } catch { /* non-fatal */ }
       return { sentViaSms: true, insufficientFunds: false, senderIdMissing: false, dndBlocked: false };
     }
 
@@ -926,6 +1012,7 @@ export async function sendCallTaskConfirmedMessage(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject: `IMPORTANT - ${hCtx.hospitalName}`, html, text: body });
     await updateAutomationLog(logId, "sent", message);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
     return { sentViaSms: false, insufficientFunds, senderIdMissing, dndBlocked: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -972,6 +1059,7 @@ export async function sendCallTaskManualEmail(
     });
 
     await updateAutomationLog(logId, "sent", `Manual email → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendCallTaskManualEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -1199,6 +1287,7 @@ export async function sendDepartmentalFollowupEmail(
       await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
       await deductSmsFromWallet(hospitalId, `Follow-up SMS Day ${dayNumber} (${department}) — ${patientName}`);
       await updateAutomationLog(logId, "sent", `Follow-up Day ${dayNumber} SMS → ${phone}`);
+      try { await pushEraChatMessage(patientId, hospitalId, smsBody); } catch { /* non-fatal */ }
       return;
     }
 
@@ -1215,6 +1304,7 @@ export async function sendDepartmentalFollowupEmail(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>${bookingHtml}`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: bookingUrl ? `${body}\n\nBook a follow-up appointment online: ${bookingUrl}` : body });
     await updateAutomationLog(logId, "sent", `Departmental follow-up Day ${dayNumber} (${department}) → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendDepartmentalFollowupEmail] failed:", msg, { hospitalId, patientId, patientEmail, department, dayNumber });
@@ -1473,6 +1563,7 @@ export async function sendInCareAIReminder(
     });
 
     await updateAutomationLog(logId, "sent", `In-care ${slot} reminder (${deptLabel}) → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(message)); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendInCareAIReminder] failed:", msg, { hospitalId, patientId, patientEmail, slot, deptLabel });

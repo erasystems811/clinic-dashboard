@@ -24,6 +24,7 @@ import {
   Info,
   TriangleAlert,
   RefreshCw,
+  MessageSquare,
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -146,6 +147,7 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
   }
   if (modules?.wellnessNewsletterEnabled ?? true) items.push({ icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" });
   items.push(
+    { icon: MessageSquare, label: "ERA Messages", href: "/era-messages" },
     { icon: FileUp, label: "Import Patients", href: "/import" },
     { icon: GitBranch, label: "Pipeline", href: "/pipeline" },
     { icon: Activity, label: "Activity", href: "/activity" },
@@ -194,6 +196,7 @@ function NavContent({
   user: { displayName?: string } | null;
   collapsed: boolean;
   feedbackUnread: number;
+  eraMessagesUnread: number;
   setCollapsed: (v: boolean | ((p: boolean) => boolean)) => void;
   onLogout: () => void;
   onNavClick?: () => void;
@@ -249,7 +252,9 @@ function NavContent({
             ? "nav-dashboard"
             : `nav-${item.href.replace(/^\//, "").replace(/[^a-z0-9]/g, "-")}`;
           const isFeedback = item.href === "/feedback-admin";
-          const badge = isFeedback && feedbackUnread > 0 ? feedbackUnread : 0;
+          const isEraMsg  = item.href === "/era-messages";
+          const badge = isFeedback && feedbackUnread > 0 ? feedbackUnread
+            : isEraMsg && eraMessagesUnread > 0 ? eraMessagesUnread : 0;
           return (
             <Link key={item.href} href={item.href} onClick={onNavClick}>
               <button
@@ -364,6 +369,7 @@ export function Layout({ children }: LayoutProps) {
   const navItems = getNavItems(role, hospitalConfig?.modules ?? null);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [feedbackUnread, setFeedbackUnread] = useState(0);
+  const [eraMessagesUnread, setEraMessagesUnread] = useState(0);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
@@ -395,7 +401,20 @@ export function Layout({ children }: LayoutProps) {
   }, [fetchUnread]);
 
   useEffect(() => {
+    if (role !== "admin" || !hospital?.token) return;
+    const fetchEra = () =>
+      fetch(apiUrl("/api/era-messages/unread-count"), { headers: { "x-hospital-token": hospital.token } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d && typeof d.count === "number") setEraMessagesUnread(d.count); })
+        .catch(() => {});
+    fetchEra();
+    const id = setInterval(fetchEra, 15_000);
+    return () => clearInterval(id);
+  }, [role, hospital]);
+
+  useEffect(() => {
     if (location === "/feedback-admin") setFeedbackUnread(0);
+    if (location === "/era-messages") setEraMessagesUnread(0);
   }, [location]);
 
   const navProps = {
@@ -405,6 +424,7 @@ export function Layout({ children }: LayoutProps) {
     hospital: hospital ? { name: hospital.name, username: hospital.username } : null,
     user: user ? { displayName: user.displayName } : null,
     feedbackUnread,
+    eraMessagesUnread,
     setCollapsed,
     onLogout: () => setShowLogoutDialog(true),
   };

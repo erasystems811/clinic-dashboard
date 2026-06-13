@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import Anthropic from "@anthropic-ai/sdk";
+import { generateOpenAIMessage } from "../lib/ai.js";
 import { supabase } from "../lib/supabase.js";
 import { getPatientFromRequest } from "../lib/patient-auth.js";
 import { getWeekStart, type WeekPlan } from "./patient-app-plan.js";
@@ -8,12 +8,13 @@ const router: IRouter = Router();
 
 const VALID_TYPES = [
   "water", "medications", "workout", "sleep", "mood_check", "fruit",
-  "vitals", "smoking", "eyebreak", "sunscreen", "outdoors", "vaccines", "checkups", "hygiene",
+  "vitals", "smoking", "alcohol", "eyebreak", "sunscreen", "outdoors",
+  "vaccines", "checkups", "hygiene", "intimacy",
 ];
 // Daily habit modules — shown in checklist and used for week summary
 const DAILY_HABIT_TYPES = [
   "water", "medications", "workout", "sleep", "mood_check", "fruit",
-  "vitals", "eyebreak", "sunscreen", "outdoors",
+  "vitals", "eyebreak", "sunscreen", "outdoors", "smoking", "alcohol", "intimacy",
 ];
 const MODULE_META: Record<string, { label: string; emoji: string }> = {
   water:      { label: "Water intake",   emoji: "💧" },
@@ -26,6 +27,9 @@ const MODULE_META: Record<string, { label: string; emoji: string }> = {
   eyebreak:   { label: "Eye breaks",     emoji: "👁️" },
   sunscreen:  { label: "Sunscreen",      emoji: "🧴" },
   outdoors:   { label: "Outdoors",       emoji: "🌿" },
+  smoking:    { label: "Quit smoking",   emoji: "🚭" },
+  alcohol:    { label: "Alcohol",        emoji: "🍷" },
+  intimacy:   { label: "Sex life",       emoji: "💗" },
 };
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
@@ -43,7 +47,8 @@ export function isModuleCompleted(
   if (type === "water") {
     return ((log.cups as number) ?? 0) >= ((settings.target as number) ?? 8);
   }
-  if (type === "fruit" || type === "sunscreen") return log.done === true;
+  if (type === "fruit") return log.done === true;
+  if (type === "sunscreen") return ((log.count as number) ?? 0) >= ((settings.target as number) ?? 2);
   if (type === "sleep") return !!(log.bedtime && log.wakeTime);
   if (type === "mood_check") return !!(log.mood && log.energy && log.stress);
   if (type === "vitals") return !!(log.systolic || log.glucose || log.weight);
@@ -73,6 +78,18 @@ export function isModuleCompleted(
     return ((log.count as number) ?? 0) >= ((settings.targetBreaks as number) ?? defaultTarget);
   }
   if (type === "smoking") return log.smoked === false;
+  if (type === "alcohol") {
+    if (!log) return false;
+    const goalType = (settings.goalType as string | undefined) ?? "quit";
+    if (goalType === "reduce") return log.drinks !== undefined; // any log counts for reduce mode
+    return log.drinks === 0; // quit mode: drink-free day
+  }
+  if (type === "intimacy") {
+    if (!log) return false;
+    const mode = (settings.mode as string | undefined) ?? "celibacy";
+    if (mode === "celibacy") return log.active === false;
+    return log.active !== undefined; // active mode: any log counts
+  }
   if (type === "hygiene") return log.done === true;
   return false;
 }
@@ -119,6 +136,11 @@ function checklistSub(type: string, log: Record<string, unknown>, settings: Reco
     if (!log.mood) return "Mood, energy & stress";
     return undefined;
   }
+  if (type === "sunscreen") {
+    const count = (log.count as number) ?? 0;
+    const tgt = (settings.target as number) ?? 2;
+    return `${count} / ${tgt} application${tgt !== 1 ? "s" : ""}`;
+  }
   return undefined;
 }
 
@@ -151,7 +173,7 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
   }
 
   // Build checklist from the weekly plan (falls back to module-based logic if no plan)
-  const checklist: Array<{ id: string; emoji: string; label: string; sub?: string; done: boolean }> = [];
+  const checklist: Array<{ id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean }> = [];
   const plan = planResult.data?.plan_data as WeekPlan | null;
   const todayPlanDay = plan?.days.find((d) => d.date === today);
 
@@ -174,11 +196,83 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (seen.has(item.moduleType)) continue;
       seen.add(item.moduleType);
 
+      // Medications: expand to one item per active drug
+      if (item.moduleType === "medications") {
+        const activeMeds = ((settings.medications as Array<Record<string, unknown>>) ?? []).filter((m) => {
+          const start = m.startDate as string;
+          const dur = m.durationDays as number | null;
+          if (today < start) return false;
+          if (dur && new Date(start).getTime() + dur * 86400000 < new Date(today).getTime()) return false;
+          return true;
+        });
+        const taken = (log?.taken as Record<string, boolean>) ?? {};
+        for (const med of activeMeds) {
+          const times = (med.times as string[]) ?? [];
+          const doneTimes = times.filter((t) => taken[`${med.id}_${t}`]);
+          const medDone = doneTimes.length === times.length;
+          const sub = times.length > 1 ? `${doneTimes.length}/${times.length} doses` : (doneTimes.length === 1 ? "Taken" : `Take at ${times[0] ?? "scheduled time"}`);
+          checklist.push({ id: `med_${med.id as string}`, emoji: "💊", label: med.name as string, sub, time: item.time ?? undefined, done: medDone });
+        }
+        continue;
+      }
+
+      // Hygiene: appear in daily checklist only on the exact due date or when overdue
+      if (item.moduleType === "hygiene") {
+        interface HygieneItem { id: string; name: string; emoji: string; lastReplaced: string; intervalDays: number }
+        const items = ((settings.items as HygieneItem[]) ?? []);
+        for (const hi of items) {
+          const age = Math.floor((Date.now() - new Date(hi.lastReplaced + "T12:00:00").getTime()) / 86400000);
+          if (age < hi.intervalDays) continue; // only on/after the due date
+          const replacedToday = hi.lastReplaced === today;
+          const daysOverdue = age - hi.intervalDays;
+          const sub = daysOverdue > 0 && !replacedToday ? `${daysOverdue}d overdue` : "Due today";
+          checklist.push({ id: `hygiene_${hi.id}`, emoji: hi.emoji, label: `Replace ${hi.name}`, sub, done: replacedToday });
+        }
+        continue;
+      }
+
+      // Vaccines: appear in daily checklist only on the due date or when overdue
+      if (item.moduleType === "vaccines") {
+        interface Vaccine { id: string; name: string; nextDueDate?: string }
+        const todayMs = new Date(today + "T12:00:00").getTime();
+        for (const v of ((settings.vaccines as Vaccine[]) ?? [])) {
+          if (!v.nextDueDate) continue;
+          const daysUntil = Math.ceil((new Date(v.nextDueDate + "T12:00:00").getTime() - todayMs) / 86400000);
+          if (daysUntil > 0) continue;
+          const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
+          checklist.push({ id: `vaccine_${v.id}`, emoji: "💉", label: `${v.name} vaccine`, sub, done: false });
+        }
+        continue;
+      }
+
+      // Checkups: appear in daily checklist only on the due date or when overdue
+      if (item.moduleType === "checkups") {
+        interface Checkup { id: string; type: string; lastDate: string; intervalMonths: number }
+        const CHECKUP_EMOJIS: Record<string, string> = { "Dental": "🦷", "Eye / Vision": "👁️", "GP / General": "🩺", "Blood Test": "🩸", "Blood Pressure": "💗", "Cancer Screening": "🔬", "Skin Check": "🧴" };
+        const todayMs = new Date(today + "T12:00:00").getTime();
+        for (const c of ((settings.checkups as Checkup[]) ?? [])) {
+          const due = new Date(c.lastDate); due.setMonth(due.getMonth() + c.intervalMonths);
+          const daysUntil = Math.ceil((due.getTime() - todayMs) / 86400000);
+          if (daysUntil > 0) continue;
+          const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
+          checklist.push({ id: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, done: false });
+        }
+        continue;
+      }
+
+      // Workout: use focus as the label
+      if (item.moduleType === "workout") {
+        const focus = (item.sub ?? "").trim();
+        const label = focus || "Workout";
+        const done = isModuleCompleted("workout", log ?? undefined, settings, today);
+        checklist.push({ id: "workout", emoji: item.emoji, label, time: item.time ?? undefined, done });
+        continue;
+      }
+
       const done = isModuleCompleted(item.moduleType, log ?? undefined, settings, today);
       const sub = log ? (checklistSub(item.moduleType, log, settings, today) ?? item.sub) : item.sub;
-      // Use generic label for multi-time modules (e.g. "Water intake" not "Water intake (midday)")
       const label = item.moduleType === "water" ? "Water intake" : item.label;
-      checklist.push({ id: item.moduleType, emoji: item.emoji, label, sub, done });
+      checklist.push({ id: item.moduleType, emoji: item.emoji, label, sub, time: item.time ?? undefined, done });
     }
   } else {
     // No plan yet — fall back to direct module-based checklist
@@ -192,7 +286,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         const workoutDays = (settings.days as Record<string, Record<string, unknown>>) ?? {};
         const todayWorkout = workoutDays[dayKey];
         if (todayWorkout?.enabled) {
-          checklist.push({ id: "workout", emoji: "🏃", label: "Workout", sub: (todayWorkout.focus as string | undefined) ?? undefined, done: log?.completed === true });
+          const focus = (todayWorkout.focus as string | undefined)?.trim();
+          checklist.push({ id: "workout", emoji: "🏃", label: focus ?? "Workout", done: log?.completed === true });
         } else if (dayKey in workoutDays) {
           checklist.push({ id: "workout", emoji: "😌", label: "Rest day", sub: "No workout today", done: true });
         }
@@ -200,18 +295,22 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       }
 
       if (type === "medications") {
-        const meds = ((settings.medications as Array<Record<string, unknown>>) ?? []).filter((m) => {
+        const activeMeds = ((settings.medications as Array<Record<string, unknown>>) ?? []).filter((m) => {
           const start = m.startDate as string;
           const dur = m.durationDays as number | null;
           if (today < start) return false;
           if (dur && new Date(start).getTime() + dur * 86400000 < new Date(today).getTime()) return false;
           return true;
         });
-        if (meds.length === 0) continue;
+        if (activeMeds.length === 0) continue;
         const taken = (log?.taken as Record<string, boolean>) ?? {};
-        const total = meds.reduce((a, m) => a + (m.times as string[]).length, 0);
-        const done  = meds.reduce((a, m) => a + (m.times as string[]).filter((t) => taken[`${m.id}_${t}`]).length, 0);
-        checklist.push({ id: "medications", emoji: "💊", label: "Medications", sub: `${done} / ${total} doses taken`, done: done === total });
+        for (const med of activeMeds) {
+          const times = (med.times as string[]) ?? [];
+          const doneTimes = times.filter((t) => taken[`${med.id}_${t}`]);
+          const medDone = doneTimes.length === times.length;
+          const sub = times.length > 1 ? `${doneTimes.length}/${times.length} doses` : (doneTimes.length === 1 ? "Taken" : `Take at ${times[0] ?? "scheduled time"}`);
+          checklist.push({ id: `med_${med.id as string}`, emoji: "💊", label: med.name as string, sub, done: medDone });
+        }
         continue;
       }
 
@@ -219,6 +318,47 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       const done = isModuleCompleted(type, log ?? undefined, settings, today);
       const sub = log ? checklistSub(type, log, settings, today) : (type === "sleep" ? "Log last night's sleep" : type === "mood_check" ? "Mood, energy & stress" : undefined);
       checklist.push({ id: type, emoji: meta.emoji, label: meta.label, sub, done });
+    }
+
+    // Periodic modules: appear in daily checklist only on/after their due date
+    const todayMs = new Date(today + "T12:00:00").getTime();
+
+    const hygieneMod = moduleMap["hygiene"];
+    if (hygieneMod?.enabled) {
+      interface HygieneItem { id: string; name: string; emoji: string; lastReplaced: string; intervalDays: number }
+      for (const item of ((hygieneMod.settings.items as HygieneItem[]) ?? [])) {
+        const age = Math.floor((Date.now() - new Date(item.lastReplaced + "T12:00:00").getTime()) / 86400000);
+        if (age < item.intervalDays) continue;
+        const replacedToday = item.lastReplaced === today;
+        const daysOverdue = age - item.intervalDays;
+        const sub = daysOverdue > 0 && !replacedToday ? `${daysOverdue}d overdue` : "Due today";
+        checklist.push({ id: `hygiene_${item.id}`, emoji: item.emoji, label: `Replace ${item.name}`, sub, done: replacedToday });
+      }
+    }
+
+    const vaccinesMod = moduleMap["vaccines"];
+    if (vaccinesMod?.enabled) {
+      interface Vaccine { id: string; name: string; nextDueDate?: string }
+      for (const v of ((vaccinesMod.settings.vaccines as Vaccine[]) ?? [])) {
+        if (!v.nextDueDate) continue;
+        const daysUntil = Math.ceil((new Date(v.nextDueDate + "T12:00:00").getTime() - todayMs) / 86400000);
+        if (daysUntil > 0) continue;
+        const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
+        checklist.push({ id: `vaccine_${v.id}`, emoji: "💉", label: `${v.name} vaccine`, sub, done: false });
+      }
+    }
+
+    const checkupsMod = moduleMap["checkups"];
+    if (checkupsMod?.enabled) {
+      interface Checkup { id: string; type: string; lastDate: string; intervalMonths: number }
+      const CHECKUP_EMOJIS: Record<string, string> = { "Dental": "🦷", "Eye / Vision": "👁️", "GP / General": "🩺", "Blood Test": "🩸", "Blood Pressure": "💗", "Cancer Screening": "🔬", "Skin Check": "🧴" };
+      for (const c of ((checkupsMod.settings.checkups as Checkup[]) ?? [])) {
+        const due = new Date(c.lastDate); due.setMonth(due.getMonth() + c.intervalMonths);
+        const daysUntil = Math.ceil((due.getTime() - todayMs) / 86400000);
+        if (daysUntil > 0) continue;
+        const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
+        checklist.push({ id: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, done: false });
+      }
     }
   }
 
@@ -558,7 +698,7 @@ router.get("/patient-app/wellness/streak/:type", async (req, res): Promise<void>
 });
 
 // ── Daily Insight ─────────────────────────────────────────────────────────────
-// Cached per account per day. Returns a warm, personal observation from the user's data.
+// Cached per account per day. Returns a factual, data-driven analysis of the user's wellness data.
 const insightCache = new Map<string, string>();
 
 router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> => {
@@ -571,11 +711,9 @@ router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> =
   if (insightCache.has(cacheKey)) { res.json({ insight: insightCache.get(cacheKey) }); return; }
   for (const k of insightCache.keys()) { if (!k.endsWith(`:${today}`)) insightCache.delete(k); }
 
-  // Gather 2 weeks of data for a richer, pattern-aware insight
+  // Gather 2 weeks of data for pattern detection
   const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 13);
   const fromDate = twoWeeksAgo.toISOString().split("T")[0];
-  const lastWeekStart = new Date(); lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-  const lastWeekDate = lastWeekStart.toISOString().split("T")[0];
 
   const [{ data: modules }, { data: logs }] = await Promise.all([
     supabase.from("wellness_modules").select("module_type, settings, enabled").eq("account_id", account.id).eq("enabled", true),
@@ -584,7 +722,7 @@ router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> =
       .in("module_type", DAILY_HABIT_TYPES).order("log_date"),
   ]);
 
-  // Build per-module completion for this week and last
+  // Build per-module completion counts for this week and last week
   const logIndex: Record<string, Record<string, Record<string, unknown>>> = {};
   for (const l of logs ?? []) {
     const t = l.module_type as string, d = l.log_date as string;
@@ -608,50 +746,113 @@ router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> =
       const d2s = d2.toISOString().split("T")[0];
       if (isModuleCompleted(m.module_type as string, logIndex[m.module_type as string]?.[d2s], settings, d2s)) lastW++;
     }
-    thisWeekLines.push(`${meta.label}: ${thisW}/7 days`);
-    lastWeekLines.push(`${meta.label}: ${lastW}/7 days`);
+    thisWeekLines.push(`${meta.label}: this week ${thisW}/7, last week ${lastW}/7`);
   }
 
-  // Day-of-week logging pattern
-  const dayTotals: Record<string, number> = {};
-  for (const l of logs ?? []) {
-    const day = new Date((l.log_date as string) + "T12:00:00").toLocaleDateString("en-NG", { weekday: "long" });
-    dayTotals[day] = (dayTotals[day] ?? 0) + 1;
-  }
-  const bestDay = Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
-  const worstDay = Object.entries(dayTotals).sort((a, b) => a[1] - b[1])[0]?.[0] ?? null;
+  const prompt = `You are a health data analyst. Analyse the following wellness habit data and write a concise insight (2-3 sentences, max 50 words).
 
-  const accountData = account as Record<string, unknown>;
-  const name = (accountData.display_name as string | null) ?? (accountData.username as string) ?? "there";
-  const hour = new Date().getHours();
-  const timeOfDay = hour < 6 ? "early morning" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+DATA:
+${thisWeekLines.join("\n") || "No habit data recorded yet."}
 
-  const prompt = `You are ERA Health's companion speaking to ${name}. It is ${timeOfDay}.
-Here is ${name}'s wellness data:
-
-THIS WEEK so far:
-${thisWeekLines.join("\n") || "No data yet this week."}
-
-LAST WEEK:
-${lastWeekLines.join("\n") || "No data yet."}
-
-Day pattern: Tends to log most on ${bestDay ?? "no clear day"}, least on ${worstDay ?? "no clear day"}.
-
-Write 1–2 short sentences (max 30 words total) that feel like a real person who noticed something specific — not a report. You can celebrate improvement, notice a drop with warmth, spot a pattern, or gently nudge. Sound like a caring friend, not a health app. Use ${name}'s name once. No lists. No emojis. No quotes.`;
+Rules:
+- State the strongest habit (highest completion rate) and the weakest habit (lowest completion rate) using the exact numbers from the data.
+- Give one specific, actionable recommendation for the weakest habit.
+- Be direct and factual. No warm language, no encouragement phrases, no greetings.
+- Do not mention the user's name. No emojis. No quotes. Plain sentences only.`;
 
   try {
-    const anthropic = new Anthropic();
-    const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 80,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : null;
-    if (text) insightCache.set(cacheKey, text);
-    res.json({ insight: text ?? null });
+    const text = await generateOpenAIMessage(
+      "You are a health data analyst. Be direct and factual. No warm language, no encouragement phrases, no greetings.",
+      prompt,
+      120,
+    );
+    if (text) insightCache.set(cacheKey, text.trim());
+    res.json({ insight: text ? text.trim() : null });
   } catch {
     res.json({ insight: null });
   }
+});
+
+// ── GET /api/patient-app/wellness/upcoming-events ────────────────────────────
+// Returns non-daily events (hygiene replacements, vaccines, checkups) due within
+// the next 14 days or already overdue, so the home screen can show "this week's goals"
+router.get("/patient-app/wellness/upcoming-events", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const today = todayDateStr();
+  const todayMs = new Date(today + "T12:00:00").getTime();
+
+  const { data: modulesData } = await supabase
+    .from("wellness_modules")
+    .select("module_type, settings, enabled")
+    .eq("account_id", account.id)
+    .in("module_type", ["hygiene", "vaccines", "checkups"]);
+
+  interface UpcomingEvent {
+    id: string;
+    module: string;
+    emoji: string;
+    label: string;
+    dueDate: string;
+    daysUntil: number;
+  }
+
+  const events: UpcomingEvent[] = [];
+  const WINDOW_DAYS = 14;
+
+  for (const row of modulesData ?? []) {
+    if (!(row.enabled as boolean)) continue;
+    const settings = (row.settings as Record<string, unknown>) ?? {};
+    const type = row.module_type as string;
+
+    if (type === "hygiene") {
+      interface HygieneItem { id: string; name: string; emoji: string; lastReplaced: string; intervalDays: number }
+      for (const item of ((settings.items as HygieneItem[]) ?? [])) {
+        const dueMs = new Date(item.lastReplaced + "T12:00:00").getTime() + item.intervalDays * 86400000;
+        const dueDate = new Date(dueMs).toISOString().split("T")[0];
+        const daysUntil = Math.ceil((dueMs - todayMs) / 86400000);
+        if (daysUntil <= WINDOW_DAYS) {
+          events.push({ id: `hygiene_${item.id}`, module: "hygiene", emoji: item.emoji, label: `Replace ${item.name}`, dueDate, daysUntil });
+        }
+      }
+    }
+
+    if (type === "vaccines") {
+      interface Vaccine { id: string; name: string; nextDueDate?: string }
+      for (const v of ((settings.vaccines as Vaccine[]) ?? [])) {
+        if (!v.nextDueDate) continue;
+        const dueMs = new Date(v.nextDueDate + "T12:00:00").getTime();
+        const daysUntil = Math.ceil((dueMs - todayMs) / 86400000);
+        if (daysUntil <= WINDOW_DAYS) {
+          events.push({ id: `vaccine_${v.id}`, module: "vaccines", emoji: "💉", label: `${v.name} vaccine`, dueDate: v.nextDueDate, daysUntil });
+        }
+      }
+    }
+
+    if (type === "checkups") {
+      interface Checkup { id: string; type: string; lastDate: string; intervalMonths: number }
+      const CHECKUP_EMOJIS: Record<string, string> = {
+        "Dental": "🦷", "Eye / Vision": "👁️", "GP / General": "🩺",
+        "Blood Test": "🩸", "Blood Pressure": "💗", "Cancer Screening": "🔬", "Skin Check": "🧴",
+      };
+      for (const c of ((settings.checkups as Checkup[]) ?? [])) {
+        const due = new Date(c.lastDate);
+        due.setMonth(due.getMonth() + c.intervalMonths);
+        const dueDate = due.toISOString().split("T")[0];
+        const daysUntil = Math.ceil((due.getTime() - todayMs) / 86400000);
+        if (daysUntil <= WINDOW_DAYS) {
+          const emoji = CHECKUP_EMOJIS[c.type] ?? "📋";
+          events.push({ id: `checkup_${c.id}`, module: "checkups", emoji, label: `${c.type} checkup`, dueDate, daysUntil });
+        }
+      }
+    }
+  }
+
+  // Sort: overdue first, then by nearest due date
+  events.sort((a, b) => a.daysUntil - b.daysUntil);
+
+  res.json({ events });
 });
 
 export default router;

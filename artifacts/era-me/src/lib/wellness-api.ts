@@ -36,7 +36,8 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 // ── Queries ───────────────────────────────────────────────────────────────────
 
 export function useWellnessToday() {
-  return useQuery({ queryKey: ["wellness", "today"], queryFn: () => get(`${BASE}/today`), staleTime: 0, refetchOnMount: "always" });
+  const todayKey = new Date().toISOString().split("T")[0];
+  return useQuery({ queryKey: ["wellness", "today", todayKey], queryFn: () => get(`${BASE}/today`), staleTime: 0, refetchOnMount: "always" });
 }
 
 export function useWellnessModules() {
@@ -97,6 +98,23 @@ export function useAiInsight() {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     retry: false,
+  });
+}
+
+export interface UpcomingEvent {
+  id: string;
+  module: "hygiene" | "vaccines" | "checkups";
+  emoji: string;
+  label: string;
+  dueDate: string;
+  daysUntil: number;
+}
+
+export function useUpcomingEvents() {
+  return useQuery<{ events: UpcomingEvent[] }>({
+    queryKey: ["wellness", "upcoming-events"],
+    queryFn: () => get<{ events: UpcomingEvent[] }>(`${BASE}/upcoming-events`),
+    staleTime: 30 * 60 * 1000,
   });
 }
 

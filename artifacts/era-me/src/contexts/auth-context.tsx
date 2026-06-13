@@ -160,8 +160,27 @@ function applyTheme(account: Account) {
   root.style.setProperty("--light-bg-from", palette.bgLight);
   root.style.setProperty("--light-bg-to",   palette.bgLightMid);
 
-  if (dark) root.classList.add("dark");
-  else root.classList.remove("dark");
+  if (dark) {
+    root.classList.add("dark");
+    root.style.setProperty("--card",                "226 50% 14%");
+    root.style.setProperty("--card-foreground",     "214 32% 91%");
+    root.style.setProperty("--muted",               "226 40% 20%");
+    root.style.setProperty("--muted-foreground",    "215 20.2% 65.1%");
+    root.style.setProperty("--secondary",           "226 40% 20%");
+    root.style.setProperty("--secondary-foreground","214 32% 91%");
+    root.style.setProperty("--border",              "226 40% 20%");
+    root.style.setProperty("--input",               "226 40% 20%");
+  } else {
+    root.classList.remove("dark");
+    root.style.setProperty("--card",                "0 0% 100%");
+    root.style.setProperty("--card-foreground",     "222 47% 11%");
+    root.style.setProperty("--muted",               "210 40% 94%");
+    root.style.setProperty("--muted-foreground",    "215 16% 47%");
+    root.style.setProperty("--secondary",           "210 40% 94%");
+    root.style.setProperty("--secondary-foreground","222 47% 11%");
+    root.style.setProperty("--border",              "214 32% 87%");
+    root.style.setProperty("--input",               "214 32% 91%");
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

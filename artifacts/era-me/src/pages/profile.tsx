@@ -3,8 +3,9 @@ import { useAuth } from "@/contexts/auth-context";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
-import { Crown, Moon, Sun, LogOut, ChevronRight, Check } from "lucide-react";
+import { Crown, LogOut, ChevronRight, Check } from "lucide-react";
 import { useCoins } from "@/lib/hospitals-api";
+import { isCompanionHidden } from "@/lib/companion-api";
 
 const THEMES = [
   { id: "teal",   label: "Teal",   bg: "linear-gradient(135deg,#0d9488,#14b8a6)", accent: "#14b8a6" },
@@ -172,6 +173,15 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* My Companion / Diary */}
+      {!isCompanionHidden() && (
+        <Section title="Private">
+          <div className="space-y-1">
+            <SettingsRow label="My Diary" sublabel="Journal, chats & secret settings" onClick={() => navigate("/companion")} />
+          </div>
+        </Section>
+      )}
+
       {/* Women's Health */}
       <Section title="Women's Health">
         <div className="space-y-1">
@@ -183,13 +193,6 @@ export default function ProfilePage() {
       <Section title="Social">
         <div className="space-y-1">
           <SettingsRow label="Accountability Partners" sublabel="Share streaks, stay motivated" onClick={() => navigate("/social")} />
-        </div>
-      </Section>
-
-      {/* Private companion */}
-      <Section title="Private">
-        <div className="space-y-1">
-          <SettingsRow label="My Companion" sublabel="Journal & personality profile" onClick={() => navigate("/companion")} />
         </div>
       </Section>
 

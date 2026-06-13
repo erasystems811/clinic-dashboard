@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/",          label: "Home",      Icon: Home },
-  { href: "/wellness",  label: "Wellness",  Icon: Heart },
+  { href: "/wellness",  label: "Personal",  Icon: Heart },
   { href: "/plan",      label: "Plan",      Icon: CalendarDays },
   { href: "/hospitals", label: "Hospitals", Icon: Building2 },
   { href: "/profile",   label: "Profile",   Icon: User },
@@ -22,10 +22,9 @@ export default function Layout({ children }: { children: ReactNode }) {
       const today = new Date().toISOString().split("T")[0];
       if (today !== lastDate.current) {
         lastDate.current = today;
-        // Day rolled over — refresh daily data and current plan
-        void qc.invalidateQueries({ queryKey: ["wellness", "today"] });
-        void qc.invalidateQueries({ queryKey: ["plan"] }); // invalidates all plan queries (current + past weeks)
-        void qc.invalidateQueries({ queryKey: ["wellness", "summary"] });
+        // Day rolled over — force immediate refetch of all daily data
+        void qc.refetchQueries({ queryKey: ["wellness"] });
+        void qc.refetchQueries({ queryKey: ["plan"] });
       }
     }
 
@@ -76,36 +75,10 @@ function NavTab({ href, label, Icon, active, onNavigate }: {
   href: string; label: string; Icon: React.ElementType;
   active: boolean; onNavigate: (path: string) => void;
 }) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const longPressedRef = useRef(false);
-
-  function handlePointerDown() {
-    longPressedRef.current = false;
-    timerRef.current = setTimeout(() => {
-      const companionTab = localStorage.getItem("era_companion_tab") ?? "/profile";
-      if (href === companionTab) {
-        longPressedRef.current = true;
-        onNavigate("/companion");
-      }
-    }, 600);
-  }
-
-  function handlePointerUp() {
-    clearTimeout(timerRef.current);
-  }
-
-  function handleClick(e: React.MouseEvent) {
-    if (longPressedRef.current) { e.preventDefault(); return; }
-    onNavigate(href);
-  }
-
   return (
     <button
       className="flex-1 select-none"
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
-      onClick={handleClick}
+      onClick={() => onNavigate(href)}
       aria-label={label}
     >
       <div className="relative flex flex-col items-center gap-1 py-3 px-2 transition-all">

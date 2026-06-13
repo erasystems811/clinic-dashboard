@@ -487,13 +487,12 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
   useLayoutEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const NAV_H = 80;
     let prevH = vv.height;
 
     function update() {
       const el = containerRef.current;
       if (!el) return;
-      el.style.height = `${vv!.height - NAV_H}px`;
+      el.style.height = `${vv!.height}px`;
       if (vv!.height < prevH) bottomRef.current?.scrollIntoView({ behavior: "instant" });
       prevH = vv!.height;
     }
@@ -511,7 +510,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
   }
 
   return (
-    <div ref={containerRef} style={{ position: "fixed", top: 0, left: 0, right: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div ref={containerRef} style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--bg-base)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="px-4 pt-6 pb-4 flex items-center gap-3 shrink-0"
         style={{ borderBottom: "1px solid var(--glass-border)" }}>
         <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-xl active:scale-90 transition"

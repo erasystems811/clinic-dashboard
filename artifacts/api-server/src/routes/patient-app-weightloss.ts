@@ -23,15 +23,34 @@ function getMonday(date = new Date()): string {
 function calcBMR(weightKg: number, heightCm: number, age: number, gender: string): number {
   // Mifflin-St Jeor
   const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
-  return gender === "Female" ? Math.round(base - 161) : Math.round(base + 5);
+  return gender.toLowerCase() === "female" ? Math.round(base - 161) : Math.round(base + 5);
 }
 
-function activityFactor(lifestyle: string): number {
-  if (lifestyle === "working_physical") return 1.55;
-  if (lifestyle === "student" || lifestyle === "working_office") return 1.375;
-  if (lifestyle === "stay_home") return 1.375;
-  return 1.375;
+function activityFactor(level: string): number {
+  if (level === "very_active" || level === "working_physical") return 1.725;
+  if (level === "active")   return 1.55;
+  if (level === "moderate" || level === "student" || level === "working_office") return 1.375;
+  return 1.2; // sedentary / stay_home / light
 }
+
+// Map frontend simplified fields to DB column equivalents
+function mapWorkoutStyle(style: string): string {
+  if (style === "gym")     return "gym";
+  if (style === "home")    return "home";
+  if (style === "walking" || style === "cardio") return "outdoor";
+  return "any";
+}
+
+function mapMealPref(pref: string): string[] {
+  if (pref === "vegetarian")  return ["vegetarian"];
+  if (pref === "lowcarb")     return ["lowcarb"];
+  if (pref === "highprotein") return ["highprotein"];
+  return []; // nigerian, balanced → no restrictions
+}
+
+const PACE_DEFICIT: Record<string, number> = {
+  gentle: 250, moderate: 500, fast: 750, intense: 1000,
+};
 
 async function getProfile(accountId: number) {
   const { data } = await supabase
@@ -90,7 +109,19 @@ function calcAge(dob: string | null): number {
 }
 
 async function awardCoins(accountId: number, amount: number) {
-  await supabase.rpc("increment_coins", { p_account_id: accountId, p_amount: amount });
+  const { data: p } = await supabase
+    .from("weightloss_profile").select("total_coins_earned").eq("account_id", accountId).single();
+  await supabase.from("weightloss_profile")
+    .update({ total_coins_earned: ((p as { total_coins_earned: number } | null)?.total_coins_earned ?? 0) + amount })
+    .eq("account_id", accountId);
+}
+
+async function awardCheatDay(accountId: number) {
+  const { data: p } = await supabase
+    .from("weightloss_profile").select("cheat_days_available").eq("account_id", accountId).single();
+  await supabase.from("weightloss_profile")
+    .update({ cheat_days_available: ((p as { cheat_days_available: number } | null)?.cheat_days_available ?? 0) + 1 })
+    .eq("account_id", accountId);
 }
 
 // ── GET /api/patient-app/weightloss/profile ───────────────────────────────────
@@ -107,28 +138,34 @@ router.post("/api/patient-app/weightloss/onboard", async (req, res): Promise<voi
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const {
-    currentWeightKg, goalWeightKg, heightCm, timelineWeeks,
-    lifestyle, cookingAbility, budget, foodPreferences,
-    wakeTime, sleepTime, activePeriod,
-    fastingInterested, fastingStart, fastingEnd,
-    workoutLocation, workoutDaysPerWeek, medicalNotes,
+    currentWeightKg, goalWeightKg, heightCm,
+    // From frontend form
+    age: ageInput, gender: genderInput,
+    activityLevel, workoutStyle, mealPreferences, weightLossPace,
+    fastingEnabled, fastingStart, fastingEnd,
   } = req.body as {
-    currentWeightKg: number; goalWeightKg: number; heightCm: number; timelineWeeks: number;
-    lifestyle: string; cookingAbility: string; budget: string; foodPreferences: string[];
-    wakeTime: string; sleepTime: string; activePeriod: string;
-    fastingInterested: boolean; fastingStart?: string; fastingEnd?: string;
-    workoutLocation: string; workoutDaysPerWeek: number; medicalNotes?: string;
+    currentWeightKg: number; goalWeightKg: number; heightCm: number;
+    age?: number; gender?: string;
+    activityLevel?: string; workoutStyle?: string; mealPreferences?: string; weightLossPace?: string;
+    fastingEnabled?: boolean; fastingStart?: string; fastingEnd?: string;
   };
 
+  // Age/gender: use form values if provided, else fall back to patient profile
   const accountInfo = await getAccountInfo(account.id);
-  const age = calcAge(accountInfo?.date_of_birth ?? null);
-  const gender = accountInfo?.gender ?? "Male";
+  const age = ageInput ?? calcAge(accountInfo?.date_of_birth ?? null);
+  const gender = genderInput ?? accountInfo?.gender ?? "male";
 
+  const level = activityLevel ?? "moderate";
   const bmr = calcBMR(currentWeightKg, heightCm, age, gender);
-  const tdee = Math.round(bmr * activityFactor(lifestyle));
-  const weightToLose = currentWeightKg - goalWeightKg;
-  const weeklyLossTarget = Math.min(1, weightToLose / timelineWeeks);
-  const dailyCaloricDeficit = Math.round(weeklyLossTarget * 7700 / 7); // 7700 kcal per kg
+  const tdee = Math.round(bmr * activityFactor(level));
+
+  const weightToLose = Math.max(0, currentWeightKg - goalWeightKg);
+  const dailyCaloricDeficit = PACE_DEFICIT[weightLossPace ?? "moderate"] ?? 500;
+  // Timeline: how many weeks at chosen deficit (7700 kcal = 1 kg fat)
+  const timelineWeeks = weightToLose > 0
+    ? Math.ceil((weightToLose * 7700) / (dailyCaloricDeficit * 7))
+    : 12;
+  const weeklyLossTarget = dailyCaloricDeficit * 7 / 7700;
   const dailyCalorieTarget = Math.max(1200, tdee - dailyCaloricDeficit);
 
   const { error } = await supabase.from("weightloss_profile").upsert({
@@ -137,19 +174,20 @@ router.post("/api/patient-app/weightloss/onboard", async (req, res): Promise<voi
     goal_weight_kg: goalWeightKg,
     height_cm: heightCm,
     timeline_weeks: timelineWeeks,
-    lifestyle,
-    cooking_ability: cookingAbility,
-    budget,
-    food_preferences: foodPreferences ?? [],
-    wake_time: wakeTime ?? "07:00",
-    sleep_time: sleepTime ?? "23:00",
-    active_period: activePeriod,
-    fasting_interested: fastingInterested ?? false,
-    fasting_start: fastingStart ?? null,
-    fasting_end: fastingEnd ?? null,
-    workout_location: workoutLocation,
-    workout_days_per_week: workoutDaysPerWeek ?? 3,
-    medical_notes: medicalNotes ?? null,
+    // Map simplified fields to DB columns with sensible defaults
+    lifestyle: level,
+    cooking_ability: "can_cook",
+    budget: "moderate",
+    food_preferences: mapMealPref(mealPreferences ?? "nigerian"),
+    wake_time: "07:00",
+    sleep_time: "23:00",
+    active_period: "morning",
+    fasting_interested: fastingEnabled ?? false,
+    fasting_start: (fastingEnabled && fastingStart) ? fastingStart : null,
+    fasting_end: (fastingEnabled && fastingEnd) ? fastingEnd : null,
+    workout_location: mapWorkoutStyle(workoutStyle ?? "mixed"),
+    workout_days_per_week: 3,
+    medical_notes: null,
     bmr, tdee,
     daily_calorie_target: dailyCalorieTarget,
     weekly_loss_target_kg: weeklyLossTarget,
@@ -579,19 +617,10 @@ Today is ${today}. If no adjustment mentioned, return {"adjustments": []}.`,
 
       // If reward includes coins, update profile
       if ((adj.coins_earned as number) > 0) {
-        await supabase.from("weightloss_profile").update({
-          total_coins_earned: supabase.rpc("increment_coins", { p_account_id: accountId, p_amount: adj.coins_earned }),
-        }).eq("account_id", accountId);
         await awardCoins(accountId, adj.coins_earned as number);
       }
       if (adj.cheat_day_granted) {
-        await supabase.rpc("increment", {
-          table: "weightloss_profile",
-          column: "cheat_days_available",
-          value: 1,
-          condition_column: "account_id",
-          condition_value: accountId,
-        }).then(() => null).catch(() => null);
+        await awardCheatDay(accountId);
       }
     }
   } catch {

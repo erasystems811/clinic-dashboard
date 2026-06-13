@@ -760,7 +760,7 @@ function ThisWeekCard({ summary }: { summary: WeekSummary }) {
           <Link href="/report">
             <span style={{ fontSize: 11, color: "var(--text-sub)", fontWeight: 600 }}>Past weeks →</span>
           </Link>
-          <Link href="/plan">
+          <Link href="/plan?tab=week">
             <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>Full plan →</span>
           </Link>
         </div>

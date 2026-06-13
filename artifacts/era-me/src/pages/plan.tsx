@@ -4,7 +4,7 @@ import { ArrowLeft, Bell, BellOff, Printer, RefreshCw, ChevronRight, ChevronLeft
 import { Link } from "wouter";
 import { useCurrentPlan, useRegeneratePlan } from "@/lib/plan-api";
 import type { PlanItem, WeekPlan } from "@/lib/plan-api";
-import { useWellnessToday, useWeekSummary } from "@/lib/wellness-api";
+import { useWellnessToday, useWeekSummary, useQuickLog } from "@/lib/wellness-api";
 import { useAuth } from "@/contexts/auth-context";
 
 const MODULE_ACCENT: Record<string, string> = {
@@ -56,7 +56,9 @@ export default function PlanPage() {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState(todayStr());
-  const [view, setView] = useState<"today" | "timetable">("today");
+  const [view, setView] = useState<"today" | "timetable">(() =>
+    new URLSearchParams(window.location.search).get("tab") === "week" ? "timetable" : "today"
+  );
   const { account } = useAuth();
   const firstName = (account?.displayName ?? "").split(" ")[0] || "Your";
 
@@ -65,6 +67,7 @@ export default function PlanPage() {
   const { data: todayRaw } = useWellnessToday() as { data: { checklist: ChecklistItem[] } | undefined };
   const { data: summary } = useWeekSummary();
   const regenerate = useRegeneratePlan();
+  const quickLog = useQuickLog();
 
   const plan = planData?.plan;
   const today = todayStr();
@@ -358,6 +361,7 @@ export default function PlanPage() {
           todayDoneMap={todayDoneMap}
           doneCount={doneCount}
           todayPct={todayPct}
+          onMedBatch={(batchIds) => quickLog.mutate({ moduleType: "medications", data: { taken: Object.fromEntries(batchIds.map(bid => [bid.replace(/^med_/, ""), true])) } })}
         />
       </div>
 
@@ -369,10 +373,11 @@ export default function PlanPage() {
 
 // ── Day schedule view (replaces old TodayView, works for any day) ─────────────
 
-function DayScheduleView({ day, isToday, timedItems, dayOnlyItems, todayDoneMap, doneCount, todayPct }: {
+function DayScheduleView({ day, isToday, timedItems, dayOnlyItems, todayDoneMap, doneCount, todayPct, onMedBatch }: {
   day: WeekPlan["days"][number]; isToday: boolean;
   timedItems: PlanItem[]; dayOnlyItems: PlanItem[];
   todayDoneMap: Map<string, boolean>; doneCount: number; todayPct: number;
+  onMedBatch: (batchIds: string[]) => void;
 }) {
   const now = new Date();
   const currentTime = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
@@ -464,37 +469,39 @@ function DayScheduleView({ day, isToday, timedItems, dayOnlyItems, todayDoneMap,
                   const accent  = MODULE_ACCENT[item.moduleType] ?? "var(--accent)";
                   const done    = isToday && todayDoneMap.get(checklistKey(item)) === true;
                   const overdue = isToday && isPast && !done;
-                  return (
-                    <Link key={`${item.moduleType}-${time}`} href={moduleHref(item.moduleType)}>
-                      <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl cursor-pointer active:scale-[0.98] transition"
-                        style={{
-                          background: done ? "rgba(74,222,128,0.08)" : overdue ? "rgba(239,68,68,0.06)" : "var(--glass-bg)",
-                          border: `1px solid ${done ? "rgba(74,222,128,0.25)" : overdue ? "rgba(239,68,68,0.2)" : "var(--glass-border)"}`,
-                        }}>
-                        {/* Status circle — only for today */}
-                        {isToday && (
-                          <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: done ? "#4ade80" : overdue ? "rgba(239,68,68,0.12)" : "var(--glass-track)", border: done ? "none" : `2px solid ${overdue ? "#f87171" : accent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            {done && <span style={{ fontSize: 12, color: "#fff", fontWeight: 900 }}>✓</span>}
-                          </div>
-                        )}
-                        {/* Accent bar for non-today days */}
-                        {!isToday && (
-                          <div style={{ width: 4, height: 36, borderRadius: 4, flexShrink: 0, background: accent }} />
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: 14, fontWeight: 600, color: done ? "var(--text-dim)" : "var(--text-main)", textDecoration: done ? "line-through" : "none" }}>
-                            {item.label}
-                          </p>
-                          {item.sub && (
-                            <p style={{ fontSize: 11, marginTop: 2, color: done ? "var(--text-dim)" : overdue ? "#f87171" : "var(--text-sub)" }}>
-                              {overdue ? "Overdue — tap to log" : item.sub}
-                            </p>
-                          )}
+                  const isMedBatch = item.moduleType === "medications" && item.batchIds?.length;
+                  const inner = (
+                    <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl cursor-pointer active:scale-[0.98] transition"
+                      style={{
+                        background: done ? "rgba(74,222,128,0.08)" : overdue ? "rgba(239,68,68,0.06)" : "var(--glass-bg)",
+                        border: `1px solid ${done ? "rgba(74,222,128,0.25)" : overdue ? "rgba(239,68,68,0.2)" : "var(--glass-border)"}`,
+                      }}>
+                      {/* Status circle — only for today */}
+                      {isToday && (
+                        <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: done ? "#4ade80" : overdue ? "rgba(239,68,68,0.12)" : "var(--glass-track)", border: done ? "none" : `2px solid ${overdue ? "#f87171" : accent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {done && <span style={{ fontSize: 12, color: "#fff", fontWeight: 900 }}>✓</span>}
                         </div>
-                        <ChevronRight style={{ width: 14, height: 14, flexShrink: 0, color: done ? "var(--text-dim)" : "var(--text-sub)" }} />
+                      )}
+                      {/* Accent bar for non-today days */}
+                      {!isToday && (
+                        <div style={{ width: 4, height: 36, borderRadius: 4, flexShrink: 0, background: accent }} />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: done ? "var(--text-dim)" : "var(--text-main)", textDecoration: done ? "line-through" : "none" }}>
+                          {item.label}
+                        </p>
+                        {item.sub && (
+                          <p style={{ fontSize: 11, marginTop: 2, color: done ? "var(--text-dim)" : overdue ? "#f87171" : "var(--text-sub)" }}>
+                            {overdue ? "Overdue — tap to mark all done" : item.sub}
+                          </p>
+                        )}
                       </div>
-                    </Link>
+                      <ChevronRight style={{ width: 14, height: 14, flexShrink: 0, color: done ? "var(--text-dim)" : "var(--text-sub)" }} />
+                    </div>
                   );
+                  return isMedBatch
+                    ? <button key={`${item.moduleType}-${time}`} className="w-full text-left" disabled={done} onClick={() => onMedBatch(item.batchIds!)}>{inner}</button>
+                    : <Link key={`${item.moduleType}-${time}`} href={moduleHref(item.moduleType)}>{inner}</Link>;
                 })}
               </div>
             </div>

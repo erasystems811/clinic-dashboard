@@ -493,18 +493,12 @@ export default function HomePage() {
         )}
 
         {/* ── Quick Access ───────────────────────────────────────── */}
-        <section>
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", marginBottom: 12 }}>Quick access</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <QuickCard href="/wellness"  emoji="💚" label="My Wellness"  description="Habits & modules" />
-            <QuickCard href="/plan"      emoji="📅" label="Weekly Plan"  description="Your habit grid" />
-            <QuickCard href="/hospitals" emoji="🏥" label="Hospitals"    description="Chat & book" />
-            <QuickCard href="/profile"   emoji="⚙️" label="Settings"     description="Account & theme" />
-            {!isCompanionHidden() && (
-              <QuickCard href="/companion" emoji="📔" label="My Diary" description="Private journal & chats" />
-            )}
-          </div>
-        </section>
+        {!isCompanionHidden() && (
+          <section>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", marginBottom: 12 }}>Quick access</h2>
+            <QuickCard href="/companion" emoji="📔" label="My Diary" description="Private journal & chats" />
+          </section>
+        )}
 
       </div>
     </div>

@@ -27,6 +27,7 @@ export default function MoodPage() {
   const log = module?.log;
   const streak = streakData?.streak ?? 0;
   const [notes, setNotes] = useState(module?.settings?.notes ?? "");
+  const [reminderTime, setReminderTime] = useState((module?.settings as Record<string, unknown> | undefined)?.reminderTime as string ?? "14:00");
 
   const [mood, setMood] = useState(log?.mood ?? 0);
   const [energy, setEnergy] = useState(log?.energy ?? 0);
@@ -103,6 +104,33 @@ export default function MoodPage() {
           style={{ background: saved ? "rgba(74,222,128,0.15)" : GRADIENT, border: saved ? "1px solid rgba(74,222,128,0.3)" : "none", boxShadow: saved ? "none" : `0 8px 24px ${ACCENT}30`, color: saved ? "#4ade80" : "#fff" }}>
           {logToday.isPending ? "Saving…" : saved ? "Update check-in ✓" : "Save check-in"}
         </button>
+      </GlassCard>
+
+      {/* Reminder time */}
+      <GlassCard accent={ACCENT} className="mb-4">
+        <p className="text-xs font-bold mb-1" style={{ color: "var(--text-sub)" }}>Check-in reminder time</p>
+        <p className="text-xs mb-3" style={{ color: "var(--text-dim)" }}>When should this appear in your daily plan? Change it any day you like.</p>
+        <div className="flex gap-2 items-center">
+          <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
+            className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold outline-none"
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)" }} />
+          <button
+            onClick={() => saveModule.mutate({ settings: { notes, reminderTime }, enabled: true })}
+            disabled={saveModule.isPending}
+            className="px-4 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition active:scale-95"
+            style={{ background: GRADIENT }}>
+            {saveModule.isPending ? "…" : "Save"}
+          </button>
+        </div>
+        <div className="flex gap-2 mt-2 flex-wrap">
+          {[["Morning","09:00"],["Afternoon","14:00"],["Evening","18:00"]].map(([label, t]) => (
+            <button key={t} onClick={() => setReminderTime(t)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition active:scale-90"
+              style={{ background: reminderTime === t ? `${ACCENT}20` : "var(--glass-bg)", border: `1px solid ${reminderTime === t ? ACCENT : "var(--glass-border)"}`, color: reminderTime === t ? ACCENT : "var(--text-sub)" }}>
+              {label}
+            </button>
+          ))}
+        </div>
       </GlassCard>
 
       {/* Week */}

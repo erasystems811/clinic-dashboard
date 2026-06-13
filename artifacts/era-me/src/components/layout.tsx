@@ -41,12 +41,14 @@ export default function Layout({ children }: { children: ReactNode }) {
     };
   }, [qc]);
 
-  const hideFloatingBell = location.startsWith("/notifications") || location.startsWith("/companion");
+  const hideFloatingBell = location.startsWith("/notifications");
+  // On companion chat pages move the bell up so it doesn't overlap the message input
+  const bellBottom = location.startsWith("/companion") ? 148 : 76;
 
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-mid) 50%, var(--bg-base) 100%)" }}>
       <div className="flex flex-col min-h-screen max-w-md mx-auto relative shadow-2xl" style={{ background: "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-mid) 50%, var(--bg-base) 100%)" }}>
-        <main className="flex-1 overflow-y-auto pb-20">
+        <main className="flex-1 overflow-y-auto pb-20" style={{ background: "var(--bg-base)" }}>
           {children}
         </main>
 
@@ -56,7 +58,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             onClick={() => navigate("/notifications")}
             className="fixed z-50 active:scale-90 transition"
             style={{
-              bottom: 76,
+              bottom: bellBottom,
               right: "calc(50% - min(50vw, 224px) + 16px)",
               width: 48,
               height: 48,

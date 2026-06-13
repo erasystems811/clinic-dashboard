@@ -20,7 +20,7 @@ const THEMES = [
 type ThemeId = typeof THEMES[number]["id"];
 
 export default function ProfilePage() {
-  const { account, logout, updateAccount } = useAuth();
+  const { account, logout, updateAccount, loading } = useAuth();
   const [, navigate] = useLocation();
   const [saving, setSaving] = useState(false);
   const isPremium = account?.isPremium ?? false;
@@ -51,6 +51,7 @@ export default function ProfilePage() {
     } finally { setSaving(false); }
   }
 
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
   if (!account) return null;
 
   return (

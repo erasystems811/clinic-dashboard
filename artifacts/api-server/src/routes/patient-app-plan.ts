@@ -221,10 +221,11 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       }
     }
 
-    // Mood check-in — morning
+    // Mood check-in — flexible time (afternoon default)
     if (enabledMap["mood_check"]) {
       const mNotes = enabledMap["mood_check"].notes as string | undefined;
-      const mTime = (mNotes && parseTimeHint(mNotes)) ?? "08:30";
+      const mReminderTime = enabledMap["mood_check"].reminderTime as string | undefined;
+      const mTime = mReminderTime ?? (mNotes && parseTimeHint(mNotes)) ?? "14:00";
       items.push({ moduleType: "mood_check", emoji: "😊", label: "Daily mood check-in", sub: mNotes ?? "Mood, energy & stress", time: mTime });
     }
 

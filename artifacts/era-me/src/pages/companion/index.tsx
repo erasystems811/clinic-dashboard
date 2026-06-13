@@ -56,6 +56,17 @@ function CompanionHome({ account, isBirthday, birthdayAge }: {
   const deleteEntry = useDeleteEntry();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const creatingConvoRef = useRef(false);
+  const { applyCompanionTheme, restoreAppTheme } = useAuth();
+
+  useEffect(() => {
+    const raw = localStorage.getItem("era_companion_tab");
+    if (raw) {
+      const g = decodeGesture(raw);
+      if (g.themeColor) applyCompanionTheme(g.themeColor, g.darkMode ?? true);
+    }
+    return restoreAppTheme;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const conversations = entries?.filter((e) => e.type === "conversation") ?? [];
   const journals = entries?.filter((e) => e.type === "journal") ?? [];

@@ -3,21 +3,32 @@ import { useLocation } from "wouter";
 import { ArrowLeft, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import {
-  useCompanionSettings, useChangePin, useChangeGesture,
+  useCompanionSettings, useChangePin, useChangeGesture, useChangeCompanionTheme,
   isCompanionUnlocked, clearCompanionUnlock,
   GESTURE_ELEMENTS, gestureLabel, decodeGesture,
 } from "@/lib/companion-api";
 import { cn } from "@/lib/utils";
 import type { GestureConfig } from "@/lib/companion-api";
 
+const DIARY_COLORS = [
+  { id: "teal",   label: "Teal",   swatch: "#14b8a6" },
+  { id: "blue",   label: "Blue",   swatch: "#3b82f6" },
+  { id: "purple", label: "Purple", swatch: "#a78bfa" },
+  { id: "rose",   label: "Rose",   swatch: "#ec4899" },
+  { id: "green",  label: "Green",  swatch: "#22c55e" },
+  { id: "orange", label: "Orange", swatch: "#f97316" },
+  { id: "slate",  label: "Slate",  swatch: "#94a3b8" },
+];
+
 const COUNTS = [2, 3, 4, 5];
 
 export default function CompanionSettingsPage() {
   const [, navigate] = useLocation();
-  const { account } = useAuth();
+  const { account, applyCompanionTheme, restoreAppTheme } = useAuth();
   const { data: settings } = useCompanionSettings();
   const changePin = useChangePin();
   const changeGesture = useChangeGesture();
+  const changeTheme = useChangeCompanionTheme();
 
   const [showPinChange, setShowPinChange] = useState(false);
   const [currentPin, setCurrentPin] = useState("");
@@ -28,16 +39,30 @@ export default function CompanionSettingsPage() {
   const [gestureElement, setGestureElement] = useState<GestureConfig["element"]>("coins");
   const [gestureCount, setGestureCount] = useState(3);
   const [isHidden, setIsHidden] = useState(false);
+  const [diaryColor, setDiaryColor] = useState<string>("teal");
+  const [diaryDark, setDiaryDark] = useState(true);
 
   useEffect(() => {
     if (account && !isCompanionUnlocked(account.id)) navigate("/companion");
   }, [account, navigate]);
 
   useEffect(() => {
+    const raw = localStorage.getItem("era_companion_tab");
+    if (raw) {
+      const g = decodeGesture(raw);
+      if (g.themeColor) applyCompanionTheme(g.themeColor, g.darkMode ?? true);
+    }
+    return restoreAppTheme;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (settings) {
       setGestureElement(settings.gestureElement);
       setGestureCount(settings.gestureCount);
       setIsHidden(!!settings.isHidden);
+      if (settings.companionThemeColor) setDiaryColor(settings.companionThemeColor);
+      if (settings.companionDarkMode !== undefined) setDiaryDark(settings.companionDarkMode);
     }
   }, [settings]);
 
@@ -53,17 +78,20 @@ export default function CompanionSettingsPage() {
 
   function handleGestureChange(el: GestureConfig["element"], cnt: number, hidden?: boolean) {
     const hid = hidden ?? isHidden;
-    const encoded = JSON.stringify({ element: el, count: cnt, hidden: hid });
-    localStorage.setItem("era_companion_tab", encoded);
     changeGesture.mutate({ element: el, count: cnt, hidden: hid });
   }
 
   function handleHideToggle() {
     const newHidden = !isHidden;
     setIsHidden(newHidden);
-    const encoded = JSON.stringify({ element: gestureElement, count: gestureCount, hidden: newHidden });
-    localStorage.setItem("era_companion_tab", encoded);
     changeGesture.mutate({ element: gestureElement, count: gestureCount, hidden: newHidden });
+  }
+
+  function handleThemeChange(color: string, dark: boolean) {
+    setDiaryColor(color);
+    setDiaryDark(dark);
+    applyCompanionTheme(color, dark);
+    changeTheme.mutate({ themeColor: color, darkMode: dark });
   }
 
   function handleLock() {
@@ -161,6 +189,41 @@ export default function CompanionSettingsPage() {
               {changePin.isPending ? "Saving…" : "Update PIN"}
             </button>
           </div>
+        )}
+      </div>
+
+      {/* Diary theme */}
+      <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+        <p className="text-sm font-semibold text-foreground mb-1">Diary theme</p>
+        <p className="text-xs text-muted-foreground mb-4">Pick a colour and mode just for the diary — independent from the rest of the app.</p>
+
+        {/* Light / Dark toggle */}
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => handleThemeChange(diaryColor, false)}
+            className={cn("flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition",
+              !diaryDark ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted text-foreground")}>
+            ☀️ Light
+          </button>
+          <button onClick={() => handleThemeChange(diaryColor, true)}
+            className={cn("flex-1 py-2.5 rounded-xl text-sm font-semibold border-2 transition",
+              diaryDark ? "border-primary bg-primary text-primary-foreground" : "border-border bg-muted text-foreground")}>
+            🌙 Dark
+          </button>
+        </div>
+
+        {/* Colour grid */}
+        <div className="grid grid-cols-4 gap-2">
+          {DIARY_COLORS.map((c) => (
+            <button key={c.id} onClick={() => handleThemeChange(c.id, diaryDark)}
+              className={cn("flex flex-col items-center gap-1.5 py-2.5 px-1 rounded-xl border-2 transition",
+                diaryColor === c.id ? "border-primary" : "border-transparent bg-muted")}>
+              <div className="w-7 h-7 rounded-full shadow-sm" style={{ background: c.swatch }} />
+              <span className="text-[10px] font-semibold text-foreground">{c.label}</span>
+            </button>
+          ))}
+        </div>
+        {changeTheme.isPending && (
+          <p className="text-[11px] text-muted-foreground mt-3 text-center">Saving…</p>
         )}
       </div>
 

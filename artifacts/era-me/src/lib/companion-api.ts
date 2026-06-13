@@ -38,6 +38,8 @@ export interface GestureConfig {
   element: "score" | "coins" | "greeting";
   count: number;
   hidden?: boolean;
+  themeColor?: string;
+  darkMode?: boolean;
 }
 
 export const GESTURE_ELEMENTS: { value: GestureConfig["element"]; label: string; emoji: string; hint: string }[] = [
@@ -48,9 +50,15 @@ export const GESTURE_ELEMENTS: { value: GestureConfig["element"]; label: string;
 
 export function decodeGesture(entryTab: string): GestureConfig {
   try {
-    const parsed = JSON.parse(entryTab) as { element?: string; count?: number; hidden?: boolean };
+    const parsed = JSON.parse(entryTab) as { element?: string; count?: number; hidden?: boolean; themeColor?: string; darkMode?: boolean };
     if (parsed.element && parsed.count) {
-      return { element: parsed.element as GestureConfig["element"], count: Number(parsed.count), hidden: !!parsed.hidden };
+      return {
+        element: parsed.element as GestureConfig["element"],
+        count: Number(parsed.count),
+        hidden: !!parsed.hidden,
+        themeColor: parsed.themeColor,
+        darkMode: parsed.darkMode,
+      };
     }
   } catch { /* */ }
   return { element: "coins", count: 3, hidden: false };
@@ -76,6 +84,8 @@ export interface CompanionSettings {
   gestureElement: GestureConfig["element"];
   gestureCount: number;
   isHidden: boolean;
+  companionThemeColor?: string;
+  companionDarkMode?: boolean;
   personality: Record<string, unknown>;
   isBirthday: boolean;
   birthdayAge: number | null;
@@ -105,10 +115,24 @@ export function useCompanionSettings() {
   return useQuery<CompanionSettings>({
     queryKey: ["companion", "settings"],
     queryFn: async () => {
-      const raw = await get<Omit<CompanionSettings, "gestureElement" | "gestureCount" | "isHidden">>(`${BASE}/settings`);
+      const raw = await get<Omit<CompanionSettings, "gestureElement" | "gestureCount" | "isHidden" | "companionThemeColor" | "companionDarkMode">>(`${BASE}/settings`);
       const g = decodeGesture(raw.entryTab);
-      return { ...raw, gestureElement: g.element, gestureCount: g.count, isHidden: !!g.hidden };
+      return { ...raw, gestureElement: g.element, gestureCount: g.count, isHidden: !!g.hidden, companionThemeColor: g.themeColor, companionDarkMode: g.darkMode };
     },
+  });
+}
+
+export function useChangeCompanionTheme() {
+  const qc = useQueryClient();
+  return useMutation<{ ok: boolean }, Error, { themeColor: string; darkMode: boolean }>({
+    mutationFn: ({ themeColor, darkMode }) => {
+      let existing: Record<string, unknown> = {};
+      try { existing = JSON.parse(localStorage.getItem("era_companion_tab") ?? "{}") as Record<string, unknown>; } catch { /**/ }
+      const encoded = JSON.stringify({ ...existing, themeColor, darkMode });
+      localStorage.setItem("era_companion_tab", encoded);
+      return patch(`${BASE}/entry-tab`, { entryTab: encoded });
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["companion", "settings"] }),
   });
 }
 
@@ -159,7 +183,9 @@ export function useChangeGesture() {
   const qc = useQueryClient();
   return useMutation<{ ok: boolean }, Error, GestureConfig>({
     mutationFn: ({ element, count, hidden }) => {
-      const encoded = JSON.stringify({ element, count, hidden: !!hidden });
+      let existing: Record<string, unknown> = {};
+      try { existing = JSON.parse(localStorage.getItem("era_companion_tab") ?? "{}") as Record<string, unknown>; } catch { /**/ }
+      const encoded = JSON.stringify({ ...existing, element, count, hidden: !!hidden });
       localStorage.setItem("era_companion_tab", encoded);
       return patch(`${BASE}/entry-tab`, { entryTab: encoded });
     },

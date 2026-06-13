@@ -1,9 +1,29 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Send, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
-import { useDiaryEntry, useSendMessage, isCompanionUnlocked } from "@/lib/companion-api";
+import { useDiaryEntry, useSendMessage, isCompanionUnlocked, decodeGesture } from "@/lib/companion-api";
 import { cn } from "@/lib/utils";
+
+function formatDateLabel(isoStr: string): string {
+  const d = new Date(isoStr);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const msgDay = new Date(d); msgDay.setHours(0, 0, 0, 0);
+  const diff = today.getTime() - msgDay.getTime();
+  if (diff === 0) return "Today";
+  if (diff === 86400000) return "Yesterday";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+}
+
+function CompanionDateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <div className="flex-1 h-px bg-border" />
+      <span className="text-[11px] font-semibold text-muted-foreground tracking-wide">{label}</span>
+      <div className="flex-1 h-px bg-border" />
+    </div>
+  );
+}
 
 export default function ChatPage() {
   const [, navigate] = useLocation();
@@ -14,14 +34,25 @@ export default function ChatPage() {
   const sendMessage = useSendMessage(entryId);
 
   const [input, setInput] = useState("");
-  const [optimisticMessages, setOptimisticMessages] = useState<{ role: "user" | "assistant"; content: string; temp?: boolean }[]>([]);
+  const [optimisticMessages, setOptimisticMessages] = useState<{ role: "user" | "assistant"; content: string; temp?: boolean; created_at: string }[]>([]);
   const [failedText, setFailedText] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { applyCompanionTheme, restoreAppTheme } = useAuth();
 
   useEffect(() => {
     if (account && !isCompanionUnlocked(account.id)) navigate("/companion");
   }, [account, navigate]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("era_companion_tab");
+    if (raw) {
+      const g = decodeGesture(raw);
+      if (g.themeColor) applyCompanionTheme(g.themeColor, g.darkMode ?? true);
+    }
+    return restoreAppTheme;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -29,20 +60,20 @@ export default function ChatPage() {
 
   const messages = entry?.messages ?? [];
   const allMessages = [
-    ...messages.map((m) => ({ role: m.role, content: m.content })),
+    ...messages.map((m) => ({ role: m.role, content: m.content, created_at: m.created_at })),
     ...optimisticMessages,
   ];
 
   function send(text: string) {
     if (!text.trim() || sendMessage.isPending) return;
     setFailedText(null);
-    setOptimisticMessages((p) => [...p, { role: "user" as const, content: text, temp: true }]);
+    setOptimisticMessages((p) => [...p, { role: "user" as const, content: text, temp: true, created_at: new Date().toISOString() }]);
 
     sendMessage.mutate(text, {
       onSuccess: async ({ reply }) => {
         setOptimisticMessages((p) => [
           ...p.map((m) => ({ ...m, temp: false })),
-          { role: "assistant" as const, content: reply },
+          { role: "assistant" as const, content: reply, created_at: new Date().toISOString() },
         ]);
         await refetch();
         setOptimisticMessages([]);
@@ -99,23 +130,35 @@ export default function ChatPage() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {allMessages.map((m, i) => (
-          <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
-            {m.role === "assistant" && (
-              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mr-2 mt-1">
-                <span className="text-sm">💙</span>
+        {(() => {
+          const items: React.ReactNode[] = [];
+          let lastDay = "";
+          allMessages.forEach((m, i) => {
+            const day = new Date(m.created_at).toDateString();
+            if (day !== lastDay) {
+              items.push(<CompanionDateSeparator key={`sep-${day}`} label={formatDateLabel(m.created_at)} />);
+              lastDay = day;
+            }
+            items.push(
+              <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+                {m.role === "assistant" && (
+                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mr-2 mt-1">
+                    <span className="text-sm">💙</span>
+                  </div>
+                )}
+                <div className={cn(
+                  "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                  m.role === "user"
+                    ? "bg-primary text-primary-foreground rounded-br-sm"
+                    : "bg-card border border-border text-foreground rounded-bl-sm"
+                )}>
+                  {m.content}
+                </div>
               </div>
-            )}
-            <div className={cn(
-              "max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
-              m.role === "user"
-                ? "bg-primary text-primary-foreground rounded-br-sm"
-                : "bg-card border border-border text-foreground rounded-bl-sm"
-            )}>
-              {m.content}
-            </div>
-          </div>
-        ))}
+            );
+          });
+          return items;
+        })()}
 
         {/* Typing indicator */}
         {sendMessage.isPending && (

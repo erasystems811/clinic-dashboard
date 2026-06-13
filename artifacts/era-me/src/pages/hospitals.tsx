@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Building2, Plus, Search, ArrowLeft, X, ChevronRight, Trash2, MessageCircle, Send, Calendar, CheckCircle2, Star, Clock, RefreshCw } from "lucide-react";
 import {
@@ -521,7 +521,19 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
             <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>Send a message to {connection.hospitalName}.</p>
           </div>
         ) : (
-          messages.map((msg) => <MessageBubble key={msg.id} message={msg} hospitalName={connection.hospitalName} />)
+          (() => {
+            const items: React.ReactNode[] = [];
+            let lastDay = "";
+            for (const msg of messages) {
+              const day = new Date(msg.created_at).toDateString();
+              if (day !== lastDay) {
+                items.push(<HospitalDateSeparator key={`sep-${day}`} label={formatDateLabel(msg.created_at)} />);
+                lastDay = day;
+              }
+              items.push(<MessageBubble key={msg.id} message={msg} hospitalName={connection.hospitalName} />);
+            }
+            return items;
+          })()
         )}
         <div ref={bottomRef} />
       </div>
@@ -544,6 +556,26 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function formatDateLabel(isoStr: string): string {
+  const d = new Date(isoStr);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const msgDay = new Date(d); msgDay.setHours(0, 0, 0, 0);
+  const diff = today.getTime() - msgDay.getTime();
+  if (diff === 0) return "Today";
+  if (diff === 86400000) return "Yesterday";
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+}
+
+function HospitalDateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
+      <span style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600, letterSpacing: "0.04em" }}>{label}</span>
+      <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
     </div>
   );
 }

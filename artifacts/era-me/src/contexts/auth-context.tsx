@@ -21,6 +21,8 @@ interface AuthContextValue {
   login: (token: string, account: Account) => void;
   logout: () => void;
   updateAccount: (patch: Partial<Account>) => void;
+  applyCompanionTheme: (themeColor: string, darkMode: boolean) => void;
+  restoreAppTheme: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -243,8 +245,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const applyCompanionTheme = useCallback((themeColor: string, darkMode: boolean) => {
+    if (account) applyTheme({ ...account, themeColor, darkMode });
+  }, [account]);
+
+  const restoreAppTheme = useCallback(() => {
+    if (account) applyTheme(account);
+  }, [account]);
+
   return (
-    <AuthContext.Provider value={{ account, token, loading, login, logout, updateAccount }}>
+    <AuthContext.Provider value={{ account, token, loading, login, logout, updateAccount, applyCompanionTheme, restoreAppTheme }}>
       {children}
     </AuthContext.Provider>
   );

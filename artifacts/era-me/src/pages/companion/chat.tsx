@@ -83,8 +83,6 @@ export default function ChatPage() {
     function update() {
       if (!containerRef.current) return;
       const h = vv!.height;
-      const t = vv!.offsetTop;
-      containerRef.current.style.top    = `${t}px`;
       containerRef.current.style.height = `${h}px`;
       if (h < prevH) {
         bottomRef.current?.scrollIntoView({ behavior: "instant" });
@@ -93,12 +91,10 @@ export default function ChatPage() {
     }
 
     vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
     update();
 
     return () => {
       vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
     };
   }, []);
 
@@ -151,12 +147,9 @@ export default function ChatPage() {
     }
   }
 
-  // IMPORTANT: do NOT include top, bottom, or height here.
-  // The useLayoutEffect above owns those via direct DOM mutation.
-  // If React re-applied them they would fight the viewport handler every time
-  // the user types (any state change triggers a re-render).
+  // top: 0 is static — React owns it. JS owns only `height` via the effect above.
   const rootStyle: React.CSSProperties = {
-    position: "fixed", left: 0, right: 0,
+    position: "fixed", top: 0, left: 0, right: 0,
     background: "var(--bg-base)",
     display: "flex", flexDirection: "column",
     overflow: "hidden",

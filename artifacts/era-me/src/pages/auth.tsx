@@ -110,7 +110,7 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8 relative overflow-hidden"
+    <div className="min-h-screen flex items-center justify-center px-4 py-8 relative overflow-hidden on-gradient"
       style={{ background: "linear-gradient(135deg, #060d1f 0%, #0a1628 50%, #060d1f 100%)" }}>
 
       {/* Glow orbs */}
@@ -173,8 +173,11 @@ export default function AuthPage() {
         {step === "register-type" && (
           <div>
             <GlassBack onClick={() => setStep("welcome")} />
-            <h2 className="text-2xl font-bold text-white mb-1">How will you use ERA Health?</h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>Choose the account type that fits you.</p>
+            <h2 className="text-2xl font-bold mb-1"
+              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              How will you use ERA Health?
+            </h2>
+            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>Choose the account type that fits you.</p>
             <div className="space-y-3 mb-7">
               {([
                 { type: "individual", label: "Just for me", description: "Personal health tracking and wellness", Icon: User },
@@ -206,8 +209,11 @@ export default function AuthPage() {
         {step === "register-details" && (
           <div>
             <GlassBack onClick={() => setStep("register-type")} />
-            <h2 className="text-2xl font-bold text-white mb-1">Create your account</h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>We'll send a code to verify your email.</p>
+            <h2 className="text-2xl font-bold mb-1"
+              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Create your account
+            </h2>
+            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>We'll send a code to verify your email.</p>
             <form onSubmit={handleSendOtp} className="space-y-4">
               <GlassField label="Username" hint="Letters, numbers and underscores only">
                 <GlassInput type="text" required autoComplete="username" value={regUsername}
@@ -233,11 +239,14 @@ export default function AuthPage() {
         {step === "register-otp" && (
           <div>
             <GlassBack onClick={() => setStep("register-details")} />
-            <h2 className="text-2xl font-bold text-white mb-1">Check your email</h2>
-            <p className="text-sm mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <h2 className="text-2xl font-bold mb-1"
+              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Check your email
+            </h2>
+            <p className="text-sm mb-1" style={{ color: "rgba(255,255,255,0.65)" }}>
               We sent a 6-digit code to <span className="text-white font-medium">{regEmail}</span>
             </p>
-            <p className="text-xs mb-7" style={{ color: "rgba(255,255,255,0.35)" }}>Expires in 10 minutes.</p>
+            <p className="text-xs mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>Expires in 10 minutes.</p>
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <input type="text" inputMode="numeric" maxLength={6} required
                 value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
@@ -271,8 +280,11 @@ export default function AuthPage() {
               style={{ background: "rgba(20,184,166,0.15)", border: "1.5px solid rgba(20,184,166,0.4)" }}>
               <CheckCircle2 className="w-10 h-10" style={{ color: "#14b8a6" }} />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">You're in!</h2>
-            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <h2 className="text-2xl font-bold mb-2"
+              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              You're in!
+            </h2>
+            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>
               Your ERA Health account is ready. Check your email for your password — change it in Profile after you log in.
             </p>
             <div className="mt-8 w-5 h-5 rounded-full border-2 border-t-transparent animate-spin"
@@ -284,8 +296,11 @@ export default function AuthPage() {
         {step === "login" && (
           <div>
             <GlassBack onClick={() => setStep("welcome")} />
-            <h2 className="text-2xl font-bold text-white mb-1">Welcome back</h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <h2 className="text-2xl font-bold mb-1"
+              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Welcome back
+            </h2>
+            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>
               Sign in with your username and password.
             </p>
             <form onSubmit={handleLogin} className="space-y-4">
@@ -327,8 +342,11 @@ export default function AuthPage() {
         {step === "forgot-request" && (
           <div>
             <GlassBack onClick={() => setStep("login")} />
-            <h2 className="text-2xl font-bold text-white mb-1">Reset password</h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <h2 className="text-2xl font-bold mb-1"
+              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Reset password
+            </h2>
+            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>
               Enter your username — we'll send the reset link to the email address on your account.
             </p>
             <form onSubmit={handleForgot} className="space-y-4">
@@ -349,8 +367,11 @@ export default function AuthPage() {
               style={{ background: "rgba(20,184,166,0.15)", border: "1.5px solid rgba(20,184,166,0.4)" }}>
               <CheckCircle2 className="w-10 h-10" style={{ color: "#14b8a6" }} />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Check your email</h2>
-            <p className="text-sm leading-relaxed mb-8" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <h2 className="text-2xl font-bold mb-2"
+              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Check your email
+            </h2>
+            <p className="text-sm leading-relaxed mb-8" style={{ color: "rgba(255,255,255,0.65)" }}>
               If an account exists with that email, a reset link is on its way. It expires in 1 hour.
             </p>
             <GlassButton onClick={() => setStep("login")}>Back to Sign In</GlassButton>
@@ -360,8 +381,11 @@ export default function AuthPage() {
         {/* ── Reset password ────────────────────────────────────── */}
         {step === "reset-password" && (
           <div>
-            <h2 className="text-2xl font-bold text-white mb-1">Set a new password</h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.5)" }}>Choose something you'll remember.</p>
+            <h2 className="text-2xl font-bold mb-1"
+              style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Set a new password
+            </h2>
+            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>Choose something you'll remember.</p>
             <form onSubmit={handleReset} className="space-y-4">
               <div className="relative">
                 <GlassInput type={showNewPassword ? "text" : "password"} required
@@ -392,7 +416,7 @@ function GlassBack({ onClick }: { onClick: () => void }) {
   return (
     <button onClick={onClick}
       className="flex items-center gap-1.5 mb-6 -ml-1 text-sm font-medium transition"
-      style={{ color: "rgba(255,255,255,0.45)" }}>
+      style={{ color: "rgba(255,255,255,0.6)" }}>
       <ArrowLeft className="w-4 h-4" />
       Back
     </button>

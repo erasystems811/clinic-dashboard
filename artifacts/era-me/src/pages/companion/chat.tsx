@@ -67,24 +67,26 @@ export default function ChatPage() {
     }
   }, [isLoading, entry?.messages, refetch]);
 
-  // Resize the fixed container to exactly match the visual viewport on every frame.
-  // This is the only reliable way to keep the chat static while the keyboard
-  // slides in/out — no React state, no layout shift, no re-render lag.
-  useEffect(() => {
+  // Pin the container to the visual viewport so the keyboard never moves the chat.
+  // Rules:
+  //   - `top` and `height` are owned exclusively by this effect (direct DOM mutation).
+  //   - React's `style` prop on the root div must NOT include `top`, `bottom`, or `height`
+  //     so that React re-renders (triggered by user typing) never reset these values.
+  //   - useLayoutEffect runs before paint → zero-lag on mount; the resize handler runs
+  //     synchronously in the event callback → zero-lag on keyboard show/hide.
+  useLayoutEffect(() => {
     const vv = window.visualViewport;
-    if (!vv) return;
+    const el = containerRef.current;
+    if (!vv || !el) return;
     let prevH = vv.height;
 
     function update() {
-      const el = containerRef.current;
-      if (!el) return;
+      if (!containerRef.current) return;
       const h = vv!.height;
       const t = vv!.offsetTop;
-      el.style.height = `${h}px`;
-      el.style.top    = `${t}px`;
-      el.style.bottom = "auto";
+      containerRef.current.style.top    = `${t}px`;
+      containerRef.current.style.height = `${h}px`;
       if (h < prevH) {
-        // Keyboard just opened — snap to latest message immediately
         bottomRef.current?.scrollIntoView({ behavior: "instant" });
       }
       prevH = h;
@@ -92,7 +94,7 @@ export default function ChatPage() {
 
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
-    update(); // apply on mount
+    update();
 
     return () => {
       vv.removeEventListener("resize", update);
@@ -149,15 +151,19 @@ export default function ChatPage() {
     }
   }
 
+  // IMPORTANT: do NOT include top, bottom, or height here.
+  // The useLayoutEffect above owns those via direct DOM mutation.
+  // If React re-applied them they would fight the viewport handler every time
+  // the user types (any state change triggers a re-render).
   const rootStyle: React.CSSProperties = {
-    position: "fixed", inset: 0,
+    position: "fixed", left: 0, right: 0,
     background: "var(--bg-base)",
     display: "flex", flexDirection: "column",
     overflow: "hidden",
   };
 
   if (isLoading) return (
-    <div style={{ ...rootStyle, alignItems: "center", justifyContent: "center" }}>
+    <div style={{ position: "fixed", inset: 0, background: "var(--bg-base)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );

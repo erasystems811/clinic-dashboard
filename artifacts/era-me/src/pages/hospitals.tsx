@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { Building2, Plus, Search, ArrowLeft, X, ChevronRight, Trash2, MessageCircle, Send, Calendar, CheckCircle2, Star, Clock, RefreshCw } from "lucide-react";
 import {
@@ -472,8 +472,8 @@ function BookingPage({ connection, onBack }: { connection: HospitalConnection; o
 // ── Hospital chat page ─────────────────────────────────────────────────────────
 function HospitalChatPage({ connection, onBack }: { connection: HospitalConnection; onBack: () => void }) {
   const [message, setMessage] = useState("");
-  const [keyboardInset, setKeyboardInset] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { data: messages = [], isLoading } = useHospitalMessages(connection.connectionId);
   const sendMessage = useSendMessage(connection.connectionId);
@@ -482,20 +482,30 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
+  // Same pattern as companion chat: own `top` and `height` via direct DOM mutation.
+  // React must NOT include these in the style prop or it will reset them on every keystroke.
+  useLayoutEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    const NAV_H = 80;
+    let prevH = vv.height;
+
     function update() {
-      setKeyboardInset(Math.max(0, window.innerHeight - vv!.offsetTop - vv!.height));
+      const el = containerRef.current;
+      if (!el) return;
+      const h = vv!.height - NAV_H;
+      const t = vv!.offsetTop;
+      el.style.top    = `${t}px`;
+      el.style.height = `${h}px`;
+      if (vv!.height < prevH) bottomRef.current?.scrollIntoView({ behavior: "instant" });
+      prevH = vv!.height;
     }
+
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
+    update();
     return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
   }, []);
-
-  useEffect(() => {
-    if (keyboardInset > 0) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [keyboardInset]);
 
   function handleSend() {
     const text = message.trim();
@@ -505,7 +515,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100% - 80px)", overflow: "hidden" }}>
+    <div ref={containerRef} style={{ position: "fixed", left: 0, right: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <div className="px-4 pt-6 pb-4 flex items-center gap-3 shrink-0"
         style={{ borderBottom: "1px solid var(--glass-border)" }}>
         <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-xl active:scale-90 transition"
@@ -555,7 +565,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
       </div>
 
       <div className="px-4 shrink-0"
-        style={{ borderTop: "1px solid var(--glass-border)", paddingTop: 16, paddingBottom: 16 + keyboardInset }}>
+        style={{ borderTop: "1px solid var(--glass-border)", paddingTop: 16, paddingBottom: 16 }}>
         <div className="flex items-end gap-2">
           <textarea
             value={message}

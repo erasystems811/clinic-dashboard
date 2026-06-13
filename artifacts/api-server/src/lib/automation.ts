@@ -438,6 +438,7 @@ export async function sendPostTreatmentCheckinEmail(
 
     await updateAutomationLog(logId, "sent", `Post-treatment Day ${day} email → ${patientEmail}`);
     try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "post_treatment", subject, `${hCtx.hospitalName} checked in on you.`, { hospitalId, hospitalName: hCtx.hospitalName, day }); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendPostTreatmentCheckinEmail] failed:", msg, { hospitalId, patientId, patientEmail, day });
@@ -482,6 +483,7 @@ export async function sendPostCareEmail(
 
     await updateAutomationLog(logId, "sent", `Post-care email → ${patientEmail}`);
     try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "wellness", `Thinking of you — ${hCtx.hospitalName}`, `${hCtx.hospitalName} is checking in on your wellbeing.`, { hospitalId, hospitalName: hCtx.hospitalName }); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendPostCareEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -531,6 +533,7 @@ export async function sendAppointmentConfirmationEmail(
           await setPatientDndBlocked(patientId, false);
           await updateAutomationLog(logId, "sent", `Appointment confirmation SMS → ${phone}`);
           try { await pushEraChatMessage(patientId, hospitalId, smsBody); } catch { /* non-fatal */ }
+          try { await pushEraNotification(patientId, hospitalId, "appointment_confirmed", `Appointment Confirmed — ${hCtx.hospitalName}`, `Your appointment at ${hCtx.hospitalName} is confirmed for ${dateStr}.`, { hospitalId, hospitalName: hCtx.hospitalName }); } catch { /* non-fatal */ }
           return { dndBlocked: false };
         } catch (smsErr) {
           const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
@@ -553,6 +556,7 @@ export async function sendAppointmentConfirmationEmail(
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: bookingUrl ? `${body}\n\nNeed to reschedule? Book online: ${bookingUrl}` : body });
     await updateAutomationLog(logId, "sent", `Appointment confirmation → ${patientEmail}`);
     try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "appointment_confirmed", `Appointment Confirmed — ${hCtx.hospitalName}`, `Your appointment at ${hCtx.hospitalName} is confirmed for ${dateStr}.`, { hospitalId, hospitalName: hCtx.hospitalName }); } catch { /* non-fatal */ }
     return { dndBlocked: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -602,6 +606,7 @@ export async function sendAppointmentRescheduleEmail(
           await setPatientDndBlocked(patientId, false);
           await updateAutomationLog(logId, "sent", `Appointment reschedule SMS → ${phone}`);
           try { await pushEraChatMessage(patientId, hospitalId, smsBody); } catch { /* non-fatal */ }
+          try { await pushEraNotification(patientId, hospitalId, "appointment_rescheduled", `Appointment Rescheduled — ${hCtx.hospitalName}`, `Your appointment at ${hCtx.hospitalName} has been rescheduled to ${dateStr}.`, { hospitalId, hospitalName: hCtx.hospitalName }); } catch { /* non-fatal */ }
           return { dndBlocked: false };
         } catch (smsErr) {
           const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
@@ -624,6 +629,7 @@ export async function sendAppointmentRescheduleEmail(
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: bookingUrl ? `${body}\n\nNeed to make another change? Book online: ${bookingUrl}` : body });
     await updateAutomationLog(logId, "sent", `Appointment reschedule confirmation → ${patientEmail}`);
     try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "appointment_rescheduled", `Appointment Rescheduled — ${hCtx.hospitalName}`, `Your appointment at ${hCtx.hospitalName} has been rescheduled to ${dateStr}.`, { hospitalId, hospitalName: hCtx.hospitalName }); } catch { /* non-fatal */ }
     return { dndBlocked: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -713,6 +719,7 @@ export async function sendAppointmentReminderEmail(
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: textBody });
     await updateAutomationLog(logId, "sent", `Appointment reminder (${hoursAway}h) → ${patientEmail}`);
     try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "appointment_reminder", subject, `Your appointment at ${hCtx.hospitalName} is ${hoursAway === 24 ? "tomorrow" : "in 2 hours"}.`, { hospitalId, hospitalName: hCtx.hospitalName, hoursAway }); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendAppointmentReminderEmail] failed:", msg, { hospitalId, patientId, patientEmail, hoursAway });
@@ -755,6 +762,7 @@ export async function sendAppointmentNoShowEmail(
 
     await updateAutomationLog(logId, "sent", `No-show email → ${patientEmail}`);
     try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "appointment_reminder", subject, `${hCtx.hospitalName} noticed you missed your appointment and is checking in on you.`, { hospitalId, hospitalName: hCtx.hospitalName }); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendAppointmentNoShowEmail] failed:", msg, { hospitalId, patientId, patientEmail });

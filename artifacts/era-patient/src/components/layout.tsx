@@ -497,7 +497,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </main>
 
-      <SupportWidget />
+      {role !== "doctor" && <SupportWidget />}
       <TourGuide />
 
       <AlertDialog open={showLogoutDialog} onOpenChange={setShowLogoutDialog}>

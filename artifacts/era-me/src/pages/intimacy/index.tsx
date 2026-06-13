@@ -169,11 +169,14 @@ export default function IntimacyGate() {
 
   if (isLoading || !account) return <Shell><Spinner /></Shell>;
 
-  // No DOB on file → let them enter it in-app
-  if (!data?.ageOk && data?.age === null) return <Shell><DobScreen /></Shell>;
-  // DOB on file but under 18 → hard block
-  if (!data?.ageOk) return <Shell><UnderAgeScreen /></Shell>;
-  if (!data?.isSetUp) return <Shell><SetupFlow /></Shell>;
+  // API error or still resolving — don't hard block, show spinner
+  if (!data) return <Shell><Spinner /></Shell>;
+
+  // No DOB on file (null or undefined) → collect it in-app
+  if (!data.ageOk && data.age == null) return <Shell><DobScreen /></Shell>;
+  // DOB confirmed but under 18 → hard block
+  if (!data.ageOk) return <Shell><UnderAgeScreen /></Shell>;
+  if (!data.isSetUp) return <Shell><SetupFlow /></Shell>;
   if (!unlocked) return <Shell><PinScreen accountId={account.id} onUnlock={() => setUnlocked(true)} /></Shell>;
 
   return <Shell><IntimacyHome settings={data.settings!} /></Shell>;

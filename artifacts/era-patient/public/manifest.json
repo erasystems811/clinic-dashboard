@@ -1,7 +1,7 @@
 {
-  "name": "ERA Health",
+  "name": "ERA Patient",
   "short_name": "ERA",
-  "description": "Your personal health companion — track wellness, connect with hospitals and stay on top of your health.",
+  "description": "Your patients remember the hospitals that remember them. ERA keeps your team connected to every patient between visits — messaging, updates and care coordination that never stops.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

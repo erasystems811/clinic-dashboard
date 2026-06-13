@@ -118,7 +118,8 @@ export default function Login() {
             style={{ opacity: 0, transition: "opacity 0.25s ease" }}
             onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "1"; }}
           />
-          <h1 className="text-2xl font-bold tracking-tight">ERA Health</h1>
+          <h1 className="text-2xl font-bold tracking-tight">ERA Patient</h1>
+          <p className="text-xs mt-1 text-muted-foreground">Stay close to every patient, long after they leave.</p>
         </div>
 
         {preloadLoading && (

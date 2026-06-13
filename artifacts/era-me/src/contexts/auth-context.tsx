@@ -139,7 +139,9 @@ function applyTheme(account: Account) {
   root.style.setProperty("--bg-base", dark ? palette.bgDark : palette.bgLight);
   root.style.setProperty("--bg-mid",  dark ? palette.bgDarkMid : palette.bgLightMid);
   root.style.setProperty("--glow-rgb", palette.glowRGB);
-  root.style.setProperty("--accent", palette.accent);
+  // Slate accent is too light on white backgrounds — darken it in light mode
+  const effectiveAccent = (!dark && (account.themeColor ?? "teal") === "slate") ? "#475569" : palette.accent;
+  root.style.setProperty("--accent", effectiveAccent);
   root.style.setProperty("--accent-light", palette.accentLight);
   root.style.setProperty("--btn-gradient", palette.btnGradient);
 

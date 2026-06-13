@@ -522,7 +522,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
         {isLoading ? (
           <div className="flex justify-center py-10">
             <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#60a5fa", borderTopColor: "transparent" }} />

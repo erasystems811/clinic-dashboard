@@ -116,6 +116,49 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       }
     }
 
+    // Vaccines — specific item on its due date (or first day of week if overdue)
+    if (enabledMap["vaccines"]) {
+      interface Vaccine { id: string; name: string; nextDueDate?: string }
+      const vaccines = (enabledMap["vaccines"].vaccines as Vaccine[]) ?? [];
+      const weekStart = weekDates[0];
+      const weekStartMs = new Date(weekStart + "T12:00:00").getTime();
+      const dayMs = new Date(date + "T12:00:00").getTime();
+      for (const v of vaccines) {
+        if (!v.nextDueDate) continue;
+        const dueMs = new Date(v.nextDueDate + "T12:00:00").getTime();
+        const isExactDay = v.nextDueDate === date;
+        const isOverdueOnWeekStart = date === weekStart && dueMs < weekStartMs;
+        if (isExactDay || isOverdueOnWeekStart) {
+          const daysOverdue = isOverdueOnWeekStart ? Math.floor((dayMs - dueMs) / 86400000) : 0;
+          const sub = daysOverdue > 0 ? `${daysOverdue}d overdue` : "Due today";
+          items.push({ moduleType: "vaccines", checklistId: `vaccine_${v.id}`, emoji: "💉", label: `${v.name} vaccine`, sub, time: "09:00" });
+        }
+      }
+    }
+
+    // Checkups — specific item on its due date (or first day of week if overdue)
+    if (enabledMap["checkups"]) {
+      interface Checkup { id: string; type: string; lastDate: string; intervalMonths: number }
+      const CHECKUP_EMOJIS: Record<string, string> = { "Dental": "🦷", "Eye / Vision": "👁️", "GP / General": "🩺", "Blood Test": "🩸", "Blood Pressure": "💗", "Cancer Screening": "🔬", "Skin Check": "🧴" };
+      const checkups = (enabledMap["checkups"].checkups as Checkup[]) ?? [];
+      const weekStart = weekDates[0];
+      const weekStartMs = new Date(weekStart + "T12:00:00").getTime();
+      const dayMs = new Date(date + "T12:00:00").getTime();
+      for (const c of checkups) {
+        const due = new Date(c.lastDate + "T12:00:00");
+        due.setMonth(due.getMonth() + c.intervalMonths);
+        const dueMs = due.getTime();
+        const dueDate = due.toISOString().split("T")[0];
+        const isExactDay = dueDate === date;
+        const isOverdueOnWeekStart = date === weekStart && dueMs < weekStartMs;
+        if (isExactDay || isOverdueOnWeekStart) {
+          const daysOverdue = isOverdueOnWeekStart ? Math.floor((dayMs - dueMs) / 86400000) : 0;
+          const sub = daysOverdue > 0 ? `${daysOverdue}d overdue` : "Due today";
+          items.push({ moduleType: "checkups", checklistId: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, time: "09:00" });
+        }
+      }
+    }
+
     // Sunscreen — after morning routine
     if (enabledMap["sunscreen"]) {
       const ssNotes = enabledMap["sunscreen"].notes as string | undefined;

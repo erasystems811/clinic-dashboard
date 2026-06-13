@@ -203,20 +203,13 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
             timeGroups[t].push({ name: m.name, dosage: m.dosage });
           });
         });
-        Object.entries(timeGroups).forEach(([time, drugs]) => {
-          let label: string;
-          let sub: string;
-          if (drugs.length === 1) {
-            label = `Take ${drugs[0].name}`;
-            sub = drugs[0].dosage ?? "";
-          } else if (drugs.length === 2) {
-            label = `${drugs[0].name} & ${drugs[1].name}`;
-            sub = drugs.map((d) => d.dosage ? `${d.name} ${d.dosage}` : d.name).join(" · ");
-          } else {
-            label = "Medications";
-            sub = drugs.map((d) => d.dosage ? `${d.name} ${d.dosage}` : d.name).join(" · ");
-          }
-          items.push({ moduleType: "medications", emoji: "💊", label, sub, time });
+        // One plan item per individual medication so each has its own independent done state.
+        // checklistId matches the wellness checklist format: med_${id}_${time}
+        activeMeds.forEach((m) => {
+          const times: string[] = m.times?.length ? m.times : ["08:00"];
+          times.forEach((time) => {
+            items.push({ moduleType: "medications", checklistId: `med_${m.id}_${time}`, emoji: "💊", label: `Take ${m.name}`, sub: m.dosage ?? undefined, time });
+          });
         });
       }
     }

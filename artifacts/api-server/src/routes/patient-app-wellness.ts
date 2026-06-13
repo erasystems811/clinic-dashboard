@@ -216,16 +216,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
           }
         }
         for (const [time, doses] of [...byTime.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-          if (doses.length === 1) {
-            const { med, isDone } = doses[0];
+          for (const { med, isDone } of doses) {
             checklist.push({ id: `med_${med.id as string}_${time}`, emoji: "💊", label: `Take ${med.name as string}`, sub: (med.dosage as string | undefined) ?? undefined, time, done: isDone });
-          } else {
-            const allDone = doses.every((d) => d.isDone);
-            const names = doses.map((d) => d.med.name as string);
-            const label = doses.length <= 2 ? `Take ${names.join(" + ")}` : `Take ${doses.length} medications`;
-            const dosages = doses.map((d) => d.med.dosage as string | undefined).filter(Boolean);
-            const sub = doses.length > 2 ? names.join(", ") : dosages.length > 0 ? dosages.join(" · ") : `${doses.length} medications`;
-            checklist.push({ id: `med_batch_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds: doses.map((d) => `${d.med.id as string}_${time}`) });
           }
         }
         continue;
@@ -355,16 +347,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
           }
         }
         for (const [time, doses] of [...byTime.entries()].sort(([a], [b]) => a.localeCompare(b))) {
-          if (doses.length === 1) {
-            const { med, isDone } = doses[0];
+          for (const { med, isDone } of doses) {
             checklist.push({ id: `med_${med.id as string}_${time}`, emoji: "💊", label: `Take ${med.name as string}`, sub: (med.dosage as string | undefined) ?? undefined, time, done: isDone });
-          } else {
-            const allDone = doses.every((d) => d.isDone);
-            const names = doses.map((d) => d.med.name as string);
-            const label = doses.length <= 2 ? `Take ${names.join(" + ")}` : `Take ${doses.length} medications`;
-            const dosages = doses.map((d) => d.med.dosage as string | undefined).filter(Boolean);
-            const sub = doses.length > 2 ? names.join(", ") : dosages.length > 0 ? dosages.join(" · ") : `${doses.length} medications`;
-            checklist.push({ id: `med_batch_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds: doses.map((d) => `${d.med.id as string}_${time}`) });
           }
         }
         continue;

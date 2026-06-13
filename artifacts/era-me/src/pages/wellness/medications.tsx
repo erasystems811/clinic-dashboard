@@ -155,8 +155,8 @@ export default function MedicationsPage() {
           </Field>
 
           <Field label="Duration (leave blank for ongoing)">
-            <input type="number" min={1} value={draft.durationDays ?? ""}
-              onChange={(e) => setDraft((p) => ({ ...p, durationDays: e.target.value ? parseInt(e.target.value) : null }))}
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={draft.durationDays ?? ""}
+              onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); setDraft((p) => ({ ...p, durationDays: v ? parseInt(v) : null })); }}
               placeholder="Number of days"
               className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none" />
           </Field>

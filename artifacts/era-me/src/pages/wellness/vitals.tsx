@@ -155,10 +155,10 @@ export default function VitalsPage() {
                 Blood Pressure (mmHg) <TrendIcon t={trend("bpSystolic")} />
               </p>
               <div className="flex gap-2 items-center">
-                <input type="number" value={bpS} onChange={(e) => { setBpS(e.target.value); setSaved(false); }}
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={bpS} onChange={(e) => { setBpS(e.target.value.replace(/\D/g, "")); setSaved(false); }}
                   placeholder="120" className="flex-1 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
                 <span className="text-muted-foreground font-bold">/</span>
-                <input type="number" value={bpD} onChange={(e) => { setBpD(e.target.value); setSaved(false); }}
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={bpD} onChange={(e) => { setBpD(e.target.value.replace(/\D/g, "")); setSaved(false); }}
                   placeholder="80" className="flex-1 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
               </div>
             </div>
@@ -168,7 +168,7 @@ export default function VitalsPage() {
               <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
                 Blood Sugar (mmol/L) <TrendIcon t={trend("bloodSugar")} />
               </p>
-              <input type="number" step="0.1" value={sugar} onChange={(e) => { setSugar(e.target.value); setSaved(false); }}
+              <input type="text" inputMode="decimal" pattern="[0-9.]*" value={sugar} onChange={(e) => { setSugar(e.target.value.replace(/[^0-9.]/g, "")); setSaved(false); }}
                 placeholder="5.4" className="w-full bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
             </div>
           )}
@@ -177,7 +177,7 @@ export default function VitalsPage() {
               <p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
                 Weight (kg) <TrendIcon t={trend("weight")} />
               </p>
-              <input type="number" step="0.1" value={weight} onChange={(e) => { setWeight(e.target.value); setSaved(false); }}
+              <input type="text" inputMode="decimal" pattern="[0-9.]*" value={weight} onChange={(e) => { setWeight(e.target.value.replace(/[^0-9.]/g, "")); setSaved(false); }}
                 placeholder="70.0" className="w-full bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
             </div>
           )}

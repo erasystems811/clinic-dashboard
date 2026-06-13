@@ -156,13 +156,14 @@ export default function NewPatient() {
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Age</label>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder="Auto-filled from DOB"
-                    min={0}
                     value={form.age}
                     readOnly={!!form.dateOfBirth}
                     className={form.dateOfBirth ? "bg-muted text-muted-foreground cursor-default" : ""}
-                    onChange={field("age")}
+                    onChange={(e) => setForm(f => ({ ...f, age: e.target.value.replace(/\D/g, "") }))}
                   />
                 </div>
                 <div className="space-y-1.5">

@@ -48,7 +48,7 @@ export default function IntimacyPage() {
   const [startDate, setStartDate] = useState(settings.startDate ?? today);
   const [contraception, setContraception] = useState(settings.contraception ?? "");
   const [lastStiTest, setLastStiTest] = useState(settings.lastStiTest ?? "");
-  const [stiInterval, setStiInterval] = useState(settings.stiTestIntervalMonths ?? 6);
+  const [stiInterval, setStiInterval] = useState(String(settings.stiTestIntervalMonths ?? 6));
   const [notes, setNotes] = useState(settings.notes ?? "");
 
   const daysFree = settings.mode === "celibacy" && settings.startDate
@@ -71,7 +71,7 @@ export default function IntimacyPage() {
 
   function saveSetup() {
     saveModule.mutate({
-      settings: { mode, startDate, contraception, lastStiTest, stiTestIntervalMonths: stiInterval, notes },
+      settings: { mode, startDate, contraception, lastStiTest, stiTestIntervalMonths: parseInt(stiInterval) || 6, notes },
       enabled: true,
     });
     setSetupMode(false);
@@ -140,8 +140,8 @@ export default function IntimacyPage() {
                   className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
               </Field>
               <Field label="Test reminder every (months)">
-                <input type="number" min={1} max={24} value={stiInterval}
-                  onChange={(e) => setStiInterval(parseInt(e.target.value) || 6)}
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={stiInterval}
+                  onChange={(e) => setStiInterval(e.target.value.replace(/\D/g, ""))}
                   className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
               </Field>
             </>

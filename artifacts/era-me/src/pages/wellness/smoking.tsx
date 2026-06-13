@@ -56,9 +56,9 @@ export default function SmokingPage() {
   const [setupMode, setSetupMode] = useState(false);
   const [goalType, setGoalType] = useState<"quit" | "reduce">(settings.goalType ?? "quit");
   const [quitDate, setQuitDate] = useState(settings.quitDate ?? today);
-  const [dailyTarget, setDailyTarget] = useState(settings.dailyTarget ?? Math.ceil(effectiveSmokesPerDay / 2));
-  const [perDay, setPerDay] = useState(effectiveSmokesPerDay);
-  const [costPerSession, setCostPerSession] = useState(effectiveCostPerSession);
+  const [dailyTarget, setDailyTarget] = useState(String(settings.dailyTarget ?? Math.ceil(effectiveSmokesPerDay / 2)));
+  const [perDay, setPerDay] = useState(String(effectiveSmokesPerDay));
+  const [costPerSession, setCostPerSession] = useState(String(effectiveCostPerSession));
   const [notes, setNotes] = useState(settings.notes ?? "");
   const [showSlip, setShowSlip] = useState(false);
   const [slipCount, setSlipCount] = useState("1");
@@ -83,7 +83,7 @@ export default function SmokingPage() {
 
   function saveSetup() {
     saveModule.mutate({
-      settings: { goalType, quitDate: goalType === "quit" ? quitDate : undefined, dailyTarget: goalType === "reduce" ? dailyTarget : undefined, smokesPerDay: perDay, costPerSession, notes },
+      settings: { goalType, quitDate: goalType === "quit" ? quitDate : undefined, dailyTarget: goalType === "reduce" ? (parseInt(dailyTarget) || 1) : undefined, smokesPerDay: parseInt(perDay) || 1, costPerSession: parseInt(costPerSession) || 0, notes },
       enabled: true,
     });
     setSetupMode(false);
@@ -133,19 +133,19 @@ export default function SmokingPage() {
 
           {goalType === "reduce" && (
             <Field label="Daily limit (max smokes per day)">
-              <input type="number" min={1} value={dailyTarget}
-                onChange={(e) => setDailyTarget(parseInt(e.target.value) || 1)}
+              <input type="text" inputMode="numeric" pattern="[0-9]*" value={dailyTarget}
+                onChange={(e) => setDailyTarget(e.target.value.replace(/\D/g, ""))}
                 className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
             </Field>
           )}
 
           <Field label="Current smokes per day (your baseline)">
-            <input type="number" min={1} value={perDay} onChange={(e) => setPerDay(parseInt(e.target.value) || 1)}
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={perDay} onChange={(e) => setPerDay(e.target.value.replace(/\D/g, ""))}
               className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
           </Field>
 
           <Field label="Average cost per smoke session (₦)">
-            <input type="number" min={0} value={costPerSession} onChange={(e) => setCostPerSession(parseInt(e.target.value) || 0)}
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={costPerSession} onChange={(e) => setCostPerSession(e.target.value.replace(/\D/g, ""))}
               className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
           </Field>
         </div>
@@ -278,7 +278,7 @@ export default function SmokingPage() {
                   </button>
                 ) : (
                   <div className="flex gap-2">
-                    <input type="number" value={slipCount} onChange={(e) => setSlipCount(e.target.value)} min="1"
+                    <input type="text" inputMode="numeric" pattern="[0-9]*" value={slipCount} onChange={(e) => setSlipCount(e.target.value.replace(/\D/g, ""))}
                       className="w-20 bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground text-center outline-none" />
                     <button onClick={logSlip} className="flex-1 py-2.5 bg-muted text-muted-foreground rounded-xl text-sm font-semibold">Log slip</button>
                     <button onClick={() => setShowSlip(false)} className="px-3 text-muted-foreground text-sm">Cancel</button>

@@ -1037,11 +1037,11 @@ export default function Settings() {
                 <Label htmlFor="fund-amount" className="text-sm mb-1.5 block">Amount to add (₦)</Label>
                 <Input
                   id="fund-amount"
-                  type="number"
-                  min={500}
-                  step={500}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={fundAmount}
-                  onChange={e => setFundAmount(e.target.value)}
+                  onChange={e => setFundAmount(e.target.value.replace(/\D/g, ""))}
                   placeholder="1000"
                 />
               </div>

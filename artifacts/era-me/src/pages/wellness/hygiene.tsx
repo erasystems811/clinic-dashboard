@@ -59,24 +59,28 @@ export default function HygienePage() {
     id: crypto.randomUUID(), name: "", emoji: "🧴",
     lastReplaced: new Date().toISOString().split("T")[0], intervalDays: 30,
   });
+  const [draftIntervalStr, setDraftIntervalStr] = useState("30");
 
   function openAdd() {
     setDraft({ id: crypto.randomUUID(), name: "", emoji: "🧴", lastReplaced: new Date().toISOString().split("T")[0], intervalDays: 30 });
+    setDraftIntervalStr("30");
     setEditItem(null);
     setAddMode(true);
   }
 
   function openEdit(item: HygieneItem) {
     setDraft({ ...item });
+    setDraftIntervalStr(String(item.intervalDays));
     setEditItem(item);
     setAddMode(true);
   }
 
   function saveDraft() {
     if (!draft.name.trim()) return;
+    const finalDraft = { ...draft, intervalDays: parseInt(draftIntervalStr) || 30 };
     const updated = editItem
-      ? items.map((i) => i.id === editItem.id ? draft : i)
-      : [...items, draft];
+      ? items.map((i) => i.id === editItem.id ? finalDraft : i)
+      : [...items, finalDraft];
     saveModule.mutate({ settings: { items: updated, notes: moduleNotes }, enabled: true });
     setAddMode(false);
   }
@@ -137,8 +141,8 @@ export default function HygienePage() {
           </div>
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Replace every (days)</p>
-            <input type="number" min={1} value={draft.intervalDays}
-              onChange={(e) => setDraft((p) => ({ ...p, intervalDays: parseInt(e.target.value) || 30 }))}
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={draftIntervalStr}
+              onChange={(e) => setDraftIntervalStr(e.target.value.replace(/\D/g, ""))}
               className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none" />
           </div>
         </div>

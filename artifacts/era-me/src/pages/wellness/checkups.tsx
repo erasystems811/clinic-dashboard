@@ -63,24 +63,28 @@ export default function CheckupsPage() {
   const [draft, setDraft] = useState<Checkup>({
     id: crypto.randomUUID(), type: "", lastDate: new Date().toISOString().split("T")[0], intervalMonths: 12,
   });
+  const [draftIntervalStr, setDraftIntervalStr] = useState("12");
 
   function openAdd() {
     setDraft({ id: crypto.randomUUID(), type: "", lastDate: new Date().toISOString().split("T")[0], intervalMonths: 12 });
+    setDraftIntervalStr("12");
     setEditCheckup(null);
     setAddMode(true);
   }
 
   function openEdit(c: Checkup) {
     setDraft({ ...c });
+    setDraftIntervalStr(String(c.intervalMonths));
     setEditCheckup(c);
     setAddMode(true);
   }
 
   function saveDraft() {
     if (!draft.type.trim()) return;
+    const finalDraft = { ...draft, intervalMonths: parseInt(draftIntervalStr) || 12 };
     const updated = editCheckup
-      ? checkups.map((c) => c.id === editCheckup.id ? draft : c)
-      : [...checkups, draft];
+      ? checkups.map((c) => c.id === editCheckup.id ? finalDraft : c)
+      : [...checkups, finalDraft];
     saveModule.mutate({ settings: { checkups: updated, notes: moduleNotes }, enabled: true });
     setAddMode(false);
   }
@@ -111,7 +115,7 @@ export default function CheckupsPage() {
             <div className="grid grid-cols-2 gap-2 mb-2">
               {CHECKUP_TYPES.map((t) => (
                 <button key={t.label}
-                  onClick={() => setDraft((p) => ({ ...p, type: t.label, intervalMonths: t.intervalMonths }))}
+                  onClick={() => { setDraft((p) => ({ ...p, type: t.label, intervalMonths: t.intervalMonths })); setDraftIntervalStr(String(t.intervalMonths)); }}
                   className={cn("flex items-center gap-2 p-3 rounded-xl text-sm font-semibold text-left transition",
                     draft.type === t.label ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}>
                   <span>{t.emoji}</span>{t.label}
@@ -136,8 +140,8 @@ export default function CheckupsPage() {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Repeat every (months) — suggested: {preset?.intervalMonths ?? 12}
             </p>
-            <input type="number" min={1} value={draft.intervalMonths}
-              onChange={(e) => setDraft((p) => ({ ...p, intervalMonths: parseInt(e.target.value) || 12 }))}
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={draftIntervalStr}
+              onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); setDraftIntervalStr(v); setDraft((p) => ({ ...p, intervalMonths: parseInt(v) || 12 })); }}
               className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none" />
           </div>
 

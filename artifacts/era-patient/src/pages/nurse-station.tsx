@@ -812,7 +812,7 @@ function DepartmentTemplate({
         )}
         <div className="space-y-1.5">
           <label className="text-sm font-medium">Duration (days) *</label>
-          <input type="number" min={1} value={td.durationDays ?? ""} onChange={e => set("durationDays", parseInt(e.target.value) || 1)} className={inputCls} placeholder="e.g. 14" required />
+          <input type="text" inputMode="numeric" pattern="[0-9]*" value={td.durationDays ?? ""} onChange={e => { const v = e.target.value.replace(/\D/g, ""); set("durationDays", v ? parseInt(v) : ""); }} className={inputCls} placeholder="e.g. 14" required />
         </div>
       </div>
     );

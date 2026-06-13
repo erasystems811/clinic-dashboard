@@ -439,7 +439,7 @@ export default function PatientHistory() {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Age</Label>
-                    <Input type="number" min={0} max={150} value={editForm.age} onChange={field("age")} />
+                    <Input type="text" inputMode="numeric" pattern="[0-9]*" value={editForm.age} onChange={(e) => setEditForm(f => ({ ...f, age: e.target.value.replace(/\D/g, "") }))} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Gender</Label>

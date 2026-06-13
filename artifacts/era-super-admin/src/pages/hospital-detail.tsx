@@ -677,10 +677,10 @@ export default function HospitalDetail({ id }: Props) {
           {/* Pipeline */}
           <div className="pt-2 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Post-Treatment Days" hint="Days before moving to Post Care">
-              <input type="number" value={postTreatmentDays} onChange={e => setPostTreatmentDays(e.target.value)} className={inputCls()} placeholder="14" min="1" />
+              <input type="text" inputMode="numeric" pattern="[0-9]*" value={postTreatmentDays} onChange={e => setPostTreatmentDays(e.target.value.replace(/\D/g, ""))} className={inputCls()} placeholder="14" />
             </Field>
             <Field label="Dormant Days" hint="Days before patient becomes dormant">
-              <input type="number" value={dormantDays} onChange={e => setDormantDays(e.target.value)} className={inputCls()} placeholder="90" min="1" />
+              <input type="text" inputMode="numeric" pattern="[0-9]*" value={dormantDays} onChange={e => setDormantDays(e.target.value.replace(/\D/g, ""))} className={inputCls()} placeholder="90" />
             </Field>
           </div>
 
@@ -688,7 +688,7 @@ export default function HospitalDetail({ id }: Props) {
           <div className="pt-2 border-t border-border">
             <Field label="Call Task AI Generation Limit (per day)" hint="Max AI drafts a receptionist can generate per day. Default is 20 if left blank.">
               <div className="flex items-center gap-3">
-                <input type="number" value={callTaskAiDailyLimit} onChange={e => setCallTaskAiDailyLimit(e.target.value)} className={inputCls()} placeholder="20" min="1" max="200" />
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={callTaskAiDailyLimit} onChange={e => setCallTaskAiDailyLimit(e.target.value.replace(/\D/g, ""))} className={inputCls()} placeholder="20" />
                 <span className={`text-xs font-medium shrink-0 px-2.5 py-1.5 rounded-lg border ${callTaskAiUsedToday >= (callTaskAiDailyLimit ? parseInt(callTaskAiDailyLimit) : 20) ? "border-destructive/40 text-destructive bg-destructive/5" : "border-border text-muted-foreground bg-muted"}`}>
                   {callTaskAiUsedToday} / {callTaskAiDailyLimit || 20} today
                 </span>
@@ -1096,8 +1096,8 @@ export default function HospitalDetail({ id }: Props) {
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Manual Credit</p>
               <div className="flex gap-2">
                 <input
-                  type="number" min={1} placeholder="Amount (₦)" value={creditAmount}
-                  onChange={e => setCreditAmount(e.target.value)}
+                  type="text" inputMode="numeric" pattern="[0-9]*" placeholder="Amount (₦)" value={creditAmount}
+                  onChange={e => setCreditAmount(e.target.value.replace(/\D/g, ""))}
                   className="flex-1 px-3 py-2 rounded-lg bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                 />
                 <input

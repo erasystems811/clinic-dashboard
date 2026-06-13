@@ -48,9 +48,9 @@ export default function AlcoholPage() {
   const [setupMode, setSetupMode] = useState(false);
   const [goalType, setGoalType] = useState<"quit" | "reduce">(settings.goalType ?? "quit");
   const [quitDate, setQuitDate] = useState(settings.quitDate ?? today);
-  const [weeklyTarget, setWeeklyTarget] = useState(settings.weeklyTarget ?? 3);
-  const [drinksBefore, setDrinksBefore] = useState(settings.drinksPerWeekBefore ?? 14);
-  const [costPerDrink, setCostPerDrink] = useState(settings.costPerDrink ?? 500);
+  const [weeklyTarget, setWeeklyTarget] = useState(String(settings.weeklyTarget ?? 3));
+  const [drinksBefore, setDrinksBefore] = useState(String(settings.drinksPerWeekBefore ?? 14));
+  const [costPerDrink, setCostPerDrink] = useState(String(settings.costPerDrink ?? 500));
   const [notes, setNotes] = useState(settings.notes ?? "");
   const [showLog, setShowLog] = useState(false);
   const [drinkCount, setDrinkCount] = useState("1");
@@ -66,7 +66,7 @@ export default function AlcoholPage() {
 
   function saveSetup() {
     saveModule.mutate({
-      settings: { goalType, quitDate, weeklyTarget, drinksPerWeekBefore: drinksBefore, costPerDrink, notes },
+      settings: { goalType, quitDate, weeklyTarget: parseInt(weeklyTarget) || 0, drinksPerWeekBefore: parseInt(drinksBefore) || 0, costPerDrink: parseInt(costPerDrink) || 0, notes },
       enabled: true,
     });
     setSetupMode(false);
@@ -118,21 +118,21 @@ export default function AlcoholPage() {
 
           {goalType === "reduce" && (
             <Field label="Weekly limit (max drinks per week)">
-              <input type="number" min={0} value={weeklyTarget}
-                onChange={(e) => setWeeklyTarget(parseInt(e.target.value) || 0)}
+              <input type="text" inputMode="numeric" pattern="[0-9]*" value={weeklyTarget}
+                onChange={(e) => setWeeklyTarget(e.target.value.replace(/\D/g, ""))}
                 className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
             </Field>
           )}
 
           <Field label="Current drinks per week (your baseline)">
-            <input type="number" min={0} value={drinksBefore}
-              onChange={(e) => setDrinksBefore(parseInt(e.target.value) || 0)}
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={drinksBefore}
+              onChange={(e) => setDrinksBefore(e.target.value.replace(/\D/g, ""))}
               className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
           </Field>
 
           <Field label="Average cost per drink (₦)">
-            <input type="number" min={0} value={costPerDrink}
-              onChange={(e) => setCostPerDrink(parseInt(e.target.value) || 0)}
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={costPerDrink}
+              onChange={(e) => setCostPerDrink(e.target.value.replace(/\D/g, ""))}
               className="w-full bg-muted rounded-xl px-4 py-3 text-base font-semibold text-foreground outline-none" />
           </Field>
         </div>
@@ -227,7 +227,7 @@ export default function AlcoholPage() {
               </button>
             ) : (
               <div className="flex gap-2">
-                <input type="number" value={drinkCount} onChange={(e) => setDrinkCount(e.target.value)} min="1"
+                <input type="text" inputMode="numeric" pattern="[0-9]*" value={drinkCount} onChange={(e) => setDrinkCount(e.target.value.replace(/\D/g, ""))}
                   className="w-20 bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground text-center outline-none" />
                 <button onClick={logDrinks} className="flex-1 py-2.5 bg-muted text-muted-foreground rounded-xl text-sm font-semibold">
                   Log drinks

@@ -161,8 +161,8 @@ export default function PricingPage() {
             <div key={key} style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: "#aaa", marginBottom: 5 }}>{label}</div>
               <input
-                type="number" placeholder={placeholder} value={inputs[key as keyof Inputs]}
-                onChange={(e) => handleInput(key, e.target.value)}
+                type="text" inputMode="numeric" pattern="[0-9]*" placeholder={placeholder} value={inputs[key as keyof Inputs]}
+                onChange={(e) => handleInput(key, e.target.value.replace(/\D/g, ""))}
                 style={{ width: "100%", padding: "11px 14px", background: "#1a1a1a", border: inputs[key as keyof Inputs] ? "1.5px solid #C0392B" : "1.5px solid #333", borderRadius: 6, color: "#fff", fontSize: 15, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s" }}
               />
             </div>

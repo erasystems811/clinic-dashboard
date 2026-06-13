@@ -113,10 +113,12 @@ export default function Login() {
 
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center mb-4 shadow-lg">
-            <Activity className="w-7 h-7 text-primary-foreground" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Era Patient</h1>
+          <img src="/era-logo.png" alt="ERA Health" width={96} height={96}
+            className="w-24 h-24 rounded-3xl object-contain mb-4 shadow-lg"
+            style={{ opacity: 0, transition: "opacity 0.25s ease" }}
+            onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "1"; }}
+          />
+          <h1 className="text-2xl font-bold tracking-tight">ERA Health</h1>
         </div>
 
         {preloadLoading && (

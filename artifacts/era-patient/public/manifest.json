@@ -1,0 +1,38 @@
+{
+  "name": "ERA Health",
+  "short_name": "ERA",
+  "description": "Your personal health companion — track wellness, connect with hospitals and stay on top of your health.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#060d1f",
+  "theme_color": "#0d9488",
+  "categories": ["health", "fitness", "medical"],
+  "icons": [
+    {
+      "src": "/era-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/era-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/era-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

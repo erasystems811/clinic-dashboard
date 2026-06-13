@@ -806,6 +806,7 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
     description: `Treatment plan logged for ${patientName} — moved to In Care (${parsed.data.treatmentDurationDays} days, ends ${treatmentEndDate.toISOString().split("T")[0]})`,
     patient_id: id,
     patient_name: patientName,
+    hospital_id: hospital.intId,
     metadata: parsed.data.treatmentPlan,
   });
 

@@ -161,11 +161,13 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   // Log activity
   const patientName = `${patient.first_name} ${patient.last_name}`;
   const createdBy = (req.headers["x-performed-by"] as string | undefined) || null;
+  const hospitalIntId = await resolveHospitalIntId(hospital.code);
   await supabase.from("activity").insert({
     type: "care_plan_added",
     description: `Care plan added for ${patientName} (${parsed.data.department})`,
     patient_id: patientId,
     patient_name: patientName,
+    hospital_id: hospitalIntId,
     metadata: parsed.data.summary.slice(0, 200),
     performed_by: createdBy,
   });
@@ -173,7 +175,6 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   // Fire automations: WhatsApp notification fires immediately;
   // care plan summary EMAIL is delayed 20 minutes via the scheduler
   // (so minor adjustments can be made before the patient receives it)
-  const hospitalIntId = await resolveHospitalIntId(hospital.code);
   if (hospitalIntId) {
     const phone = (patient.whatsapp_number as string) || (patient.phone as string);
     if (phone) {

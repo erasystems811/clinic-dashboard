@@ -4,6 +4,7 @@ import { camelize } from "../lib/camel.js";
 import { z } from "zod/v4";
 import { verifyHospitalToken } from "./super-admin.js";
 import { signFeedbackToken, verifyFeedbackToken } from "../lib/feedbackToken.js";
+import { buildFeedbackEmail, sendEmail } from "../lib/email.js";
 
 const router: IRouter = Router();
 
@@ -117,6 +118,29 @@ router.post("/feedback", async (req, res): Promise<void> => {
   }).select().single();
 
   if (error || !data) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
+
+  // Send notification email to hospital admin
+  if (resolvedHospitalId) {
+    const { data: hospital } = await supabase
+      .from("hospitals")
+      .select("name, contact_email")
+      .eq("id", resolvedHospitalId)
+      .single();
+    if (hospital?.contact_email) {
+      const emailContent = buildFeedbackEmail({
+        hospitalName: hospital.name,
+        patientName: d.anonymous ? null : resolvedPatientName,
+        rating: d.rating,
+        waitTimeRating: d.waitTimeRating,
+        staffFriendlinessRating: d.staffFriendlinessRating,
+        qualityOfCareRating: d.qualityOfCareRating,
+        wouldRecommend: d.wouldRecommend,
+        comment: d.comment,
+      });
+      sendEmail({ to: hospital.contact_email, ...emailContent }).catch(() => {});
+    }
+  }
+
   res.status(201).json(camelize(data));
 });
 
@@ -165,7 +189,7 @@ const SubmitHospitalFeedbackBody = z.object({
 router.post("/feedback/h/:slug", async (req, res): Promise<void> => {
   const { data: hospital } = await supabase
     .from("hospitals")
-    .select("id")
+    .select("id, name, contact_email")
     .eq("feedback_slug", req.params.slug)
     .single();
   if (!hospital) { res.status(404).json({ error: "Form not found" }); return; }
@@ -174,10 +198,11 @@ router.post("/feedback/h/:slug", async (req, res): Promise<void> => {
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const d = parsed.data;
+  const submitterName = d.anonymous ? null : (d.patientName?.trim() || null);
   const { data, error } = await supabase.from("feedback").insert({
     hospital_id: hospital.id,
     patient_id: null,
-    patient_name: d.anonymous ? null : (d.patientName?.trim() || null),
+    patient_name: submitterName,
     rating: d.rating,
     wait_time_rating: d.waitTimeRating ?? null,
     staff_friendliness_rating: d.staffFriendlinessRating ?? null,
@@ -188,6 +213,22 @@ router.post("/feedback/h/:slug", async (req, res): Promise<void> => {
   }).select().single();
 
   if (error || !data) { res.status(500).json({ error: error?.message ?? "Insert failed" }); return; }
+
+  // Send notification email to hospital admin
+  if (hospital.contact_email) {
+    const emailContent = buildFeedbackEmail({
+      hospitalName: hospital.name,
+      patientName: submitterName,
+      rating: d.rating,
+      waitTimeRating: d.waitTimeRating,
+      staffFriendlinessRating: d.staffFriendlinessRating,
+      qualityOfCareRating: d.qualityOfCareRating,
+      wouldRecommend: d.wouldRecommend,
+      comment: d.comment,
+    });
+    sendEmail({ to: hospital.contact_email, ...emailContent }).catch(() => {});
+  }
+
   res.status(201).json(camelize(data));
 });
 

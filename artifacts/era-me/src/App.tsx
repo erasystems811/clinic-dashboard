@@ -1,4 +1,30 @@
+import { Component, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-8" style={{ background: "var(--bg-base, #0f172a)" }}>
+          <div className="max-w-sm w-full rounded-2xl border border-red-500/30 bg-red-500/5 p-6 text-center space-y-3">
+            <p className="text-2xl">⚠️</p>
+            <p className="font-semibold text-white">Something went wrong</p>
+            <p className="text-sm text-white/60">{(this.state.error as Error).message}</p>
+            <button
+              onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+              className="mt-2 px-4 py-2 rounded-xl bg-white/10 text-white text-sm font-medium hover:bg-white/20 transition"
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { Switch, Route, Redirect } from "wouter";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import AuthPage from "@/pages/auth";
@@ -135,10 +161,14 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ErrorBoundary>
+            <AppRoutes />
+          </ErrorBoundary>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

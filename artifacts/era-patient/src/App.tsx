@@ -1,6 +1,32 @@
+import { Component, type ReactNode } from "react";
 import { Switch, Route, Router as WouterRouter, Redirect, useRoute } from "wouter";
 import SystemFeedbackPopup from "@/components/system-feedback-popup";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-8">
+          <div className="max-w-md w-full rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3">
+            <p className="text-2xl">⚠️</p>
+            <p className="font-semibold text-foreground">Something went wrong</p>
+            <p className="text-sm text-muted-foreground">{(this.state.error as Error).message}</p>
+            <button
+              onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+              className="mt-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition"
+            >
+              Reload page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth, type Role } from "@/contexts/auth-context";
@@ -137,17 +163,21 @@ function ProtectedRouter() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <AuthProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <ProtectedRouter />
-          </WouterRouter>
-          <Toaster />
-          <SystemFeedbackPopup />
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AuthProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <ErrorBoundary>
+                <ProtectedRouter />
+              </ErrorBoundary>
+            </WouterRouter>
+            <Toaster />
+            <SystemFeedbackPopup />
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

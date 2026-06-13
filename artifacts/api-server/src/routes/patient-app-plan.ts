@@ -29,6 +29,7 @@ export function getWeekDates(weekStart: string): string[] {
 export interface PlanItem {
   moduleType: string;
   checklistId?: string; // overrides moduleType for done-state lookup (e.g. hygiene_uuid)
+  batchIds?: string[];  // checklist IDs for batch quick-log (med time slots)
   emoji: string;
   label: string;
   sub?: string;
@@ -194,22 +195,20 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
         return true;
       });
       if (activeMeds.length > 0) {
-        // Group active meds by dose time, keeping name + dosage
-        const timeGroups: Record<string, { name: string; dosage?: string }[]> = {};
+        // Group active meds by dose time — one plan item per time slot
+        const timeGroups: Record<string, { name: string; dosage?: string; id: string }[]> = {};
         activeMeds.forEach((m) => {
           const times: string[] = m.times?.length ? m.times : ["08:00"];
           times.forEach((t) => {
             if (!timeGroups[t]) timeGroups[t] = [];
-            timeGroups[t].push({ name: m.name, dosage: m.dosage });
+            timeGroups[t].push({ name: m.name, dosage: m.dosage, id: m.id });
           });
         });
-        // One plan item per individual medication so each has its own independent done state.
-        // checklistId matches the wellness checklist format: med_${id}_${time}
-        activeMeds.forEach((m) => {
-          const times: string[] = m.times?.length ? m.times : ["08:00"];
-          times.forEach((time) => {
-            items.push({ moduleType: "medications", checklistId: `med_${m.id}_${time}`, emoji: "💊", label: `Take ${m.name}`, sub: m.dosage ?? undefined, time });
-          });
+        Object.entries(timeGroups).forEach(([time, meds]) => {
+          const label = meds.length === 1 ? `Take ${meds[0].name}` : `Take ${meds.length} medications`;
+          const sub = meds.map(m => m.name + (m.dosage ? ` — ${m.dosage}` : "")).join(", ");
+          const batchIds = meds.map(m => `med_${m.id}_${time}`);
+          items.push({ moduleType: "medications", emoji: "💊", label, sub, time, batchIds });
         });
       }
     }

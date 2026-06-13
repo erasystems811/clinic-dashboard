@@ -30,6 +30,7 @@ async function post<T>(path: string): Promise<T> {
 export interface PlanItem {
   moduleType: string;
   checklistId?: string; // overrides moduleType for done-state lookup (e.g. hygiene_uuid)
+  batchIds?: string[];  // checklist IDs for batch quick-log (med time slots)
   emoji: string;
   label: string;
   sub?: string;

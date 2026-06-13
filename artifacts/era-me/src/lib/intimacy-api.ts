@@ -96,7 +96,10 @@ export interface PartnerData {
 export function useSaveIntimacyDob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (dob: string) => apiFetch<{ ok: boolean; age: number; ageOk: boolean }>("/api/patient-app/intimacy/save-dob", { method: "POST", body: { dob } }),
+    mutationFn: (dob: string) =>
+      apiFetch<{ ok: boolean; age: number; ageOk: boolean }>("/api/patient-app/intimacy/save-dob", {
+        method: "POST", auth: true, body: JSON.stringify({ dob }),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["intimacy-settings"] }),
   });
 }
@@ -104,7 +107,9 @@ export function useSaveIntimacyDob() {
 export function useIntimacySettings() {
   return useQuery({
     queryKey: ["intimacy-settings"],
-    queryFn: () => apiFetch<{ isSetUp: boolean; ageOk: boolean; age: number | null; settings: IntimacySettings | null }>("/api/patient-app/intimacy/settings"),
+    queryFn: () => apiFetch<{ isSetUp: boolean; ageOk: boolean; age: number | null; settings: IntimacySettings | null }>(
+      "/api/patient-app/intimacy/settings", { auth: true }
+    ),
   });
 }
 
@@ -114,14 +119,15 @@ export function useSetupIntimacy() {
     mutationFn: (body: {
       pin: string; mode: "celibacy" | "active"; dob?: string;
       celibacyStartDate?: string; weeklyGoal?: number; contraception?: string; celibacyReason?: string;
-    }) => apiFetch("/api/patient-app/intimacy/setup", { method: "POST", body }),
+    }) => apiFetch("/api/patient-app/intimacy/setup", { method: "POST", auth: true, body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["intimacy-settings"] }),
   });
 }
 
 export function useVerifyIntimacyPin() {
   return useMutation({
-    mutationFn: (pin: string) => apiFetch("/api/patient-app/intimacy/verify-pin", { method: "POST", body: { pin } }),
+    mutationFn: (pin: string) =>
+      apiFetch("/api/patient-app/intimacy/verify-pin", { method: "POST", auth: true, body: JSON.stringify({ pin }) }),
   });
 }
 
@@ -129,7 +135,7 @@ export function useUpdateIntimacySettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: Partial<IntimacySettings> & { celibacyStartDate?: string; celibacyReason?: string }) =>
-      apiFetch("/api/patient-app/intimacy/settings", { method: "PUT", body }),
+      apiFetch("/api/patient-app/intimacy/settings", { method: "PUT", auth: true, body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["intimacy-settings"] }),
   });
 }
@@ -137,7 +143,7 @@ export function useUpdateIntimacySettings() {
 export function useCelibacyData() {
   return useQuery<CelibacyData>({
     queryKey: ["intimacy-celibacy"],
-    queryFn: () => apiFetch("/api/patient-app/intimacy/celibacy"),
+    queryFn: () => apiFetch("/api/patient-app/intimacy/celibacy", { auth: true }),
   });
 }
 
@@ -145,7 +151,7 @@ export function useCelibacyCheckin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { maintained: boolean; notes?: string }) =>
-      apiFetch("/api/patient-app/intimacy/celibacy/checkin", { method: "POST", body }),
+      apiFetch("/api/patient-app/intimacy/celibacy/checkin", { method: "POST", auth: true, body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["intimacy-celibacy"] }),
   });
 }
@@ -153,7 +159,7 @@ export function useCelibacyCheckin() {
 export function useIntimacySessions() {
   return useQuery<SessionData>({
     queryKey: ["intimacy-sessions"],
-    queryFn: () => apiFetch("/api/patient-app/intimacy/sessions"),
+    queryFn: () => apiFetch("/api/patient-app/intimacy/sessions", { auth: true }),
   });
 }
 
@@ -165,7 +171,7 @@ export function useLogSession() {
       protectionUsed?: boolean; postinorTaken?: boolean;
       satisfaction?: number; emotionalConnection?: number; libidoLevel?: number;
       physicalComfort?: number; positionIds?: string[]; notes?: string;
-    }) => apiFetch("/api/patient-app/intimacy/sessions", { method: "POST", body }),
+    }) => apiFetch("/api/patient-app/intimacy/sessions", { method: "POST", auth: true, body: JSON.stringify(body) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["intimacy-sessions"] });
       qc.invalidateQueries({ queryKey: ["intimacy-postinor"] });
@@ -176,14 +182,14 @@ export function useLogSession() {
 export function usePositionStats() {
   return useQuery<{ stats: PositionStat[] }>({
     queryKey: ["intimacy-positions"],
-    queryFn: () => apiFetch("/api/patient-app/intimacy/positions/stats"),
+    queryFn: () => apiFetch("/api/patient-app/intimacy/positions/stats", { auth: true }),
   });
 }
 
 export function usePostinorData() {
   return useQuery<PostinorData>({
     queryKey: ["intimacy-postinor"],
-    queryFn: () => apiFetch("/api/patient-app/intimacy/postinor"),
+    queryFn: () => apiFetch("/api/patient-app/intimacy/postinor", { auth: true }),
   });
 }
 
@@ -191,7 +197,7 @@ export function useLogPostinor() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { takenAt?: string; notes?: string }) =>
-      apiFetch("/api/patient-app/intimacy/postinor", { method: "POST", body }),
+      apiFetch("/api/patient-app/intimacy/postinor", { method: "POST", auth: true, body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["intimacy-postinor"] }),
   });
 }
@@ -199,14 +205,15 @@ export function useLogPostinor() {
 export function usePartnerData() {
   return useQuery<PartnerData>({
     queryKey: ["intimacy-partner"],
-    queryFn: () => apiFetch("/api/patient-app/intimacy/partner"),
+    queryFn: () => apiFetch("/api/patient-app/intimacy/partner", { auth: true }),
   });
 }
 
 export function useGenerateInvite() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => apiFetch<{ code: string; expiresAt: string }>("/api/patient-app/intimacy/partner/invite", { method: "POST" }),
+    mutationFn: () =>
+      apiFetch<{ code: string; expiresAt: string }>("/api/patient-app/intimacy/partner/invite", { method: "POST", auth: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["intimacy-partner"] }),
   });
 }
@@ -214,7 +221,8 @@ export function useGenerateInvite() {
 export function useJoinPartner() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => apiFetch("/api/patient-app/intimacy/partner/join", { method: "POST", body: { code } }),
+    mutationFn: (code: string) =>
+      apiFetch("/api/patient-app/intimacy/partner/join", { method: "POST", auth: true, body: JSON.stringify({ code }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["intimacy-partner", "intimacy-settings"] }),
   });
 }
@@ -222,7 +230,7 @@ export function useJoinPartner() {
 export function useDisconnectPartner() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => apiFetch("/api/patient-app/intimacy/partner", { method: "DELETE" }),
+    mutationFn: () => apiFetch("/api/patient-app/intimacy/partner", { method: "DELETE", auth: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["intimacy-partner", "intimacy-settings"] }),
   });
 }

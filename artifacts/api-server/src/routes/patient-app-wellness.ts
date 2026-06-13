@@ -196,7 +196,7 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (seen.has(item.moduleType)) continue;
       seen.add(item.moduleType);
 
-      // Medications: expand to one item per active drug
+      // Medications: one checklist entry per dose per active drug
       if (item.moduleType === "medications") {
         const activeMeds = ((settings.medications as Array<Record<string, unknown>>) ?? []).filter((m) => {
           const start = m.startDate as string;
@@ -207,11 +207,11 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         });
         const taken = (log?.taken as Record<string, boolean>) ?? {};
         for (const med of activeMeds) {
-          const times = (med.times as string[]) ?? [];
-          const doneTimes = times.filter((t) => taken[`${med.id}_${t}`]);
-          const medDone = doneTimes.length === times.length;
-          const sub = times.length > 1 ? `${doneTimes.length}/${times.length} doses` : (doneTimes.length === 1 ? "Taken" : `Take at ${times[0] ?? "scheduled time"}`);
-          checklist.push({ id: `med_${med.id as string}`, emoji: "💊", label: med.name as string, sub, time: item.time ?? undefined, done: medDone });
+          const times: string[] = (med.times as string[])?.length ? (med.times as string[]) : ["08:00"];
+          for (const t of times) {
+            const isDone = taken[`${med.id as string}_${t}`] === true;
+            checklist.push({ id: `med_${med.id as string}_${t}`, emoji: "💊", label: `Take ${med.name as string}`, sub: (med.dosage as string | undefined) ?? undefined, time: t, done: isDone });
+          }
         }
         continue;
       }

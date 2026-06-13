@@ -350,26 +350,65 @@ export default function HomePage() {
               <div className="h-full rounded-full transition-all duration-700"
                 style={{ width: `${completionPct}%`, background: completionPct === 100 ? "#4ade80" : "var(--btn-gradient)", boxShadow: `0 0 8px rgba(var(--glow-rgb),0.5)` }} />
             </div>
-            <div className="space-y-2">
-              {(() => {
-                const quickLogData = buildQuickLogData(mods);
-                return (
-                  <>
-                    {pendingItems.map((item) => {
+            {/* 2-column task grid — one card, all tasks side by side */}
+            {(() => {
+              const quickLogData = buildQuickLogData(mods);
+              const allItems = [...pendingItems, ...doneItems];
+              return (
+                <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+                    {allItems.map((item, i) => {
                       const entry = quickLogData[item.id];
+                      const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
+                      const isRight = i % 2 === 1;
+                      const isLastRow = i >= allItems.length - 2;
                       return (
-                        <CheckRow key={item.id} item={item} isUrgent={!!urgency}
-                          onQuickDone={entry
-                            ? () => quickLog.mutate({ moduleType: entry.moduleType, data: entry.data })
-                            : undefined}
-                        />
+                        <Link key={item.id} href={moduleHref(item.id)}>
+                          <div className="flex items-start gap-2 p-3 cursor-pointer active:scale-[0.98] transition"
+                            style={{
+                              borderBottom: i >= 2 * Math.floor((allItems.length - 1) / 2) ? "none" : `1px solid var(--glass-border)`,
+                              borderRight: isRight ? "none" : `1px solid var(--glass-border)`,
+                              background: item.done ? "rgba(74,222,128,0.04)" : "transparent",
+                            }}>
+                            {/* Check circle */}
+                            <button
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); entry && !item.done && quickLog.mutate({ moduleType: entry.moduleType, data: entry.data }); }}
+                              disabled={item.done || !entry}
+                              className="shrink-0 mt-0.5 active:scale-90 transition disabled:cursor-default"
+                              style={{ lineHeight: 0 }}>
+                              {item.done
+                                ? <CheckCircle2 style={{ width: 18, height: 18, color: "var(--accent)" }} />
+                                : entry
+                                  ? <Circle style={{ width: 18, height: 18, color: accent }} />
+                                  : <Circle style={{ width: 18, height: 18, color: accent, opacity: 0.4 }} />
+                              }
+                            </button>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div className="flex items-center gap-1 mb-0.5">
+                                <span style={{ fontSize: 14 }}>{item.emoji}</span>
+                                {item.time && (
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: item.done ? "var(--text-dim)" : accent, background: `${accent}18`, padding: "1px 5px", borderRadius: 6, flexShrink: 0 }}>
+                                    {fmtTime(item.time)}
+                                  </span>
+                                )}
+                              </div>
+                              <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {item.label}
+                              </p>
+                              {item.sub && (
+                                <p style={{ fontSize: 10, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {item.sub}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
                       );
                     })}
-                    {doneItems.map((item) => <CheckRow key={item.id} item={item} isUrgent={false} />)}
-                  </>
-                );
-              })()}
-            </div>
+                  </div>
+                </div>
+              );
+            })()}
           </section>
         ) : (
           <div className="rounded-2xl p-6 text-center"
@@ -555,14 +594,14 @@ function buildQuickLogData(mods: Record<string, ModuleEntry | undefined>): Recor
   };
   if (intimacyMode === "celibacy") entries.intimacy = { moduleType: "intimacy", data: { active: false } };
 
-  // Medications — one quick-log entry per med, marks all doses taken
+  // Medications — one quick-log entry per dose per med (key matches checklist item id)
   type Med = { id: string; times?: string[] };
   const meds = (mods.medications?.settings?.medications as Med[]) ?? [];
   for (const med of meds) {
     const times: string[] = med.times?.length ? med.times : ["08:00"];
-    const taken: Record<string, boolean> = {};
-    for (const t of times) taken[`${med.id}_${t}`] = true;
-    entries[`med_${med.id}`] = { moduleType: "medications", data: { taken } };
+    for (const t of times) {
+      entries[`med_${med.id}_${t}`] = { moduleType: "medications", data: { taken: { [`${med.id}_${t}`]: true } } };
+    }
   }
 
   return entries;

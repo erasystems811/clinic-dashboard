@@ -91,19 +91,23 @@ export default function OnboardingPage() {
   const pct = Math.round((step / 5) * 100);
 
   return (
-    <div className="min-h-screen flex flex-col px-6 pt-10 pb-8 relative overflow-hidden"
+    // fixed inset-0 viewport lock + flex-col so progress, scrollable content, and
+    // footer button are stacked. The content area (flex-1 min-h-0 overflow-y-auto)
+    // scrolls if the step content is taller than available space — the action button
+    // always stays anchored at the bottom, never cut off.
+    <div className="fixed inset-0 flex flex-col overflow-hidden"
       style={{ background: `linear-gradient(135deg, var(--bg-base) 0%, var(--bg-mid) 50%, var(--bg-base) 100%)` }}>
 
       {/* Glow orbs */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ zIndex: 0 }}>
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-20"
           style={{ background: `radial-gradient(circle,rgba(var(--glow-rgb),1) 0%,transparent 70%)`, filter: "blur(60px)" }} />
         <div className="absolute bottom-0 -left-32 w-80 h-80 rounded-full opacity-12"
           style={{ background: `radial-gradient(circle,rgba(var(--glow-rgb),0.6) 0%,transparent 70%)`, filter: "blur(60px)" }} />
       </div>
 
-      {/* Progress */}
-      <div className="relative z-10 mb-8">
+      {/* Progress bar — fixed height, never scrolls */}
+      <div className="relative z-10 px-6 pt-10 pb-0 shrink-0">
         <div className="flex justify-between text-xs font-medium mb-2">
           <span style={{ color: "var(--text-dim)" }}>Step {step} of 5</span>
           <span style={{ color: "var(--accent)" }}>{pct}%</span>
@@ -114,12 +118,12 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      {/* Steps */}
-      <div className="relative z-10 flex-1 flex flex-col">
+      {/* Step content — scrollable so nothing is ever clipped on small phones */}
+      <div className="relative z-10 flex-1 min-h-0 overflow-y-auto px-6 pt-8 pb-4">
 
         {/* ── Step 1: Name ─────────────────────────────────── */}
         {step === 1 && (
-          <div className="flex-1 flex flex-col">
+          <div>
             <div className="mb-10">
               <p className="text-5xl mb-5">👋</p>
               <h1 className="text-3xl font-bold mb-3" style={{ color: "var(--text-main)" }}>Welcome to ERA Health</h1>
@@ -127,36 +131,31 @@ export default function OnboardingPage() {
                 Let's personalise the app just for you. First — what should we call you?
               </p>
             </div>
-            <div className="flex-1">
-              <label className="text-sm font-medium block mb-2" style={{ color: "var(--text-sub)" }}>
-                Your name or nickname
-              </label>
-              <input type="text" autoFocus maxLength={40} value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="e.g. Chidi"
-                onKeyDown={(e) => { if (e.key === "Enter" && displayName.trim()) setStep(2); }}
-                className="w-full px-4 py-4 rounded-2xl text-lg font-medium outline-none transition"
-                style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)", caretColor: "var(--accent)" }}
-                onFocus={(e) => (e.target.style.borderColor = `rgba(var(--glow-rgb),0.5)`)}
-                onBlur={(e) => (e.target.style.borderColor = "var(--glass-border)")}
-              />
-            </div>
-            <NavBtn onClick={() => setStep(2)} disabled={!displayName.trim()}>
-              Continue <ArrowRight className="w-5 h-5" />
-            </NavBtn>
+            <label className="text-sm font-medium block mb-2" style={{ color: "var(--text-sub)" }}>
+              Your name or nickname
+            </label>
+            <input type="text" autoFocus maxLength={40} value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="e.g. Chidi"
+              onKeyDown={(e) => { if (e.key === "Enter" && displayName.trim()) setStep(2); }}
+              className="w-full px-4 py-4 rounded-2xl text-lg font-medium outline-none transition"
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)", caretColor: "var(--accent)" }}
+              onFocus={(e) => (e.target.style.borderColor = `rgba(var(--glow-rgb),0.5)`)}
+              onBlur={(e) => (e.target.style.borderColor = "var(--glass-border)")}
+            />
           </div>
         )}
 
         {/* ── Step 2: About you ─────────────────────────────── */}
         {step === 2 && (
-          <div className="flex-1 flex flex-col">
+          <div>
             <div className="mb-7">
               <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>About you, {displayName}</h1>
               <p className="text-base leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 Your age and gender help us give you relevant guidance.
               </p>
             </div>
-            <div className="flex-1 space-y-6">
+            <div className="space-y-6">
               <div>
                 <p className="text-sm font-semibold mb-1" style={{ color: "var(--text-main)" }}>
                   Date of birth <span className="text-xs font-normal" style={{ color: "var(--accent)" }}>required</span>
@@ -191,22 +190,19 @@ export default function OnboardingPage() {
                 </div>
               </div>
             </div>
-            <NavBtn onClick={() => setStep(3)} disabled={!dateOfBirth}>
-              Continue <ArrowRight className="w-5 h-5" />
-            </NavBtn>
           </div>
         )}
 
         {/* ── Step 3: Goals ─────────────────────────────────── */}
         {step === 3 && (
-          <div className="flex-1 flex flex-col">
+          <div>
             <div className="mb-5">
               <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Your health goals</h1>
               <p className="text-sm leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 Pick what matters most — we'll activate the right modules to get you started.
               </p>
             </div>
-            <div className="flex-1 grid grid-cols-2 gap-3 content-start mb-5">
+            <div className="grid grid-cols-2 gap-3 mb-2">
               {GOALS.map((g) => {
                 const on = goals.includes(g.id);
                 return (
@@ -232,15 +228,12 @@ export default function OnboardingPage() {
                 );
               })}
             </div>
-            <NavBtn onClick={() => setStep(4)}>
-              {goals.length === 0 ? "Skip for now" : `Continue (${goals.length} selected)`} <ArrowRight className="w-5 h-5" />
-            </NavBtn>
           </div>
         )}
 
         {/* ── Step 4: Choose your colour ────────────────────── */}
         {step === 4 && (
-          <div className="flex-1 flex flex-col">
+          <div>
             <div className="mb-5">
               <p className="text-4xl mb-4">🎨</p>
               <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Pick your colour</h1>
@@ -295,30 +288,26 @@ export default function OnboardingPage() {
             </div>
 
             {/* Live preview strip */}
-            <div className="rounded-xl p-3 mb-3 flex items-center gap-3"
+            <div className="rounded-xl p-3 flex items-center gap-3"
               style={{ background: "var(--glass-bg)", border: "1px solid var(--accent-tint-border)" }}>
               <span style={{ fontSize: 20 }}>✨</span>
               <p style={{ fontSize: 12, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.4 }}>
                 The whole app is now previewing your chosen colour — swipe between colours to see it live.
               </p>
             </div>
-
-            <NavBtn onClick={() => setStep(5)}>
-              Looks great! Continue <ArrowRight className="w-5 h-5" />
-            </NavBtn>
           </div>
         )}
 
         {/* ── Step 5: Schedule + Finish ─────────────────────── */}
         {step === 5 && (
-          <div className="flex-1 flex flex-col">
+          <div>
             <div className="mb-7">
               <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Your daily schedule</h1>
               <p className="text-base leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 We use this for your sleep tracker and reminder timings.
               </p>
             </div>
-            <div className="flex-1 space-y-4">
+            <div className="space-y-4">
               <TimeCard emoji="🌅" label="I usually wake up at" value={wakeTime} onChange={setWakeTime} />
               <TimeCard emoji="🌙" label="I usually sleep at" value={bedTime} onChange={setBedTime} />
 
@@ -339,15 +328,40 @@ export default function OnboardingPage() {
                 </div>
               )}
             </div>
-
-            <button onClick={finish} disabled={loading}
-              className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 mt-6"
-              style={{ background: "var(--btn-gradient)", boxShadow: `0 8px 32px rgba(var(--glow-rgb),0.35)` }}>
-              {loading
-                ? <><Loader2 className="w-5 h-5 animate-spin" /> Setting up your dashboard…</>
-                : "Take me to my dashboard →"}
-            </button>
           </div>
+        )}
+      </div>
+
+      {/* Footer — action button always anchored at the bottom, never pushed off-screen */}
+      <div className="relative z-10 px-6 pt-2 pb-8 shrink-0">
+        {step === 1 && (
+          <NavBtn onClick={() => setStep(2)} disabled={!displayName.trim()}>
+            Continue <ArrowRight className="w-5 h-5" />
+          </NavBtn>
+        )}
+        {step === 2 && (
+          <NavBtn onClick={() => setStep(3)} disabled={!dateOfBirth}>
+            Continue <ArrowRight className="w-5 h-5" />
+          </NavBtn>
+        )}
+        {step === 3 && (
+          <NavBtn onClick={() => setStep(4)}>
+            {goals.length === 0 ? "Skip for now" : `Continue (${goals.length} selected)`} <ArrowRight className="w-5 h-5" />
+          </NavBtn>
+        )}
+        {step === 4 && (
+          <NavBtn onClick={() => setStep(5)}>
+            Looks great! Continue <ArrowRight className="w-5 h-5" />
+          </NavBtn>
+        )}
+        {step === 5 && (
+          <button onClick={finish} disabled={loading}
+            className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60"
+            style={{ background: "var(--btn-gradient)", boxShadow: `0 8px 32px rgba(var(--glow-rgb),0.35)` }}>
+            {loading
+              ? <><Loader2 className="w-5 h-5 animate-spin" /> Setting up your dashboard…</>
+              : "Take me to my dashboard →"}
+          </button>
         )}
       </div>
     </div>
@@ -357,7 +371,7 @@ export default function OnboardingPage() {
 function NavBtn({ onClick, disabled, children }: { onClick: () => void; disabled?: boolean; children: React.ReactNode }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-40 mt-6"
+      className="w-full py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-40"
       style={{ background: "var(--btn-gradient)", boxShadow: `0 8px 32px rgba(var(--glow-rgb),0.3)` }}>
       {children}
     </button>

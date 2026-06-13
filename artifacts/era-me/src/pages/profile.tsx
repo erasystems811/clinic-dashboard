@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -55,7 +55,63 @@ export default function ProfilePage() {
     tapRef.current.timer = setTimeout(() => { tapRef.current = { count: 0, timer: null }; }, 1500);
   }
 
-  // Change password modal state
+  // Feedback modal state
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [fbRating, setFbRating] = useState(0);
+  const [fbCategory, setFbCategory] = useState<"general" | "bug" | "feature" | "praise">("general");
+  const [fbMessage, setFbMessage] = useState("");
+  const [fbLoading, setFbLoading] = useState(false);
+  const [fbDone, setFbDone] = useState(false);
+  const fbOverlayRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!showFeedback) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function update() {
+      const el = fbOverlayRef.current;
+      if (!el) return;
+      el.style.height = `${vv!.height}px`;
+      el.style.top    = `${vv!.offsetTop}px`;
+    }
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, [showFeedback]);
+
+  async function submitFeedback() {
+    if (!fbMessage.trim()) return;
+    setFbLoading(true);
+    try {
+      await apiFetch("/api/patient-app/feedback", {
+        method: "POST", auth: true,
+        body: JSON.stringify({ rating: fbRating || undefined, category: fbCategory, message: fbMessage.trim() }),
+      });
+      setFbDone(true);
+      setTimeout(() => { setShowFeedback(false); setFbDone(false); setFbRating(0); setFbMessage(""); }, 1800);
+    } catch { /* ignore */ }
+    finally { setFbLoading(false); }
+  }
+
+  // Change password modal — visualViewport tracks keyboard so the sheet doesn't hide behind it
+  const pwdOverlayRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!showPwd) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function update() {
+      const el = pwdOverlayRef.current;
+      if (!el) return;
+      el.style.height = `${vv!.height}px`;
+      el.style.top    = `${vv!.offsetTop}px`;
+    }
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, [showPwd]);
+
   const [showPwd, setShowPwd] = useState(false);
   const [pwdCurrent, setPwdCurrent] = useState("");
   const [pwdNew, setPwdNew] = useState("");
@@ -248,6 +304,13 @@ export default function ProfilePage() {
         </div>
       </Section>
 
+      {/* Weight Loss */}
+      <Section title="Weight Loss">
+        <div className="space-y-1">
+          <SettingsRow label="Weight Loss Coach" sublabel="Personalised meal plans, calorie tracking & accountability" onClick={() => navigate("/weightloss")} />
+        </div>
+      </Section>
+
       {/* Social */}
       <Section title="Social">
         <div className="space-y-1">
@@ -259,6 +322,7 @@ export default function ProfilePage() {
       <Section title="Account">
         <div className="space-y-1">
           <SettingsRow label="Change Password" onClick={() => { setPwdError(""); setPwdOk(false); setShowPwd(true); }} />
+          <SettingsRow label="Send Feedback" sublabel="Rate the app or report an issue" onClick={() => { setFbDone(false); setShowFeedback(true); }} />
           <SettingsRow label="Notification Settings" onClick={() => navigate("/notification-settings")} />
           {account.accountType === "family" && (
             <SettingsRow label="Manage Family Members" onClick={() => {}} />
@@ -277,12 +341,84 @@ export default function ProfilePage() {
       <p className="text-center text-xs mt-6" style={{ color: "var(--text-dim)" }}>ERA Health · By ERA Systems</p>
     </div>
 
-    {/* Change password modal */}
-    {showPwd && (
-      <div className="fixed inset-0 z-50 flex items-end justify-center"
+    {/* Feedback modal */}
+    {showFeedback && (
+      <div ref={fbOverlayRef} className="fixed left-0 right-0 z-50 flex items-end justify-center"
         style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
-        <div className="w-full max-w-md rounded-t-3xl p-6"
-          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)" }}>
+        <div className="w-full max-w-md rounded-t-3xl p-6 overflow-y-auto"
+          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "100%" }}>
+          <div className="flex items-center justify-between mb-5">
+            <p className="font-bold text-base" style={{ color: "var(--text-main)" }}>Send Feedback</p>
+            <button onClick={() => setShowFeedback(false)} className="text-xl leading-none" style={{ color: "var(--text-dim)" }}>✕</button>
+          </div>
+
+          {fbDone ? (
+            <div className="flex flex-col items-center py-6 gap-3">
+              <p style={{ fontSize: 40 }}>🙏</p>
+              <p className="font-semibold text-center" style={{ color: "var(--text-main)" }}>Thank you for your feedback!</p>
+            </div>
+          ) : (
+            <>
+              {/* Star rating */}
+              <div className="mb-4">
+                <p className="text-xs font-medium mb-2" style={{ color: "var(--text-sub)" }}>How are you finding ERA Health?</p>
+                <div className="flex gap-2">
+                  {[1,2,3,4,5].map((s) => (
+                    <button key={s} onClick={() => setFbRating(s === fbRating ? 0 : s)}
+                      className="text-2xl transition active:scale-110"
+                      style={{ opacity: fbRating === 0 || s <= fbRating ? 1 : 0.35 }}>
+                      ⭐
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category */}
+              <div className="mb-4">
+                <p className="text-xs font-medium mb-2" style={{ color: "var(--text-sub)" }}>Category</p>
+                <div className="flex flex-wrap gap-2">
+                  {(["general", "praise", "feature", "bug"] as const).map((c) => (
+                    <button key={c} onClick={() => setFbCategory(c)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold transition active:scale-95"
+                      style={{
+                        background: fbCategory === c ? "var(--accent-tint-bg)" : "var(--glass-bg)",
+                        border: fbCategory === c ? "1.5px solid var(--accent)" : "1.5px solid var(--glass-border)",
+                        color: fbCategory === c ? "var(--accent)" : "var(--text-sub)",
+                      }}>
+                      {c === "general" ? "General" : c === "praise" ? "Love it" : c === "feature" ? "Feature idea" : "Bug report"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message */}
+              <div className="mb-5">
+                <p className="text-xs font-medium mb-2" style={{ color: "var(--text-sub)" }}>Your message</p>
+                <textarea value={fbMessage} onChange={(e) => setFbMessage(e.target.value)} rows={4}
+                  placeholder="Tell us what you think…"
+                  className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
+                  style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
+              </div>
+
+              <button onClick={() => void submitFeedback()}
+                disabled={fbLoading || !fbMessage.trim()}
+                className="w-full py-3.5 rounded-2xl font-bold text-sm transition active:scale-95 disabled:opacity-50"
+                style={{ background: "var(--accent)", color: "#fff" }}>
+                {fbLoading ? "Sending…" : "Submit Feedback"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+
+    {/* Change password modal — overlay is pinned to the visual viewport via ref+useLayoutEffect
+        so the sheet stays just above the keyboard on iOS (same pattern as companion chat) */}
+    {showPwd && (
+      <div ref={pwdOverlayRef} className="fixed left-0 right-0 z-50 flex items-end justify-center"
+        style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
+        <div className="w-full max-w-md rounded-t-3xl p-6 overflow-y-auto"
+          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "100%" }}>
           <div className="flex items-center justify-between mb-5">
             <p className="font-bold text-base" style={{ color: "var(--text-main)" }}>Change Password</p>
             <button onClick={() => setShowPwd(false)}

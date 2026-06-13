@@ -13,6 +13,8 @@ import Announcements from "@/pages/announcements";
 import SystemFeedbackPage from "@/pages/system-feedback";
 import CRMPage from "@/pages/crm";
 import PricingPage from "@/pages/pricing";
+import PatientAnalyticsPage from "@/pages/patient-analytics";
+import KnowledgeBasePage from "@/pages/knowledge-base";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,8 @@ function AppRoutes() {
       <Route path="/support" component={SupportInbox} />
       <Route path="/feedback" component={SystemFeedbackPage} />
       <Route path="/crm" component={CRMPage} />
+      <Route path="/patient-analytics" component={PatientAnalyticsPage} />
+      <Route path="/knowledge-base" component={KnowledgeBasePage} />
       <Route path="/docs" component={DocsPage} />
       <Route path="/pricing" component={PricingPage} />
       <Route>

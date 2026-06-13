@@ -1,4 +1,5 @@
-import { Component, type ReactNode } from "react";
+import { Component, useEffect, useRef, type ReactNode } from "react";
+import { useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -62,6 +63,12 @@ import PersonalityPage from "@/pages/companion/personality";
 import CompanionSettingsPage from "@/pages/companion/settings";
 import OnboardingPage from "@/pages/onboarding";
 import PlanPage from "@/pages/plan";
+import WeightLossPage from "@/pages/weightloss/index";
+import WLTodayPage from "@/pages/weightloss/today";
+import WLPlanPage from "@/pages/weightloss/plan";
+import WLCalculatorPage from "@/pages/weightloss/calculator";
+import WLCoachPage from "@/pages/weightloss/coach";
+import WLProgressPage from "@/pages/weightloss/progress";
 import ReportPage from "@/pages/report";
 import NotificationsPage from "@/pages/notifications";
 import NotificationSettingsPage from "@/pages/notification-settings";
@@ -71,8 +78,40 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: true } },
 });
 
+// Lightweight page-view tracker: fires once per route change.
+// Fire-and-forget — never blocks navigation or re-renders.
+function usePageTracker() {
+  const [location] = useLocation();
+  const sessionId = useRef(
+    localStorage.getItem("era_session_id") ?? (() => {
+      const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem("era_session_id", id);
+      return id;
+    })()
+  );
+  const lastRoute = useRef("");
+
+  useEffect(() => {
+    if (location === lastRoute.current) return;
+    lastRoute.current = location;
+    const token = (() => {
+      try { return (JSON.parse(localStorage.getItem("era_me_session") ?? "{}") as { token?: string }).token ?? null; } catch { return null; }
+    })();
+    void fetch("/api/patient-app/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { "x-patient-token": token } : {}) },
+      body: JSON.stringify({
+        route: location,
+        sessionId: sessionId.current,
+        deviceType: /Mobi|Android/i.test(navigator.userAgent) ? "mobile" : "desktop",
+      }),
+    }).catch(() => {/* ignore */});
+  }, [location]);
+}
+
 function AppRoutes() {
   const { account, loading } = useAuth();
+  usePageTracker();
 
   if (loading) {
     return (
@@ -110,6 +149,7 @@ function AppRoutes() {
   return (
     <Switch>
       {/* Companion routes — full-screen, no bottom nav */}
+      <Route path="/weightloss/coach" component={WLCoachPage} />
       <Route path="/companion" component={CompanionGate} />
       <Route path="/companion/journal/new" component={NewJournalPage} />
       <Route path="/companion/journal/:id" component={JournalViewPage} />
@@ -148,6 +188,11 @@ function AppRoutes() {
             <Route path="/womens-health" component={WomensHealthPage} />
         <Route path="/womens-health/calendar" component={CycleCalendarPage} />
         <Route path="/womens-health/history" component={CycleHistoryPage} />
+        <Route path="/weightloss" component={WeightLossPage} />
+        <Route path="/weightloss/today" component={WLTodayPage} />
+        <Route path="/weightloss/plan" component={WLPlanPage} />
+        <Route path="/weightloss/calculator" component={WLCalculatorPage} />
+        <Route path="/weightloss/progress" component={WLProgressPage} />
         <Route path="/social" component={SocialPage} />
         <Route path="/social/partner/:id" component={PartnerPage} />
         <Route path="/social/group/:id" component={GroupPage} />

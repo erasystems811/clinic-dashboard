@@ -29,7 +29,9 @@ import patientAppSocialRouter from "./patient-app-social";
 import patientAppWomensHealthRouter from "./patient-app-womens-health";
 import patientAppPlanRouter from "./patient-app-plan";
 import patientAppPushRouter from "./patient-app-push";
+import patientAppAnalyticsRouter from "./patient-app-analytics";
 import eraMessagesRouter from "./era-messages";
+import patientAppWeightlossRouter from "./patient-app-weightloss";
 
 const router: IRouter = Router();
 
@@ -63,6 +65,8 @@ router.use(patientAppSocialRouter);
 router.use(patientAppWomensHealthRouter);
 router.use(patientAppPlanRouter);
 router.use(patientAppPushRouter);
+router.use(patientAppAnalyticsRouter);
 router.use(eraMessagesRouter);
+router.use(patientAppWeightlossRouter);
 
 export default router;

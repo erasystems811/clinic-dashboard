@@ -110,11 +110,14 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8 relative overflow-hidden on-gradient"
+    // fixed+overflow-y-auto creates a viewport-locked scroll context so content is never
+    // clipped on small phones (body/html are both overflow:hidden, so pages outside Layout
+    // need their own scroll container).
+    <div className="fixed inset-0 overflow-y-auto on-gradient"
       style={{ background: "linear-gradient(135deg, #060d1f 0%, #0a1628 50%, #060d1f 100%)" }}>
 
-      {/* Glow orbs */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* Glow orbs — fixed so they stay in place while content scrolls */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden" style={{ zIndex: 0 }}>
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-25"
           style={{ background: "radial-gradient(circle, #14b8a6 0%, transparent 70%)", filter: "blur(60px)" }} />
         <div className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full opacity-20"
@@ -123,8 +126,11 @@ export default function AuthPage() {
           style={{ background: "radial-gradient(circle, #14b8a6 0%, transparent 70%)", filter: "blur(80px)" }} />
       </div>
 
+      {/* Content wrapper: centers card when short, scrolls when tall (e.g. register form on small phones) */}
+      <div className="relative min-h-full flex items-center justify-center px-4 py-8" style={{ zIndex: 1 }}>
+
       {/* Glass card */}
-      <div className="relative w-full max-w-sm rounded-3xl p-8"
+      <div className="w-full max-w-sm rounded-3xl p-8"
         style={{
           background: "rgba(255,255,255,0.04)",
           backdropFilter: "blur(24px)",
@@ -406,6 +412,8 @@ export default function AuthPage() {
         )}
 
       </div>
+
+      </div>{/* /content wrapper */}
     </div>
   );
 }

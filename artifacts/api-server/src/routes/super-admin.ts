@@ -2014,4 +2014,183 @@ router.delete("/super-admin/crm/requests/:id", requireSuperAdmin, async (req, re
   res.status(204).end();
 });
 
+// ── GET /super-admin/patient-analytics — ERA patient app stats ───────────────
+router.get("/super-admin/patient-analytics", requireSuperAdmin, async (_req, res): Promise<void> => {
+  try {
+    // Total registered patients
+    const { count: totalPatients } = await supabase
+      .from("era_patient_accounts")
+      .select("*", { count: "exact", head: true });
+
+    // New registrations this week
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+    const { count: newThisWeek } = await supabase
+      .from("era_patient_accounts")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", weekAgo);
+
+    // New registrations today
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const { count: newToday } = await supabase
+      .from("era_patient_accounts")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", todayStart.toISOString());
+
+    // Active users today (distinct patients with a page view today)
+    const { data: activeTodayRows } = await supabase
+      .from("era_patient_analytics")
+      .select("patient_id")
+      .gte("created_at", todayStart.toISOString())
+      .not("patient_id", "is", null);
+    const activeToday = new Set((activeTodayRows ?? []).map((r: { patient_id: number }) => r.patient_id)).size;
+
+    // Active users this week
+    const { data: activeWeekRows } = await supabase
+      .from("era_patient_analytics")
+      .select("patient_id")
+      .gte("created_at", weekAgo)
+      .not("patient_id", "is", null);
+    const activeThisWeek = new Set((activeWeekRows ?? []).map((r: { patient_id: number }) => r.patient_id)).size;
+
+    // Page view count today
+    const { count: pageViewsToday } = await supabase
+      .from("era_patient_analytics")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", todayStart.toISOString());
+
+    // Page views this week
+    const { count: pageViewsWeek } = await supabase
+      .from("era_patient_analytics")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", weekAgo);
+
+    // Top pages (last 30 days)
+    const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+    const { data: pageRows } = await supabase
+      .from("era_patient_analytics")
+      .select("route")
+      .gte("created_at", monthAgo)
+      .limit(2000);
+
+    const pageCounts: Record<string, number> = {};
+    for (const row of (pageRows ?? [])) {
+      const r = (row as { route: string }).route;
+      pageCounts[r] = (pageCounts[r] ?? 0) + 1;
+    }
+    const topPages = Object.entries(pageCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([route, views]) => ({ route, views }));
+
+    // Daily new users for the last 14 days
+    const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
+    const { data: registrationRows } = await supabase
+      .from("era_patient_accounts")
+      .select("created_at")
+      .gte("created_at", twoWeeksAgo)
+      .order("created_at", { ascending: true });
+
+    const dailyRegistrations: Record<string, number> = {};
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000);
+      dailyRegistrations[d.toISOString().split("T")[0]] = 0;
+    }
+    for (const row of (registrationRows ?? [])) {
+      const day = (row as { created_at: string }).created_at.split("T")[0];
+      if (day in dailyRegistrations) dailyRegistrations[day]++;
+    }
+    const dailySignups = Object.entries(dailyRegistrations).map(([date, count]) => ({ date, count }));
+
+    // Recent feedback
+    const { data: feedbackRows } = await supabase
+      .from("era_patient_feedback")
+      .select("id, username, rating, category, message, created_at")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    res.json({
+      totalPatients:   totalPatients ?? 0,
+      newToday:        newToday ?? 0,
+      newThisWeek:     newThisWeek ?? 0,
+      activeToday,
+      activeThisWeek,
+      pageViewsToday:  pageViewsToday ?? 0,
+      pageViewsWeek:   pageViewsWeek ?? 0,
+      topPages,
+      dailySignups,
+      recentFeedback:  feedbackRows ?? [],
+    });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : "Error" });
+  }
+});
+
+// ── GET /super-admin/patient-feedback — all feedback paginated ───────────────
+router.get("/super-admin/patient-feedback", requireSuperAdmin, async (req, res): Promise<void> => {
+  try {
+    const page = parseInt((req.query.page as string) ?? "1", 10);
+    const limit = 30;
+    const offset = (page - 1) * limit;
+
+    const { data, count } = await supabase
+      .from("era_patient_feedback")
+      .select("id, username, rating, category, message, created_at", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    res.json({ items: data ?? [], total: count ?? 0, page, limit });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : "Error" });
+  }
+});
+
+// ── RAG knowledge base management ─────────────────────────────────────────────
+import { storeDocument, retrieve } from "../lib/rag.js";
+
+router.post("/super-admin/rag/upload", requireSuperAdmin, async (req, res): Promise<void> => {
+  try {
+    const { title, category, source, content } = req.body as {
+      title: string;
+      category: "weightloss" | "psychology" | "nutrition" | "fitness" | "general";
+      source?: string;
+      content: string;
+    };
+    if (!title || !category || !content?.trim()) {
+      res.status(400).json({ error: "title, category and content are required" }); return;
+    }
+    const result = await storeDocument({ title, category, source, content, uploadedBy: "super-admin" });
+    res.json({ ok: true, chunks: result.chunks });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : "Upload failed" });
+  }
+});
+
+router.get("/super-admin/rag/documents", requireSuperAdmin, async (_req, res): Promise<void> => {
+  const { data } = await supabase
+    .from("rag_documents")
+    .select("id, title, category, source, chunk_index, uploaded_by, created_at")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  res.json({ documents: data ?? [] });
+});
+
+router.delete("/super-admin/rag/documents/:title", requireSuperAdmin, async (req, res): Promise<void> => {
+  const { error } = await supabase
+    .from("rag_documents")
+    .delete()
+    .eq("title", decodeURIComponent(req.params.title));
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ ok: true });
+});
+
+router.post("/super-admin/rag/test", requireSuperAdmin, async (req, res): Promise<void> => {
+  try {
+    const { query, category } = req.body as { query: string; category?: string };
+    const chunks = await retrieve(query, (category as "weightloss" | "any" | undefined) ?? "any");
+    res.json({ chunks });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : "Error" });
+  }
+});
+
 export default router;

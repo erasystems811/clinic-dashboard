@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { ChevronRight, CheckCircle2, Circle, Plus, Minus, X, Bell } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate } from "@/lib/utils";
-import { useWellnessToday, useWeekSummary, useLogToday, useQuickLog, useAiInsight, useUpcomingEvents } from "@/lib/wellness-api";
+import { useWellnessToday, useWeekSummary, useLogToday, useQuickLog, useUpcomingEvents } from "@/lib/wellness-api";
 import type { UpcomingEvent } from "@/lib/wellness-api";
 import { useCoins, useUnreadNotifCount } from "@/lib/hospitals-api";
 import { canNotify, notifPermission, requestNotifPermission, fireNotification, maybeFireEveningReminder } from "@/lib/notifications";
@@ -103,7 +103,6 @@ export default function HomePage() {
   const quickLog = useQuickLog();
   const { data: coinsData } = useCoins();
   const coins = coinsData?.coins ?? 0;
-  const { data: aiData, isLoading: aiLoading } = useAiInsight();
   const { data: upcomingData } = useUpcomingEvents();
   const { data: notifData } = useUnreadNotifCount();
   const unreadNotifs = notifData?.count ?? 0;
@@ -273,11 +272,11 @@ export default function HomePage() {
 
       <div className="px-4 space-y-4">
 
-        {/* ── ERA Score + AI Insight Card ───────────────────────── */}
+        {/* ── ERA Score + Module Rings Card ─────────────────────── */}
         {(total > 0 || summary) && (
           <EraScoreCard score={eraScore.score} label={eraScore.label} color={eraScore.color}
             completionPct={completionPct} weekRate={weekRate}
-            aiInsight={aiData?.insight ?? null} aiLoading={aiLoading} />
+            moduleStats={summary?.moduleStats ?? []} />
         )}
 
         {/* ── Urgency Banner ────────────────────────────────────── */}
@@ -527,12 +526,13 @@ export default function HomePage() {
 
 // ── Sub-components ──────────────────────────────────────────────────────────────
 
-function EraScoreCard({ score, label, color, completionPct, weekRate, aiInsight, aiLoading }: {
+function EraScoreCard({ score, label, color, completionPct, weekRate, moduleStats }: {
   score: number; label: string; color: string;
   completionPct: number; weekRate: number;
-  aiInsight: string | null; aiLoading: boolean;
+  moduleStats: import("@/lib/wellness-api").WeekSummaryModuleStat[];
 }) {
   const c = 2 * Math.PI * 22;
+  const ringC = 2 * Math.PI * 10;
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--accent-tint-border)" }}>
       <div className="p-4 flex items-center gap-4">
@@ -571,19 +571,36 @@ function EraScoreCard({ score, label, color, completionPct, weekRate, aiInsight,
         </div>
       </div>
 
-      {/* Insight strip */}
-      {(aiLoading || aiInsight) && (
-        <div style={{ borderTop: "1px solid var(--glass-border)", padding: "8px 16px 10px", display: "flex", gap: 8, alignItems: "flex-start" }}>
-          <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>📊</span>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 1, marginBottom: 4 }}>INSIGHT</p>
-            {aiLoading
-              ? <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                  <div style={{ height: 9, borderRadius: 4, background: "var(--glass-track)", width: "90%", animation: "pulse 1.5s infinite" }} />
-                  <div style={{ height: 9, borderRadius: 4, background: "var(--glass-track)", width: "75%", animation: "pulse 1.5s infinite" }} />
+      {/* Module progress rings */}
+      {moduleStats.length > 0 && (
+        <div style={{ borderTop: "1px solid var(--glass-border)", padding: "10px 16px 12px" }}>
+          <p style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.5, marginBottom: 10 }}>THIS WEEK</p>
+          <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 2 }}>
+            {moduleStats.map((mod) => {
+              const pct = mod.completedDays / 7;
+              const ringColor = mod.completedDays >= 5 ? "#4ade80" : mod.completedDays >= 3 ? "var(--accent)" : "#f87171";
+              return (
+                <div key={mod.type} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                  <div style={{ position: "relative", width: 36, height: 36 }}>
+                    <svg className="-rotate-90" viewBox="0 0 26 26" style={{ width: 36, height: 36 }}>
+                      <circle cx="13" cy="13" r="10" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
+                      <circle cx="13" cy="13" r="10" fill="none"
+                        stroke={ringColor} strokeWidth="3" strokeLinecap="round"
+                        strokeDasharray={ringC}
+                        strokeDashoffset={ringC * (1 - pct)}
+                        style={{ transition: "stroke-dashoffset 1s ease" }}
+                      />
+                    </svg>
+                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: 13 }}>{mod.emoji}</span>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 8, fontWeight: 700, color: "var(--text-dim)", textAlign: "center", maxWidth: 36, lineHeight: 1.2 }}>
+                    {mod.completedDays}/7
+                  </p>
                 </div>
-              : <p style={{ fontSize: 11, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.6, margin: 0 }}>{aiInsight}</p>
-            }
+              );
+            })}
           </div>
         </div>
       )}

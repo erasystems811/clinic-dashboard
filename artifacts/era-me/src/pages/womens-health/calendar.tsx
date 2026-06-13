@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { ArrowLeft, ChevronLeft, ChevronRight, X } from "lucide-react";
 import {
   useWomensHealthCalendar, useLogCycleDay, FLOW_META,
@@ -36,7 +35,6 @@ interface LogSheet {
 }
 
 export default function CycleCalendarPage() {
-  const [, navigate] = useLocation();
   const today = todayStr();
   const [monthKey, setMonthKey] = useState(() => today.slice(0, 7));
   const [logSheet, setLogSheet] = useState<LogSheet | null>(null);
@@ -66,7 +64,7 @@ export default function CycleCalendarPage() {
       <div className="sticky top-0 z-10 px-5 pt-6 pb-4"
         style={{ background: "var(--bg-base)", borderBottom: "1px solid var(--glass-border)" }}>
         <div className="flex items-center justify-between mb-4">
-          <button onClick={() => navigate("/womens-health")}
+          <button onClick={() => window.history.back()}
             className="flex items-center gap-1.5 active:opacity-70 transition"
             style={{ color: "var(--text-sub)" }}>
             <ArrowLeft className="w-5 h-5" />

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, History, CalendarDays, Baby, Heart } from "lucide-react";
+import { ArrowLeft, History, Baby, Heart } from "lucide-react";
 import {
   useWomensHealthToday, useSetupWomensHealth, useLogCycleDay,
   usePregnancyToday, useSetupPregnancy, useSwitchMode, useLogPregnancy, usePregnancyTimeline,
@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
 // ── Calendar strip constants ────────────────────────────────────────────────────
 
 const CHIP_W    = 52;
-const BACK_DAYS = 365;
-const FWD_DAYS  = 730;
+const BACK_DAYS = 730;   // 2 years back
+const FWD_DAYS  = 1095;  // 3 years forward
 const TOTAL     = BACK_DAYS + FWD_DAYS + 1;
 const DAY_ABBR  = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -207,14 +207,9 @@ function MainDashboard({ onBack }: { onBack: () => void }) {
           <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
         </button>
         {mode === "cycle" && (
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate("/womens-health/calendar")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center" title="Log past periods">
-              <CalendarDays className="w-4 h-4 text-muted-foreground" />
-            </button>
-            <button onClick={() => navigate("/womens-health/history")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center" title="Cycle history">
-              <History className="w-4 h-4 text-muted-foreground" />
-            </button>
-          </div>
+          <button onClick={() => navigate("/womens-health/history")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
+            <History className="w-4 h-4 text-muted-foreground" />
+          </button>
         )}
       </div>
 
@@ -386,6 +381,7 @@ function CycleDashboard({ data, showLog, onShowLog }: {
   onShowLog: (v: boolean) => void;
 }) {
   const logDay = useLogCycleDay();
+  const [, navigate] = useLocation();
   const todayStr = new Date().toISOString().split("T")[0];
 
   // selectedDate drives which 5 months are loaded — TanStack caches by month key
@@ -411,10 +407,14 @@ function CycleDashboard({ data, showLog, onShowLog }: {
     [todayStr]
   );
 
+  // cycleInfoReady transitions false→true when data finishes loading and the strip is rendered.
+  // Using [] would run the effect before the strip exists (data still loading → early return null).
+  const cycleInfoReady = !!(data?.cycleInfo);
   useEffect(() => {
-    const el = stripRef.current;
-    if (el) el.scrollLeft = BACK_DAYS * CHIP_W;
-  }, []);
+    if (stripRef.current) {
+      stripRef.current.scrollLeft = BACK_DAYS * CHIP_W;
+    }
+  }, [cycleInfoReady]);
 
   if (!data?.isSetUp || !data.settings) return null;
   const { cycleInfo, todayLog, settings } = data;
@@ -554,6 +554,19 @@ function CycleDashboard({ data, showLog, onShowLog }: {
         </div>
       </div>
 
+      {/* ── Back to today pill — appears when strip is scrolled away from today ── */}
+      {!isToday && (
+        <div className="flex justify-center mb-2">
+          <button
+            onClick={() => selectAndScroll(todayStr, BACK_DAYS)}
+            className="px-4 py-1.5 rounded-full text-xs font-bold transition active:scale-95"
+            style={{ background: "rgba(var(--glow-rgb),0.15)", color: "var(--accent)", border: "1px solid rgba(var(--glow-rgb),0.3)" }}
+          >
+            ← Back to today
+          </button>
+        </div>
+      )}
+
       {/* ── Cycle ring ── */}
       <div className="flex items-center justify-center mb-4">
         <CycleRingInline
@@ -582,6 +595,19 @@ function CycleDashboard({ data, showLog, onShowLog }: {
           {todayLog ? "✏️ Edit today's log" : "🌸 Log today's symptoms & flow"}
         </button>
       )}
+
+      {/* ── Log period button — always visible, opens full calendar for past period logging ── */}
+      <button
+        onClick={() => navigate("/womens-health/calendar")}
+        className="w-full mb-4 py-3 rounded-2xl text-sm font-bold transition active:scale-95"
+        style={{
+          background: "rgba(244,63,94,0.08)",
+          color: "#f43f5e",
+          border: "1.5px solid rgba(244,63,94,0.25)",
+        }}
+      >
+        📅 Log period
+      </button>
 
       {/* ── Day detail ── */}
       <DayDetailInline

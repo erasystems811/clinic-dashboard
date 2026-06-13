@@ -366,7 +366,7 @@ export async function sendCarePlanEmail(
     );
 
     const html = wrapHtml(
-      `<p>${emailBody.replace(/\n/g, "</p><p>")}</p>`,
+      `<p>${emailBody.replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>")}</p>`,
       hCtx.hospitalName,
     );
 
@@ -380,6 +380,7 @@ export async function sendCarePlanEmail(
 
     await updateAutomationLog(logId, "sent", `Care plan email → ${patientEmail}`);
     try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(emailBody)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "care_plan", "Your care plan has started", `${hCtx.hospitalName} has sent you a care plan summary.`, { hospitalId, hospitalName: hCtx.hospitalName }); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendCarePlanEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -936,6 +937,7 @@ export async function sendCareVisitReminderEmail(
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: bookingUrl2 ? `${message}\n\nBook an appointment online: ${bookingUrl2}` : message });
     await updateAutomationLog(logId, "sent");
     try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(message)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "treatment_reminder", `${department} appointment reminder`, `You have a ${department} appointment on ${formatted}${timeStr}.`, { hospitalId, hospitalName: hCtx.hospitalName, department, visitDate, visitTime }); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendCareVisitReminderEmail] failed:", msg, { hospitalId, patientId, patientEmail });
@@ -1571,6 +1573,7 @@ export async function sendInCareAIReminder(
 
     await updateAutomationLog(logId, "sent", `In-care ${slot} reminder (${deptLabel}) → ${patientEmail}`);
     try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(message)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "treatment_reminder", `${greetings[slot]}, ${firstName} — ${deptLabel} reminder`, `${hCtx.hospitalName} sent you a care reminder.`, { hospitalId, hospitalName: hCtx.hospitalName, slot, department: deptLabel }); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendInCareAIReminder] failed:", msg, { hospitalId, patientId, patientEmail, slot, deptLabel });
@@ -1809,6 +1812,8 @@ export async function sendStoredCarePlanReminder(
       text: bookingUrl ? `${message}\n\nBook an appointment online: ${bookingUrl}` : message,
     });
     await updateAutomationLog(logId, "sent", `In-care ${slot} reminder (pre-generated, ${deptLabel}) → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(message)); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "treatment_reminder", `${greetings[slot]}, ${firstName} — ${deptLabel} reminder`, `${hCtx.hospitalName} sent you a care reminder.`, { hospitalId, hospitalName: hCtx.hospitalName, slot, department: deptLabel }); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendStoredCarePlanReminder] failed:", msg, { hospitalId, patientId, patientEmail, slot, deptLabel });

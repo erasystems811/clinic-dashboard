@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { ArrowLeft, Send, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
@@ -36,9 +36,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [optimisticMessages, setOptimisticMessages] = useState<{ role: "user" | "assistant"; content: string; temp?: boolean; created_at: string }[]>([]);
   const [failedText, setFailedText] = useState<string | null>(null);
-  const [keyboardInset, setKeyboardInset] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { applyCompanionTheme, restoreAppTheme } = useAuth();
 
   useEffect(() => {
@@ -67,20 +67,38 @@ export default function ChatPage() {
     }
   }, [isLoading, entry?.messages, refetch]);
 
+  // Resize the fixed container to exactly match the visual viewport on every frame.
+  // This is the only reliable way to keep the chat static while the keyboard
+  // slides in/out — no React state, no layout shift, no re-render lag.
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    let prevH = vv.height;
+
     function update() {
-      setKeyboardInset(Math.max(0, window.innerHeight - vv!.offsetTop - vv!.height));
+      const el = containerRef.current;
+      if (!el) return;
+      const h = vv!.height;
+      const t = vv!.offsetTop;
+      el.style.height = `${h}px`;
+      el.style.top    = `${t}px`;
+      el.style.bottom = "auto";
+      if (h < prevH) {
+        // Keyboard just opened — snap to latest message immediately
+        bottomRef.current?.scrollIntoView({ behavior: "instant" });
+      }
+      prevH = h;
     }
+
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
-    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
-  }, []);
+    update(); // apply on mount
 
-  useEffect(() => {
-    if (keyboardInset > 0) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [keyboardInset]);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, []);
 
   const messages = entry?.messages ?? [];
   const allMessages = [
@@ -145,7 +163,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div style={rootStyle}>
+    <div ref={containerRef} style={rootStyle}>
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-card shrink-0">
         <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
@@ -236,9 +254,8 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input — paddingBottom lifts textarea above keyboard on iOS */}
-      <div className="px-4 py-3 border-t border-border bg-card shrink-0 safe-bottom"
-        style={keyboardInset > 0 ? { paddingBottom: keyboardInset } : undefined}>
+      {/* Input */}
+      <div className="px-4 py-3 border-t border-border bg-card shrink-0 safe-bottom">
         <div className="flex gap-2 items-end">
           <textarea
             ref={textareaRef}

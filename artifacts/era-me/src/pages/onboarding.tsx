@@ -56,7 +56,6 @@ export default function OnboardingPage() {
 
   function handleThemeSelect(id: string) {
     setThemeColor(id);
-    // Live preview — apply theme immediately
     updateAccount({ themeColor: id, darkMode });
   }
 
@@ -106,10 +105,10 @@ export default function OnboardingPage() {
       {/* Progress */}
       <div className="relative z-10 mb-8">
         <div className="flex justify-between text-xs font-medium mb-2">
-          <span style={{ color: "rgba(255,255,255,0.4)" }}>Step {step} of 5</span>
+          <span style={{ color: "var(--text-dim)" }}>Step {step} of 5</span>
           <span style={{ color: "var(--accent)" }}>{pct}%</span>
         </div>
-        <div className="h-1 rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+        <div className="h-1 rounded-full" style={{ background: "var(--glass-track)" }}>
           <div className="h-full rounded-full transition-all duration-500"
             style={{ width: `${pct}%`, background: "var(--btn-gradient)", boxShadow: `0 0 8px rgba(var(--glow-rgb),0.6)` }} />
         </div>
@@ -123,23 +122,23 @@ export default function OnboardingPage() {
           <div className="flex-1 flex flex-col">
             <div className="mb-10">
               <p className="text-5xl mb-5">👋</p>
-              <h1 className="text-3xl font-bold text-white mb-3">Welcome to ERA Health</h1>
-              <p className="text-base leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+              <h1 className="text-3xl font-bold mb-3" style={{ color: "var(--text-main)" }}>Welcome to ERA Health</h1>
+              <p className="text-base leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 Let's personalise the app just for you. First — what should we call you?
               </p>
             </div>
             <div className="flex-1">
-              <label className="text-sm font-medium block mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>
+              <label className="text-sm font-medium block mb-2" style={{ color: "var(--text-sub)" }}>
                 Your name or nickname
               </label>
               <input type="text" autoFocus maxLength={40} value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="e.g. Chidi"
                 onKeyDown={(e) => { if (e.key === "Enter" && displayName.trim()) setStep(2); }}
-                className="w-full px-4 py-4 rounded-2xl text-white text-lg font-medium outline-none transition"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", caretColor: "var(--accent)" }}
+                className="w-full px-4 py-4 rounded-2xl text-lg font-medium outline-none transition"
+                style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)", caretColor: "var(--accent)" }}
                 onFocus={(e) => (e.target.style.borderColor = `rgba(var(--glow-rgb),0.5)`)}
-                onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.12)")}
+                onBlur={(e) => (e.target.style.borderColor = "var(--glass-border)")}
               />
             </div>
             <NavBtn onClick={() => setStep(2)} disabled={!displayName.trim()}>
@@ -152,39 +151,39 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div className="flex-1 flex flex-col">
             <div className="mb-7">
-              <h1 className="text-3xl font-bold text-white mb-2">About you, {displayName}</h1>
-              <p className="text-base leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>About you, {displayName}</h1>
+              <p className="text-base leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 Your age and gender help us give you relevant guidance.
               </p>
             </div>
             <div className="flex-1 space-y-6">
               <div>
-                <p className="text-sm font-semibold mb-1 text-white">
+                <p className="text-sm font-semibold mb-1" style={{ color: "var(--text-main)" }}>
                   Date of birth <span className="text-xs font-normal" style={{ color: "var(--accent)" }}>required</span>
                 </p>
-                <p className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>
+                <p className="text-xs mb-3" style={{ color: "var(--text-dim)" }}>
                   Your age shapes your wellness recommendations.
                 </p>
                 <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)}
                   max={new Date().toISOString().split("T")[0]}
-                  className="w-full px-4 py-3.5 rounded-2xl text-white outline-none transition"
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", colorScheme: "dark" }}
+                  className="w-full px-4 py-3.5 rounded-2xl outline-none transition"
+                  style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)", colorScheme: "dark" }}
                   onFocus={(e) => (e.target.style.borderColor = `rgba(var(--glow-rgb),0.5)`)}
-                  onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.12)")}
+                  onBlur={(e) => (e.target.style.borderColor = "var(--glass-border)")}
                 />
               </div>
               <div>
-                <p className="text-sm font-semibold mb-3 text-white">
-                  Gender <span className="text-xs font-normal" style={{ color: "rgba(255,255,255,0.35)" }}>optional</span>
+                <p className="text-sm font-semibold mb-3" style={{ color: "var(--text-main)" }}>
+                  Gender <span className="text-xs font-normal" style={{ color: "var(--text-dim)" }}>optional</span>
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   {GENDERS.map((g) => (
                     <button key={g.value} onClick={() => setGender(gender === g.value ? "" : g.value)}
                       className="py-3 px-4 rounded-2xl text-sm font-semibold transition active:scale-95"
                       style={{
-                        background: gender === g.value ? `rgba(var(--glow-rgb),0.2)` : "rgba(255,255,255,0.05)",
-                        border: gender === g.value ? `1.5px solid rgba(var(--glow-rgb),0.6)` : "1.5px solid rgba(255,255,255,0.08)",
-                        color: gender === g.value ? "var(--accent)" : "rgba(255,255,255,0.55)",
+                        background: gender === g.value ? `rgba(var(--glow-rgb),0.2)` : "var(--glass-bg)",
+                        border: gender === g.value ? `1.5px solid rgba(var(--glow-rgb),0.6)` : "1.5px solid var(--glass-border)",
+                        color: gender === g.value ? "var(--accent)" : "var(--text-sub)",
                       }}>
                       {g.label}
                     </button>
@@ -202,8 +201,8 @@ export default function OnboardingPage() {
         {step === 3 && (
           <div className="flex-1 flex flex-col">
             <div className="mb-5">
-              <h1 className="text-3xl font-bold text-white mb-2">Your health goals</h1>
-              <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Your health goals</h1>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 Pick what matters most — we'll activate the right modules to get you started.
               </p>
             </div>
@@ -214,8 +213,8 @@ export default function OnboardingPage() {
                   <button key={g.id} onClick={() => toggleGoal(g.id)}
                     className="relative p-4 rounded-2xl text-left transition active:scale-95 overflow-hidden"
                     style={{
-                      background: on ? `${g.accent}15` : "rgba(255,255,255,0.04)",
-                      border: on ? `1.5px solid ${g.accent}55` : "1.5px solid rgba(255,255,255,0.07)",
+                      background: on ? `${g.accent}15` : "var(--glass-bg)",
+                      border: on ? `1.5px solid ${g.accent}55` : "1.5px solid var(--glass-border)",
                       boxShadow: on ? `0 4px 16px ${g.accent}18` : "none",
                     }}>
                     {on && (
@@ -226,7 +225,7 @@ export default function OnboardingPage() {
                     )}
                     <p className="text-2xl mb-2">{g.emoji}</p>
                     <p className="text-sm font-bold leading-tight"
-                      style={{ color: on ? "#fff" : "rgba(255,255,255,0.55)" }}>
+                      style={{ color: on ? "var(--text-main)" : "var(--text-sub)" }}>
                       {g.label}
                     </p>
                   </button>
@@ -244,8 +243,8 @@ export default function OnboardingPage() {
           <div className="flex-1 flex flex-col">
             <div className="mb-5">
               <p className="text-4xl mb-4">🎨</p>
-              <h1 className="text-3xl font-bold text-white mb-2">Pick your colour</h1>
-              <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Pick your colour</h1>
+              <p className="text-sm leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 This transforms the entire look of your app — backgrounds, glows, everything. You can change it later in Profile.
               </p>
             </div>
@@ -259,7 +258,7 @@ export default function OnboardingPage() {
                     className="flex flex-col items-center gap-2 active:scale-90 transition">
                     <div className="relative w-14 h-14 rounded-2xl"
                       style={{ background: t.bg, boxShadow: selected ? `0 0 16px ${t.accent}80` : "none",
-                        border: selected ? `2.5px solid ${t.accent}` : "2px solid rgba(255,255,255,0.1)" }}>
+                        border: selected ? `2.5px solid ${t.accent}` : "2px solid var(--glass-border)" }}>
                       {selected && (
                         <div className="absolute inset-0 flex items-center justify-center">
                           <Check className="w-5 h-5 text-white" strokeWidth={3} />
@@ -268,7 +267,7 @@ export default function OnboardingPage() {
                       {!selected && <span className="absolute inset-0 flex items-center justify-center text-xl">{t.emoji}</span>}
                     </div>
                     <span className="text-[11px] font-semibold"
-                      style={{ color: selected ? "var(--accent)" : "rgba(255,255,255,0.5)" }}>
+                      style={{ color: selected ? "var(--accent)" : "var(--text-sub)" }}>
                       {t.label}
                     </span>
                   </button>
@@ -278,16 +277,16 @@ export default function OnboardingPage() {
 
             {/* Dark / Light toggle */}
             <div className="rounded-2xl p-4 mb-4"
-              style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <p className="text-sm font-semibold text-white mb-3">Brightness</p>
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+              <p className="text-sm font-semibold mb-3" style={{ color: "var(--text-main)" }}>Brightness</p>
               <div className="grid grid-cols-2 gap-2">
                 {([true, false] as const).map((dark) => (
                   <button key={String(dark)} onClick={() => handleDarkToggle(dark)}
                     className="py-3 rounded-xl text-sm font-bold transition active:scale-95"
                     style={{
-                      background: darkMode === dark ? `rgba(var(--glow-rgb),0.2)` : "rgba(255,255,255,0.05)",
-                      border: darkMode === dark ? `1.5px solid rgba(var(--glow-rgb),0.5)` : "1.5px solid rgba(255,255,255,0.08)",
-                      color: darkMode === dark ? "var(--accent)" : "rgba(255,255,255,0.5)",
+                      background: darkMode === dark ? `rgba(var(--glow-rgb),0.2)` : "var(--glass-bg)",
+                      border: darkMode === dark ? `1.5px solid rgba(var(--glow-rgb),0.5)` : "1.5px solid var(--glass-border)",
+                      color: darkMode === dark ? "var(--accent)" : "var(--text-sub)",
                     }}>
                     {dark ? "🌙 Dark" : "☀️ Light"}
                   </button>
@@ -299,7 +298,7 @@ export default function OnboardingPage() {
             <div className="rounded-xl p-3 mb-3 flex items-center gap-3"
               style={{ background: "var(--glass-bg)", border: "1px solid var(--accent-tint-border)" }}>
               <span style={{ fontSize: 20 }}>✨</span>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", fontWeight: 500, lineHeight: 1.4 }}>
+              <p style={{ fontSize: 12, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.4 }}>
                 The whole app is now previewing your chosen colour — swipe between colours to see it live.
               </p>
             </div>
@@ -314,8 +313,8 @@ export default function OnboardingPage() {
         {step === 5 && (
           <div className="flex-1 flex flex-col">
             <div className="mb-7">
-              <h1 className="text-3xl font-bold text-white mb-2">Your daily schedule</h1>
-              <p className="text-base leading-relaxed" style={{ color: "rgba(255,255,255,0.5)" }}>
+              <h1 className="text-3xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Your daily schedule</h1>
+              <p className="text-base leading-relaxed" style={{ color: "var(--text-sub)" }}>
                 We use this for your sleep tracker and reminder timings.
               </p>
             </div>
@@ -367,13 +366,13 @@ function NavBtn({ onClick, disabled, children }: { onClick: () => void; disabled
 
 function TimeCard({ emoji, label, value, onChange }: { emoji: string; label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <div className="rounded-2xl p-4 overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
-      <p className="text-sm font-medium mb-3" style={{ color: "rgba(255,255,255,0.55)" }}>{emoji} {label}</p>
+    <div className="rounded-2xl p-4 overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+      <p className="text-sm font-medium mb-3" style={{ color: "var(--text-sub)" }}>{emoji} {label}</p>
       <input type="time" value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 rounded-xl text-white font-bold text-xl outline-none transition min-w-0"
-        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", colorScheme: "dark", boxSizing: "border-box" }}
+        className="w-full px-4 py-3 rounded-xl font-bold text-xl outline-none transition min-w-0"
+        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)", colorScheme: "dark", boxSizing: "border-box" }}
         onFocus={(e) => (e.target.style.borderColor = `rgba(var(--glow-rgb),0.5)`)}
-        onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.12)")} />
+        onBlur={(e) => (e.target.style.borderColor = "var(--glass-border)")} />
     </div>
   );
 }

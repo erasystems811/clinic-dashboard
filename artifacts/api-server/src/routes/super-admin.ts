@@ -2159,7 +2159,7 @@ router.post("/super-admin/rag/upload", requireSuperAdmin, async (req, res): Prom
       res.status(400).json({ error: "title, category and content are required" }); return;
     }
     const result = await storeDocument({ title, category, source, content, uploadedBy: "super-admin" });
-    res.json({ ok: true, chunks: result.chunks });
+    res.json({ ok: true, chunks: result.chunks, title });
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : "Upload failed" });
   }
@@ -2168,10 +2168,10 @@ router.post("/super-admin/rag/upload", requireSuperAdmin, async (req, res): Prom
 router.get("/super-admin/rag/documents", requireSuperAdmin, async (_req, res): Promise<void> => {
   const { data } = await supabase
     .from("rag_documents")
-    .select("id, title, category, source, chunk_index, uploaded_by, created_at")
+    .select("id, title, category, source, chunk_index, content, created_at")
     .order("created_at", { ascending: false })
     .limit(200);
-  res.json({ documents: data ?? [] });
+  res.json({ documents: data ?? [], total: (data ?? []).length });
 });
 
 router.delete("/super-admin/rag/documents/:title", requireSuperAdmin, async (req, res): Promise<void> => {
@@ -2186,8 +2186,9 @@ router.delete("/super-admin/rag/documents/:title", requireSuperAdmin, async (req
 router.post("/super-admin/rag/test", requireSuperAdmin, async (req, res): Promise<void> => {
   try {
     const { query, category } = req.body as { query: string; category?: string };
-    const chunks = await retrieve(query, (category as "weightloss" | "any" | undefined) ?? "any");
-    res.json({ chunks });
+    type RagCat = "weightloss" | "psychology" | "nutrition" | "fitness" | "general" | "any";
+    const results = await retrieve(query, (category as RagCat | undefined) ?? "any");
+    res.json({ query, category: category ?? "any", results });
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : "Error" });
   }

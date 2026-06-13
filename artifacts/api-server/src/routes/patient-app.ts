@@ -333,6 +333,7 @@ router.patch("/patient-app/me", async (req, res): Promise<void> => {
 
   const body = z.object({
     displayName: z.string().max(60).optional(),
+    username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers and underscores").optional(),
     gender: z.string().optional(),
     dateOfBirth: z.string().optional(),
     background: z.string().optional(),
@@ -351,6 +352,13 @@ router.patch("/patient-app/me", async (req, res): Promise<void> => {
   if (body.data.background !== undefined) updates.background = body.data.background;
   if (body.data.themeColor !== undefined) updates.theme_color = body.data.themeColor;
   if (body.data.darkMode !== undefined) updates.dark_mode = body.data.darkMode;
+
+  if (body.data.username !== undefined) {
+    const newUsername = body.data.username.toLowerCase();
+    const { data: taken } = await supabase.from("patient_accounts").select("id").eq("username", newUsername).neq("id", account.id).maybeSingle();
+    if (taken) { res.status(409).json({ error: "That username is already taken. Please choose another." }); return; }
+    updates.username = newUsername;
+  }
 
   if (body.data.newPassword) {
     if (!body.data.currentPassword) { res.status(400).json({ error: "Current password required to set a new password" }); return; }

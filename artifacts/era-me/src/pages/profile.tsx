@@ -86,6 +86,18 @@ export default function ProfilePage() {
   const [pwdLoading, setPwdLoading] = useState(false);
   const pwdSheetRef = useRef<HTMLDivElement>(null);
 
+  const [showUsername, setShowUsername] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameOk, setUsernameOk] = useState(false);
+  const [usernameLoading, setUsernameLoading] = useState(false);
+
+  const [showNickname, setShowNickname] = useState(false);
+  const [newNickname, setNewNickname] = useState("");
+  const [nicknameError, setNicknameError] = useState("");
+  const [nicknameOk, setNicknameOk] = useState(false);
+  const [nicknameLoading, setNicknameLoading] = useState(false);
+
   // Push the password sheet above the keyboard on iOS
   useEffect(() => {
     if (!showPwd) return;
@@ -123,6 +135,40 @@ export default function ProfilePage() {
       const msg = e instanceof Error ? e.message : "Something went wrong";
       setPwdError(msg.includes("{") ? "Current password is incorrect" : msg);
     } finally { setPwdLoading(false); }
+  }
+
+  async function handleChangeUsername() {
+    setUsernameError("");
+    const val = newUsername.trim().toLowerCase();
+    if (!val) { setUsernameError("Please enter a username"); return; }
+    if (val.length < 3) { setUsernameError("Username must be at least 3 characters"); return; }
+    if (!/^[a-zA-Z0-9_]+$/.test(val)) { setUsernameError("Only letters, numbers and underscores allowed"); return; }
+    if (val === account?.username) { setUsernameError("That's already your username"); return; }
+    setUsernameLoading(true);
+    try {
+      await apiFetch("/api/patient-app/me", { method: "PATCH", auth: true, body: JSON.stringify({ username: val }) });
+      updateAccount({ username: val });
+      setUsernameOk(true);
+      setTimeout(() => { setShowUsername(false); setUsernameOk(false); setNewUsername(""); }, 1500);
+    } catch (e: unknown) {
+      setUsernameError(e instanceof Error ? e.message : "Something went wrong");
+    } finally { setUsernameLoading(false); }
+  }
+
+  async function handleChangeNickname() {
+    setNicknameError("");
+    const val = newNickname.trim();
+    if (!val) { setNicknameError("Please enter a nickname"); return; }
+    if (val.length > 60) { setNicknameError("Nickname is too long"); return; }
+    setNicknameLoading(true);
+    try {
+      await apiFetch("/api/patient-app/me", { method: "PATCH", auth: true, body: JSON.stringify({ displayName: val }) });
+      updateAccount({ displayName: val });
+      setNicknameOk(true);
+      setTimeout(() => { setShowNickname(false); setNicknameOk(false); setNewNickname(""); }, 1500);
+    } catch (e: unknown) {
+      setNicknameError(e instanceof Error ? e.message : "Something went wrong");
+    } finally { setNicknameLoading(false); }
   }
 
   async function handleTheme(color: ThemeId) {
@@ -280,6 +326,8 @@ export default function ProfilePage() {
       {/* Account settings */}
       <Section title="Account">
         <div className="space-y-1">
+          <SettingsRow label="Change Username" sublabel={`@${account.username}`} onClick={() => { setUsernameError(""); setUsernameOk(false); setNewUsername(""); setShowUsername(true); }} />
+          <SettingsRow label="Change Nickname" sublabel={account.displayName ?? "Not set"} onClick={() => { setNicknameError(""); setNicknameOk(false); setNewNickname(account.displayName ?? ""); setShowNickname(true); }} />
           <SettingsRow label="Change Password" onClick={() => { setPwdError(""); setPwdOk(false); setShowPwd(true); }} />
           <SettingsRow label="Send Feedback" sublabel="Rate the app or report an issue" onClick={() => { setFbDone(false); setShowFeedback(true); }} />
           <SettingsRow label="Notification Settings" onClick={() => navigate("/notification-settings")} />
@@ -372,6 +420,75 @@ export default function ProfilePage() {
                 </button>
               </>
             )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Change username modal */}
+    {showUsername && (
+      <div className="fixed inset-0 z-50 flex items-end justify-center"
+        style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
+        <div className="w-full max-w-md rounded-t-3xl flex flex-col"
+          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "90dvh" }}>
+          <div className="flex items-center justify-between px-6 pt-5 pb-4 shrink-0"
+            style={{ borderBottom: "1px solid var(--glass-border)" }}>
+            <p className="font-bold text-base" style={{ color: "var(--text-main)" }}>Change Username</p>
+            <button onClick={() => setShowUsername(false)} className="text-xl leading-none" style={{ color: "var(--text-dim)" }}>✕</button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain" }}>
+            <p className="text-xs mb-3" style={{ color: "var(--text-sub)" }}>
+              Current: <span className="font-semibold" style={{ color: "var(--text-main)" }}>@{account.username}</span>
+            </p>
+            <input
+              type="text" autoFocus maxLength={30}
+              value={newUsername} onChange={(e) => setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+              placeholder="new_username"
+              className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }}
+            />
+            <p className="text-xs mt-2" style={{ color: "var(--text-dim)" }}>Letters, numbers and underscores only · 3–30 characters</p>
+            {usernameError && <p className="text-xs mt-3 font-medium" style={{ color: "#f87171" }}>{usernameError}</p>}
+            {usernameOk && <p className="text-xs mt-3 font-medium" style={{ color: "#4ade80" }}>Username updated!</p>}
+            <button onClick={() => { void handleChangeUsername(); }}
+              disabled={usernameLoading || !newUsername.trim()}
+              className="w-full mt-5 py-3.5 rounded-2xl font-bold text-sm transition active:scale-95"
+              style={{ background: "var(--accent)", color: "#fff", opacity: usernameLoading || !newUsername.trim() ? 0.5 : 1 }}>
+              {usernameLoading ? "Saving…" : "Update Username"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Change nickname modal */}
+    {showNickname && (
+      <div className="fixed inset-0 z-50 flex items-end justify-center"
+        style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
+        <div className="w-full max-w-md rounded-t-3xl flex flex-col"
+          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "90dvh" }}>
+          <div className="flex items-center justify-between px-6 pt-5 pb-4 shrink-0"
+            style={{ borderBottom: "1px solid var(--glass-border)" }}>
+            <p className="font-bold text-base" style={{ color: "var(--text-main)" }}>Change Nickname</p>
+            <button onClick={() => setShowNickname(false)} className="text-xl leading-none" style={{ color: "var(--text-dim)" }}>✕</button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain" }}>
+            <p className="text-xs mb-3" style={{ color: "var(--text-sub)" }}>This is the name shown across the app.</p>
+            <input
+              type="text" autoFocus maxLength={60}
+              value={newNickname} onChange={(e) => setNewNickname(e.target.value)}
+              placeholder="Your display name"
+              className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }}
+            />
+            {nicknameError && <p className="text-xs mt-3 font-medium" style={{ color: "#f87171" }}>{nicknameError}</p>}
+            {nicknameOk && <p className="text-xs mt-3 font-medium" style={{ color: "#4ade80" }}>Nickname updated!</p>}
+            <button onClick={() => { void handleChangeNickname(); }}
+              disabled={nicknameLoading || !newNickname.trim()}
+              className="w-full mt-5 py-3.5 rounded-2xl font-bold text-sm transition active:scale-95"
+              style={{ background: "var(--accent)", color: "#fff", opacity: nicknameLoading || !newNickname.trim() ? 0.5 : 1 }}>
+              {nicknameLoading ? "Saving…" : "Update Nickname"}
+            </button>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 // Platform-agnostic health tracking interface.
 // Web uses DeviceMotionEvent + Page Visibility API.
 // Native (Capacitor) uses Health Connect (Android) + HealthKit (iOS).
+import { WebHealthTracker } from './web-health-tracker';
 
 export type ActivityType = 'still' | 'walking' | 'running' | 'cycling' | 'unknown';
 export type SleepQuality = 'good' | 'fair' | 'poor';
@@ -39,12 +40,6 @@ export function isCapacitorNative(): boolean {
 }
 
 export function createTracker(): HealthTracker {
-  if (isCapacitorNative()) {
-    // When adding Capacitor: replace this with NativeHealthTracker
-    // import { NativeHealthTracker } from './native-health-tracker';
-    // return new NativeHealthTracker();
-  }
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { WebHealthTracker } = require('./web-health-tracker') as { WebHealthTracker: new () => HealthTracker };
+  // When adding Capacitor native: import NativeHealthTracker and return it here
   return new WebHealthTracker();
 }

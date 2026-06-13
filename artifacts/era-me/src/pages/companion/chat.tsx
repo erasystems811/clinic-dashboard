@@ -36,6 +36,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [optimisticMessages, setOptimisticMessages] = useState<{ role: "user" | "assistant"; content: string; temp?: boolean; created_at: string }[]>([]);
   const [failedText, setFailedText] = useState<string | null>(null);
+  const [keyboardInset, setKeyboardInset] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { applyCompanionTheme, restoreAppTheme } = useAuth();
@@ -57,6 +58,21 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [optimisticMessages, entry?.messages]);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function update() {
+      setKeyboardInset(Math.max(0, window.innerHeight - vv!.offsetTop - vv!.height));
+    }
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, []);
+
+  useEffect(() => {
+    if (keyboardInset > 0) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [keyboardInset]);
 
   const messages = entry?.messages ?? [];
   const allMessages = [
@@ -107,7 +123,7 @@ export default function ChatPage() {
     }
   }
 
-  const pageStyle = { background: "var(--bg-base)", minHeight: "100vh" } as const;
+  const pageStyle = { background: "var(--bg-base)" } as const;
 
   if (isLoading) return (
     <div style={pageStyle} className="flex items-center justify-center">
@@ -116,7 +132,7 @@ export default function ChatPage() {
   );
 
   return (
-    <div style={pageStyle} className="flex flex-col h-screen max-h-screen">
+    <div style={{ ...pageStyle, display: "flex", flexDirection: "column", height: "calc(100% - 80px)", overflow: "hidden" }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-card shrink-0">
         <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
@@ -193,7 +209,8 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="px-4 py-3 border-t border-border bg-card shrink-0 safe-bottom">
+      <div className="px-4 py-3 border-t border-border bg-card shrink-0 safe-bottom"
+        style={keyboardInset > 0 ? { paddingBottom: 12 + keyboardInset } : undefined}>
         <div className="flex gap-2 items-end">
           <textarea
             ref={textareaRef}

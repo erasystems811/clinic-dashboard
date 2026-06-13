@@ -472,6 +472,7 @@ function BookingPage({ connection, onBack }: { connection: HospitalConnection; o
 // ── Hospital chat page ─────────────────────────────────────────────────────────
 function HospitalChatPage({ connection, onBack }: { connection: HospitalConnection; onBack: () => void }) {
   const [message, setMessage] = useState("");
+  const [keyboardInset, setKeyboardInset] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const { data: messages = [], isLoading } = useHospitalMessages(connection.connectionId);
@@ -481,6 +482,21 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function update() {
+      setKeyboardInset(Math.max(0, window.innerHeight - vv!.offsetTop - vv!.height));
+    }
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, []);
+
+  useEffect(() => {
+    if (keyboardInset > 0) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [keyboardInset]);
+
   function handleSend() {
     const text = message.trim();
     if (!text || sendMessage.isPending) return;
@@ -489,7 +505,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100% - 80px)", overflow: "hidden" }}>
       <div className="px-4 pt-6 pb-4 flex items-center gap-3 shrink-0"
         style={{ borderBottom: "1px solid var(--glass-border)" }}>
         <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-xl active:scale-90 transition"
@@ -538,7 +554,8 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
         <div ref={bottomRef} />
       </div>
 
-      <div className="px-4 py-4 shrink-0" style={{ borderTop: "1px solid var(--glass-border)" }}>
+      <div className="px-4 shrink-0"
+        style={{ borderTop: "1px solid var(--glass-border)", paddingTop: 16, paddingBottom: 16 + keyboardInset }}>
         <div className="flex items-end gap-2">
           <textarea
             value={message}

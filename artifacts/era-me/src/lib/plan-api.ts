@@ -57,8 +57,8 @@ export function useCurrentPlan(weekStart?: string) {
     queryFn: () => get<{ weekStart: string; plan: WeekPlan; generatedAt: string }>(
       `${BASE}/current${weekStart ? `?weekStart=${weekStart}` : ""}`
     ),
-    staleTime: weekStart ? 10 * 60 * 1000 : 0,
-    refetchOnMount: weekStart ? false : "always",
+    staleTime: weekStart ? 10 * 60 * 1000 : 30_000,
+    refetchOnMount: weekStart ? false : true,
   });
 }
 

@@ -37,7 +37,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 export function useWellnessToday() {
   const todayKey = new Date().toISOString().split("T")[0];
-  return useQuery({ queryKey: ["wellness", "today", todayKey], queryFn: () => get(`${BASE}/today`), staleTime: 0, refetchOnMount: "always" });
+  return useQuery({ queryKey: ["wellness", "today", todayKey], queryFn: () => get(`${BASE}/today`), staleTime: 30_000 });
 }
 
 export function useWellnessModules() {
@@ -85,8 +85,7 @@ export function useWeekSummary() {
   return useQuery<WeekSummary>({
     queryKey: ["wellness", "summary"],
     queryFn: () => get<WeekSummary>(`${BASE}/week-summary`),
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 30_000,
   });
 }
 
@@ -114,7 +113,7 @@ export function useUpcomingEvents() {
   return useQuery<{ events: UpcomingEvent[] }>({
     queryKey: ["wellness", "upcoming-events"],
     queryFn: () => get<{ events: UpcomingEvent[] }>(`${BASE}/upcoming-events`),
-    staleTime: 0,
+    staleTime: 30_000,
   });
 }
 

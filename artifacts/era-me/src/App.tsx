@@ -132,6 +132,18 @@ function SectionThemeManager() {
   return null;
 }
 
+// Scroll container for section pages (body has overflow:hidden globally).
+// WLOnboarding and companion escape this via fixed inset-0 on their own roots.
+function SP({ children }: { children: ReactNode }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, overflowY: "auto", background: "var(--bg-base)" }}>
+      <div style={{ maxWidth: "448px", margin: "0 auto" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function AppRoutes() {
   const { account, loading } = useAuth();
   usePageTracker();
@@ -173,20 +185,21 @@ function AppRoutes() {
     <>
     <SectionThemeManager />
     <Switch>
-      {/* Full-screen routes — no bottom nav */}
+      {/* Full-screen section routes — no bottom nav, own scroll container */}
+      {/* WLCoachPage manages its own scroll via height:100dvh */}
       <Route path="/weightloss/coach" component={WLCoachPage} />
-      <Route path="/weightloss" component={WeightLossPage} />
-      <Route path="/weightloss/today" component={WLTodayPage} />
-      <Route path="/weightloss/plan" component={WLPlanPage} />
-      <Route path="/weightloss/calculator" component={WLCalculatorPage} />
-      <Route path="/weightloss/progress" component={WLProgressPage} />
-      <Route path="/womens-health" component={WomensHealthPage} />
-      <Route path="/womens-health/calendar" component={CycleCalendarPage} />
-      <Route path="/womens-health/history" component={CycleHistoryPage} />
-      <Route path="/social" component={SocialPage} />
-      <Route path="/social/partner/:id" component={PartnerPage} />
-      <Route path="/social/group/:id" component={GroupPage} />
-      <Route path="/intimacy" component={IntimacyPage} />
+      <Route path="/weightloss"><SP><WeightLossPage /></SP></Route>
+      <Route path="/weightloss/today"><SP><WLTodayPage /></SP></Route>
+      <Route path="/weightloss/plan"><SP><WLPlanPage /></SP></Route>
+      <Route path="/weightloss/calculator"><SP><WLCalculatorPage /></SP></Route>
+      <Route path="/weightloss/progress"><SP><WLProgressPage /></SP></Route>
+      <Route path="/womens-health"><SP><WomensHealthPage /></SP></Route>
+      <Route path="/womens-health/calendar"><SP><CycleCalendarPage /></SP></Route>
+      <Route path="/womens-health/history"><SP><CycleHistoryPage /></SP></Route>
+      <Route path="/social"><SP><SocialPage /></SP></Route>
+      <Route path="/social/partner/:id"><SP><PartnerPage /></SP></Route>
+      <Route path="/social/group/:id"><SP><GroupPage /></SP></Route>
+      <Route path="/intimacy"><SP><IntimacyPage /></SP></Route>
       <Route path="/wellness/intimacy"><Redirect to="/intimacy" /></Route>
       <Route path="/companion" component={CompanionGate} />
       <Route path="/companion/journal/new" component={NewJournalPage} />

@@ -542,36 +542,44 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
   const isValid = [step0Valid, step1Valid, step2Valid, true, true][step];
 
   return (
-    <div className="min-h-screen px-5 pt-6 pb-8" style={{ background: "var(--bg-base)" }}>
-      {/* Progress bar */}
-      <div className="flex gap-1 mb-6">
-        {steps.map((_, i) => (
-          <div key={i} className="flex-1 h-1 rounded-full transition-all"
-            style={{ background: i <= step ? "var(--accent)" : "var(--glass-border)" }} />
-        ))}
+    <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+      {/* Progress bar — pinned, never scrolls */}
+      <div className="px-5 pt-6 pb-0 shrink-0">
+        <div className="flex gap-1 mb-6">
+          {steps.map((_, i) => (
+            <div key={i} className="flex-1 h-1 rounded-full transition-all"
+              style={{ background: i <= step ? "var(--accent)" : "var(--glass-border)" }} />
+          ))}
+        </div>
       </div>
 
-      {steps[step]}
+      {/* Step content — scrollable */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-4">
+        {steps[step]}
+      </div>
 
-      <div className="flex gap-3 mt-6">
-        {step > 0 && (
-          <button onClick={() => setStep((s) => s - 1)}
-            className="flex items-center gap-2 px-5 py-4 rounded-2xl font-semibold text-sm transition active:scale-95"
-            style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-sub)" }}>
-            <ArrowLeft className="w-4 h-4" /> Back
+      {/* Footer buttons — pinned at bottom */}
+      <div className="px-5 pt-2 pb-8 shrink-0">
+        <div className="flex gap-3">
+          {step > 0 && (
+            <button onClick={() => setStep((s) => s - 1)}
+              className="flex items-center gap-2 px-5 py-4 rounded-2xl font-semibold text-sm transition active:scale-95"
+              style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-sub)" }}>
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+          )}
+          <button
+            onClick={step === steps.length - 1 ? () => void handleFinish() : () => setStep((s) => s + 1)}
+            disabled={!isValid || onboard.isPending || generatePlan.isPending}
+            className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-sm text-white transition active:scale-95 disabled:opacity-50"
+            style={{ background: "var(--accent)" }}>
+            {onboard.isPending || generatePlan.isPending
+              ? "Building your plan…"
+              : step === steps.length - 1
+                ? "Build my plan"
+                : <><span>Next</span><ArrowRight className="w-4 h-4" /></>}
           </button>
-        )}
-        <button
-          onClick={step === steps.length - 1 ? () => void handleFinish() : () => setStep((s) => s + 1)}
-          disabled={!isValid || onboard.isPending || generatePlan.isPending}
-          className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-sm text-white transition active:scale-95 disabled:opacity-50"
-          style={{ background: "var(--accent)" }}>
-          {onboard.isPending || generatePlan.isPending
-            ? "Building your plan…"
-            : step === steps.length - 1
-              ? "Build my plan"
-              : <><span>Next</span><ArrowRight className="w-4 h-4" /></>}
-        </button>
+        </div>
       </div>
     </div>
   );

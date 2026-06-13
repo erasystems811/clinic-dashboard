@@ -6,7 +6,7 @@ import { useIntimacyTheme } from "@/lib/section-theme";
 import { cn } from "@/lib/utils";
 import {
   isIntimacyUnlocked, setIntimacyUnlocked, clearIntimacyUnlocked,
-  useIntimacySettings, useSetupIntimacy, useVerifyIntimacyPin, useUpdateIntimacySettings,
+  useIntimacySettings, useSetupIntimacy, useVerifyIntimacyPin, useUpdateIntimacySettings, useSaveIntimacyDob,
   useCelibacyData, useCelibacyCheckin,
   useIntimacySessions, useLogSession,
   usePositionStats,
@@ -169,7 +169,10 @@ export default function IntimacyGate() {
 
   if (isLoading || !account) return <Shell><Spinner /></Shell>;
 
-  if (!data?.ageOk) return <Shell><AgeGateScreen /></Shell>;
+  // No DOB on file → let them enter it in-app
+  if (!data?.ageOk && data?.age === null) return <Shell><DobScreen /></Shell>;
+  // DOB on file but under 18 → hard block
+  if (!data?.ageOk) return <Shell><UnderAgeScreen /></Shell>;
   if (!data?.isSetUp) return <Shell><SetupFlow /></Shell>;
   if (!unlocked) return <Shell><PinScreen accountId={account.id} onUnlock={() => setUnlocked(true)} /></Shell>;
 
@@ -184,15 +187,63 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ── Age gate ──────────────────────────────────────────────────────────────────
-function AgeGateScreen() {
+// ── DOB collection (no DOB on account yet) ───────────────────────────────────
+function DobScreen() {
+  const [, navigate] = useLocation();
+  const saveDob = useSaveIntimacyDob();
+  const [dob, setDob] = useState("");
+  const [error, setError] = useState("");
+
+  function handleSubmit() {
+    if (!dob) { setError("Please enter your date of birth"); return; }
+    const age = Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+    if (age < 18) { setError("You must be 18 or older to access this feature"); return; }
+    setError("");
+    saveDob.mutate(dob);
+  }
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+      <div className="text-5xl mb-5">🔞</div>
+      <h1 className="text-2xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Age verification</h1>
+      <p className="text-sm leading-relaxed mb-8 max-w-xs" style={{ color: "var(--text-sub)" }}>
+        This feature is for ages 18 and above. Enter your date of birth to continue.
+      </p>
+      <div className="w-full max-w-xs space-y-4">
+        <input
+          type="date"
+          value={dob}
+          onChange={(e) => { setDob(e.target.value); setError(""); }}
+          className="w-full rounded-xl px-4 py-3 text-base font-semibold outline-none text-center"
+          style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)" }}
+        />
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        {saveDob.isError && <p className="text-sm text-red-400">{(saveDob.error as Error).message}</p>}
+        <button
+          onClick={handleSubmit}
+          disabled={saveDob.isPending || !dob}
+          className="w-full py-4 rounded-2xl font-bold text-base text-white transition active:scale-95 disabled:opacity-50"
+          style={{ background: "var(--btn-gradient)" }}
+        >
+          {saveDob.isPending ? "Verifying…" : "Continue"}
+        </button>
+        <button onClick={() => navigate("/")} className="w-full py-2 text-sm" style={{ color: "var(--text-dim)" }}>
+          Go back
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Hard block for confirmed under-18 ────────────────────────────────────────
+function UnderAgeScreen() {
   const [, navigate] = useLocation();
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
       <div className="text-6xl mb-6">🔞</div>
       <h1 className="text-2xl font-bold mb-3" style={{ color: "var(--text-main)" }}>18+ Only</h1>
       <p className="text-sm leading-relaxed mb-8" style={{ color: "var(--text-sub)" }}>
-        This feature is only available to accounts aged 18 and above. Please update your date of birth in your profile settings.
+        This feature is only available to accounts aged 18 and above.
       </p>
       <button
         onClick={() => navigate("/")}

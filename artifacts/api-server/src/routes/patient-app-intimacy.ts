@@ -19,6 +19,20 @@ async function getAge(accountId: number): Promise<number | null> {
   return Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
 }
 
+// ── POST save DOB (for age gate when DOB not yet on account) ─────────────────
+router.post("/patient-app/intimacy/save-dob", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const body = z.object({ dob: z.string() }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Invalid date" }); return; }
+
+  await supabase.from("patient_accounts").update({ date_of_birth: body.data.dob }).eq("id", account.id);
+
+  const age = Math.floor((Date.now() - new Date(body.data.dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+  res.json({ ok: true, age, ageOk: age >= 18 });
+});
+
 // ── GET settings ──────────────────────────────────────────────────────────────
 router.get("/patient-app/intimacy/settings", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);

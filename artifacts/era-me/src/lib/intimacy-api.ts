@@ -93,6 +93,14 @@ export interface PartnerData {
 }
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
+export function useSaveIntimacyDob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dob: string) => apiFetch<{ ok: boolean; age: number; ageOk: boolean }>("/api/patient-app/intimacy/save-dob", { method: "POST", body: { dob } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["intimacy-settings"] }),
+  });
+}
+
 export function useIntimacySettings() {
   return useQuery({
     queryKey: ["intimacy-settings"],

@@ -7,10 +7,10 @@ import { useUnreadNotifCount } from "@/lib/hospitals-api";
 
 const NAV = [
   { href: "/",          label: "Home",      Icon: Home },
-  { href: "/wellness",  label: "Personal",  Icon: Heart },
+  { href: "/wellness",  label: "Settings",  Icon: Heart },
   { href: "/plan",      label: "Plan",      Icon: CalendarDays },
   { href: "/hospitals", label: "Hospitals", Icon: Building2 },
-  { href: "/profile",   label: "Settings",  Icon: User },
+  { href: "/profile",   label: "Profile",   Icon: User },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -41,7 +41,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     };
   }, [qc]);
 
-  const isNotifPage = location.startsWith("/notifications");
+  const hideFloatingBell = location.startsWith("/notifications") || location.startsWith("/companion");
 
   return (
     <div className="min-h-screen" style={{ background: "linear-gradient(135deg, var(--bg-base) 0%, var(--bg-mid) 50%, var(--bg-base) 100%)" }}>
@@ -51,7 +51,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </main>
 
         {/* ── Floating notification bell ── */}
-        {!isNotifPage && (
+        {!hideFloatingBell && (
           <button
             onClick={() => navigate("/notifications")}
             className="fixed z-50 active:scale-90 transition"

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import OpenAI from "openai";
 import { supabase } from "../lib/supabase.js";
 import { getPatientFromRequest, hashPassword, verifyPassword } from "../lib/patient-auth.js";
+import { buildRagContext } from "../lib/rag.js";
 
 const router: IRouter = Router();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -116,7 +117,8 @@ async function getWellnessContext(accountId: number): Promise<string> {
 function buildSystemPrompt(
   name: string, age: number | null, isBirthday: boolean,
   personality: Record<string, unknown>, recentMoods: number[],
-  wellnessContext?: string
+  wellnessContext?: string,
+  ragContext?: string
 ): string {
   const moodLabels = ["", "very sad", "down", "neutral", "good", "great"];
   const moodSummary = recentMoods.length
@@ -141,6 +143,10 @@ function buildSystemPrompt(
 
   const wellnessSection = wellnessContext ? `\n\n${name}'s wellness data (last 2 weeks):\n${wellnessContext}\n\nUse this naturally — don't read it out like a report. Weave in ONE specific observation when the moment is right. Say things like "I noticed you've been struggling with workouts lately" or "You've been so consistent with your water this week!" Make them feel seen, not tracked.` : "";
 
+  const ragSection = ragContext
+    ? `\n\nRelevant psychological knowledge (use naturally, never quote directly):\n${ragContext}`
+    : "";
+
   return `You are ERA Health's private companion — a warm, emotionally intelligent, psychologically-aware presence in ${name}'s life.
 
 ${age ? `${name} is ${age} years old.` : ""}
@@ -160,7 +166,7 @@ How you show up:
 - Brief when they're brief, expansive when they want to talk
 - You never give medical diagnoses — you are a companion, not a doctor
 - If they seem distressed, gently check in and, where appropriate, encourage them to speak to someone they trust
-- You remember what they share — each conversation builds on the last`.trim();
+- You remember what they share — each conversation builds on the last${ragSection}`.trim();
 }
 
 async function updatePersonalityAsync(
@@ -405,13 +411,14 @@ router.post("/patient-app/companion/conversation", async (req, res): Promise<voi
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const [accountInfo, settings, recentMoodLogs, wellnessCtx] = await Promise.all([
+  const [accountInfo, settings, recentMoodLogs, wellnessCtx, ragCtx] = await Promise.all([
     getAccountInfo(account.id),
     getOrCreateSettings(account.id),
     supabase.from("wellness_logs").select("data").eq("account_id", account.id)
       .eq("module_type", "mood_check").gte("log_date", (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0]; })())
       .order("log_date", { ascending: false }).limit(7),
     getWellnessContext(account.id),
+    buildRagContext("emotional wellbeing mental health support", "psychology"),
   ]);
 
   const name = (accountInfo?.display_name as string | null) || (accountInfo?.username as string) || "friend";
@@ -420,7 +427,7 @@ router.post("/patient-app/companion/conversation", async (req, res): Promise<voi
   const birthday = isBirthdayToday(dob);
   const personality = (settings?.personality as Record<string, unknown>) ?? {};
   const recentMoods = (recentMoodLogs.data ?? []).map((l) => (l.data as Record<string, number>).mood).filter(Boolean);
-  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods, wellnessCtx);
+  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods, wellnessCtx, ragCtx);
 
   // Create entry row
   const { data: entry, error: entryErr } = await supabase.from("diary_entries").insert({
@@ -478,13 +485,14 @@ router.post("/patient-app/companion/entries/:id/chat", async (req, res): Promise
   const { data: history } = await supabase
     .from("diary_messages").select("role, content").eq("entry_id", entry.id).order("created_at", { ascending: true });
 
-  const [accountInfo, settings, recentMoodLogs, wellnessCtx] = await Promise.all([
+  const [accountInfo, settings, recentMoodLogs, wellnessCtx, ragCtx] = await Promise.all([
     getAccountInfo(account.id),
     getOrCreateSettings(account.id),
     supabase.from("wellness_logs").select("data").eq("account_id", account.id)
       .eq("module_type", "mood_check").gte("log_date", (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0]; })())
       .limit(7),
     getWellnessContext(account.id),
+    buildRagContext(String(message), "psychology"),
   ]);
 
   const name = (accountInfo?.display_name as string | null) || (accountInfo?.username as string) || "friend";
@@ -493,7 +501,7 @@ router.post("/patient-app/companion/entries/:id/chat", async (req, res): Promise
   const birthday = isBirthdayToday(dob);
   const personality = (settings?.personality as Record<string, unknown>) ?? {};
   const recentMoods = (recentMoodLogs.data ?? []).map((l) => (l.data as Record<string, number>).mood).filter(Boolean);
-  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods, wellnessCtx);
+  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods, wellnessCtx, ragCtx);
 
   // Build messages array for API
   const msgs: { role: "user" | "assistant"; content: string }[] = [

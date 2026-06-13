@@ -418,7 +418,7 @@ export default function AuthPage() {
               Reset password
             </h2>
             <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>
-              Enter your email address — we'll send a reset link straight to your inbox.
+              Enter the email address you used to sign up — we'll send the reset link there.
             </p>
             <form onSubmit={handleForgot} className="space-y-4">
               <GlassInput type="email" required autoComplete="email" value={forgotUsername}

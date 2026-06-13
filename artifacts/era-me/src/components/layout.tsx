@@ -41,7 +41,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     };
   }, [qc]);
 
-  const hideFloatingBell = location.startsWith("/notifications");
+  const hideFloatingBell = location.startsWith("/notifications") || location.startsWith("/hospitals");
   // On companion chat pages move the bell up so it doesn't overlap the message input
   const bellBottom = location.startsWith("/companion") ? 148 : 76;
 

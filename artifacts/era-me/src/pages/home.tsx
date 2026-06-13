@@ -353,7 +353,12 @@ export default function HomePage() {
             {/* 2-column task grid — one card, all tasks side by side */}
             {(() => {
               const quickLogData = buildQuickLogData(mods);
-              const allItems = [...pendingItems, ...doneItems];
+              const allItems = [...checklist].sort((a, b) => {
+                if (!a.time && !b.time) return 0;
+                if (!a.time) return 1;
+                if (!b.time) return -1;
+                return a.time.localeCompare(b.time);
+              });
               return (
                 <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
@@ -361,7 +366,6 @@ export default function HomePage() {
                       const entry = quickLogData[item.id];
                       const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
                       const isRight = i % 2 === 1;
-                      const isLastRow = i >= allItems.length - 2;
                       return (
                         <Link key={item.id} href={moduleHref(item.id)}>
                           <div className="flex items-start gap-2 p-3 cursor-pointer active:scale-[0.98] transition"

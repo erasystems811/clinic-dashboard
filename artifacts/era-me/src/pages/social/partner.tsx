@@ -38,7 +38,7 @@ export default function PartnerPage() {
   if (isLoading) return <Spinner />;
   if (!data) return (
     <div className="px-5 pt-6">
-      <button onClick={() => navigate("/social")} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
+      <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
       <p className="text-muted-foreground text-sm">Partner not found.</p>
@@ -154,7 +154,7 @@ export default function PartnerPage() {
     <div className="px-5 pt-6 pb-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <button onClick={() => navigate("/social")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
+        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
           <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
         </button>
         <button onClick={openSettings} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">

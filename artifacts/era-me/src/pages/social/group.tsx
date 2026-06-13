@@ -22,7 +22,7 @@ export default function GroupPage() {
   if (isLoading) return <Spinner />;
   if (!data) return (
     <div className="px-5 pt-6">
-      <button onClick={() => navigate("/social")} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
+      <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
       <p className="text-sm text-muted-foreground">Group not found.</p>
@@ -51,7 +51,7 @@ export default function GroupPage() {
 
   return (
     <div className="px-5 pt-6 pb-8">
-      <button onClick={() => navigate("/social")} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
+      <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
 

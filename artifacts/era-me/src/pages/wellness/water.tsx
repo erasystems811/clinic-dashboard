@@ -47,7 +47,7 @@ export default function WaterPage() {
   if (!enabled || setupMode) {
     return (
       <div className="px-4 pt-6 pb-8">
-        <PageBack onClick={() => setupMode ? setSetupMode(false) : navigate("/wellness")} label={setupMode ? "Cancel" : "Back"} />
+        <PageBack onClick={() => setupMode ? setSetupMode(false) : window.history.back()} label={setupMode ? "Cancel" : "Back"} />
         <ModuleHero emoji="💧" title="Water Intake" subtitle="Set your daily hydration goal" gradient={GRADIENT} accent={ACCENT} />
 
         <GlassCard accent={ACCENT} className="mb-4">
@@ -104,7 +104,7 @@ export default function WaterPage() {
   return (
     <div className="px-4 pt-6 pb-8">
       <div className="flex items-center justify-between mb-5">
-        <PageBack onClick={() => navigate("/")} label="Home" />
+        <PageBack onClick={() => window.history.back()} label="Back" />
         <StreakBadge streak={streak} />
       </div>
 

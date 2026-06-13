@@ -48,7 +48,7 @@ export default function MoodPage() {
   if (!enabled) {
     return (
       <div className="px-4 pt-6 pb-8">
-        <PageBack onClick={() => navigate("/wellness")} label="Back" />
+        <PageBack onClick={() => window.history.back()} label="Back" />
         <ModuleHero emoji="😊" title="Daily Check-in" subtitle="Mood, energy & stress" gradient={GRADIENT} accent={ACCENT} />
         <GlassCard accent={ACCENT} className="mb-5 text-center">
           <p className="text-4xl mb-3">😊⚡🧘</p>
@@ -79,7 +79,7 @@ export default function MoodPage() {
   return (
     <div className="px-4 pt-6 pb-8">
       <div className="flex items-center justify-between mb-5">
-        <PageBack onClick={() => navigate("/")} label="Home" />
+        <PageBack onClick={() => window.history.back()} label="Back" />
         <StreakBadge streak={streak} />
       </div>
 

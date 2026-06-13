@@ -48,7 +48,7 @@ export default function ReportPage() {
     <div className="pb-16 pt-6">
       {/* ── Header ── */}
       <div className="px-4 mb-5">
-        <button onClick={() => navigate("/plan")} className="flex items-center gap-1.5 mb-5"
+        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 mb-5"
           style={{ color: "var(--text-sub)", fontSize: 13, fontWeight: 500 }}>
           <ArrowLeft className="w-4 h-4" /> Back
         </button>

@@ -64,7 +64,7 @@ export default function NotificationSettingsPage() {
     <div className="px-4 pt-5 pb-8">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => navigate("/profile")}
+        <button onClick={() => window.history.back()}
           className="p-2 rounded-xl transition active:scale-90"
           style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
           <ArrowLeft style={{ width: 18, height: 18, color: "var(--text-main)" }} />

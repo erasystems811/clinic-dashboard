@@ -191,7 +191,7 @@ export default function MedicationsPage() {
   if (!enabled || meds.length === 0) {
     return (
       <div className="px-5 pt-6 pb-8">
-        <button onClick={() => navigate("/wellness")} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
+        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
           <ArrowLeft className="w-5 h-5" />
           <span className="text-sm font-medium">Back</span>
         </button>
@@ -222,7 +222,7 @@ export default function MedicationsPage() {
 
   return (
     <div className="px-5 pt-6 pb-8">
-      <button onClick={() => navigate("/wellness")} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
+      <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
         <ArrowLeft className="w-5 h-5" />
         <span className="text-sm font-medium">Back</span>
       </button>

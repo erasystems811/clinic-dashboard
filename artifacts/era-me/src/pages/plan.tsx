@@ -152,7 +152,7 @@ export default function PlanPage() {
   if (!plan || plan.days.every(d => d.items.length === 0)) {
     return (
       <div className="px-4 pt-6 pb-8">
-        <button onClick={() => navigate("/")} className="flex items-center gap-1.5 mb-6"
+        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 mb-6"
           style={{ color: "var(--text-sub)", fontSize: 13, fontWeight: 500 }}>
           <ArrowLeft className="w-4 h-4" /> Home
         </button>
@@ -183,7 +183,7 @@ export default function PlanPage() {
 
       {/* ── Header ── */}
       <div className="px-4">
-        <button onClick={() => navigate("/")} className="flex items-center gap-1.5 mb-5"
+        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 mb-5"
           style={{ color: "var(--text-sub)", fontSize: 13, fontWeight: 500 }}>
           <ArrowLeft className="w-4 h-4" /> Home
         </button>

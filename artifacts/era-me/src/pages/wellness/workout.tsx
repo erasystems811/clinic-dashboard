@@ -93,7 +93,7 @@ export default function WorkoutPage() {
     const activeDayPlan = localDays[activeDay];
     return (
       <div className="px-5 pt-6 pb-8">
-        <button onClick={() => (setupMode ? setSetupMode(false) : navigate("/wellness"))}
+        <button onClick={() => (setupMode ? setSetupMode(false) : window.history.back())}
           className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
           <ArrowLeft className="w-5 h-5" />
           <span className="text-sm font-medium">{setupMode ? "Cancel" : "Back"}</span>
@@ -194,7 +194,7 @@ export default function WorkoutPage() {
 
   return (
     <div className="px-5 pt-6 pb-8">
-      <button onClick={() => navigate("/wellness")} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
+      <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
         <ArrowLeft className="w-5 h-5" />
         <span className="text-sm font-medium">Back</span>
       </button>

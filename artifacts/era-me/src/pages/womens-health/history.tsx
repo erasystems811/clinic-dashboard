@@ -59,7 +59,7 @@ export default function CycleHistoryPage() {
   return (
     <div className="px-5 pt-6 pb-8">
       <div className="flex items-center justify-between mb-5">
-        <button onClick={() => navigate("/womens-health")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
+        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
           <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
         </button>
         <button onClick={() => { setCycleLength(settings?.cycleLength ?? 28); setPeriodLength(settings?.periodLength ?? 5); setShowSettings(true); }}

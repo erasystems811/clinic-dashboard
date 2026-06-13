@@ -224,7 +224,7 @@ function PinScreen({ accountId, onUnlock }: { accountId: number; onUnlock: () =>
 
   return (
     <div className="px-5 pt-6 pb-8 flex flex-col items-center">
-      <button onClick={() => navigate("/")} className="self-start flex items-center gap-1.5 text-muted-foreground mb-8 -ml-1">
+      <button onClick={() => window.history.back()} className="self-start flex items-center gap-1.5 text-muted-foreground mb-8 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
       <div className="text-5xl mb-4">🔒</div>

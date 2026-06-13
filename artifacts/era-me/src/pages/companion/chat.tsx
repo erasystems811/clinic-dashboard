@@ -66,7 +66,7 @@ export default function ChatPage() {
     <div className="flex flex-col h-screen max-h-screen bg-background">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-card shrink-0">
-        <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
+        <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2 flex-1 min-w-0">

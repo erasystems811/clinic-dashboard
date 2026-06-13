@@ -66,9 +66,9 @@ export default function WomensHealthPage() {
   if (cycleLoading || pregLoading) return <Spinner />;
 
   // If neither is set up — go to mode picker
-  if (!cycleData?.isSetUp && !pregData?.isSetUp) return <ModePickerSetup onBack={() => navigate("/")} />;
+  if (!cycleData?.isSetUp && !pregData?.isSetUp) return <ModePickerSetup onBack={() => window.history.back()} />;
 
-  return <MainDashboard onBack={() => navigate("/")} />;
+  return <MainDashboard onBack={() => window.history.back()} />;
 }
 
 // ── Mode picker setup ────────────────────────────────────────────────────────
@@ -255,8 +255,18 @@ function CycleSetupScreen({ onBack }: { onBack: () => void }) {
 // ── Pregnancy setup ───────────────────────────────────────────────────────────
 function PregnancySetupScreen({ onBack }: { onBack: () => void }) {
   const setup = useSetupPregnancy();
-  const [dateMode, setDateMode] = useState<"lmp" | "due">("lmp");
-  const [dateValue, setDateValue] = useState("");
+  const [useWeeks, setUseWeeks] = useState(true);
+  const [weeks, setWeeks] = useState(8);
+  const [dueDate, setDueDate] = useState("");
+
+  function handleSubmit() {
+    if (useWeeks) {
+      const lmpDate = new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      setup.mutate({ lmpDate });
+    } else {
+      setup.mutate({ dueDate });
+    }
+  }
 
   return (
     <div className="px-5 pt-6 pb-8">
@@ -269,24 +279,35 @@ function PregnancySetupScreen({ onBack }: { onBack: () => void }) {
         <p className="text-sm text-muted-foreground max-w-xs mx-auto">Week-by-week tracking, baby size, symptom logs, and your pregnancy journal.</p>
       </div>
 
-      <div className="flex gap-1 p-1 rounded-xl bg-muted mb-4">
-        {(["lmp", "due"] as const).map((m) => (
-          <button key={m} onClick={() => setDateMode(m)}
-            className={cn("flex-1 py-2 rounded-lg text-sm font-semibold transition",
-              dateMode === m ? "bg-card text-foreground shadow-sm" : "text-muted-foreground")}>
-            {m === "lmp" ? "Last period date" : "Due date"}
-          </button>
-        ))}
-      </div>
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-        {dateMode === "lmp" ? "First day of your last menstrual period" : "Your estimated due date"}
-      </p>
-      <input type="date" value={dateValue} onChange={(e) => setDateValue(e.target.value)}
-        className="w-full bg-muted rounded-xl px-4 py-3 text-base font-bold text-foreground outline-none mb-6" />
+      {useWeeks ? (
+        <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-5">How many weeks pregnant are you?</p>
+          <div className="flex items-center justify-between">
+            <button onClick={() => setWeeks((w) => Math.max(1, w - 1))}
+              className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-foreground text-2xl font-bold active:scale-90 transition">−</button>
+            <div className="text-center">
+              <p className="text-6xl font-black text-foreground">{weeks}</p>
+              <p className="text-sm text-muted-foreground mt-1">week{weeks !== 1 ? "s" : ""} pregnant</p>
+            </div>
+            <button onClick={() => setWeeks((w) => Math.min(42, w + 1))}
+              className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-foreground text-2xl font-bold active:scale-90 transition">+</button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Your due date</p>
+          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
+            min={new Date().toISOString().split("T")[0]}
+            className="w-full bg-muted rounded-xl px-4 py-3 text-base font-bold text-foreground outline-none" />
+        </div>
+      )}
 
-      <button
-        onClick={() => setup.mutate(dateMode === "lmp" ? { lmpDate: dateValue } : { dueDate: dateValue })}
-        disabled={!dateValue || setup.isPending}
+      <button onClick={() => { setUseWeeks((p) => !p); setDueDate(""); }}
+        className="w-full text-center text-sm text-purple-500 font-semibold mb-6 py-2 active:opacity-70 transition">
+        {useWeeks ? "I know my due date instead →" : "← I know how many weeks instead"}
+      </button>
+
+      <button onClick={handleSubmit} disabled={(!useWeeks && !dueDate) || setup.isPending}
         className="w-full py-4 bg-purple-500 text-white rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">
         {setup.isPending ? "Setting up…" : "Start tracking"}
       </button>

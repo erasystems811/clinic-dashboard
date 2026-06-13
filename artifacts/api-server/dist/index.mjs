@@ -134743,6 +134743,9 @@ router11.get("/feedback", async (req, res) => {
     return;
   }
   let query = supabase.from("feedback").select("*").eq("hospital_id", hospitalId).order("submitted_at", { ascending: false });
+  const { startDate, endDate } = req.query;
+  if (typeof startDate === "string") query = query.gte("submitted_at", startDate);
+  if (typeof endDate === "string") query = query.lte("submitted_at", endDate);
   const { data, error: error42 } = await query;
   if (error42) {
     res.status(500).json({ error: error42.message });

@@ -286,18 +286,14 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       }
     }
 
-    // Water — one item per reminder time
+    // Water — single daily item (reminder times are for push notifications, not separate plan entries)
     if (enabledMap["water"]) {
       const wNotes = enabledMap["water"].notes as string | undefined;
       const target = (enabledMap["water"].target as number) ?? 8;
       const times: string[] = (enabledMap["water"].reminderTimes as string[])?.length
         ? (enabledMap["water"].reminderTimes as string[])
-        : ["08:00", "13:00", "17:00"];
-      times.forEach((time, i) => {
-        const label = i === 0 ? "Water intake" : i === 1 ? "Water intake (midday)" : "Water intake (evening)";
-        const sub = i === 0 && wNotes ? wNotes : `Goal: ${target} cups`;
-        items.push({ moduleType: "water", emoji: "💧", label, sub, time });
-      });
+        : ["08:00"];
+      items.push({ moduleType: "water", emoji: "💧", label: "Water intake", sub: wNotes ?? `Goal: ${target} cups today`, time: times[0] });
     }
 
     // Outdoors — afternoon

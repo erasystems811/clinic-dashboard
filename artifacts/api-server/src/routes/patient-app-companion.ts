@@ -1,10 +1,10 @@
 import { Router, type IRouter } from "express";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { supabase } from "../lib/supabase.js";
 import { getPatientFromRequest, hashPassword, verifyPassword } from "../lib/patient-auth.js";
 
 const router: IRouter = Router();
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -196,13 +196,14 @@ Return ONLY a valid JSON object with these keys (merge with existing, don't eras
 
 Keep all insights compassionate and growth-oriented. Never pathologize.`;
 
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       max_tokens: 512,
+      temperature: 0.7,
       messages: [{ role: "user", content: analysisPrompt }],
     });
 
-    const raw = (response.content[0] as { type: string; text: string }).text ?? "";
+    const raw = response.choices[0]?.message?.content?.trim() ?? "";
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return;
 
@@ -431,14 +432,17 @@ router.post("/patient-app/companion/conversation", async (req, res): Promise<voi
   if (entryErr || !entry) { res.status(500).json({ error: "Failed to create conversation" }); return; }
 
   // Get AI opening message
-  const aiResponse = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
+  const aiResponse = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
     max_tokens: 400,
-    system: systemPrompt,
-    messages: [{ role: "user", content: birthday ? "It's my birthday today." : `Hi. I'm here.` }],
+    temperature: 0.9,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: birthday ? "It's my birthday today." : "Hi. I'm here." },
+    ],
   });
 
-  const aiText = (aiResponse.content[0] as { type: string; text: string }).text ?? "";
+  const aiText = aiResponse.choices[0]?.message?.content?.trim() ?? "";
 
   // Store the synthetic opening exchange
   await supabase.from("diary_messages").insert([
@@ -489,14 +493,17 @@ router.post("/patient-app/companion/entries/:id/chat", async (req, res): Promise
     { role: "user", content: String(message) },
   ];
 
-  const aiResponse = await anthropic.messages.create({
-    model: "claude-haiku-4-5-20251001",
+  const aiResponse = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
     max_tokens: 600,
-    system: systemPrompt,
-    messages: msgs,
+    temperature: 0.9,
+    messages: [
+      { role: "system", content: systemPrompt },
+      ...msgs,
+    ],
   });
 
-  const aiText = (aiResponse.content[0] as { type: string; text: string }).text ?? "";
+  const aiText = aiResponse.choices[0]?.message?.content?.trim() ?? "";
 
   // Save both messages
   await supabase.from("diary_messages").insert([

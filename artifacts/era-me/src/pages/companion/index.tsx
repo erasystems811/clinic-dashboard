@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { MessageCircle, BookOpen, Clock, User, Settings, ChevronRight, Trash2, ArrowLeft, Brain, Plus } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
@@ -55,7 +55,7 @@ function CompanionHome({ account, isBirthday, birthdayAge }: {
   const startConversation = useStartConversation();
   const deleteEntry = useDeleteEntry();
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const creatingConvoRef = useRef(false);
+  const [isCreatingConvo, setIsCreatingConvo] = useState(false);
   const { applyCompanionTheme, restoreAppTheme } = useAuth();
 
   useEffect(() => {
@@ -76,11 +76,11 @@ function CompanionHome({ account, isBirthday, birthdayAge }: {
     : null;
 
   function handleNewConversation() {
-    if (creatingConvoRef.current) return;
-    creatingConvoRef.current = true;
+    if (isCreatingConvo || startConversation.isPending) return;
+    setIsCreatingConvo(true);
     startConversation.mutate(undefined, {
       onSuccess: ({ entryId }) => navigate(`/companion/chat/${entryId}`),
-      onSettled: () => { creatingConvoRef.current = false; },
+      onSettled: () => setIsCreatingConvo(false),
     });
   }
 
@@ -143,7 +143,7 @@ function CompanionHome({ account, isBirthday, birthdayAge }: {
         )}
         {tab === "chat" && (
           <ChatTab conversations={conversations} isLoading={entriesLoading}
-            onNewConversation={handleNewConversation} isPending={startConversation.isPending}
+            onNewConversation={handleNewConversation} isPending={isCreatingConvo || startConversation.isPending}
             onOpen={(id) => navigate(`/companion/chat/${id}`)}
             onDelete={handleDelete} deletingId={deletingId} />
         )}

@@ -431,26 +431,34 @@ router.post("/patient-app/companion/conversation", async (req, res): Promise<voi
 
   if (entryErr || !entry) { res.status(500).json({ error: "Failed to create conversation" }); return; }
 
-  // Get AI opening message
-  const aiResponse = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    max_tokens: 400,
-    temperature: 0.9,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: birthday ? "It's my birthday today." : "Hi. I'm here." },
-    ],
-  });
+  // Return immediately so the client navigates to chat without waiting for the AI
+  res.json({ entryId: entry.id });
 
-  const aiText = aiResponse.choices[0]?.message?.content?.trim() ?? "";
-
-  // Store the synthetic opening exchange
-  await supabase.from("diary_messages").insert([
-    { entry_id: entry.id, role: "user", content: birthday ? "It's my birthday today." : "Hi. I'm here." },
-    { entry_id: entry.id, role: "assistant", content: aiText },
-  ]);
-
-  res.json({ entryId: entry.id, openingMessage: aiText });
+  // Generate opening message in the background (fire and forget)
+  const openingUserMsg = birthday ? "It's my birthday today." : "Hi. I'm here.";
+  void (async () => {
+    try {
+      const aiResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        max_tokens: 400,
+        temperature: 0.9,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: openingUserMsg },
+        ],
+      });
+      const aiText = aiResponse.choices[0]?.message?.content?.trim() ?? "Hey! What's on your mind today?";
+      await supabase.from("diary_messages").insert([
+        { entry_id: entry.id, role: "user", content: openingUserMsg },
+        { entry_id: entry.id, role: "assistant", content: aiText },
+      ]);
+    } catch {
+      // Fallback: insert a simple greeting so the chat isn't empty
+      await supabase.from("diary_messages").insert([
+        { entry_id: entry.id, role: "assistant", content: "Hey! What's on your mind today?" },
+      ]);
+    }
+  })();
 });
 
 // ── POST /api/patient-app/companion/entries/:id/chat ─────────────────────────

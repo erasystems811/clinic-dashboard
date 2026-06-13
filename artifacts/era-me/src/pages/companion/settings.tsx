@@ -102,7 +102,7 @@ export default function CompanionSettingsPage() {
   const currentLabel = gestureLabel({ element: gestureElement, count: gestureCount });
 
   return (
-    <div style={{ background: "var(--bg-base)", minHeight: "100vh" }} className="px-5 pt-6 pb-8">
+    <div style={{ background: "var(--bg-base)" }} className="px-5 pt-6 pb-8">
       <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground mb-6 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
@@ -156,14 +156,21 @@ export default function CompanionSettingsPage() {
           <button
             onClick={handleHideToggle}
             disabled={changeGesture.isPending}
-            className={cn(
-              "relative w-12 h-6 rounded-full transition-colors duration-200 shrink-0",
-              !isHidden ? "bg-primary" : "bg-muted border border-border"
-            )}>
-            <span className={cn(
-              "absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200",
-              !isHidden ? "translate-x-6" : "translate-x-0.5"
-            )} />
+            style={{
+              position: "relative", flexShrink: 0,
+              width: 50, height: 28, borderRadius: 14, border: "none", padding: 0, cursor: "pointer",
+              background: !isHidden ? "var(--primary, #14b8a6)" : "var(--muted, #334155)",
+              transition: "background 0.2s",
+              opacity: changeGesture.isPending ? 0.5 : 1,
+            }}>
+            <span style={{
+              position: "absolute", top: 4,
+              left: !isHidden ? 26 : 4,
+              width: 20, height: 20, borderRadius: "50%",
+              background: "#ffffff",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+              transition: "left 0.2s",
+            }} />
           </button>
         </div>
       </div>

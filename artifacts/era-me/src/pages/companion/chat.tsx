@@ -59,6 +59,14 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [optimisticMessages, entry?.messages]);
 
+  // Poll until the background-generated opening message arrives
+  useEffect(() => {
+    if (!isLoading && (entry?.messages ?? []).length === 0) {
+      const t = setInterval(() => { void refetch(); }, 2000);
+      return () => clearInterval(t);
+    }
+  }, [isLoading, entry?.messages, refetch]);
+
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -146,6 +154,21 @@ export default function ChatPage() {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {/* Typing indicator while opening message is being generated */}
+        {!isLoading && allMessages.length === 0 && (
+          <div className="flex justify-start">
+            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mr-2 mt-1">
+              <span className="text-sm">💙</span>
+            </div>
+            <div className="bg-card border border-border rounded-2xl rounded-bl-sm px-4 py-3">
+              <div className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {(() => {
           const items: React.ReactNode[] = [];
           let lastDay = "";

@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/contexts/auth-context";
 import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Link, useLocation } from "wouter";
 import { Crown, LogOut, ChevronRight, Check } from "lucide-react";
 import { useCoins } from "@/lib/hospitals-api";
-import { isCompanionHidden } from "@/lib/companion-api";
+import { isCompanionHidden, decodeGesture, useCompanionSettings, type GestureConfig } from "@/lib/companion-api";
 
 const THEMES = [
   { id: "teal",   label: "Teal",   bg: "linear-gradient(135deg,#0d9488,#14b8a6)", accent: "#14b8a6" },
@@ -26,6 +26,34 @@ export default function ProfilePage() {
   const isPremium = account?.isPremium ?? false;
   const { data: coinsData } = useCoins();
   const coins = coinsData?.coins ?? 0;
+
+  // Secret diary gesture — coins element works here too
+  const [gesture, setGesture] = useState<GestureConfig | null>(null);
+  const tapRef = useRef<{ count: number; timer: ReturnType<typeof setTimeout> | null }>({ count: 0, timer: null });
+  const { data: companionSettings } = useCompanionSettings();
+
+  useEffect(() => {
+    const raw = localStorage.getItem("era_companion_tab");
+    if (raw) {
+      setGesture(decodeGesture(raw));
+    } else if (companionSettings?.isSetUp) {
+      const g: GestureConfig = { element: companionSettings.gestureElement, count: companionSettings.gestureCount, hidden: companionSettings.isHidden };
+      localStorage.setItem("era_companion_tab", JSON.stringify(g));
+      setGesture(g);
+    }
+  }, [companionSettings]);
+
+  function handleCoinsTap() {
+    if (!gesture || gesture.element !== "coins") return;
+    if (tapRef.current.timer) clearTimeout(tapRef.current.timer);
+    tapRef.current.count += 1;
+    if (tapRef.current.count >= gesture.count) {
+      tapRef.current = { count: 0, timer: null };
+      navigate("/companion");
+      return;
+    }
+    tapRef.current.timer = setTimeout(() => { tapRef.current = { count: 0, timer: null }; }, 1500);
+  }
 
   // Change password modal state
   const [showPwd, setShowPwd] = useState(false);
@@ -109,7 +137,8 @@ export default function ProfilePage() {
         {/* Coins + premium row */}
         <div className="flex gap-2">
           <div className="flex-1 rounded-xl p-3 flex items-center gap-2"
-            style={{ background: "linear-gradient(135deg,rgba(146,64,14,0.3),rgba(217,119,6,0.2))", border: "1px solid rgba(217,119,6,0.3)" }}>
+            style={{ background: "linear-gradient(135deg,rgba(146,64,14,0.3),rgba(217,119,6,0.2))", border: "1px solid rgba(217,119,6,0.3)" }}
+            onClick={handleCoinsTap}>
             <span style={{ fontSize: 18 }}>🪙</span>
             <div>
               <p style={{ fontSize: 18, fontWeight: 900, color: "#fbbf24", lineHeight: 1 }}>{coins}</p>

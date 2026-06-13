@@ -136,8 +136,13 @@ export default function AuthPage() {
         {/* ── Welcome ──────────────────────────────────────────── */}
         {step === "welcome" && (
           <div className="flex flex-col items-center text-center">
-            <div className="w-48 mb-4">
-              <img src="/era-logo.png" alt="ERA Systems" className="w-full h-auto object-contain" />
+            <div className="w-48 mb-4" style={{ height: 96 }}>
+              <img src="/era-logo.png" alt="ERA Systems" width={192} height={96}
+                fetchPriority="high"
+                className="w-full h-full object-contain"
+                style={{ opacity: 0, transition: "opacity 0.2s ease" }}
+                onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "1"; }}
+              />
             </div>
             <h1 className="text-2xl font-bold mb-1" style={{ background: "linear-gradient(135deg, #ffffff, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               ERA Health

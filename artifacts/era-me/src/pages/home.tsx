@@ -515,13 +515,6 @@ export default function HomePage() {
         {/* ── Special Feature Cards ─────────────────────────────── */}
         <SpecialFeatureCards />
 
-        {/* ── Quick Access ───────────────────────────────────────── */}
-        {!isCompanionHidden() && (
-          <section>
-            <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", marginBottom: 12 }}>Quick access</h2>
-            <QuickCard href="/companion" emoji="📔" label="My Diary" description="Private journal & chats" />
-          </section>
-        )}
 
       </div>
     </div>
@@ -985,73 +978,64 @@ function QuickCard({ href, emoji, label, description }: { href: string; emoji: s
   );
 }
 
+function MiniFeatureCard({ href, bg, border, shadow, glowBg, icon, iconBg, iconBorder, title, sub, ctaColor, ctaText }: {
+  href: string; bg: string; border: string; shadow: string; glowBg: string;
+  icon: string; iconBg: string; iconBorder: string;
+  title: React.ReactNode; sub: string; ctaColor: string; ctaText: string;
+}) {
+  return (
+    <Link href={href}>
+      <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.97] transition"
+        style={{ background: bg, border, boxShadow: shadow, minHeight: 142 }}>
+        <div className="absolute top-0 right-0 pointer-events-none"
+          style={{ width: 85, height: 85, background: glowBg, transform: "translate(25%,-25%)" }} />
+        <div className="relative" style={{ padding: 14 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 11, background: iconBg, border: iconBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, marginBottom: 10 }}>
+            {icon}
+          </div>
+          <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", lineHeight: 1.3 }}>{title}</p>
+          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.42)", marginTop: 4, lineHeight: 1.5 }}>{sub}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 10 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: ctaColor }}>{ctaText}</span>
+            <ChevronRight style={{ width: 11, height: 11, color: ctaColor }} />
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 function SpecialFeatureCards() {
   return (
     <section>
-      {/* Section header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
         <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>Features</h2>
         <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 2, color: "var(--text-dim)" }}>EXPLORE ERA</span>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 
-        {/* ── Weight Loss Coach — full-width hero card ── */}
+        {/* ── Weight Loss Coach — hero ── */}
         <Link href="/weightloss">
           <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.985] transition"
-            style={{
-              background: "linear-gradient(135deg, #030d07 0%, #052e16 35%, #064e3b 70%, #065f46 100%)",
-              border: "1px solid rgba(16,185,129,0.3)",
-              boxShadow: "0 8px 40px rgba(16,185,129,0.2)",
-            }}>
-            {/* Top-right glow orb */}
+            style={{ background: "linear-gradient(135deg, #030d07 0%, #052e16 35%, #064e3b 70%, #065f46 100%)", border: "1px solid rgba(16,185,129,0.3)", boxShadow: "0 8px 36px rgba(16,185,129,0.2)" }}>
             <div className="absolute top-0 right-0 pointer-events-none"
-              style={{
-                width: 200, height: 200,
-                background: "radial-gradient(circle, rgba(16,185,129,0.3) 0%, transparent 65%)",
-                transform: "translate(35%, -35%)",
-                filter: "blur(8px)",
-              }} />
-            {/* Bottom-left secondary glow */}
+              style={{ width: 200, height: 200, background: "radial-gradient(circle, rgba(16,185,129,0.3) 0%, transparent 65%)", transform: "translate(35%,-35%)", filter: "blur(8px)" }} />
             <div className="absolute bottom-0 left-0 pointer-events-none"
-              style={{
-                width: 120, height: 120,
-                background: "radial-gradient(circle, rgba(52,211,153,0.15) 0%, transparent 70%)",
-                transform: "translate(-30%, 30%)",
-              }} />
-
+              style={{ width: 120, height: 120, background: "radial-gradient(circle, rgba(52,211,153,0.14) 0%, transparent 70%)", transform: "translate(-30%,30%)" }} />
             <div className="relative" style={{ padding: "20px 20px 16px" }}>
-              {/* Top row: badge + icon */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.32)" }}>
                   <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#10b981", display: "inline-block", boxShadow: "0 0 5px #10b981" }} />
                   <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: "#10b981" }}>COACH-GUIDED</span>
                 </div>
-                {/* Avatar icon with glow */}
-                <div className="relative" style={{ flexShrink: 0 }}>
-                  <div style={{
-                    position: "absolute", inset: 0, borderRadius: 16,
-                    background: "#10b981", filter: "blur(12px)", opacity: 0.4, transform: "scale(1.1)",
-                  }} />
-                  <div style={{
-                    position: "relative", width: 52, height: 52, borderRadius: 16,
-                    background: "linear-gradient(135deg, #34d399, #10b981)",
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26,
-                  }}>
-                    🏋️
-                  </div>
+                <div style={{ flexShrink: 0, position: "relative" }}>
+                  <div style={{ position: "absolute", inset: 0, borderRadius: 16, background: "#10b981", filter: "blur(12px)", opacity: 0.4, transform: "scale(1.1)" }} />
+                  <div style={{ position: "relative", width: 52, height: 52, borderRadius: 16, background: "linear-gradient(135deg,#34d399,#10b981)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>🏋️</div>
                 </div>
               </div>
-
-              {/* Title + description */}
-              <p style={{ fontSize: 24, fontWeight: 900, color: "#fff", lineHeight: 1.15, marginBottom: 6 }}>
-                Weight Loss<br />Coach
-              </p>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, maxWidth: 230 }}>
-                Personalised meal plans · Nigerian food calorie calculator · daily accountability & rewards
-              </p>
-
-              {/* CTA row */}
+              <p style={{ fontSize: 24, fontWeight: 900, color: "#fff", lineHeight: 1.15, marginBottom: 6 }}>Weight Loss<br />Coach</p>
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, maxWidth: 230 }}>Personalised meal plans · Nigerian food calorie calculator · daily accountability & rewards</p>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(16,185,129,0.15)" }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#10b981" }}>Start your programme</span>
                 <ChevronRight style={{ width: 15, height: 15, color: "#10b981" }} />
@@ -1060,108 +1044,78 @@ function SpecialFeatureCards() {
           </div>
         </Link>
 
-        {/* ── 2-column: Women's Health + Social ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-
-          {/* Women's Health */}
-          <Link href="/womens-health">
-            <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.97] transition"
-              style={{
-                background: "linear-gradient(160deg, #3b0a1e 0%, #7c1040 45%, #9d174d 100%)",
-                border: "1px solid rgba(236,72,153,0.28)",
-                boxShadow: "0 6px 28px rgba(236,72,153,0.18)",
-                minHeight: 150,
-              }}>
-              {/* Glow orb */}
-              <div className="absolute top-0 right-0 pointer-events-none"
-                style={{
-                  width: 90, height: 90,
-                  background: "radial-gradient(circle, rgba(244,114,182,0.45) 0%, transparent 70%)",
-                  transform: "translate(25%, -25%)",
-                }} />
-              <div className="relative" style={{ padding: 16 }}>
-                {/* Icon */}
-                <div style={{
-                  width: 40, height: 40, borderRadius: 12,
-                  background: "rgba(244,114,182,0.22)", border: "1px solid rgba(244,114,182,0.35)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 20, marginBottom: 12,
-                }}>
-                  🌸
-                </div>
-                <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", lineHeight: 1.3 }}>
-                  Women's<br />Health
-                </p>
-                <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 5, lineHeight: 1.5 }}>
-                  Cycle · hormones<br />& fertility
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 12 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#f472b6" }}>Track</span>
-                  <ChevronRight style={{ width: 11, height: 11, color: "#f472b6" }} />
-                </div>
-              </div>
-            </div>
-          </Link>
-
-          {/* Social Health */}
-          <Link href="/social">
-            <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.97] transition"
-              style={{
-                background: "linear-gradient(160deg, #030712 0%, #1e3a8a 45%, #1d4ed8 100%)",
-                border: "1px solid rgba(59,130,246,0.28)",
-                boxShadow: "0 6px 28px rgba(59,130,246,0.16)",
-                minHeight: 150,
-              }}>
-              {/* Glow orb */}
-              <div className="absolute top-0 right-0 pointer-events-none"
-                style={{
-                  width: 90, height: 90,
-                  background: "radial-gradient(circle, rgba(96,165,250,0.4) 0%, transparent 70%)",
-                  transform: "translate(25%, -25%)",
-                }} />
-              <div className="relative" style={{ padding: 16 }}>
-                {/* Icon */}
-                <div style={{
-                  width: 40, height: 40, borderRadius: 12,
-                  background: "rgba(96,165,250,0.2)", border: "1px solid rgba(96,165,250,0.35)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 20, marginBottom: 12,
-                }}>
-                  👥
-                </div>
-                <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", lineHeight: 1.3 }}>
-                  Social<br />Health
-                </p>
-                <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", marginTop: 5, lineHeight: 1.5 }}>
-                  Partner · groups<br />& community
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 12 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "#60a5fa" }}>Connect</span>
-                  <ChevronRight style={{ width: 11, height: 11, color: "#60a5fa" }} />
-                </div>
-              </div>
-            </div>
-          </Link>
+        {/* ── Row: My Diary + Women's Health ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <MiniFeatureCard
+            href="/companion"
+            bg="linear-gradient(160deg, #06020f 0%, #1e0845 50%, #2a0d5e 100%)"
+            border="1px solid rgba(139,92,246,0.3)"
+            shadow="0 5px 22px rgba(139,92,246,0.18)"
+            glowBg="radial-gradient(circle, rgba(139,92,246,0.4) 0%, transparent 70%)"
+            icon="📓"
+            iconBg="rgba(139,92,246,0.2)"
+            iconBorder="1px solid rgba(139,92,246,0.35)"
+            title={<>My<br />Diary</>}
+            sub="Private journal<br />& companion"
+            ctaColor="#a78bfa"
+            ctaText="Open"
+          />
+          <MiniFeatureCard
+            href="/womens-health"
+            bg="linear-gradient(160deg, #3b0a1e 0%, #7c1040 45%, #9d174d 100%)"
+            border="1px solid rgba(236,72,153,0.28)"
+            shadow="0 5px 22px rgba(236,72,153,0.16)"
+            glowBg="radial-gradient(circle, rgba(244,114,182,0.45) 0%, transparent 70%)"
+            icon="🌸"
+            iconBg="rgba(244,114,182,0.22)"
+            iconBorder="1px solid rgba(244,114,182,0.35)"
+            title={<>Women's<br />Health</>}
+            sub="Cycle · hormones<br />& fertility"
+            ctaColor="#f472b6"
+            ctaText="Track"
+          />
         </div>
 
-        {/* ── Hospitals — slim discovery banner ── */}
+        {/* ── Row: Sex Life + Social ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <MiniFeatureCard
+            href="/intimacy"
+            bg="linear-gradient(160deg, #130008 0%, #4c0519 45%, #7f1d1d 100%)"
+            border="1px solid rgba(251,113,133,0.28)"
+            shadow="0 5px 20px rgba(239,68,68,0.15)"
+            glowBg="radial-gradient(circle, rgba(251,113,133,0.42) 0%, transparent 70%)"
+            icon="🌹"
+            iconBg="rgba(251,113,133,0.18)"
+            iconBorder="1px solid rgba(251,113,133,0.3)"
+            title={<>Sex<br />Life</>}
+            sub="Intimacy · drive<br />& connection"
+            ctaColor="#fca5a5"
+            ctaText="Explore"
+          />
+          <MiniFeatureCard
+            href="/social"
+            bg="linear-gradient(160deg, #030712 0%, #1e3a8a 45%, #1d4ed8 100%)"
+            border="1px solid rgba(59,130,246,0.28)"
+            shadow="0 5px 20px rgba(59,130,246,0.14)"
+            glowBg="radial-gradient(circle, rgba(96,165,250,0.4) 0%, transparent 70%)"
+            icon="👥"
+            iconBg="rgba(96,165,250,0.2)"
+            iconBorder="1px solid rgba(96,165,250,0.35)"
+            title={<>Social<br />Health</>}
+            sub="Partner · groups<br />& community"
+            ctaColor="#60a5fa"
+            ctaText="Connect"
+          />
+        </div>
+
+        {/* ── Hospitals — slim banner ── */}
         <Link href="/hospitals">
           <div className="relative rounded-2xl overflow-hidden cursor-pointer active:scale-[0.985] transition"
-            style={{
-              background: "linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.9) 100%)",
-              border: "1px solid rgba(148,163,184,0.15)",
-            }}>
-            {/* Subtle shimmer line at top */}
+            style={{ background: "linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.9) 100%)", border: "1px solid rgba(148,163,184,0.15)" }}>
             <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
               style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
-              <div style={{
-                width: 38, height: 38, borderRadius: 11, flexShrink: 0,
-                background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.22)",
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
-              }}>
-                🏥
-              </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.22)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>🏥</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", lineHeight: 1.3 }}>Find hospitals & clinics</p>
                 <p style={{ fontSize: 11, color: "rgba(148,163,184,0.8)", marginTop: 2 }}>Book appointments near you</p>

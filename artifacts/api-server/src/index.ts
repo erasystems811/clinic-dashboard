@@ -351,6 +351,7 @@ async function migrateIntimacyTables() {
   const token = process.env.SUPABASE_ACCESS_TOKEN;
   if (!projectRef || !token) return;
   const sql = `
+    ALTER TABLE patient_accounts ADD COLUMN IF NOT EXISTS date_of_birth DATE;
     CREATE TABLE IF NOT EXISTS patient_intimacy_settings (
       account_id INTEGER PRIMARY KEY REFERENCES patient_accounts(id) ON DELETE CASCADE,
       mode TEXT NOT NULL DEFAULT 'celibacy',

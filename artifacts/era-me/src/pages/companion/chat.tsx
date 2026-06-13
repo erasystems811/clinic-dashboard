@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useParams } from "wouter";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useDiaryEntry, useSendMessage, isCompanionUnlocked } from "@/lib/companion-api";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,7 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const [optimisticMessages, setOptimisticMessages] = useState<{ role: "user" | "assistant"; content: string; temp?: boolean }[]>([]);
+  const [failedText, setFailedText] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -32,16 +33,13 @@ export default function ChatPage() {
     ...optimisticMessages,
   ];
 
-  function handleSend() {
-    const text = input.trim();
-    if (!text || sendMessage.isPending) return;
-    setInput("");
-
+  function send(text: string) {
+    if (!text.trim() || sendMessage.isPending) return;
+    setFailedText(null);
     setOptimisticMessages((p) => [...p, { role: "user" as const, content: text, temp: true }]);
 
     sendMessage.mutate(text, {
       onSuccess: async ({ reply }) => {
-        // Confirm the user message + show AI reply immediately — no flash
         setOptimisticMessages((p) => [
           ...p.map((m) => ({ ...m, temp: false })),
           { role: "assistant" as const, content: reply },
@@ -50,9 +48,25 @@ export default function ChatPage() {
         setOptimisticMessages([]);
       },
       onError: () => {
+        // Keep the user message visible — just remove the temp flag and record it for retry
         setOptimisticMessages((p) => p.filter((m) => !m.temp));
+        setFailedText(text);
       },
     });
+  }
+
+  function handleSend() {
+    const text = input.trim();
+    if (!text) return;
+    setInput("");
+    send(text);
+  }
+
+  function handleRetry() {
+    if (!failedText) return;
+    const text = failedText;
+    setFailedText(null);
+    send(text);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -102,6 +116,8 @@ export default function ChatPage() {
             </div>
           </div>
         ))}
+
+        {/* Typing indicator */}
         {sendMessage.isPending && (
           <div className="flex justify-start">
             <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mr-2 mt-1">
@@ -116,6 +132,20 @@ export default function ChatPage() {
             </div>
           </div>
         )}
+
+        {/* Send failure — show retry */}
+        {failedText && !sendMessage.isPending && (
+          <div className="flex flex-col items-end gap-2">
+            <div className="max-w-[80%] rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-relaxed bg-primary/40 text-primary-foreground opacity-70">
+              {failedText}
+            </div>
+            <button onClick={handleRetry}
+              className="flex items-center gap-1.5 text-xs text-destructive font-medium px-3 py-1.5 rounded-xl border border-destructive/30 bg-destructive/5 transition active:scale-95">
+              <RefreshCw className="w-3 h-3" /> Failed to send — tap to retry
+            </button>
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 

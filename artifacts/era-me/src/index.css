@@ -54,6 +54,12 @@
 /* ── Global styles ──────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
+/* html gets the same background so safe-area insets never show white */
+html {
+  background: hsl(var(--background));
+  height: 100%;
+}
+
 body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
@@ -61,6 +67,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
+  min-height: 100dvh;
 }
 
 /* Safe area for notched phones */
@@ -87,14 +94,14 @@ body {
   button:active { opacity: 0.75; transform: scale(0.98); }
 }
 
-/* ── Body gradient — gives glass cards something to blur through ──────── */
+/* ── Body/html gradient — gives glass cards something to blur through ──── */
+html:not(.dark),
 html:not(.dark) body {
   background: linear-gradient(150deg, var(--light-bg-from, #f0fdfb) 0%, var(--light-bg-to, #ccfbf1) 60%, var(--light-bg-from, #f0fdfb) 100%);
-  min-height: 100vh;
 }
+html.dark,
 .dark body {
   background: linear-gradient(150deg, var(--bg-base, #060d1f) 0%, var(--bg-mid, #0a1628) 50%, var(--bg-base, #060d1f) 100%);
-  min-height: 100vh;
 }
 
 /* Glass blur on all rounded div panels throughout the whole app.

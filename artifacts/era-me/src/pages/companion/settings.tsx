@@ -120,7 +120,7 @@ export default function CompanionSettingsPage() {
       <div className="bg-card border border-border rounded-2xl p-5 mb-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-foreground">Hide diary from navigation</p>
+            <p className="text-sm font-semibold text-foreground">Show diary in navigation</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {isHidden ? "Diary is hidden — only accessible via your secret gesture" : "Diary icon is visible in the app"}
             </p>
@@ -130,11 +130,11 @@ export default function CompanionSettingsPage() {
             disabled={changeGesture.isPending}
             className={cn(
               "relative w-12 h-6 rounded-full transition-colors duration-200 shrink-0",
-              isHidden ? "bg-primary" : "bg-muted border border-border"
+              !isHidden ? "bg-primary" : "bg-muted border border-border"
             )}>
             <span className={cn(
               "absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200",
-              isHidden ? "translate-x-6" : "translate-x-0.5"
+              !isHidden ? "translate-x-6" : "translate-x-0.5"
             )} />
           </button>
         </div>

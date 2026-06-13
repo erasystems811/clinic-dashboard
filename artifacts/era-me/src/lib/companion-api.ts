@@ -3,7 +3,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 const BASE = "/api/patient-app/companion";
 
 function headers() {
-  const token = localStorage.getItem("era_me_session");
+  let token: string | null = null;
+  try {
+    const stored = localStorage.getItem("era_me_session");
+    if (stored) token = (JSON.parse(stored) as { token: string }).token ?? null;
+  } catch { /**/ }
   return { "Content-Type": "application/json", ...(token ? { "x-patient-token": token } : {}) };
 }
 

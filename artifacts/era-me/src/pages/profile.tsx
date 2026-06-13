@@ -27,6 +27,34 @@ export default function ProfilePage() {
   const { data: coinsData } = useCoins();
   const coins = coinsData?.coins ?? 0;
 
+  // Change password modal state
+  const [showPwd, setShowPwd] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdError, setPwdError] = useState("");
+  const [pwdOk, setPwdOk] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+
+  async function handleChangePassword() {
+    setPwdError("");
+    if (pwdNew.length < 8) { setPwdError("New password must be at least 8 characters"); return; }
+    if (pwdNew !== pwdConfirm) { setPwdError("Passwords don't match"); return; }
+    setPwdLoading(true);
+    try {
+      await apiFetch("/api/patient-app/me", {
+        method: "PATCH",
+        auth: true,
+        body: JSON.stringify({ currentPassword: pwdCurrent, newPassword: pwdNew }),
+      });
+      setPwdOk(true);
+      setTimeout(() => { setShowPwd(false); setPwdOk(false); setPwdCurrent(""); setPwdNew(""); setPwdConfirm(""); }, 1500);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Something went wrong";
+      setPwdError(msg.includes("{") ? "Current password is incorrect" : msg);
+    } finally { setPwdLoading(false); }
+  }
+
   async function handleTheme(color: ThemeId) {
     updateAccount({ themeColor: color });
     setSaving(true);
@@ -55,6 +83,7 @@ export default function ProfilePage() {
   if (!account) return null;
 
   return (
+    <>
     <div className="px-5 pt-6 pb-4">
       <h1 className="text-2xl font-bold mb-6" style={{ color: "var(--text-main)" }}>Profile</h1>
 
@@ -200,7 +229,7 @@ export default function ProfilePage() {
       {/* Account settings */}
       <Section title="Account">
         <div className="space-y-1">
-          <SettingsRow label="Change Password" onClick={() => {}} />
+          <SettingsRow label="Change Password" onClick={() => { setPwdError(""); setPwdOk(false); setShowPwd(true); }} />
           <SettingsRow label="Notification Settings" onClick={() => {}} />
           {account.accountType === "family" && (
             <SettingsRow label="Manage Family Members" onClick={() => {}} />
@@ -218,6 +247,66 @@ export default function ProfilePage() {
 
       <p className="text-center text-xs mt-6" style={{ color: "var(--text-dim)" }}>ERA Health · By ERA Systems</p>
     </div>
+
+    {/* Change password modal */}
+    {showPwd && (
+      <div className="fixed inset-0 z-50 flex items-end justify-center"
+        style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
+        <div className="w-full max-w-md rounded-t-3xl p-6"
+          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)" }}>
+          <div className="flex items-center justify-between mb-5">
+            <p className="font-bold text-base" style={{ color: "var(--text-main)" }}>Change Password</p>
+            <button onClick={() => setShowPwd(false)}
+              className="text-xl leading-none"
+              style={{ color: "var(--text-dim)" }}>✕</button>
+          </div>
+
+          <div className="space-y-3">
+            {(["Current password", "New password", "Confirm new password"] as const).map((lbl, i) => {
+              const val = i === 0 ? pwdCurrent : i === 1 ? pwdNew : pwdConfirm;
+              const set = i === 0 ? setPwdCurrent : i === 1 ? setPwdNew : setPwdConfirm;
+              return (
+                <div key={lbl}>
+                  <p className="text-xs mb-1 font-medium" style={{ color: "var(--text-sub)" }}>{lbl}</p>
+                  <input
+                    type="password"
+                    value={val}
+                    onChange={(e) => set(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    style={{
+                      background: "var(--glass-bg)",
+                      border: "1px solid var(--glass-border)",
+                      color: "var(--text-main)",
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          {pwdError && (
+            <p className="text-xs mt-3 font-medium" style={{ color: "#f87171" }}>{pwdError}</p>
+          )}
+          {pwdOk && (
+            <p className="text-xs mt-3 font-medium" style={{ color: "#4ade80" }}>Password changed successfully!</p>
+          )}
+
+          <button
+            onClick={() => { void handleChangePassword(); }}
+            disabled={pwdLoading || !pwdCurrent || !pwdNew || !pwdConfirm}
+            className="w-full mt-5 py-3.5 rounded-2xl font-bold text-sm transition active:scale-95"
+            style={{
+              background: "var(--accent)",
+              color: "#fff",
+              opacity: pwdLoading || !pwdCurrent || !pwdNew || !pwdConfirm ? 0.5 : 1,
+            }}>
+            {pwdLoading ? "Saving…" : "Update Password"}
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

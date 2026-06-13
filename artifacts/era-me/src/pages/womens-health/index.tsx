@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
-import { ArrowLeft, History, Baby, Heart } from "lucide-react";
+import { ArrowLeft, History, CalendarDays, Baby, Heart } from "lucide-react";
 import {
   useWomensHealthToday, useSetupWomensHealth, useLogCycleDay,
   usePregnancyToday, useSetupPregnancy, useSwitchMode, useLogPregnancy, usePregnancyTimeline,
@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
 // ── Calendar strip constants ────────────────────────────────────────────────────
 
 const CHIP_W    = 52;
-const BACK_DAYS = 60;
-const FWD_DAYS  = 60;
+const BACK_DAYS = 365;
+const FWD_DAYS  = 730;
 const TOTAL     = BACK_DAYS + FWD_DAYS + 1;
 const DAY_ABBR  = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -33,8 +33,8 @@ function dateOffset(base: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
-function getMonthKey(offset: number): string {
-  const d = new Date();
+function monthFromDate(base: string, offset: number): string {
+  const d = new Date(base + "T12:00:00");
   d.setDate(1);
   d.setMonth(d.getMonth() + offset);
   return d.toISOString().slice(0, 7);
@@ -207,9 +207,14 @@ function MainDashboard({ onBack }: { onBack: () => void }) {
           <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
         </button>
         {mode === "cycle" && (
-          <button onClick={() => navigate("/womens-health/history")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center">
-            <History className="w-4 h-4 text-muted-foreground" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => navigate("/womens-health/calendar")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center" title="Log past periods">
+              <CalendarDays className="w-4 h-4 text-muted-foreground" />
+            </button>
+            <button onClick={() => navigate("/womens-health/history")} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center" title="Cycle history">
+              <History className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -301,7 +306,7 @@ function CycleSetupScreen({ onBack }: { onBack: () => void }) {
         <Stepper label="Period length" value={periodLength} min={2} max={10} onChange={setPeriodLength}
           hint="How many days your period typically lasts." unit="days" />
       </div>
-      <button onClick={() => setup.mutate({ cycleLength, periodLength, lastPeriodStart })} disabled={!lastPeriodStart || setup.isPending}
+      <button onClick={() => setup.mutate({ cycleLength, periodLength, lastPeriodStart }, { onSuccess: onBack })} disabled={!lastPeriodStart || setup.isPending}
         className="w-full py-4 bg-rose-500 text-white rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">
         {setup.isPending ? "Saving…" : "Start tracking"}
       </button>
@@ -320,9 +325,9 @@ function PregnancySetupScreen({ onBack }: { onBack: () => void }) {
   function handleSubmit() {
     if (useWeeks) {
       const lmpDate = new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-      setup.mutate({ lmpDate });
+      setup.mutate({ lmpDate }, { onSuccess: onBack });
     } else {
-      setup.mutate({ dueDate });
+      setup.mutate({ dueDate }, { onSuccess: onBack });
     }
   }
 
@@ -383,14 +388,15 @@ function CycleDashboard({ data, showLog, onShowLog }: {
   const logDay = useLogCycleDay();
   const todayStr = new Date().toISOString().split("T")[0];
 
-  // Calendar data — 5 months (hooks must be unconditional)
-  const { data: da } = useWomensHealthCalendar(getMonthKey(-2));
-  const { data: db } = useWomensHealthCalendar(getMonthKey(-1));
-  const { data: dc } = useWomensHealthCalendar(getMonthKey(0));
-  const { data: dd } = useWomensHealthCalendar(getMonthKey(1));
-  const { data: de } = useWomensHealthCalendar(getMonthKey(2));
-
+  // selectedDate drives which 5 months are loaded — TanStack caches by month key
   const [selectedDate, setSelectedDate] = useState(todayStr);
+
+  // Calendar data — always 5 months centred on selected date (hooks must be unconditional)
+  const { data: da } = useWomensHealthCalendar(monthFromDate(selectedDate, -2));
+  const { data: db } = useWomensHealthCalendar(monthFromDate(selectedDate, -1));
+  const { data: dc } = useWomensHealthCalendar(monthFromDate(selectedDate, 0));
+  const { data: dd } = useWomensHealthCalendar(monthFromDate(selectedDate, 1));
+  const { data: de } = useWomensHealthCalendar(monthFromDate(selectedDate, 2));
   const stripRef = useRef<HTMLDivElement>(null);
   const isClickScrollRef = useRef(false);
 

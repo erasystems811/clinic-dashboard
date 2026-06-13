@@ -134,8 +134,11 @@ export function usePersonality() {
 export function useSetupCompanion() {
   const qc = useQueryClient();
   return useMutation<{ ok: boolean }, Error, { pin: string; gestureElement: GestureConfig["element"]; gestureCount: number; hidden?: boolean }>({
-    mutationFn: ({ pin, gestureElement, gestureCount, hidden }) =>
-      post(`${BASE}/setup`, { pin, entryTab: JSON.stringify({ element: gestureElement, count: gestureCount, hidden: !!hidden }) }),
+    mutationFn: ({ pin, gestureElement, gestureCount, hidden }) => {
+      const encoded = JSON.stringify({ element: gestureElement, count: gestureCount, hidden: !!hidden });
+      localStorage.setItem("era_companion_tab", encoded);
+      return post(`${BASE}/setup`, { pin, entryTab: encoded });
+    },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["companion"] }),
   });
 }

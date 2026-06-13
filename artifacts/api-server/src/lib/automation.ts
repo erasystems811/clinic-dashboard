@@ -49,20 +49,22 @@ async function pushEraChatMessage(
   patientId: number, hospitalId: number,
   content: string,
 ): Promise<void> {
-  const { data: conn } = await supabase
+  const { data: conn, error: connErr } = await supabase
     .from("patient_hospital_connections")
     .select("id")
     .eq("patient_record_id", patientId)
     .eq("hospital_id", hospitalId)
     .maybeSingle();
-  if (!conn) return;
-  await supabase.from("patient_hospital_messages").insert({
+  if (connErr) console.error("[pushEraChatMessage] connection lookup error:", connErr.message, { patientId, hospitalId });
+  if (!conn) { console.warn("[pushEraChatMessage] no connection found", { patientId, hospitalId }); return; }
+  const { error: insertErr } = await supabase.from("patient_hospital_messages").insert({
     connection_id: conn.id as number,
     sender: "hospital",
     message_type: "text",
     content,
     metadata: {},
   });
+  if (insertErr) console.error("[pushEraChatMessage] insert error:", insertErr.message, { connectionId: conn.id });
 }
 
 async function setPatientDndBlocked(patientId: number, blocked: boolean): Promise<void> {

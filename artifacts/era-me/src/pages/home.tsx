@@ -7,7 +7,7 @@ import { useWellnessToday, useWeekSummary, useLogToday, useQuickLog, useUpcoming
 import type { UpcomingEvent } from "@/lib/wellness-api";
 import { useCoins, useUnreadNotifCount } from "@/lib/hospitals-api";
 import { canNotify, notifPermission, requestNotifPermission, fireNotification, maybeFireEveningReminder } from "@/lib/notifications";
-import { decodeGesture, gestureLabel, isCompanionHidden } from "@/lib/companion-api";
+import { decodeGesture, isCompanionHidden, useCompanionSettings } from "@/lib/companion-api";
 import type { WeekSummary } from "@/lib/wellness-api";
 import type { GestureConfig } from "@/lib/companion-api";
 
@@ -109,13 +109,20 @@ export default function HomePage() {
 
   // ── Secret diary gesture ──────────────────────────────────────────────────
   const [gesture, setGesture] = useState<GestureConfig | null>(null);
-  const [showHint, setShowHint] = useState(false);
   const tapRef = useRef<{ element: string; count: number; timer: ReturnType<typeof setTimeout> | null }>({ element: "", count: 0, timer: null });
+  const { data: companionSettings } = useCompanionSettings();
 
   useEffect(() => {
     const raw = localStorage.getItem("era_companion_tab");
-    if (raw) setGesture(decodeGesture(raw));
-  }, []);
+    if (raw) {
+      setGesture(decodeGesture(raw));
+    } else if (companionSettings?.isSetUp) {
+      // Sync from API when localStorage is missing (e.g. after setup on another device)
+      const g: GestureConfig = { element: companionSettings.gestureElement, count: companionSettings.gestureCount, hidden: companionSettings.isHidden };
+      localStorage.setItem("era_companion_tab", JSON.stringify(g));
+      setGesture(g);
+    }
+  }, [companionSettings]);
 
   function handleGestureTap(element: string, e?: MouseEvent) {
     if (!gesture || gesture.element !== element) return;
@@ -186,13 +193,13 @@ export default function HomePage() {
                 onClick={() => handleGestureTap("date")}
                 style={{ color: "var(--text-dim)", fontSize: 12, fontWeight: 500, cursor: gesture?.element === "date" ? "default" : undefined }}
               >{formatDate()}</p>
-              {coins > 0 && (gesture?.element === "coins" ? (
+              {(coins > 0 || gesture?.element === "coins") && (gesture?.element === "coins" ? (
                 <div
                   onClick={(e) => handleGestureTap("coins", e)}
                   className="flex items-center gap-1 px-2 py-0.5 rounded-full active:scale-95 transition"
                   style={{ background: "linear-gradient(135deg,#92400e,#d97706)", boxShadow: "0 2px 8px rgba(217,119,6,0.4)", cursor: "pointer" }}>
                   <span style={{ fontSize: 10 }}>🪙</span>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{coins}</span>
+                  {coins > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{coins}</span>}
                 </div>
               ) : (
                 <Link href="/profile">
@@ -214,20 +221,7 @@ export default function HomePage() {
                   )}
                 </div>
               </Link>
-              {gesture && (
-                <button
-                  onClick={() => setShowHint((p) => !p)}
-                  style={{ lineHeight: 0, opacity: 0.35, fontSize: 14, padding: 2 }}
-                  title="Your diary secret"
-                >🔑</button>
-              )}
             </div>
-            {showHint && gesture && (
-              <div className="mb-1 px-3 py-1.5 rounded-xl text-[11px] font-semibold"
-                style={{ background: "var(--accent-tint-bg)", color: "var(--accent)", border: "1px solid var(--accent-tint-border)" }}>
-                Secret: {gestureLabel(gesture)} → PIN
-              </div>
-            )}
             <h1
               onClick={() => handleGestureTap("greeting")}
               style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, color: "var(--text-main)", cursor: gesture?.element === "greeting" ? "default" : undefined }}
@@ -243,7 +237,7 @@ export default function HomePage() {
               </p>
             )}
           </div>
-          {total > 0 && (
+          {(total > 0 || gesture?.element === "score") && (
             <div className="relative shrink-0" style={{ width: 76, height: 76 }}
               onClick={() => handleGestureTap("score")}>
               <svg className="w-full h-full -rotate-90" viewBox="0 0 76 76">

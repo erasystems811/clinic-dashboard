@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { BookOpen, MessageCircle, Brain, Settings, Trash2, ChevronRight, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
@@ -20,13 +20,24 @@ export default function CompanionGate() {
     if (account && isCompanionUnlocked(account.id)) setUnlocked(true);
   }, [account]);
 
+  let content: ReactNode;
   if (isLoading || !account) {
-    return <div className="flex items-center justify-center min-h-screen"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+    content = <div className="flex items-center justify-center" style={{ minHeight: "100vh" }}><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  } else if (!settings?.isSetUp) {
+    content = <SetupScreen accountId={account.id} />;
+  } else if (!unlocked) {
+    content = <PinScreen accountId={account.id} onUnlock={() => setUnlocked(true)} />;
+  } else {
+    content = <CompanionHome isBirthday={settings.isBirthday} birthdayAge={settings.birthdayAge} />;
   }
 
-  if (!settings?.isSetUp) return <SetupScreen accountId={account.id} />;
-  if (!unlocked) return <PinScreen accountId={account.id} onUnlock={() => setUnlocked(true)} />;
-  return <CompanionHome isBirthday={settings.isBirthday} birthdayAge={settings.birthdayAge} />;
+  return (
+    <div style={{ background: "var(--bg-base)", minHeight: "100vh" }}>
+      <div className="max-w-md mx-auto shadow-2xl" style={{ minHeight: "100vh" }}>
+        {content}
+      </div>
+    </div>
+  );
 }
 
 // ── Setup screen ──────────────────────────────────────────────────────────────
@@ -34,7 +45,7 @@ const COUNTS = [2, 3, 4, 5];
 
 function SetupScreen({ accountId }: { accountId: number }) {
   const [, navigate] = useLocation();
-  const [step, setStep] = useState<"intro" | "pin" | "gesture" | "done">("intro");
+  const [step, setStep] = useState<"intro" | "pin" | "gesture">("intro");
   const [pin, setPin] = useState("");
   const [confirm, setConfirm] = useState("");
   const [gestureElement, setGestureElement] = useState<GestureConfig["element"]>("coins");
@@ -49,40 +60,15 @@ function SetupScreen({ accountId }: { accountId: number }) {
     setStep("gesture");
   }
 
-  function handleSave() {
-    setup.mutate({ pin, gestureElement, gestureCount }, {
+  function handleSave(hidden: boolean) {
+    setup.mutate({ pin, gestureElement, gestureCount, hidden }, {
       onSuccess: () => {
-        const encoded = JSON.stringify({ element: gestureElement, count: gestureCount });
+        const encoded = JSON.stringify({ element: gestureElement, count: gestureCount, hidden });
         localStorage.setItem("era_companion_tab", encoded);
         setCompanionUnlocked(accountId);
-        setStep("done");
+        navigate("/companion");
       },
     });
-  }
-
-  if (step === "done") {
-    const label = gestureLabel({ element: gestureElement, count: gestureCount });
-    return (
-      <div className="px-5 pt-16 pb-8 flex flex-col items-center text-center">
-        <div className="text-6xl mb-6">🔑</div>
-        <h1 className="text-2xl font-bold text-foreground mb-3">Your diary is ready!</h1>
-        <p className="text-sm text-muted-foreground mb-8 leading-relaxed max-w-sm">
-          Remember this — it's the only way in.
-        </p>
-        <div className="w-full bg-primary/10 border-2 border-primary rounded-2xl p-5 mb-8 text-left">
-          <p className="text-xs font-bold uppercase tracking-widest text-primary mb-2">Your secret entrance</p>
-          <p className="text-lg font-bold text-foreground">{label}</p>
-          <p className="text-sm text-muted-foreground mt-1">Then enter your PIN.</p>
-        </div>
-        <p className="text-xs text-muted-foreground mb-6">
-          A reminder will always be available on the home screen — tap the 🔑 icon anytime.
-        </p>
-        <button onClick={() => navigate("/companion")}
-          className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95">
-          Open my diary
-        </button>
-      </div>
-    );
   }
 
   if (step === "intro") {
@@ -91,14 +77,14 @@ function SetupScreen({ accountId }: { accountId: number }) {
         <div className="text-6xl mb-6">📔</div>
         <h1 className="text-2xl font-bold text-foreground mb-3">Your private diary</h1>
         <p className="text-muted-foreground text-sm leading-relaxed mb-8 max-w-sm">
-          A secret space for journaling, conversations, and knowing yourself. Protected by your PIN and a gesture only you know.
+          A private space for journaling and conversations. Protected by your PIN. You can optionally hide it with a secret gesture only you know.
         </p>
         <div className="space-y-3 w-full text-left mb-8">
           {[
             { icon: "📝", label: "Daily journaling", sub: "Write freely, privately" },
             { icon: "💬", label: "Live conversations", sub: "Your companion listens and remembers" },
             { icon: "🧠", label: "Personality profile", sub: "Learns who you are over time" },
-            { icon: "🔑", label: "Secret access", sub: "Hidden — only you know the way in" },
+            { icon: "🔒", label: "PIN protected", sub: "Only you can open it" },
           ].map((f) => (
             <div key={f.label} className="flex items-center gap-4 bg-card border border-border rounded-2xl p-4">
               <span className="text-2xl shrink-0">{f.icon}</span>
@@ -143,10 +129,11 @@ function SetupScreen({ accountId }: { accountId: number }) {
       <button onClick={() => setStep("pin")} className="flex items-center gap-1.5 text-muted-foreground mb-8 -ml-1">
         <ArrowLeft className="w-5 h-5" /><span className="text-sm font-medium">Back</span>
       </button>
-      <h2 className="text-xl font-bold text-foreground mb-1">Choose your secret gesture</h2>
-      <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-        Pick something you tap on the home screen and how many times. Nobody will know what it does.
+      <h2 className="text-xl font-bold text-foreground mb-1">Secret gesture (optional)</h2>
+      <p className="text-sm text-muted-foreground mb-2 leading-relaxed">
+        Pick a hidden tap pattern on the home screen to open your diary secretly. Only you will know what it does.
       </p>
+      <p className="text-xs text-muted-foreground mb-6">You can skip this — your diary will be visible in quick access instead.</p>
 
       <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">What to tap</p>
       <div className="space-y-2 mb-6">
@@ -179,13 +166,20 @@ function SetupScreen({ accountId }: { accountId: number }) {
       </div>
 
       <div className="bg-muted rounded-2xl p-4 mb-6 text-center">
-        <p className="text-xs text-muted-foreground mb-1">Your secret will be</p>
+        <p className="text-xs text-muted-foreground mb-1">Your secret entrance will be</p>
         <p className="font-bold text-foreground text-sm">{gestureLabel({ element: gestureElement, count: gestureCount })}</p>
       </div>
 
-      <button onClick={handleSave} disabled={setup.isPending}
+      {setup.error && <p className="text-sm text-destructive text-center mb-3">{setup.error.message}</p>}
+
+      <button onClick={() => handleSave(true)} disabled={setup.isPending}
         className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">
-        {setup.isPending ? "Setting up…" : "Save my secret & open diary"}
+        {setup.isPending ? "Setting up…" : "Save secret & hide diary"}
+      </button>
+      <button onClick={() => handleSave(false)} disabled={setup.isPending}
+        className="w-full mt-3 py-3 rounded-2xl font-semibold text-sm transition active:scale-95 disabled:opacity-60"
+        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-sub)" }}>
+        Skip — keep diary visible in quick access
       </button>
     </div>
   );

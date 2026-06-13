@@ -129,9 +129,9 @@ export function usePersonality() {
 
 export function useSetupCompanion() {
   const qc = useQueryClient();
-  return useMutation<{ ok: boolean }, Error, { pin: string; gestureElement: GestureConfig["element"]; gestureCount: number }>({
-    mutationFn: ({ pin, gestureElement, gestureCount }) =>
-      post(`${BASE}/setup`, { pin, entryTab: JSON.stringify({ element: gestureElement, count: gestureCount }) }),
+  return useMutation<{ ok: boolean }, Error, { pin: string; gestureElement: GestureConfig["element"]; gestureCount: number; hidden?: boolean }>({
+    mutationFn: ({ pin, gestureElement, gestureCount, hidden }) =>
+      post(`${BASE}/setup`, { pin, entryTab: JSON.stringify({ element: gestureElement, count: gestureCount, hidden: !!hidden }) }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["companion"] }),
   });
 }

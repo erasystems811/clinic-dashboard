@@ -411,13 +411,16 @@ export default function HomePage() {
                       }
                     </button>
 
-                    {/* Content + navigate arrow */}
+                    {/* Content + navigate arrow (for eyebreak, tapping label also increments) */}
                     <button
-                      onClick={() => navigate(moduleHref(item.id))}
+                      onClick={() => {
+                        if (item.id === "eyebreak" && entry) quickLog.mutate({ moduleType: entry.moduleType, data: entry.data });
+                        else navigate(moduleHref(item.id));
+                      }}
                       className="flex-1 flex items-center gap-1 py-3 pl-2.5 pr-2 text-left min-w-0 active:opacity-70 transition"
                       style={{ background: "transparent", border: "none" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="flex items-center gap-1 mb-0.5">
+                        <div className="flex items-center gap-1 mb-0.5 flex-wrap">
                           <span style={{ fontSize: 13 }}>{item.emoji}</span>
                           {item.time && (
                             <span style={{ fontSize: 9, fontWeight: 700, color: item.done ? "var(--text-dim)" : accent, background: `${accent}18`, padding: "1px 5px", borderRadius: 6, flexShrink: 0 }}>
@@ -430,16 +433,16 @@ export default function HomePage() {
                             </span>
                           )}
                         </div>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none", lineHeight: 1.3 }}>
                           {item.label}
                         </p>
                         {item.sub && (
-                          <p style={{ fontSize: 10, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <p style={{ fontSize: 10, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1, lineHeight: 1.3 }}>
                             {item.sub}
                           </p>
                         )}
                       </div>
-                      <ChevronRight style={{ width: 12, height: 12, color: "var(--text-dim)", flexShrink: 0, opacity: 0.45 }} />
+                      {item.id !== "eyebreak" && <ChevronRight style={{ width: 12, height: 12, color: "var(--text-dim)", flexShrink: 0, opacity: 0.45 }} />}
                     </button>
                   </div>
                 );

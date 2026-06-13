@@ -7,7 +7,7 @@ const router = Router();
 
 // ── POST /api/patient-app/track — fire-and-forget page view ─────────────────
 // No auth required. Called on every route change in the ERA patient app.
-router.post("/api/patient-app/track", async (req, res) => {
+router.post("/patient-app/track", async (req, res) => {
   // Always respond immediately — tracking must never slow the app
   res.json({ ok: true });
   try {
@@ -29,9 +29,10 @@ router.post("/api/patient-app/track", async (req, res) => {
 });
 
 // ── POST /api/patient-app/feedback — submit in-app feedback ─────────────────
-router.post("/api/patient-app/feedback", async (req, res) => {
+router.post("/patient-app/feedback", async (req, res) => {
   try {
     const patient = await getPatientFromRequest(req);
+    if (!patient) { res.status(401).json({ error: "Unauthorized" }); return; }
     const body = z.object({
       rating:   z.number().int().min(1).max(5).optional(),
       category: z.enum(["general", "bug", "feature", "praise"]).default("general"),

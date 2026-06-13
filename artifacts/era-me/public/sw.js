@@ -1,7 +1,7 @@
 // ERA Health Service Worker
 // Handles: push notifications + offline caching (PWA install support)
 
-const CACHE = "era-health-v2";
+const CACHE = "era-health-v3";
 const SHELL  = ["/", "/index.html"];
 
 // ── Install: precache the app shell ──────────────────────────────────────────

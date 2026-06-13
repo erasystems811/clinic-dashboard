@@ -545,12 +545,12 @@ router.get("/patient-app/companion/personality", async (req, res): Promise<void>
   const settings = await getOrCreateSettings(account.id);
   const personality = (settings?.personality as Record<string, unknown>) ?? {};
 
-  const { data: entryCount } = await supabase
+  const { count: entryCount } = await supabase
     .from("diary_entries").select("id", { count: "exact", head: true }).eq("account_id", account.id);
 
   res.json({
     personality,
-    conversationCount: (entryCount as unknown as { count: number } | null)?.count ?? 0,
+    conversationCount: entryCount ?? 0,
     hasInsights: !!(personality.traits),
   });
 });

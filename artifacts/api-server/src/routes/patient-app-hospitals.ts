@@ -494,9 +494,13 @@ router.post("/patient-app/coins/award", async (req, res): Promise<void> => {
     res.status(400).json({ error: "amount must be a positive number" }); return;
   }
 
+  const { data: acctData } = await supabase
+    .from("patient_accounts").select("coins").eq("id", account.id).single();
+  const currentCoins = (acctData?.coins as number | null) ?? 0;
+
   await supabase
     .from("patient_accounts")
-    .update({ coins: (account.coins as number ?? 0) + amount })
+    .update({ coins: currentCoins + amount })
     .eq("id", account.id);
 
   await supabase.from("patient_coin_transactions").insert({

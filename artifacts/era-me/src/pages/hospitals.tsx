@@ -472,22 +472,27 @@ function BookingPage({ connection, onBack }: { connection: HospitalConnection; o
 // ── Hospital chat page ─────────────────────────────────────────────────────────
 function HospitalChatPage({ connection, onBack }: { connection: HospitalConnection; onBack: () => void }) {
   const [message, setMessage] = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: messages = [], isLoading } = useHospitalMessages(connection.connectionId);
   const sendMessage = useSendMessage(connection.connectionId);
 
+  function scrollToBottom() {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollToBottom();
   }, [messages]);
 
-  // Scroll to bottom when keyboard opens so latest message stays visible
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     let prevH = vv.height;
     function onResize() {
-      if (vv!.height < prevH) bottomRef.current?.scrollIntoView({ behavior: "instant" });
+      if (vv!.height < prevH) scrollToBottom();
       prevH = vv!.height;
     }
     vv.addEventListener("resize", onResize);
@@ -522,7 +527,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
         {isLoading ? (
           <div className="flex justify-center py-10">
             <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#60a5fa", borderTopColor: "transparent" }} />
@@ -548,7 +553,6 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
             return items;
           })()
         )}
-        <div ref={bottomRef} />
       </div>
 
       <div className="px-4 shrink-0"

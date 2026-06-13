@@ -2019,20 +2019,20 @@ router.get("/super-admin/patient-analytics", requireSuperAdmin, async (_req, res
   try {
     // Total registered patients
     const { count: totalPatients } = await supabase
-      .from("era_patient_accounts")
+      .from("patient_accounts")
       .select("*", { count: "exact", head: true });
 
     // New registrations this week
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
     const { count: newThisWeek } = await supabase
-      .from("era_patient_accounts")
+      .from("patient_accounts")
       .select("*", { count: "exact", head: true })
       .gte("created_at", weekAgo);
 
     // New registrations today
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const { count: newToday } = await supabase
-      .from("era_patient_accounts")
+      .from("patient_accounts")
       .select("*", { count: "exact", head: true })
       .gte("created_at", todayStart.toISOString());
 
@@ -2085,7 +2085,7 @@ router.get("/super-admin/patient-analytics", requireSuperAdmin, async (_req, res
     // Daily new users for the last 14 days
     const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
     const { data: registrationRows } = await supabase
-      .from("era_patient_accounts")
+      .from("patient_accounts")
       .select("created_at")
       .gte("created_at", twoWeeksAgo)
       .order("created_at", { ascending: true });

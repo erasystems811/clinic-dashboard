@@ -818,7 +818,7 @@ router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> =
     thisWeekLines.push(`${meta.label}: this week ${thisW}/7, last week ${lastW}/7`);
   }
 
-  const rawName = (account as { display_name?: string }).display_name ?? "";
+  const rawName = account.displayName ?? "";
   const firstName = rawName.split(" ")[0] || "there";
 
   const prompt = `You are ${firstName}'s personal wellness coach. Write a warm, personalised insight (2-3 sentences, max 60 words) based on their habit data below.

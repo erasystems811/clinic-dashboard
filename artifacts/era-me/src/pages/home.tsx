@@ -52,6 +52,7 @@ function baseModule(id: string): string {
 }
 
 const TRACKING_MODULES = new Set(["vitals", "smoking", "alcohol", "intimacy"]);
+const WIDGET_MODULES = new Set(["water"]); // has its own dedicated widget on the home screen
 
 function moduleHref(id: string): string {
   if (id === "mood_check") return "/wellness/mood";
@@ -145,7 +146,7 @@ export default function HomePage() {
   const waterPct = Math.min(100, Math.round((waterCups / waterGoal) * 100));
 
   const checklist: ChecklistItem[] = todayData?.checklist ?? [];
-  const checklistItems = checklist.filter((c) => !TRACKING_MODULES.has(baseModule(c.id)));
+  const checklistItems = checklist.filter((c) => !TRACKING_MODULES.has(baseModule(c.id)) && !WIDGET_MODULES.has(baseModule(c.id)));
   const trackingItems = checklist.filter((c) => TRACKING_MODULES.has(baseModule(c.id)));
   const doneItems = checklistItems.filter((c) => c.done);
   const pendingItems = checklistItems.filter((c) => !c.done);

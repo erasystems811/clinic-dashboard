@@ -237,7 +237,7 @@ export default function OnboardingPage() {
 
         {/* ── Step 4: Choose your colour ────────────────────── */}
         {step === 4 && (
-          <div>
+          <div className="pb-4">
             <div className="mb-5">
               <h1 className="text-3xl font-extrabold mb-2 tracking-tight" style={{ color: "var(--text-main)" }}>Pick your colour</h1>
               <p className="text-sm leading-relaxed" style={{ color: "var(--text-sub)" }}>

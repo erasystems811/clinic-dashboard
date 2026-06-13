@@ -84,6 +84,26 @@ export default function ProfilePage() {
   const [pwdError, setPwdError] = useState("");
   const [pwdOk, setPwdOk] = useState(false);
   const [pwdLoading, setPwdLoading] = useState(false);
+  const pwdSheetRef = useRef<HTMLDivElement>(null);
+
+  // Push the password sheet above the keyboard on iOS
+  useEffect(() => {
+    if (!showPwd) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function update() {
+      if (!pwdSheetRef.current) return;
+      const kb = Math.max(0, window.innerHeight - vv!.height - vv!.offsetTop);
+      pwdSheetRef.current.style.marginBottom = kb + "px";
+    }
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [showPwd]);
 
 
   async function handleChangePassword() {
@@ -361,8 +381,8 @@ export default function ProfilePage() {
     {showPwd && (
       <div className="fixed inset-0 z-50 flex items-end justify-center"
         style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
-        <div className="w-full max-w-md rounded-t-3xl flex flex-col"
-          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "90dvh" }}>
+        <div ref={pwdSheetRef} className="w-full max-w-md rounded-t-3xl flex flex-col"
+          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", maxHeight: "90dvh", transition: "margin-bottom 0.15s ease" }}>
 
           {/* Fixed header — never scrolls */}
           <div className="flex items-center justify-between px-6 pt-5 pb-4 shrink-0"

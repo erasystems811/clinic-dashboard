@@ -35,6 +35,7 @@ const MEAL_PREFS = [
   { id: "lowcarb",     label: "Low carb",        emoji: "🥩" },
   { id: "vegetarian",  label: "Vegetarian",      emoji: "🥦" },
   { id: "highprotein", label: "High protein",    emoji: "💪" },
+  { id: "snacker",     label: "Snack-based",     emoji: "🍎" },
 ];
 
 const COOKING_ABILITIES = [

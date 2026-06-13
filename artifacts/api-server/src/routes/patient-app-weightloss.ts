@@ -48,6 +48,7 @@ function buildFoodPrefs(pref: string, conditions: string[]): string[] {
   if (pref === "vegetarian")  prefs.push("no_meat");
   if (pref === "lowcarb")     prefs.push("lowcarb");
   if (pref === "highprotein") prefs.push("highprotein");
+  if (pref === "snacker")     prefs.push("snack_based", "frequent_small_meals");
   return [...new Set(prefs)];
 }
 
@@ -312,7 +313,8 @@ RULES:
 11. Workouts must match their location (home/gym/outdoor). Include specific exercises, sets, reps, and estimated duration.
 12. Schedule workouts in their preferred active period (${activePeriodDesc}).
 13. The plan must fit around their wake/sleep and fasting window.
-14. If it is a rest day, say so — gentle walk is always fine.`;
+14. If it is a rest day, say so — gentle walk is always fine.
+15. If food_preferences includes "snack_based" or "frequent_small_meals": replace the standard 3-meal structure with 5–6 small snack-sized meals/snacks spread across the day. Each portion must be small. Examples: groundnuts, boiled egg, garden egg, small fruit, ofio, chin-chin (small), yoghurt, cucumber. Calories per snack should be 100–300 kcal. Total must still stay within the daily calorie target.`;
 
   const userPrompt = `Generate the weekly plan for the week starting ${weekStart} (${dates.join(", ")}).
 

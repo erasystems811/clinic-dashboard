@@ -13,6 +13,7 @@ import type { GestureConfig } from "@/lib/companion-api";
 
 interface ChecklistItem {
   id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean;
+  count?: number; target?: number; batchIds?: string[];
 }
 
 function fmtTime(t: string): string {
@@ -42,12 +43,15 @@ const MODULE_ACCENT: Record<string, string> = {
 };
 
 function baseModule(id: string): string {
-  if (id.startsWith("med_"))     return "medications";
-  if (id.startsWith("hygiene_")) return "hygiene";
-  if (id.startsWith("vaccine_")) return "vaccines";
-  if (id.startsWith("checkup_")) return "checkups";
+  if (id.startsWith("med_"))        return "medications";
+  if (id.startsWith("hygiene_"))    return "hygiene";
+  if (id.startsWith("vaccine_"))    return "vaccines";
+  if (id.startsWith("checkup_"))    return "checkups";
+  if (id.startsWith("sunscreen_"))  return "sunscreen";
   return id;
 }
+
+const TRACKING_MODULES = new Set(["vitals", "smoking", "alcohol", "intimacy"]);
 
 function moduleHref(id: string): string {
   if (id === "mood_check") return "/wellness/mood";
@@ -141,10 +145,12 @@ export default function HomePage() {
   const waterPct = Math.min(100, Math.round((waterCups / waterGoal) * 100));
 
   const checklist: ChecklistItem[] = todayData?.checklist ?? [];
-  const doneItems = checklist.filter((c) => c.done);
-  const pendingItems = checklist.filter((c) => !c.done);
+  const checklistItems = checklist.filter((c) => !TRACKING_MODULES.has(baseModule(c.id)));
+  const trackingItems = checklist.filter((c) => TRACKING_MODULES.has(baseModule(c.id)));
+  const doneItems = checklistItems.filter((c) => c.done);
+  const pendingItems = checklistItems.filter((c) => !c.done);
   const doneCount = doneItems.length;
-  const total = checklist.length;
+  const total = checklistItems.length;
   const completionPct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
   const weekRate = summary?.overallRate ?? 0;
   const eraScore = computeEraScore(completionPct, weekRate);
@@ -350,67 +356,117 @@ export default function HomePage() {
               <div className="h-full rounded-full transition-all duration-700"
                 style={{ width: `${completionPct}%`, background: completionPct === 100 ? "#4ade80" : "var(--btn-gradient)", boxShadow: `0 0 8px rgba(var(--glow-rgb),0.5)` }} />
             </div>
-            {/* 2-column task grid — one card, all tasks side by side */}
+            {/* 2-column task grid — column 1 fills top-to-bottom, then column 2 */}
             {(() => {
               const quickLogData = buildQuickLogData(mods);
-              const allItems = [...checklist].sort((a, b) => {
+              const allItems = [...checklistItems].sort((a, b) => {
                 if (!a.time && !b.time) return 0;
                 if (!a.time) return 1;
                 if (!b.time) return -1;
                 return a.time.localeCompare(b.time);
               });
+              const half = Math.ceil(allItems.length / 2);
+              const leftItems = allItems.slice(0, half);
+              const rightItems = allItems.slice(half);
+
+              function renderCell(item: ChecklistItem, isLast: boolean, hasRightBorder: boolean) {
+                const entry: QuickLogEntry | undefined = item.done ? undefined :
+                  item.id === "eyebreak"
+                    ? { moduleType: "eyebreak", data: { count: (item.count ?? 0) + 1 } }
+                    : item.id.startsWith("sunscreen_")
+                      ? { moduleType: "sunscreen", data: { count: parseInt(item.id.split("_")[1] ?? "0") + 1 } }
+                      : item.id.startsWith("med_batch_") && item.batchIds
+                        ? { moduleType: "medications", data: { taken: Object.fromEntries(item.batchIds.map((bid) => [bid, true])) } }
+                        : quickLogData[item.id];
+                const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
+                return (
+                  <Link key={item.id} href={moduleHref(item.id)}>
+                    <div className="flex items-start gap-2 p-3 cursor-pointer active:scale-[0.98] transition"
+                      style={{
+                        borderBottom: isLast ? "none" : `1px solid var(--glass-border)`,
+                        borderRight: hasRightBorder ? `1px solid var(--glass-border)` : "none",
+                        background: item.done ? "rgba(74,222,128,0.04)" : "transparent",
+                        minHeight: 62,
+                      }}>
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); entry && !item.done && quickLog.mutate({ moduleType: entry.moduleType, data: entry.data }); }}
+                        disabled={item.done || !entry}
+                        className="shrink-0 mt-0.5 active:scale-90 transition disabled:cursor-default"
+                        style={{ lineHeight: 0 }}>
+                        {item.done
+                          ? <CheckCircle2 style={{ width: 18, height: 18, color: "var(--accent)" }} />
+                          : entry
+                            ? <Circle style={{ width: 18, height: 18, color: accent }} />
+                            : <Circle style={{ width: 18, height: 18, color: accent, opacity: 0.4 }} />
+                        }
+                      </button>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <span style={{ fontSize: 14 }}>{item.emoji}</span>
+                          {item.time && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: item.done ? "var(--text-dim)" : accent, background: `${accent}18`, padding: "1px 5px", borderRadius: 6, flexShrink: 0 }}>
+                              {fmtTime(item.time)}
+                            </span>
+                          )}
+                          {item.count !== undefined && item.target !== undefined && (
+                            <span style={{ fontSize: 9, fontWeight: 800, color: item.done ? "var(--accent)" : accent, background: item.done ? "rgba(74,222,128,0.15)" : `${accent}18`, padding: "1px 5px", borderRadius: 6, flexShrink: 0 }}>
+                              {item.count}/{item.target}
+                            </span>
+                          )}
+                        </div>
+                        <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {item.label}
+                        </p>
+                        {item.sub && (
+                          <p style={{ fontSize: 10, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {item.sub}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              }
+
               return (
-                <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-                    {allItems.map((item, i) => {
-                      const entry = quickLogData[item.id];
-                      const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
-                      const isRight = i % 2 === 1;
-                      return (
-                        <Link key={item.id} href={moduleHref(item.id)}>
-                          <div className="flex items-start gap-2 p-3 cursor-pointer active:scale-[0.98] transition"
-                            style={{
-                              borderBottom: i >= 2 * Math.floor((allItems.length - 1) / 2) ? "none" : `1px solid var(--glass-border)`,
-                              borderRight: isRight ? "none" : `1px solid var(--glass-border)`,
-                              background: item.done ? "rgba(74,222,128,0.04)" : "transparent",
-                            }}>
-                            {/* Check circle */}
-                            <button
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); entry && !item.done && quickLog.mutate({ moduleType: entry.moduleType, data: entry.data }); }}
-                              disabled={item.done || !entry}
-                              className="shrink-0 mt-0.5 active:scale-90 transition disabled:cursor-default"
-                              style={{ lineHeight: 0 }}>
-                              {item.done
-                                ? <CheckCircle2 style={{ width: 18, height: 18, color: "var(--accent)" }} />
-                                : entry
-                                  ? <Circle style={{ width: 18, height: 18, color: accent }} />
-                                  : <Circle style={{ width: 18, height: 18, color: accent, opacity: 0.4 }} />
-                              }
-                            </button>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div className="flex items-center gap-1 mb-0.5">
-                                <span style={{ fontSize: 14 }}>{item.emoji}</span>
-                                {item.time && (
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: item.done ? "var(--text-dim)" : accent, background: `${accent}18`, padding: "1px 5px", borderRadius: 6, flexShrink: 0 }}>
-                                    {fmtTime(item.time)}
-                                  </span>
-                                )}
-                              </div>
-                              <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {item.label}
-                              </p>
-                              {item.sub && (
-                                <p style={{ fontSize: 10, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {item.sub}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </Link>
-                      );
-                    })}
+                <>
+                  <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+                    <div style={{ display: "flex" }}>
+                      <div style={{ flex: 1 }}>
+                        {leftItems.map((item, i) => renderCell(item, i === leftItems.length - 1, true))}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        {rightItems.map((item, i) => renderCell(item, i === rightItems.length - 1, false))}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                  {trackingItems.length > 0 && (
+                    <div className="rounded-2xl overflow-hidden mt-3" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+                      <div className="px-4 pt-3 pb-1">
+                        <p style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", letterSpacing: 1 }}>LOG TODAY</p>
+                      </div>
+                      {trackingItems.map((item) => {
+                        const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
+                        return (
+                          <Link key={item.id} href={moduleHref(item.id)}>
+                            <div className="flex items-center gap-3 px-4 py-3 cursor-pointer active:scale-[0.98] transition"
+                              style={{ borderTop: "1px solid var(--glass-border)" }}>
+                              <span style={{ fontSize: 20, flexShrink: 0 }}>{item.emoji}</span>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: 13, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", lineHeight: 1.3 }}>{item.label}</p>
+                                {item.sub && <p style={{ fontSize: 11, color: item.done ? "var(--text-dim)" : accent, marginTop: 1 }}>{item.sub}</p>}
+                              </div>
+                              {item.done
+                                ? <CheckCircle2 style={{ width: 16, height: 16, color: "var(--accent)", flexShrink: 0 }} />
+                                : <ChevronRight style={{ width: 16, height: 16, color: "var(--text-dim)", flexShrink: 0 }} />
+                              }
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
               );
             })()}
           </section>
@@ -588,15 +644,14 @@ function buildQuickLogData(mods: Record<string, ModuleEntry | undefined>): Recor
   const eyeTarget = (mods.eyebreak?.settings?.targetBreaks as number | undefined) ?? 6;
   const intimacyMode = (mods.intimacy?.settings as { mode?: string } | undefined)?.mode;
   const entries: Record<string, QuickLogEntry> = {
-    fruit:     { moduleType: "fruit",     data: { done: true } },
-    sunscreen: { moduleType: "sunscreen", data: { done: true } },
-    smoking:   { moduleType: "smoking",   data: { smoked: false } },
-    alcohol:   { moduleType: "alcohol",   data: { drinks: 0 } },
-    workout:   { moduleType: "workout",   data: { completed: true } },
-    outdoors:  { moduleType: "outdoors",  data: { minutes: outdoorsTarget } },
-    eyebreak:  { moduleType: "eyebreak",  data: { count: eyeTarget } },
+    fruit:    { moduleType: "fruit",    data: { done: true } },
+    smoking:  { moduleType: "smoking",  data: { smoked: false } },
+    alcohol:  { moduleType: "alcohol",  data: { drinks: 0 } },
+    workout:  { moduleType: "workout",  data: { completed: true } },
+    outdoors: { moduleType: "outdoors", data: { minutes: outdoorsTarget } },
   };
   if (intimacyMode === "celibacy") entries.intimacy = { moduleType: "intimacy", data: { active: false } };
+  // eyebreak and sunscreen_N are handled inline in the render (they need dynamic count data)
 
   // Medications — one quick-log entry per dose per med (key matches checklist item id)
   type Med = { id: string; times?: string[] };

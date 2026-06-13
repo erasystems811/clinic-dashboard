@@ -200,6 +200,11 @@ export default function HygienePage() {
         </button>
       </div>
 
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-4 py-3 mb-4 flex gap-3 items-start">
+        <span className="text-lg shrink-0">💡</span>
+        <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">Items only appear in your daily checklist when they're due for replacement. Manage and track them here.</p>
+      </div>
+
       <div className="bg-card border border-border rounded-2xl p-5 mb-4">
         <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
         <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I do my hygiene routine at 7am", "I shower at night"</p>

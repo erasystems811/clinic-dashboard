@@ -159,11 +159,19 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       }
     }
 
-    // Sunscreen — after morning routine
+    // Sunscreen — one plan item per application
     if (enabledMap["sunscreen"]) {
       const ssNotes = enabledMap["sunscreen"].notes as string | undefined;
-      const ssTime = (ssNotes && parseTimeHint(ssNotes)) ?? "08:00";
-      items.push({ moduleType: "sunscreen", emoji: "☀️", label: "Apply sunscreen", sub: ssNotes ?? "Daily skin protection", time: ssTime });
+      const ssTarget = (enabledMap["sunscreen"].target as number) ?? 2;
+      const reminderTime = (enabledMap["sunscreen"].reminderTime as string) ?? (ssNotes && parseTimeHint(ssNotes)) ?? "08:00";
+      const [rh, rm] = reminderTime.split(":").map(Number);
+      const startMins = (rh ?? 8) * 60 + (rm ?? 0);
+      const endMins = 18 * 60;
+      for (let i = 0; i < ssTarget; i++) {
+        const t = ssTarget === 1 ? startMins : Math.round(startMins + (i * (endMins - startMins)) / Math.max(1, ssTarget - 1));
+        const timeStr = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+        items.push({ moduleType: "sunscreen", checklistId: `sunscreen_${i}`, emoji: "☀️", label: "Apply sunscreen", sub: ssTarget > 1 ? `Application ${i + 1} of ${ssTarget}` : (ssNotes ?? "Daily skin protection"), time: timeStr });
+      }
     }
 
     // Fruit — with morning meal

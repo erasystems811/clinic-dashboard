@@ -173,7 +173,7 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
   }
 
   // Build checklist from the weekly plan (falls back to module-based logic if no plan)
-  const checklist: Array<{ id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean }> = [];
+  const checklist: Array<{ id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean; count?: number; target?: number; batchIds?: string[] }> = [];
   const plan = planResult.data?.plan_data as WeekPlan | null;
   const todayPlanDay = plan?.days.find((d) => d.date === today);
 
@@ -196,7 +196,7 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (seen.has(item.moduleType)) continue;
       seen.add(item.moduleType);
 
-      // Medications: one checklist entry per dose per active drug
+      // Medications: group same-time doses into merged entries
       if (item.moduleType === "medications") {
         const activeMeds = ((settings.medications as Array<Record<string, unknown>>) ?? []).filter((m) => {
           const start = m.startDate as string;
@@ -205,12 +205,27 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
           if (dur && new Date(start).getTime() + dur * 86400000 < new Date(today).getTime()) return false;
           return true;
         });
+        if (activeMeds.length === 0) continue;
         const taken = (log?.taken as Record<string, boolean>) ?? {};
+        const byTime = new Map<string, Array<{ med: Record<string, unknown>; isDone: boolean }>>();
         for (const med of activeMeds) {
           const times: string[] = (med.times as string[])?.length ? (med.times as string[]) : ["08:00"];
           for (const t of times) {
-            const isDone = taken[`${med.id as string}_${t}`] === true;
-            checklist.push({ id: `med_${med.id as string}_${t}`, emoji: "💊", label: `Take ${med.name as string}`, sub: (med.dosage as string | undefined) ?? undefined, time: t, done: isDone });
+            if (!byTime.has(t)) byTime.set(t, []);
+            byTime.get(t)!.push({ med, isDone: taken[`${med.id as string}_${t}`] === true });
+          }
+        }
+        for (const [time, doses] of [...byTime.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+          if (doses.length === 1) {
+            const { med, isDone } = doses[0];
+            checklist.push({ id: `med_${med.id as string}_${time}`, emoji: "💊", label: `Take ${med.name as string}`, sub: (med.dosage as string | undefined) ?? undefined, time, done: isDone });
+          } else {
+            const allDone = doses.every((d) => d.isDone);
+            const names = doses.map((d) => d.med.name as string);
+            const label = doses.length <= 2 ? `Take ${names.join(" + ")}` : `Take ${doses.length} medications`;
+            const dosages = doses.map((d) => d.med.dosage as string | undefined).filter(Boolean);
+            const sub = doses.length > 2 ? names.join(", ") : dosages.length > 0 ? dosages.join(" · ") : `${doses.length} medications`;
+            checklist.push({ id: `med_batch_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds: doses.map((d) => `${d.med.id as string}_${time}`) });
           }
         }
         continue;
@@ -269,6 +284,33 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         continue;
       }
 
+      // Eyebreak: single tap-counter item with current count + target
+      if (item.moduleType === "eyebreak") {
+        const ebCount = (log?.count as number) ?? 0;
+        const [sh, sm] = ((settings.startTime as string) ?? "09:00").split(":").map(Number);
+        const [eh, em] = ((settings.endTime as string) ?? "18:00").split(":").map(Number);
+        const defaultTarget = Math.max(4, Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 25));
+        const ebTarget = (settings.targetBreaks as number) ?? defaultTarget;
+        checklist.push({ id: "eyebreak", emoji: "👁️", label: "Eye breaks", sub: `${ebCount} / ${ebTarget} breaks`, time: item.time ?? undefined, done: ebCount >= ebTarget, count: ebCount, target: ebTarget });
+        continue;
+      }
+
+      // Sunscreen: one entry per scheduled application
+      if (item.moduleType === "sunscreen") {
+        const ssCount = (log?.count as number) ?? 0;
+        const ssTarget = (settings.target as number) ?? 2;
+        const reminderTime = (settings.reminderTime as string) ?? "08:00";
+        const [rh, rm] = reminderTime.split(":").map(Number);
+        const startMins = rh * 60 + rm;
+        const endMins = 18 * 60;
+        for (let i = 0; i < ssTarget; i++) {
+          const t = ssTarget === 1 ? startMins : Math.round(startMins + (i * (endMins - startMins)) / Math.max(1, ssTarget - 1));
+          const timeStr = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+          checklist.push({ id: `sunscreen_${i}`, emoji: "☀️", label: "Apply sunscreen", sub: ssTarget > 1 ? `Application ${i + 1} of ${ssTarget}` : "Daily protection", time: timeStr, done: ssCount > i });
+        }
+        continue;
+      }
+
       const done = isModuleCompleted(item.moduleType, log ?? undefined, settings, today);
       const sub = log ? (checklistSub(item.moduleType, log, settings, today) ?? item.sub) : item.sub;
       const label = item.moduleType === "water" ? "Water intake" : item.label;
@@ -304,12 +346,51 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         });
         if (activeMeds.length === 0) continue;
         const taken = (log?.taken as Record<string, boolean>) ?? {};
+        const byTime = new Map<string, Array<{ med: Record<string, unknown>; isDone: boolean }>>();
         for (const med of activeMeds) {
-          const times = (med.times as string[]) ?? [];
-          const doneTimes = times.filter((t) => taken[`${med.id}_${t}`]);
-          const medDone = doneTimes.length === times.length;
-          const sub = times.length > 1 ? `${doneTimes.length}/${times.length} doses` : (doneTimes.length === 1 ? "Taken" : `Take at ${times[0] ?? "scheduled time"}`);
-          checklist.push({ id: `med_${med.id as string}`, emoji: "💊", label: med.name as string, sub, done: medDone });
+          const times: string[] = (med.times as string[])?.length ? (med.times as string[]) : ["08:00"];
+          for (const t of times) {
+            if (!byTime.has(t)) byTime.set(t, []);
+            byTime.get(t)!.push({ med, isDone: taken[`${med.id as string}_${t}`] === true });
+          }
+        }
+        for (const [time, doses] of [...byTime.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+          if (doses.length === 1) {
+            const { med, isDone } = doses[0];
+            checklist.push({ id: `med_${med.id as string}_${time}`, emoji: "💊", label: `Take ${med.name as string}`, sub: (med.dosage as string | undefined) ?? undefined, time, done: isDone });
+          } else {
+            const allDone = doses.every((d) => d.isDone);
+            const names = doses.map((d) => d.med.name as string);
+            const label = doses.length <= 2 ? `Take ${names.join(" + ")}` : `Take ${doses.length} medications`;
+            const dosages = doses.map((d) => d.med.dosage as string | undefined).filter(Boolean);
+            const sub = doses.length > 2 ? names.join(", ") : dosages.length > 0 ? dosages.join(" · ") : `${doses.length} medications`;
+            checklist.push({ id: `med_batch_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds: doses.map((d) => `${d.med.id as string}_${time}`) });
+          }
+        }
+        continue;
+      }
+
+      if (type === "eyebreak") {
+        const ebCount = (log?.count as number) ?? 0;
+        const [sh, sm] = ((settings.startTime as string) ?? "09:00").split(":").map(Number);
+        const [eh, em] = ((settings.endTime as string) ?? "18:00").split(":").map(Number);
+        const defaultTarget = Math.max(4, Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 25));
+        const ebTarget = (settings.targetBreaks as number) ?? defaultTarget;
+        checklist.push({ id: "eyebreak", emoji: "👁️", label: "Eye breaks", sub: `${ebCount} / ${ebTarget} breaks`, done: ebCount >= ebTarget, count: ebCount, target: ebTarget });
+        continue;
+      }
+
+      if (type === "sunscreen") {
+        const ssCount = (log?.count as number) ?? 0;
+        const ssTarget = (settings.target as number) ?? 2;
+        const reminderTime = (settings.reminderTime as string) ?? "08:00";
+        const [rh, rm] = reminderTime.split(":").map(Number);
+        const startMins = rh * 60 + rm;
+        const endMins = 18 * 60;
+        for (let i = 0; i < ssTarget; i++) {
+          const t = ssTarget === 1 ? startMins : Math.round(startMins + (i * (endMins - startMins)) / Math.max(1, ssTarget - 1));
+          const timeStr = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+          checklist.push({ id: `sunscreen_${i}`, emoji: "☀️", label: "Apply sunscreen", sub: ssTarget > 1 ? `Application ${i + 1} of ${ssTarget}` : "Daily protection", time: timeStr, done: ssCount > i });
         }
         continue;
       }

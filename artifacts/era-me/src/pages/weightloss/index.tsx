@@ -223,75 +223,79 @@ function TodayTab({ onNavigate }: { onNavigate: (p: string) => void }) {
         </button>
       )}
 
-      {/* Today's meals */}
+      {/* What you ate today — PRIMARY */}
       <div className="rounded-2xl overflow-hidden"
         style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         <div className="px-4 pt-4 pb-3 flex items-center justify-between">
           <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>
-            Meals
+            What you ate today
           </p>
           <button onClick={() => onNavigate("/weightloss/today")}
-            className="text-[11px] font-semibold" style={{ color: "var(--accent)" }}>
-            Log meal +
+            className="text-[11px] font-bold px-3 py-1 rounded-lg transition active:scale-95"
+            style={{ background: "var(--accent)", color: "#fff" }}>
+            + Log meal
           </button>
         </div>
 
-        {todayPlan && todayPlan.meals.length > 0 ? (
-          todayPlan.meals.map((meal, i) => {
-            const slot     = SLOT_META[meal.slot] ?? { emoji: "🍽️", label: meal.slot };
-            const isLogged = loggedMeals.some((lm) => lm.planned_meal_id === meal.id);
-            return (
-              <div key={meal.id} className="flex items-center gap-3 px-4 py-3"
-                style={{ borderTop: i > 0 ? "1px solid var(--glass-border)" : "none" }}>
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
-                  style={{ background: isLogged ? "rgba(16,185,129,0.1)" : "var(--bg-base)" }}>
-                  {slot.emoji}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate"
-                    style={{ color: isLogged ? "var(--text-dim)" : "var(--text-main)",
-                             textDecoration: isLogged ? "line-through" : "none" }}>
-                    {meal.name}
-                  </p>
-                  <p className="text-xs" style={{ color: "var(--text-dim)" }}>
-                    {slot.label} · {meal.calories} kcal
-                  </p>
-                </div>
-                {isLogged
-                  ? <Check className="w-4 h-4 shrink-0" style={{ color: "var(--accent)" }} />
-                  : <span className="text-xs font-bold shrink-0" style={{ color: "var(--text-dim)" }}>{meal.calories}</span>
-                }
+        {loggedMeals.length > 0 ? (
+          loggedMeals.map((lm, i) => (
+            <div key={lm.id} className="flex items-center gap-3 px-4 py-3"
+              style={{ borderTop: "1px solid var(--glass-border)" }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
+                style={{ background: "rgba(16,185,129,0.1)" }}>
+                🍽️
               </div>
-            );
-          })
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate" style={{ color: "var(--text-main)" }}>{lm.name}</p>
+                <p className="text-xs" style={{ color: "var(--text-dim)" }}>{lm.time}</p>
+              </div>
+              <span className="text-sm font-bold shrink-0" style={{ color: "var(--accent)" }}>{lm.calories} kcal</span>
+            </div>
+          ))
         ) : (
-          <div className="px-4 pb-5 pt-2 text-center">
-            <p className="text-sm" style={{ color: "var(--text-dim)" }}>No plan for today</p>
-            <button onClick={() => onNavigate("/weightloss/today")}
-              className="mt-2 text-xs font-semibold" style={{ color: "var(--accent)" }}>
-              Open today's view →
-            </button>
+          <div className="px-4 pb-5 pt-1 text-center">
+            <p className="text-sm" style={{ color: "var(--text-dim)" }}>Nothing logged yet today</p>
+            <p className="text-xs mt-1" style={{ color: "var(--text-dim)" }}>
+              Log what you actually eat — not what was suggested
+            </p>
           </div>
         )}
       </div>
 
-      {/* Extra logged meals */}
-      {loggedMeals.filter((lm) => !lm.planned_meal_id).length > 0 && (
+      {/* Suggested meals — SECONDARY reference */}
+      {todayPlan && todayPlan.meals.length > 0 && (
         <div className="rounded-2xl overflow-hidden"
           style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-          <div className="px-4 pt-3 pb-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>
-              Extra logged
-            </p>
-          </div>
-          {loggedMeals.filter((lm) => !lm.planned_meal_id).map((lm, i) => (
-            <div key={lm.id} className="flex items-center gap-3 px-4 py-3"
-              style={{ borderTop: "1px solid var(--glass-border)" }}>
-              <span style={{ fontSize: 18 }}>🍽️</span>
-              <p className="flex-1 text-sm font-medium truncate" style={{ color: "var(--text-main)" }}>{lm.name}</p>
-              <span className="text-xs font-bold shrink-0" style={{ color: "var(--accent)" }}>{lm.calories} kcal</span>
+          <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>
+                Suggested meals
+              </p>
+              <p className="text-[10px] mt-0.5" style={{ color: "var(--text-dim)" }}>
+                Guide only — log what you actually eat
+              </p>
             </div>
-          ))}
+            <span className="text-[10px] font-semibold px-2 py-1 rounded-lg"
+              style={{ background: "var(--bg-base)", color: "var(--text-dim)" }}>
+              {todayPlan.totalCalories} kcal
+            </span>
+          </div>
+          {todayPlan.meals.map((meal, i) => {
+            const slot = SLOT_META[meal.slot] ?? { emoji: "🍽️", label: meal.slot };
+            return (
+              <div key={meal.id} className="flex items-center gap-3 px-4 py-3"
+                style={{ borderTop: "1px solid var(--glass-border)", opacity: 0.75 }}>
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
+                  style={{ background: "var(--bg-base)" }}>
+                  {slot.emoji}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: "var(--text-main)" }}>{meal.name}</p>
+                  <p className="text-xs" style={{ color: "var(--text-dim)" }}>{slot.label} · {meal.calories} kcal</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -522,7 +526,7 @@ function ProgressTab({ onNavigate }: { onNavigate: (p: string) => void }) {
 // ── Week Tab ─────────────────────────────────────────────────────────────────
 
 function WeekTab({ onNavigate }: { onNavigate: (p: string) => void }) {
-  const { data: planData } = useWLPlan();
+  const { data: planData, isLoading } = useWLPlan();
   const plan      = planData?.plan;
   const todayStr  = new Date().toISOString().split("T")[0]!;
   const todayIdx  = plan ? Math.max(0, plan.days.findIndex((d) => d.date === todayStr)) : 0;
@@ -530,13 +534,21 @@ function WeekTab({ onNavigate }: { onNavigate: (p: string) => void }) {
   const dayIdx = selectedDay ?? todayIdx;
   const day    = plan?.days[dayIdx];
 
+  if (isLoading) return <SkeletonCards />;
+
   if (!plan) {
     return (
       <div className="rounded-2xl p-8 text-center"
         style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         <p style={{ fontSize: 40, marginBottom: 12 }}>📅</p>
-        <p className="font-bold text-base mb-2" style={{ color: "var(--text-main)" }}>No plan yet</p>
-        <p className="text-sm" style={{ color: "var(--text-sub)" }}>Your 7-day plan will appear here.</p>
+        <p className="font-bold text-base mb-2" style={{ color: "var(--text-main)" }}>No suggestions yet</p>
+        <p className="text-sm mb-4" style={{ color: "var(--text-sub)" }}>
+          Generate a plan from the Tools tab to see weekly meal suggestions here.
+        </p>
+        <button onClick={() => onNavigate("/weightloss")}
+          className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
+          Go to Tools →
+        </button>
       </div>
     );
   }
@@ -590,12 +602,12 @@ function WeekTab({ onNavigate }: { onNavigate: (p: string) => void }) {
         </div>
       )}
 
-      {/* Meals */}
+      {/* Suggested meals */}
       {day && day.meals.length > 0 && (
         <div className="rounded-2xl overflow-hidden"
           style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
           <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>Meals</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--text-dim)" }}>Suggested meals</p>
             <p className="text-xs font-bold" style={{ color: "var(--accent)" }}>{day.totalCalories} kcal</p>
           </div>
           {day.meals.map((meal, i) => {

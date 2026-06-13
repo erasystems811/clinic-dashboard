@@ -107,7 +107,7 @@ export default function AuthPage() {
     try {
       await apiFetch("/api/patient-app/forgot-password", {
         method: "POST",
-        body: JSON.stringify({ email: forgotUsername.trim().toLowerCase() }),
+        body: JSON.stringify({ username: forgotUsername.trim() }),
       });
       setStep("forgot-sent");
     } catch (err) { setError((err as Error).message); }
@@ -418,11 +418,11 @@ export default function AuthPage() {
               Reset password
             </h2>
             <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>
-              Enter the email address you used to sign up — we'll send the reset link there.
+              Enter your username — we'll send the reset link to the email tied to your account.
             </p>
             <form onSubmit={handleForgot} className="space-y-4">
-              <GlassInput type="email" required autoComplete="email" value={forgotUsername}
-                onChange={(e) => setForgotUsername(e.target.value)} placeholder="you@example.com" />
+              <GlassInput type="text" required autoComplete="username" value={forgotUsername}
+                onChange={(e) => setForgotUsername(e.target.value)} placeholder="your_username" />
               {error && <GlassError>{error}</GlassError>}
               <GlassButton type="submit" loading={loading}>
                 {loading ? "Sending…" : "Send Reset Link"}

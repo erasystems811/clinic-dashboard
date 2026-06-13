@@ -240,13 +240,13 @@ router.post("/patient-app/login", async (req, res): Promise<void> => {
 
 // ── Forgot password ────────────────────────────────────────────────────────────
 router.post("/patient-app/forgot-password", async (req, res): Promise<void> => {
-  const body = z.object({ email: z.email() }).safeParse(req.body);
-  if (!body.success) { res.status(400).json({ error: "A valid email address is required" }); return; }
+  const body = z.object({ username: z.string().min(1) }).safeParse(req.body);
+  if (!body.success) { res.status(400).json({ error: "Username is required" }); return; }
 
   const { data: account } = await supabase
     .from("patient_accounts")
     .select("id, username, email")
-    .eq("email", body.data.email.toLowerCase())
+    .eq("username", body.data.username.trim().toLowerCase())
     .maybeSingle();
 
   if (!account) { res.json({ ok: true }); return; } // no enumeration

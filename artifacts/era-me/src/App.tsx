@@ -171,8 +171,20 @@ function AppRoutes() {
     <>
     <SectionThemeManager />
     <Switch>
-      {/* Companion routes — full-screen, no bottom nav */}
+      {/* Full-screen routes — no bottom nav */}
       <Route path="/weightloss/coach" component={WLCoachPage} />
+      <Route path="/weightloss" component={WeightLossPage} />
+      <Route path="/weightloss/today" component={WLTodayPage} />
+      <Route path="/weightloss/plan" component={WLPlanPage} />
+      <Route path="/weightloss/calculator" component={WLCalculatorPage} />
+      <Route path="/weightloss/progress" component={WLProgressPage} />
+      <Route path="/womens-health" component={WomensHealthPage} />
+      <Route path="/womens-health/calendar" component={CycleCalendarPage} />
+      <Route path="/womens-health/history" component={CycleHistoryPage} />
+      <Route path="/social" component={SocialPage} />
+      <Route path="/social/partner/:id" component={PartnerPage} />
+      <Route path="/social/group/:id" component={GroupPage} />
+      <Route path="/intimacy" component={IntimacyPage} />
       <Route path="/companion" component={CompanionGate} />
       <Route path="/companion/journal/new" component={NewJournalPage} />
       <Route path="/companion/journal/:id" component={JournalViewPage} />
@@ -208,18 +220,7 @@ function AppRoutes() {
             <Route path="/wellness/vaccines" component={VaccinesPage} />
             <Route path="/wellness/checkups" component={CheckupsPage} />
             <Route path="/wellness/hygiene" component={HygienePage} />
-            <Route path="/womens-health" component={WomensHealthPage} />
-        <Route path="/womens-health/calendar" component={CycleCalendarPage} />
-        <Route path="/womens-health/history" component={CycleHistoryPage} />
-        <Route path="/weightloss" component={WeightLossPage} />
-        <Route path="/weightloss/today" component={WLTodayPage} />
-        <Route path="/weightloss/plan" component={WLPlanPage} />
-        <Route path="/weightloss/calculator" component={WLCalculatorPage} />
-        <Route path="/weightloss/progress" component={WLProgressPage} />
-        <Route path="/social" component={SocialPage} />
-        <Route path="/social/partner/:id" component={PartnerPage} />
-        <Route path="/social/group/:id" component={GroupPage} />
-        <Route path="/hospitals" component={HospitalsPage} />
+            <Route path="/hospitals" component={HospitalsPage} />
             <Route path="/profile" component={ProfilePage} />
             <Route path="/pricing" component={PricingPage} />
             <Route path="/auth"><Redirect to="/" /></Route>

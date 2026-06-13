@@ -59,6 +59,7 @@ const MEDICAL_CONDITIONS = [
   { id: "hypertension",   label: "High blood pressure" },
   { id: "pregnant",       label: "Pregnant / breastfeeding" },
   { id: "heart",          label: "Heart condition" },
+  { id: "ulcer",          label: "Ulcer" },
 ];
 
 const PACES = [
@@ -186,25 +187,25 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
           <input type="number" step="0.1" placeholder="e.g. 85" value={form.currentWeightKg}
             onChange={(e) => set("currentWeightKg", e.target.value)}
             className="w-full rounded-xl px-4 py-3 text-base font-bold outline-none"
-            style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
+            style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
         </Field>
         <Field label="Goal weight (kg)">
           <input type="number" step="0.1" placeholder="e.g. 70" value={form.goalWeightKg}
             onChange={(e) => set("goalWeightKg", e.target.value)}
             className="w-full rounded-xl px-4 py-3 text-base font-bold outline-none"
-            style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
+            style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
         </Field>
         <Field label="Height (cm)">
           <input type="number" placeholder="e.g. 170" value={form.heightCm}
             onChange={(e) => set("heightCm", e.target.value)}
             className="w-full rounded-xl px-4 py-3 text-base font-bold outline-none"
-            style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
+            style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
         </Field>
         <Field label="Age">
           <input type="number" placeholder="e.g. 28" value={form.age}
             onChange={(e) => set("age", e.target.value)}
             className="w-full rounded-xl px-4 py-3 text-base font-bold outline-none"
-            style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
+            style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }} />
         </Field>
       </div>
 
@@ -380,7 +381,7 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
       </Field>
 
       <Field label="Intermittent fasting?">
-        <div className="rounded-xl p-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+        <div>
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>Enable fasting window</p>
@@ -424,13 +425,13 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
             <p className="text-[10px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>I WAKE UP AT</p>
             <input type="time" value={form.wakeTime} onChange={(e) => set("wakeTime", e.target.value)}
               className="w-full rounded-xl px-4 py-3 text-sm font-bold outline-none"
-              style={{ background: "var(--glass-bg)", color: "var(--text-main)", border: "1px solid var(--glass-border)" }} />
+              style={{ background: "var(--bg-base)", color: "var(--text-main)", border: "1px solid var(--glass-border)" }} />
           </div>
           <div>
             <p className="text-[10px] font-semibold mb-1" style={{ color: "var(--text-dim)" }}>I SLEEP AT</p>
             <input type="time" value={form.sleepTime} onChange={(e) => set("sleepTime", e.target.value)}
               className="w-full rounded-xl px-4 py-3 text-sm font-bold outline-none"
-              style={{ background: "var(--glass-bg)", color: "var(--text-main)", border: "1px solid var(--glass-border)" }} />
+              style={{ background: "var(--bg-base)", color: "var(--text-main)", border: "1px solid var(--glass-border)" }} />
           </div>
         </div>
       </Field>
@@ -442,7 +443,7 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
           onChange={(e) => set("foodDislikes", e.target.value)}
           placeholder="e.g. fish, bitter leaf, liver, milk…"
           className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-          style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }}
+          style={{ background: "var(--bg-base)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }}
         />
         <p className="text-xs mt-1.5" style={{ color: "var(--text-dim)" }}>Leave blank if none. These foods will never appear in your plan.</p>
       </Field>
@@ -498,22 +499,24 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
         </div>
       )}
 
-      <div className="space-y-2 mb-6">
-        {PACES.map((p) => (
-          <button key={p.id} onClick={() => set("pace", p.id)}
-            className="w-full flex items-center justify-between rounded-xl px-4 py-4 transition active:scale-[0.98]"
-            style={{
-              background: form.pace === p.id ? "rgba(var(--glow-rgb),0.09)" : "var(--glass-bg)",
-              border: `2px solid ${form.pace === p.id ? "var(--accent)" : "var(--glass-border)"}`,
-            }}>
-            <div className="text-left">
-              <p className="font-bold text-sm" style={{ color: form.pace === p.id ? "var(--accent)" : "var(--text-main)" }}>{p.label}</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>{p.sub}</p>
-            </div>
-            {form.pace === p.id && <Check className="w-5 h-5 shrink-0" style={{ color: "var(--accent)" }} />}
-          </button>
-        ))}
-      </div>
+      <Field label="How fast do you want to lose weight?">
+        <div className="space-y-2">
+          {PACES.map((p) => (
+            <button key={p.id} onClick={() => set("pace", p.id)}
+              className="w-full flex items-center justify-between rounded-xl px-4 py-4 transition active:scale-[0.98]"
+              style={{
+                background: form.pace === p.id ? "rgba(var(--glow-rgb),0.09)" : "var(--bg-base)",
+                border: `2px solid ${form.pace === p.id ? "var(--accent)" : "var(--glass-border)"}`,
+              }}>
+              <div className="text-left">
+                <p className="font-bold text-sm" style={{ color: form.pace === p.id ? "var(--accent)" : "var(--text-main)" }}>{p.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>{p.sub}</p>
+              </div>
+              {form.pace === p.id && <Check className="w-5 h-5 shrink-0" style={{ color: "var(--accent)" }} />}
+            </button>
+          ))}
+        </div>
+      </Field>
 
       {parseFloat(form.currentWeightKg) > 0 && parseFloat(form.goalWeightKg) > 0 && !isPregnant && (
         <div className="rounded-2xl p-4" style={{ background: "rgba(var(--glow-rgb),0.07)", border: "1px solid rgba(var(--glow-rgb),0.19)" }}>
@@ -575,13 +578,13 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
 }
 
 function StepBody({ children }: { children: React.ReactNode }) {
-  return <div className="space-y-5">{children}</div>;
+  return <div className="space-y-3">{children}</div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--text-dim)" }}>{label}</p>
+    <div className="rounded-2xl p-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+      <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-dim)" }}>{label}</p>
       {children}
     </div>
   );

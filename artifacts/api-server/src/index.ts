@@ -155,6 +155,63 @@ async function migrateHospitalIdToCode() {
   }
 }
 
+async function migrateWomensHealthTables() {
+  const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!projectRef || !token) return;
+  const sql = `
+    CREATE TABLE IF NOT EXISTS womens_health_settings (
+      account_id INTEGER PRIMARY KEY REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      mode TEXT NOT NULL DEFAULT 'cycle',
+      cycle_length INTEGER NOT NULL DEFAULT 28,
+      period_length INTEGER NOT NULL DEFAULT 5,
+      last_period_start DATE,
+      lmp_date DATE,
+      due_date DATE,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS cycle_logs (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      log_date DATE NOT NULL,
+      flow TEXT,
+      symptoms JSONB DEFAULT '[]',
+      notes TEXT,
+      is_period_start BOOLEAN DEFAULT false,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(account_id, log_date)
+    );
+    CREATE TABLE IF NOT EXISTS pregnancy_logs (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      log_date DATE NOT NULL,
+      weight_kg NUMERIC(5,2),
+      symptoms JSONB DEFAULT '[]',
+      mood TEXT,
+      kicks_count INTEGER,
+      blood_pressure TEXT,
+      notes TEXT,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(account_id, log_date)
+    );
+    ALTER TABLE womens_health_settings ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'cycle';
+    ALTER TABLE womens_health_settings ADD COLUMN IF NOT EXISTS lmp_date DATE;
+    ALTER TABLE womens_health_settings ADD COLUMN IF NOT EXISTS due_date DATE;
+    NOTIFY pgrst, 'reload schema';
+  `;
+  try {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (resp.ok) logger.info("[migration] Women's health tables ready");
+    else logger.warn({ body: await resp.text() }, "[migration] Women's health tables migration failed");
+  } catch (err) {
+    logger.warn({ err }, "[migration] Women's health tables migration error");
+  }
+}
+
 async function migratePushNotificationTables() {
   const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
   const token = process.env.SUPABASE_ACCESS_TOKEN;
@@ -261,4 +318,5 @@ app.listen(port, (err) => {
   migrateHospitalIdToCode();
   migrateSystemFeedbackTable();
   migratePushNotificationTables();
+  migrateWomensHealthTables();
 });

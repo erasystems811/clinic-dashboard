@@ -334,6 +334,158 @@ router.get("/patient-app/womens-health/history", async (req, res): Promise<void>
   res.json({ cycles, settings });
 });
 
+// ── PATCH /api/patient-app/womens-health/mode ────────────────────────────────
+router.patch("/patient-app/womens-health/mode", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { mode } = req.body as { mode: "cycle" | "pregnancy" };
+  if (mode !== "cycle" && mode !== "pregnancy") { res.status(400).json({ error: "mode must be cycle or pregnancy" }); return; }
+  await supabase.from("womens_health_settings").upsert({ account_id: account.id, mode, updated_at: new Date().toISOString() }, { onConflict: "account_id" });
+  res.json({ ok: true });
+});
+
+// ── POST /api/patient-app/womens-health/pregnancy/setup ──────────────────────
+router.post("/patient-app/womens-health/pregnancy/setup", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { lmpDate, dueDate } = req.body as { lmpDate?: string; dueDate?: string };
+  if (!lmpDate && !dueDate) { res.status(400).json({ error: "lmpDate or dueDate required" }); return; }
+
+  let resolvedLmp = lmpDate ?? null;
+  let resolvedDue = dueDate ?? null;
+
+  if (lmpDate && !dueDate) {
+    const lmp = new Date(lmpDate + "T12:00:00");
+    lmp.setDate(lmp.getDate() + 280);
+    resolvedDue = lmp.toISOString().split("T")[0];
+  }
+  if (dueDate && !lmpDate) {
+    const due = new Date(dueDate + "T12:00:00");
+    due.setDate(due.getDate() - 280);
+    resolvedLmp = due.toISOString().split("T")[0];
+  }
+
+  await supabase.from("womens_health_settings").upsert({
+    account_id: account.id,
+    mode: "pregnancy",
+    lmp_date: resolvedLmp,
+    due_date: resolvedDue,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "account_id" });
+
+  res.json({ ok: true, lmpDate: resolvedLmp, dueDate: resolvedDue });
+});
+
+// ── GET /api/patient-app/womens-health/pregnancy/today ───────────────────────
+router.get("/patient-app/womens-health/pregnancy/today", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const today = new Date().toISOString().split("T")[0];
+  const [settingsRes, logRes] = await Promise.all([
+    supabase.from("womens_health_settings").select("mode, lmp_date, due_date").eq("account_id", account.id).maybeSingle(),
+    supabase.from("pregnancy_logs").select("*").eq("account_id", account.id).eq("log_date", today).maybeSingle(),
+  ]);
+
+  const raw = settingsRes.data;
+  if (!raw?.lmp_date) { res.json({ isSetUp: false }); return; }
+
+  const lmp = new Date((raw.lmp_date as string) + "T12:00:00");
+  const due = new Date((raw.due_date as string) + "T12:00:00");
+  const todayDate = new Date(today + "T12:00:00");
+
+  const daysPregnant = Math.floor((todayDate.getTime() - lmp.getTime()) / 86400000);
+  const weeksPregnant = Math.floor(daysPregnant / 7);
+  const daysIntoWeek = daysPregnant % 7;
+  const daysUntilDue = Math.ceil((due.getTime() - todayDate.getTime()) / 86400000);
+
+  let trimester = 1;
+  if (weeksPregnant >= 13 && weeksPregnant < 27) trimester = 2;
+  else if (weeksPregnant >= 27) trimester = 3;
+
+  const isPostpartum = daysUntilDue < -1;
+
+  res.json({
+    isSetUp: true,
+    today,
+    lmpDate: raw.lmp_date,
+    dueDate: raw.due_date,
+    weeksPregnant: Math.max(0, weeksPregnant),
+    daysIntoWeek,
+    trimester,
+    daysUntilDue,
+    isPostpartum,
+    todayLog: logRes.data ? {
+      weightKg: logRes.data.weight_kg,
+      symptoms: logRes.data.symptoms as string[],
+      mood: logRes.data.mood,
+      kicksCount: logRes.data.kicks_count,
+      bloodPressure: logRes.data.blood_pressure,
+      notes: logRes.data.notes,
+    } : null,
+  });
+});
+
+// ── POST /api/patient-app/womens-health/pregnancy/log ────────────────────────
+router.post("/patient-app/womens-health/pregnancy/log", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { date, weightKg, symptoms = [], mood, kicksCount, bloodPressure, notes } = req.body as {
+    date?: string; weightKg?: number | null; symptoms?: string[]; mood?: string | null;
+    kicksCount?: number | null; bloodPressure?: string | null; notes?: string | null;
+  };
+
+  const logDate = date ?? new Date().toISOString().split("T")[0];
+  await supabase.from("pregnancy_logs").upsert({
+    account_id: account.id,
+    log_date: logDate,
+    weight_kg: weightKg ?? null,
+    symptoms,
+    mood: mood ?? null,
+    kicks_count: kicksCount ?? null,
+    blood_pressure: bloodPressure ?? null,
+    notes: notes ?? null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "account_id,log_date" });
+
+  res.json({ ok: true });
+});
+
+// ── GET /api/patient-app/womens-health/pregnancy/timeline ────────────────────
+router.get("/patient-app/womens-health/pregnancy/timeline", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const [settingsRes, logsRes] = await Promise.all([
+    supabase.from("womens_health_settings").select("lmp_date, due_date").eq("account_id", account.id).maybeSingle(),
+    supabase.from("pregnancy_logs").select("*").eq("account_id", account.id).order("log_date", { ascending: false }).limit(60),
+  ]);
+
+  const raw = settingsRes.data;
+  if (!raw?.lmp_date) { res.json({ entries: [] }); return; }
+
+  const lmp = new Date((raw.lmp_date as string) + "T12:00:00");
+
+  const entries = (logsRes.data ?? []).map(l => {
+    const logDate = new Date((l.log_date as string) + "T12:00:00");
+    const daysPregnant = Math.floor((logDate.getTime() - lmp.getTime()) / 86400000);
+    return {
+      date: l.log_date,
+      week: Math.floor(daysPregnant / 7),
+      weightKg: l.weight_kg,
+      symptoms: l.symptoms as string[],
+      mood: l.mood,
+      kicksCount: l.kicks_count,
+      bloodPressure: l.blood_pressure,
+      notes: l.notes,
+    };
+  });
+
+  res.json({ entries, lmpDate: raw.lmp_date, dueDate: raw.due_date });
+});
+
 // ── DELETE /api/patient-app/womens-health ─────────────────────────────────────
 router.delete("/patient-app/womens-health", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);

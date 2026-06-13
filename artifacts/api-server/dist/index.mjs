@@ -147981,6 +147981,152 @@ router29.get("/patient-app/womens-health/history", async (req, res) => {
   }).reverse();
   res.json({ cycles, settings });
 });
+router29.patch("/patient-app/womens-health/mode", async (req, res) => {
+  const account = await getPatientFromRequest(req);
+  if (!account) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const { mode } = req.body;
+  if (mode !== "cycle" && mode !== "pregnancy") {
+    res.status(400).json({ error: "mode must be cycle or pregnancy" });
+    return;
+  }
+  await supabase.from("womens_health_settings").upsert({ account_id: account.id, mode, updated_at: (/* @__PURE__ */ new Date()).toISOString() }, { onConflict: "account_id" });
+  res.json({ ok: true });
+});
+router29.post("/patient-app/womens-health/pregnancy/setup", async (req, res) => {
+  const account = await getPatientFromRequest(req);
+  if (!account) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const { lmpDate, dueDate } = req.body;
+  if (!lmpDate && !dueDate) {
+    res.status(400).json({ error: "lmpDate or dueDate required" });
+    return;
+  }
+  let resolvedLmp = lmpDate ?? null;
+  let resolvedDue = dueDate ?? null;
+  if (lmpDate && !dueDate) {
+    const lmp = /* @__PURE__ */ new Date(lmpDate + "T12:00:00");
+    lmp.setDate(lmp.getDate() + 280);
+    resolvedDue = lmp.toISOString().split("T")[0];
+  }
+  if (dueDate && !lmpDate) {
+    const due = /* @__PURE__ */ new Date(dueDate + "T12:00:00");
+    due.setDate(due.getDate() - 280);
+    resolvedLmp = due.toISOString().split("T")[0];
+  }
+  await supabase.from("womens_health_settings").upsert({
+    account_id: account.id,
+    mode: "pregnancy",
+    lmp_date: resolvedLmp,
+    due_date: resolvedDue,
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }, { onConflict: "account_id" });
+  res.json({ ok: true, lmpDate: resolvedLmp, dueDate: resolvedDue });
+});
+router29.get("/patient-app/womens-health/pregnancy/today", async (req, res) => {
+  const account = await getPatientFromRequest(req);
+  if (!account) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const [settingsRes, logRes] = await Promise.all([
+    supabase.from("womens_health_settings").select("mode, lmp_date, due_date").eq("account_id", account.id).maybeSingle(),
+    supabase.from("pregnancy_logs").select("*").eq("account_id", account.id).eq("log_date", today).maybeSingle()
+  ]);
+  const raw = settingsRes.data;
+  if (!raw?.lmp_date) {
+    res.json({ isSetUp: false });
+    return;
+  }
+  const lmp = /* @__PURE__ */ new Date(raw.lmp_date + "T12:00:00");
+  const due = /* @__PURE__ */ new Date(raw.due_date + "T12:00:00");
+  const todayDate = /* @__PURE__ */ new Date(today + "T12:00:00");
+  const daysPregnant = Math.floor((todayDate.getTime() - lmp.getTime()) / 864e5);
+  const weeksPregnant = Math.floor(daysPregnant / 7);
+  const daysIntoWeek = daysPregnant % 7;
+  const daysUntilDue = Math.ceil((due.getTime() - todayDate.getTime()) / 864e5);
+  let trimester = 1;
+  if (weeksPregnant >= 13 && weeksPregnant < 27) trimester = 2;
+  else if (weeksPregnant >= 27) trimester = 3;
+  const isPostpartum = daysUntilDue < -1;
+  res.json({
+    isSetUp: true,
+    today,
+    lmpDate: raw.lmp_date,
+    dueDate: raw.due_date,
+    weeksPregnant: Math.max(0, weeksPregnant),
+    daysIntoWeek,
+    trimester,
+    daysUntilDue,
+    isPostpartum,
+    todayLog: logRes.data ? {
+      weightKg: logRes.data.weight_kg,
+      symptoms: logRes.data.symptoms,
+      mood: logRes.data.mood,
+      kicksCount: logRes.data.kicks_count,
+      bloodPressure: logRes.data.blood_pressure,
+      notes: logRes.data.notes
+    } : null
+  });
+});
+router29.post("/patient-app/womens-health/pregnancy/log", async (req, res) => {
+  const account = await getPatientFromRequest(req);
+  if (!account) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const { date: date5, weightKg, symptoms = [], mood, kicksCount, bloodPressure, notes } = req.body;
+  const logDate = date5 ?? (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  await supabase.from("pregnancy_logs").upsert({
+    account_id: account.id,
+    log_date: logDate,
+    weight_kg: weightKg ?? null,
+    symptoms,
+    mood: mood ?? null,
+    kicks_count: kicksCount ?? null,
+    blood_pressure: bloodPressure ?? null,
+    notes: notes ?? null,
+    updated_at: (/* @__PURE__ */ new Date()).toISOString()
+  }, { onConflict: "account_id,log_date" });
+  res.json({ ok: true });
+});
+router29.get("/patient-app/womens-health/pregnancy/timeline", async (req, res) => {
+  const account = await getPatientFromRequest(req);
+  if (!account) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const [settingsRes, logsRes] = await Promise.all([
+    supabase.from("womens_health_settings").select("lmp_date, due_date").eq("account_id", account.id).maybeSingle(),
+    supabase.from("pregnancy_logs").select("*").eq("account_id", account.id).order("log_date", { ascending: false }).limit(60)
+  ]);
+  const raw = settingsRes.data;
+  if (!raw?.lmp_date) {
+    res.json({ entries: [] });
+    return;
+  }
+  const lmp = /* @__PURE__ */ new Date(raw.lmp_date + "T12:00:00");
+  const entries = (logsRes.data ?? []).map((l) => {
+    const logDate = /* @__PURE__ */ new Date(l.log_date + "T12:00:00");
+    const daysPregnant = Math.floor((logDate.getTime() - lmp.getTime()) / 864e5);
+    return {
+      date: l.log_date,
+      week: Math.floor(daysPregnant / 7),
+      weightKg: l.weight_kg,
+      symptoms: l.symptoms,
+      mood: l.mood,
+      kicksCount: l.kicks_count,
+      bloodPressure: l.blood_pressure,
+      notes: l.notes
+    };
+  });
+  res.json({ entries, lmpDate: raw.lmp_date, dueDate: raw.due_date });
+});
 router29.delete("/patient-app/womens-health", async (req, res) => {
   const account = await getPatientFromRequest(req);
   if (!account) {
@@ -149715,6 +149861,62 @@ async function migrateHospitalIdToCode() {
     logger.warn({ err }, "[migration] hospital_id code migration error (non-fatal)");
   }
 }
+async function migrateWomensHealthTables() {
+  const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!projectRef || !token) return;
+  const sql = `
+    CREATE TABLE IF NOT EXISTS womens_health_settings (
+      account_id INTEGER PRIMARY KEY REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      mode TEXT NOT NULL DEFAULT 'cycle',
+      cycle_length INTEGER NOT NULL DEFAULT 28,
+      period_length INTEGER NOT NULL DEFAULT 5,
+      last_period_start DATE,
+      lmp_date DATE,
+      due_date DATE,
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS cycle_logs (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      log_date DATE NOT NULL,
+      flow TEXT,
+      symptoms JSONB DEFAULT '[]',
+      notes TEXT,
+      is_period_start BOOLEAN DEFAULT false,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(account_id, log_date)
+    );
+    CREATE TABLE IF NOT EXISTS pregnancy_logs (
+      id SERIAL PRIMARY KEY,
+      account_id INTEGER NOT NULL REFERENCES patient_accounts(id) ON DELETE CASCADE,
+      log_date DATE NOT NULL,
+      weight_kg NUMERIC(5,2),
+      symptoms JSONB DEFAULT '[]',
+      mood TEXT,
+      kicks_count INTEGER,
+      blood_pressure TEXT,
+      notes TEXT,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(account_id, log_date)
+    );
+    ALTER TABLE womens_health_settings ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'cycle';
+    ALTER TABLE womens_health_settings ADD COLUMN IF NOT EXISTS lmp_date DATE;
+    ALTER TABLE womens_health_settings ADD COLUMN IF NOT EXISTS due_date DATE;
+    NOTIFY pgrst, 'reload schema';
+  `;
+  try {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql })
+    });
+    if (resp.ok) logger.info("[migration] Women's health tables ready");
+    else logger.warn({ body: await resp.text() }, "[migration] Women's health tables migration failed");
+  } catch (err) {
+    logger.warn({ err }, "[migration] Women's health tables migration error");
+  }
+}
 async function migratePushNotificationTables() {
   const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
   const token = process.env.SUPABASE_ACCESS_TOKEN;
@@ -149818,6 +150020,7 @@ app_default.listen(port, (err) => {
   migrateHospitalIdToCode();
   migrateSystemFeedbackTable();
   migratePushNotificationTables();
+  migrateWomensHealthTables();
 });
 /*! Bundled license information:
 

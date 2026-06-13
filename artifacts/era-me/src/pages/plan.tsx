@@ -40,6 +40,14 @@ function getMonday(offsetWeeks = 0): string {
 function moduleHref(t: string) { return t === "mood_check" ? "/wellness/mood" : `/wellness/${t}`; }
 function todayStr()            { return new Date().toISOString().split("T")[0]; }
 
+// The checklist API uses per-dose-time IDs for medications (med_xxx_08:00 / med_batch_08:00),
+// not the plain "medications" moduleType. Resolve the right lookup key per plan item.
+function checklistKey(item: PlanItem): string {
+  if (item.checklistId) return item.checklistId;
+  if (item.moduleType === "medications" && item.time) return `medications_${item.time}`;
+  return item.moduleType;
+}
+
 function formatTime(time: string): string {
   const [h, m] = time.split(":").map(Number);
   const period = h < 12 ? "AM" : "PM";
@@ -83,7 +91,23 @@ export default function PlanPage() {
 
   const todayDoneMap = useMemo(() => {
     const checklist = todayRaw?.checklist ?? [];
-    return new Map(checklist.map(c => [c.id, c.done]));
+    const map = new Map(checklist.map(c => [c.id, c.done]));
+    // Aggregate medication checklist entries (id: med_xxx_HH:MM or med_batch_HH:MM) into
+    // medications_HH:MM keys so per-time-slot plan items can correctly look up their done state.
+    const medByTime = new Map<string, boolean[]>();
+    for (const c of checklist) {
+      if (c.id.startsWith("med_")) {
+        const m = c.id.match(/(\d{2}:\d{2})$/);
+        if (m) {
+          if (!medByTime.has(m[1])) medByTime.set(m[1], []);
+          medByTime.get(m[1])!.push(c.done);
+        }
+      }
+    }
+    for (const [time, dones] of medByTime) {
+      map.set(`medications_${time}`, dones.every(Boolean));
+    }
+    return map;
   }, [todayRaw]);
 
   const { timedItems, todayDayOnly } = useMemo(() => {
@@ -94,7 +118,7 @@ export default function PlanPage() {
     return { timedItems: timed, todayDayOnly: dayOnly };
   }, [plan, today]);
 
-  const todayDoneCount = timedItems.filter(i => todayDoneMap.get(i.checklistId ?? i.moduleType) === true).length;
+  const todayDoneCount = timedItems.filter(i => todayDoneMap.get(checklistKey(i)) === true).length;
   const todayPct = timedItems.length > 0 ? Math.round((todayDoneCount / timedItems.length) * 100) : 0;
 
   useEffect(() => {
@@ -547,7 +571,7 @@ function TodayView({ timedItems, dayOnlyItems, todayDoneMap, todayDoneCount, tod
             <div className="space-y-1.5">
               {items.map(item => {
                 const accent  = MODULE_ACCENT[item.moduleType] ?? "var(--accent)";
-                const done    = todayDoneMap.get(item.checklistId ?? item.moduleType) === true;
+                const done    = todayDoneMap.get(checklistKey(item)) === true;
                 const overdue = isPast && !done && !isClose;
                 return (
                   <Link key={`${item.moduleType}-${time}`} href={moduleHref(item.moduleType)}>
@@ -588,7 +612,7 @@ function TodayView({ timedItems, dayOnlyItems, todayDoneMap, todayDoneCount, tod
           <div className="space-y-1.5">
             {dayOnlyItems.map(item => {
               const accent = MODULE_ACCENT[item.moduleType] ?? "var(--accent)";
-              const done   = todayDoneMap.get(item.checklistId ?? item.moduleType) === true;
+              const done   = todayDoneMap.get(checklistKey(item)) === true;
               return (
                 <Link key={item.moduleType} href={moduleHref(item.moduleType)}>
                   <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl cursor-pointer active:scale-[0.98] transition"

@@ -284,6 +284,11 @@ export default function HomePage() {
           }} />
         )}
 
+        {/* ── Coming Up ─────────────────────────────────────────── */}
+        {(upcomingData?.events?.length ?? 0) > 0 && (
+          <ComingUpCard events={upcomingData!.events} />
+        )}
+
         {/* ── Live Water Widget ──────────────────────────────────── */}
         {waterEnabled && (
           <div className="rounded-2xl overflow-hidden relative"
@@ -385,11 +390,6 @@ export default function HomePage() {
           <ThisWeekCard summary={summary} />
         )}
 
-        {/* ── Coming Up ─────────────────────────────────────────── */}
-        {(upcomingData?.events?.length ?? 0) > 0 && (
-          <ComingUpCard events={upcomingData!.events} />
-        )}
-
         {/* ── Quick Access ───────────────────────────────────────── */}
         <section>
           <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", marginBottom: 12 }}>Quick access</h2>
@@ -397,7 +397,7 @@ export default function HomePage() {
             <QuickCard href="/wellness"  emoji="💚" label="My Wellness"  description="Habits & modules" />
             <QuickCard href="/plan"      emoji="📅" label="Weekly Plan"  description="Your habit grid" />
             <QuickCard href="/hospitals" emoji="🏥" label="Hospitals"    description="Chat & book" />
-            <QuickCard href="/notifications" emoji="🔔" label="Notifications" description="Alerts & messages" />
+            <QuickCard href="/profile"   emoji="⚙️" label="Settings"     description="Account & theme" />
             {!isCompanionHidden() && (
               <QuickCard href="/companion" emoji="📔" label="My Diary" description="Private journal & chats" />
             )}

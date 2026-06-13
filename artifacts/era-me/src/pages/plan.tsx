@@ -122,10 +122,17 @@ export default function PlanPage() {
     if (!plan) return;
     const win = window.open("", "_blank");
     if (!win) { alert("Allow popups to save/print"); return; }
-    const themeKey = account?.themeColor ?? "teal";
-    const darkMode = account?.darkMode ?? true;
-    const palette = PALETTES[themeKey] ?? PALETTES.teal;
-    win.document.write(buildPrintHTML(plan, today, firstName, palette, darkMode));
+    // Read live CSS vars so the print always matches whatever theme/mode is active
+    const s = getComputedStyle(document.documentElement);
+    const darkMode = !document.documentElement.classList.contains("light");
+    const livePalette: PrintPalette = {
+      accent:       s.getPropertyValue("--accent").trim() || "#14b8a6",
+      accentLight:  s.getPropertyValue("--accent-light").trim() || "#5eead4",
+      btnGradient:  s.getPropertyValue("--btn-gradient").trim() || "linear-gradient(135deg,#0d9488,#14b8a6)",
+      bgDark:       s.getPropertyValue("--bg-base").trim() || "#060d1f",
+      bgLight:      s.getPropertyValue("--bg-base").trim() || "#f0fdfb",
+    };
+    win.document.write(buildPrintHTML(plan, today, firstName, livePalette, darkMode));
     win.document.close();
     setTimeout(() => { win.focus(); win.print(); }, 600);
   }

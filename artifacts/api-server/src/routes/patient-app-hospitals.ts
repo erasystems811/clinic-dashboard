@@ -88,12 +88,14 @@ router.get("/patient-app/hospitals", async (req, res): Promise<void> => {
     hospitalMap[h.id as number] = { name: h.name as string, slug: h.slug as string, logo_url: h.logo_url as string | null };
   }
 
-  // Fetch patient record names for each connection
+  // Fetch patient record names + active care plans in parallel
   const recordIds = connections.map((c) => c.patient_record_id as number);
-  const { data: patientRecords } = await supabase
-    .from("patients")
-    .select("id, first_name, last_name, stage, department")
-    .in("id", recordIds);
+  const [{ data: patientRecords }, { data: activeCarePlans }] = await Promise.all([
+    supabase.from("patients").select("id, first_name, last_name, stage, department").in("id", recordIds),
+    supabase.from("care_plans").select("patient_id").in("patient_id", recordIds).eq("status", "active"),
+  ]);
+
+  const inCareSet = new Set((activeCarePlans ?? []).map((r) => r.patient_id as number));
 
   const recordMap: Record<number, { firstName: string; lastName: string; stage: string; department: string | null }> = {};
   for (const p of patientRecords ?? []) {
@@ -108,6 +110,7 @@ router.get("/patient-app/hospitals", async (req, res): Promise<void> => {
   const result = connections.map((c) => {
     const hospital = hospitalMap[c.hospital_id as number];
     const record = recordMap[c.patient_record_id as number];
+    const rid = c.patient_record_id as number;
     return {
       connectionId: c.id,
       hospitalId: c.hospital_id,
@@ -116,7 +119,8 @@ router.get("/patient-app/hospitals", async (req, res): Promise<void> => {
       hospitalLogo: hospital?.logo_url ?? null,
       patientRecordId: c.patient_record_id,
       patientName: record ? `${record.firstName} ${record.lastName}` : "Unknown",
-      stage: record?.stage ?? null,
+      // "In Care" is derived from having an active care plan — mirrors hospital admin logic
+      stage: inCareSet.has(rid) ? "In Care" : (record?.stage ?? null),
       department: record?.department ?? null,
       verifiedAt: c.verified_at,
     };
@@ -604,6 +608,91 @@ router.post("/patient-app/hospitals/:connectionId/book", async (req, res): Promi
     id: booking.id as number,
     message: "Booking request submitted. The clinic will confirm it shortly.",
   });
+});
+
+// ── GET /api/patient-app/hospitals/:connectionId/my-bookings ─────────────────
+router.get("/patient-app/hospitals/:connectionId/my-bookings", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const connectionId = parseInt(req.params.connectionId, 10);
+  const conn = await resolveConnection(connectionId, (account as { id: number }).id);
+  if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
+
+  const { data: patient } = await supabase
+    .from("patients").select("first_name, last_name").eq("id", conn.patient_record_id).single();
+  if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+
+  const patientName = `${patient.first_name as string} ${patient.last_name as string}`;
+
+  const { data } = await supabase
+    .from("self_bookings")
+    .select("id, reason, requested_at, status")
+    .eq("hospital_id", conn.hospital_id)
+    .eq("patient_name", patientName)
+    .in("status", ["pending", "confirmed"])
+    .order("requested_at", { ascending: true });
+
+  res.json((data ?? []).map(b => ({
+    id: b.id as number,
+    reason: b.reason as string,
+    requestedAt: b.requested_at as string,
+    status: b.status as string,
+  })));
+});
+
+// ── POST /api/patient-app/hospitals/:connectionId/reschedule ──────────────────
+router.post("/patient-app/hospitals/:connectionId/reschedule", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const connectionId = parseInt(req.params.connectionId, 10);
+  const conn = await resolveConnection(connectionId, (account as { id: number }).id);
+  if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
+
+  const { bookingId, newRequestedAt } = (req.body ?? {}) as Record<string, unknown>;
+  if (!bookingId || !newRequestedAt) {
+    res.status(400).json({ error: "bookingId and newRequestedAt are required" }); return;
+  }
+
+  const { data: patient } = await supabase
+    .from("patients").select("first_name, last_name").eq("id", conn.patient_record_id).single();
+  if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+
+  const patientName = `${patient.first_name as string} ${patient.last_name as string}`;
+
+  const { data: booking } = await supabase
+    .from("self_bookings")
+    .select("id, status")
+    .eq("id", bookingId as number)
+    .eq("hospital_id", conn.hospital_id)
+    .eq("patient_name", patientName)
+    .maybeSingle();
+
+  if (!booking) { res.status(404).json({ error: "Booking not found" }); return; }
+  if (!["pending", "confirmed"].includes(booking.status as string)) {
+    res.status(400).json({ error: "This booking cannot be rescheduled" }); return;
+  }
+
+  const newIso = new Date(newRequestedAt as string).toISOString();
+
+  // Slot collision check
+  const [{ count: apptCount }, { count: bookCount }] = await Promise.all([
+    supabase.from("appointments").select("*", { count: "exact", head: true })
+      .eq("hospital_id", conn.hospital_id).eq("scheduled_at", newIso)
+      .not("status", "in", '("cancelled","no_show")'),
+    supabase.from("self_bookings").select("*", { count: "exact", head: true })
+      .eq("hospital_id", conn.hospital_id).eq("requested_at", newIso)
+      .in("status", ["pending", "confirmed"])
+      .neq("id", bookingId as number),
+  ]);
+  if ((apptCount ?? 0) > 0 || (bookCount ?? 0) > 0) {
+    res.status(409).json({ error: "This slot is no longer available. Please choose another time." }); return;
+  }
+
+  await supabase.from("self_bookings").update({ requested_at: newIso, status: "pending" }).eq("id", bookingId as number);
+
+  res.json({ ok: true, message: "Reschedule request submitted. The clinic will confirm your new time shortly." });
 });
 
 // ── GET /api/patient-app/notifications ───────────────────────────────────────

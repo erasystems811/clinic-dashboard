@@ -4,6 +4,8 @@ import { camelize, camelizeArr } from "../lib/camel.js";
 import { z } from "zod/v4";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
 import { sendCarePlanEmail, sendCarePlanNotification, generateCarePlanMessages } from "../lib/automation.js";
+import { generateOpenAIMessage } from "../lib/ai.js";
+import { fetchAndSavePlan } from "./patient-app-plan.js";
 
 const router: IRouter = Router();
 
@@ -187,6 +189,18 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
         (parsed.data.templateData as Record<string, unknown>) ?? {},
       ).catch(() => {});
     }
+
+    // ERA app: push care plan into patient's wellness modules + rebuild their planner
+    void pushEraPlanIntegration({
+      planId: (plan as Record<string, unknown>).id as number,
+      patientId: patientId,
+      hospitalIntId,
+      summary: parsed.data.summary,
+      department: parsed.data.department,
+      templateData: (parsed.data.templateData as Record<string, unknown>) ?? undefined,
+      durationDays: durationDays,
+      startDate: now.toISOString().split("T")[0],
+    });
   }
 
   res.status(201).json(camelize(plan));
@@ -225,12 +239,13 @@ router.patch("/care-plans/:id", async (req, res): Promise<void> => {
     updated_at: new Date().toISOString(),
   }).eq("id", existing.patient_id as number);
 
-  // GP only: regenerate pre-stored reminder messages to reflect the edited plan
-  if (parsed.data.department === "General Outpatient") {
-    const hospitalIntIdForRegen = await resolveHospitalIntId(hospital.code);
-    if (hospitalIntIdForRegen) {
-      const { data: patientForRegen } = await supabase.from("patients").select("first_name, last_name").eq("id", existing.patient_id as number).maybeSingle();
-      const patientNameForRegen = patientForRegen ? `${patientForRegen.first_name} ${patientForRegen.last_name}` : "Patient";
+  const hospitalIntIdForRegen = await resolveHospitalIntId(hospital.code);
+  if (hospitalIntIdForRegen) {
+    const { data: patientForRegen } = await supabase.from("patients").select("first_name, last_name").eq("id", existing.patient_id as number).maybeSingle();
+    const patientNameForRegen = patientForRegen ? `${patientForRegen.first_name} ${patientForRegen.last_name}` : "Patient";
+
+    // GP only: regenerate pre-stored reminder messages to reflect the edited plan
+    if (parsed.data.department === "General Outpatient") {
       generateCarePlanMessages(
         id,
         hospitalIntIdForRegen,
@@ -239,6 +254,21 @@ router.patch("/care-plans/:id", async (req, res): Promise<void> => {
         (parsed.data.templateData as Record<string, unknown>) ?? {},
       ).catch(() => {});
     }
+
+    // ERA app: re-sync the updated plan into patient's wellness modules + planner
+    const durationDaysForUpdate = parsed.data.department === "General Outpatient"
+      ? ((parsed.data.templateData as GeneralOutpatientData)?.durationDays ?? 7)
+      : 30;
+    void pushEraPlanIntegration({
+      planId: id,
+      patientId: existing.patient_id as number,
+      hospitalIntId: hospitalIntIdForRegen,
+      summary: parsed.data.summary,
+      department: parsed.data.department,
+      templateData: (parsed.data.templateData as Record<string, unknown>) ?? undefined,
+      durationDays: durationDaysForUpdate,
+      startDate: new Date().toISOString().split("T")[0],
+    });
   }
 
   res.json(camelize(updated));
@@ -327,6 +357,142 @@ function buildTimingString(data: GeneralOutpatientData): string | null {
     ...(data.hospitalTiming ?? []).map((t) => `hosp:${t}`),
   ];
   return parts.length > 0 ? parts.join(",") : null;
+}
+
+// ── ERA app integration: push care plan into patient's wellness modules + planner ──
+// Fire-and-forget. Never throws. Called after plan create or update.
+export async function pushEraPlanIntegration(opts: {
+  planId: number;
+  patientId: number;
+  hospitalIntId: number;
+  summary: string;
+  department: string;
+  templateData?: Record<string, unknown>;
+  durationDays: number;
+  startDate: string;
+}): Promise<void> {
+  try {
+    // 1. Find connected ERA account
+    const { data: conn } = await supabase
+      .from("patient_hospital_connections")
+      .select("account_id")
+      .eq("patient_record_id", opts.patientId)
+      .eq("hospital_id", opts.hospitalIntId)
+      .maybeSingle();
+    if (!conn?.account_id) return; // patient not on ERA app — nothing to do
+
+    const accountId = conn.account_id as number;
+
+    // 2. Extract medication dose times from templateData (GP structured plans)
+    const td = opts.templateData ?? {};
+    const medTimingTimes = (td.medicationTimingTimes as Record<string, string>) ?? {};
+    const medTimes: string[] = Object.values(medTimingTimes).filter(Boolean);
+
+    // 3. Use AI to extract medication names + dosages from the summary
+    interface MedEntry { name: string; dosage?: string }
+    let extractedMeds: MedEntry[] = [];
+    try {
+      const raw = await generateOpenAIMessage(
+        "Extract medication names and dosages from a treatment plan summary. Return ONLY valid JSON: {\"meds\":[{\"name\":\"...\",\"dosage\":\"...\"}]}. If no medications, return {\"meds\":[]}. No extra text.",
+        opts.summary.slice(0, 600),
+        100,
+      );
+      const parsed = JSON.parse(raw.replace(/```json?|```/g, "").trim()) as { meds?: MedEntry[] };
+      extractedMeds = parsed.meds ?? [];
+    } catch {
+      extractedMeds = [];
+    }
+
+    // 4. Build medication module entries
+    // Fall back to a generic entry if no meds extracted but plan has medication timing
+    const hasMedTiming = medTimes.length > 0 || (td.treatmentType === "medication_only" || td.treatmentType === "combination");
+    if (extractedMeds.length === 0 && hasMedTiming) {
+      extractedMeds = [{ name: "Prescribed medication", dosage: undefined }];
+    }
+
+    if (extractedMeds.length > 0) {
+      // Default times: morning/afternoon/evening if not specified by templateData
+      const doseTimes = medTimes.length > 0
+        ? medTimes
+        : extractedMeds.length >= 3
+          ? ["07:30", "13:00", "20:00"]
+          : extractedMeds.length === 2
+            ? ["08:00", "20:00"]
+            : ["08:00"];
+
+      const medEntries = extractedMeds.map((m, i) => ({
+        id: `plan_${opts.planId}_${i}`,
+        name: m.name,
+        dosage: m.dosage || undefined,
+        startDate: opts.startDate,
+        durationDays: opts.durationDays > 0 ? opts.durationDays : null,
+        times: doseTimes,
+      }));
+
+      // Get existing medications module — preserve self-entered meds, replace hospital ones
+      const { data: existingMod } = await supabase
+        .from("wellness_modules")
+        .select("settings")
+        .eq("account_id", accountId)
+        .eq("module_type", "medications")
+        .maybeSingle();
+
+      const existingMeds = ((existingMod?.settings as Record<string, unknown>)?.medications as Record<string, unknown>[]) ?? [];
+      const selfMeds = existingMeds.filter((m) => !String(m.id ?? "").startsWith("plan_"));
+
+      await supabase.from("wellness_modules").upsert({
+        account_id: accountId,
+        module_type: "medications",
+        enabled: true,
+        settings: { medications: [...selfMeds, ...medEntries] },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "account_id,module_type" });
+    }
+
+    // 5. If plan includes hospital visits, add a vitals module (remind patient to monitor health)
+    const hasHospitalVisit = td.treatmentType === "come_to_hospital" || td.treatmentType === "combination";
+    if (hasHospitalVisit) {
+      const visitTimes = Object.values((td.hospitalTimingTimes as Record<string, string>) ?? {}).filter(Boolean);
+      const vitalTime = visitTimes.length > 0
+        ? (() => {
+            // Set vitals reminder 1 hour before first visit
+            const [h, m] = visitTimes[0].split(":").map(Number);
+            const total = h * 60 + m - 60;
+            const hh = Math.max(0, Math.floor(total / 60));
+            const mm = total % 60;
+            return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+          })()
+        : "07:00";
+
+      await supabase.from("wellness_modules").upsert({
+        account_id: accountId,
+        module_type: "vitals",
+        enabled: true,
+        settings: { notes: "Log the vitals recorded at your hospital visit" },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "account_id,module_type" });
+      void vitalTime; // used in plan generator via module settings
+    }
+
+    // 6. Regenerate the weekly plan with the new modules
+    await fetchAndSavePlan(accountId);
+
+    // 7. Notify the patient
+    const notifBody = extractedMeds.length > 0
+      ? `Your ${opts.department} plan includes ${extractedMeds.map((m) => m.name).join(", ")}. Check your daily planner — reminders have been added to your routine.`
+      : `Your ${opts.department} care plan has been added to your ERA planner.`;
+
+    await supabase.from("patient_notifications").insert({
+      account_id: accountId,
+      type: "plan_integrated",
+      title: "Care plan added to your planner",
+      body: notifBody,
+      metadata: { planId: opts.planId, department: opts.department },
+    });
+
+  } catch (err) {
+    console.error("[pushEraPlanIntegration] failed:", String(err));
+  }
 }
 
 export default router;

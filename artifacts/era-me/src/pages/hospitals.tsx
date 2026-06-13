@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
-import { Building2, Plus, Search, ArrowLeft, X, ChevronRight, Trash2, MessageCircle, Send, Calendar, CheckCircle2, Star, Clock } from "lucide-react";
+import { Building2, Plus, Search, ArrowLeft, X, ChevronRight, Trash2, MessageCircle, Send, Calendar, CheckCircle2, Star, Clock, RefreshCw } from "lucide-react";
 import {
   useMyHospitals,
   useHospitalSearch,
@@ -12,6 +12,8 @@ import {
   useUnreadCounts,
   useBookingSlots,
   useCreateBooking,
+  useMyBookings,
+  useRescheduleBooking,
   type HospitalSearchResult,
   type HospitalConnection,
 } from "@/lib/hospitals-api";
@@ -166,32 +168,68 @@ function HospitalCard({ conn, unreadCount, removing, onChat, onBook, onRemove }:
 }
 
 // ── Booking page ──────────────────────────────────────────────────────────────
-function BookingPage({ connection, onBack }: { connection: HospitalConnection; onBack: () => void }) {
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
-  const { data, isLoading, error } = useBookingSlots(connection.connectionId, true);
-  const createBooking = useCreateBooking(connection.connectionId);
-
-  const slots = data?.slots ?? [];
-
-  // Group slots by date
+function SlotPicker({ slots, value, onChange }: {
+  slots: { datetime: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
   const grouped: Record<string, { datetime: string; label: string }[]> = {};
-  for (const slot of slots) {
-    const dateKey = new Date(slot.datetime).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
-    if (!grouped[dateKey]) grouped[dateKey] = [];
-    grouped[dateKey].push(slot);
+  for (const s of slots) {
+    const key = new Date(s.datetime).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(s);
+  }
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-xl px-4 py-3 text-sm outline-none appearance-none"
+      style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: value ? "var(--text-main)" : "var(--text-dim)" }}
+    >
+      <option value="">Select a date &amp; time…</option>
+      {Object.entries(grouped).map(([dateLabel, daySlots]) => (
+        <optgroup key={dateLabel} label={dateLabel}>
+          {daySlots.map((s) => {
+            const timeStr = new Date(s.datetime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true });
+            return <option key={s.datetime} value={s.datetime}>{timeStr}</option>;
+          })}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
+function BookingPage({ connection, onBack }: { connection: HospitalConnection; onBack: () => void }) {
+  const [tab, setTab] = useState<"book" | "reschedule">("book");
+
+  // Book tab state
+  const [bookSlot, setBookSlot] = useState("");
+  const [reason, setReason] = useState("");
+  const [bookDone, setBookDone] = useState(false);
+
+  // Reschedule tab state
+  const [selectedBookingId, setSelectedBookingId] = useState<number | null>(null);
+  const [rescheduleSlot, setRescheduleSlot] = useState("");
+  const [rescheduleDone, setRescheduleDone] = useState(false);
+
+  const { data: slotsData, isLoading: slotsLoading, error: slotsError } = useBookingSlots(connection.connectionId, true);
+  const { data: myBookings = [], isLoading: bookingsLoading } = useMyBookings(connection.connectionId);
+  const createBooking = useCreateBooking(connection.connectionId);
+  const reschedule = useRescheduleBooking(connection.connectionId);
+
+  const slots = slotsData?.slots ?? [];
+
+  function handleBook() {
+    if (!bookSlot || !reason.trim() || createBooking.isPending) return;
+    createBooking.mutate({ requestedAt: bookSlot, reason: reason.trim() }, { onSuccess: () => setBookDone(true) });
   }
 
-  function handleSubmit() {
-    if (!selectedSlot || !reason.trim() || createBooking.isPending) return;
-    createBooking.mutate(
-      { requestedAt: selectedSlot, reason: reason.trim() },
-      { onSuccess: () => setConfirmed(true) }
-    );
+  function handleReschedule() {
+    if (!selectedBookingId || !rescheduleSlot || reschedule.isPending) return;
+    reschedule.mutate({ bookingId: selectedBookingId, newRequestedAt: rescheduleSlot }, { onSuccess: () => setRescheduleDone(true) });
   }
 
-  if (confirmed) {
+  if (bookDone) {
     return (
       <div className="px-4 pt-16 pb-8 flex flex-col items-center text-center">
         <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
@@ -203,10 +241,33 @@ function BookingPage({ connection, onBack }: { connection: HospitalConnection; o
           Your request has been sent to <strong style={{ color: "var(--text-main)" }}>{connection.hospitalName}</strong>.
         </p>
         <p className="text-sm mb-8" style={{ color: "var(--text-sub)" }}>
-          {selectedSlot && new Date(selectedSlot).toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: true })}
+          {bookSlot && new Date(bookSlot).toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: true })}
         </p>
         <p className="text-xs mb-10 px-4 py-3 rounded-xl" style={{ color: "#14b8a6", background: "rgba(20,184,166,0.08)", border: "1px solid rgba(20,184,166,0.2)" }}>
           The clinic will confirm or suggest an alternative time. You'll be notified in the app.
+        </p>
+        <button onClick={onBack}
+          className="w-full py-4 rounded-2xl font-bold text-white text-base active:scale-95 transition"
+          style={{ background: "linear-gradient(135deg,#1e3a5f,#1e40af)", boxShadow: "0 8px 24px rgba(30,64,175,0.4)" }}>
+          Back to hospitals
+        </button>
+      </div>
+    );
+  }
+
+  if (rescheduleDone) {
+    return (
+      <div className="px-4 pt-16 pb-8 flex flex-col items-center text-center">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
+          style={{ background: "rgba(99,102,241,0.15)", border: "2px solid rgba(99,102,241,0.4)" }}>
+          <RefreshCw className="w-10 h-10" style={{ color: "#818cf8" }} />
+        </div>
+        <p className="text-xl font-bold mb-2" style={{ color: "var(--text-main)" }}>Reschedule requested</p>
+        <p className="text-sm leading-relaxed mb-2" style={{ color: "var(--text-sub)" }}>
+          Your new slot request has been sent to <strong style={{ color: "var(--text-main)" }}>{connection.hospitalName}</strong>.
+        </p>
+        <p className="text-sm mb-8" style={{ color: "var(--text-sub)" }}>
+          {rescheduleSlot && new Date(rescheduleSlot).toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: true })}
         </p>
         <button onClick={onBack}
           className="w-full py-4 rounded-2xl font-bold text-white text-base active:scale-95 transition"
@@ -228,94 +289,182 @@ function BookingPage({ connection, onBack }: { connection: HospitalConnection; o
         </button>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-white text-sm truncate">{connection.hospitalName}</p>
-          <p className="text-[11px]" style={{ color: "var(--text-sub)" }}>Book an appointment</p>
+          <p className="text-[11px]" style={{ color: "var(--text-sub)" }}>Appointments</p>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        {isLoading ? (
-          <div className="flex flex-col items-center py-16 gap-3">
-            <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#60a5fa", borderTopColor: "transparent" }} />
-            <p style={{ fontSize: 12, color: "var(--text-sub)" }}>Loading available slots…</p>
-          </div>
-        ) : error ? (
-          <div className="text-center py-12">
-            <p style={{ fontSize: 36, marginBottom: 12 }}>😕</p>
-            <p style={{ fontSize: 14, color: "var(--text-sub)" }}>Could not load slots. Try again later.</p>
-          </div>
-        ) : slots.length === 0 ? (
-          <div className="text-center py-12">
-            <p style={{ fontSize: 40, marginBottom: 12 }}>📅</p>
-            <p className="font-bold mb-2" style={{ color: "var(--text-main)", fontSize: 15 }}>No slots available</p>
-            <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>
-              {connection.hospitalName} hasn't published any open slots yet. Contact them directly or check back later.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-5 pb-4">
-            <p style={{ fontSize: 13, color: "var(--text-sub)", marginBottom: 2 }}>Select a date and time</p>
+      {/* Tab switcher */}
+      <div className="px-4 pt-4 pb-0 shrink-0">
+        <div className="flex rounded-xl overflow-hidden" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--glass-border)" }}>
+          {(["book", "reschedule"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              className="flex-1 py-2.5 text-sm font-semibold transition"
+              style={{
+                background: tab === t ? "rgba(20,184,166,0.18)" : "transparent",
+                color: tab === t ? "#14b8a6" : "var(--text-sub)",
+                borderBottom: tab === t ? "2px solid #14b8a6" : "2px solid transparent",
+              }}>
+              {t === "book" ? "Book Appointment" : "Reschedule"}
+            </button>
+          ))}
+        </div>
+      </div>
 
-            {Object.entries(grouped).map(([dateLabel, daySlots]) => (
-              <div key={dateLabel}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: "var(--accent)", letterSpacing: 0.5, marginBottom: 8, textTransform: "uppercase" }}>{dateLabel}</p>
-                <div className="flex flex-wrap gap-2">
-                  {daySlots.map((slot) => {
-                    const timeStr = new Date(slot.datetime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true });
-                    const selected = selectedSlot === slot.datetime;
-                    return (
-                      <button key={slot.datetime} onClick={() => setSelectedSlot(slot.datetime)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold active:scale-95 transition"
-                        style={{
-                          background: selected ? "linear-gradient(135deg,#0d9488,#14b8a6)" : "var(--glass-bg)",
-                          border: selected ? "1px solid rgba(20,184,166,0.5)" : "1px solid var(--glass-border)",
-                          color: selected ? "#fff" : "var(--text-main)",
-                          boxShadow: selected ? "0 4px 12px rgba(20,184,166,0.3)" : "none",
-                        }}>
-                        <Clock className="w-3.5 h-3.5" style={{ opacity: 0.8 }} />
-                        {timeStr}
-                      </button>
-                    );
-                  })}
-                </div>
+      <div className="flex-1 overflow-y-auto px-4 py-5">
+        {tab === "book" && (
+          <>
+            {slotsLoading ? (
+              <div className="flex flex-col items-center py-16 gap-3">
+                <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#60a5fa", borderTopColor: "transparent" }} />
+                <p style={{ fontSize: 12, color: "var(--text-sub)" }}>Loading available slots…</p>
               </div>
-            ))}
+            ) : slotsError ? (
+              <div className="text-center py-12">
+                <p style={{ fontSize: 36, marginBottom: 12 }}>😕</p>
+                <p style={{ fontSize: 14, color: "var(--text-sub)" }}>Could not load slots. Try again later.</p>
+              </div>
+            ) : slots.length === 0 ? (
+              <div className="text-center py-12">
+                <p style={{ fontSize: 40, marginBottom: 12 }}>📅</p>
+                <p className="font-bold mb-2" style={{ color: "var(--text-main)", fontSize: 15 }}>No slots available</p>
+                <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>
+                  {connection.hospitalName} hasn't published any open slots yet. Check back later or contact them directly.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div>
+                  <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-dim)" }}>Preferred slot</p>
+                  <SlotPicker slots={slots} value={bookSlot} onChange={setBookSlot} />
+                </div>
 
-            {selectedSlot && (
-              <div className="pt-2">
-                <p style={{ fontSize: 13, color: "var(--text-sub)", marginBottom: 8 }}>Reason for visit</p>
-                <textarea
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="e.g. Follow-up consultation, routine check-up…"
-                  rows={3}
-                  className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
-                  style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)", caretColor: "#14b8a6" }}
-                />
+                <div>
+                  <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-dim)" }}>Reason for visit</p>
+                  <textarea
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="e.g. Follow-up consultation, routine check-up…"
+                    rows={3}
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
+                    style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)", caretColor: "#14b8a6" }}
+                  />
+                </div>
+
+                {bookSlot && (
+                  <div className="px-3 py-2 rounded-xl flex items-center gap-2"
+                    style={{ background: "rgba(20,184,166,0.08)", border: "1px solid rgba(20,184,166,0.2)" }}>
+                    <Calendar className="w-4 h-4 shrink-0" style={{ color: "#14b8a6" }} />
+                    <p style={{ fontSize: 12, color: "#14b8a6", fontWeight: 600 }}>
+                      {new Date(bookSlot).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}
+                    </p>
+                  </div>
+                )}
+
+                <button onClick={handleBook} disabled={!bookSlot || !reason.trim() || createBooking.isPending}
+                  className="w-full py-4 rounded-2xl font-bold text-white text-base active:scale-95 transition disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg,#0d9488,#14b8a6)", boxShadow: "0 6px 20px rgba(20,184,166,0.35)" }}>
+                  {createBooking.isPending ? "Sending request…" : "Request appointment"}
+                </button>
+                {createBooking.error && (
+                  <p className="text-center text-xs" style={{ color: "#f87171" }}>{createBooking.error.message}</p>
+                )}
               </div>
             )}
-          </div>
+          </>
+        )}
+
+        {tab === "reschedule" && (
+          <>
+            {bookingsLoading ? (
+              <div className="flex flex-col items-center py-16 gap-3">
+                <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#60a5fa", borderTopColor: "transparent" }} />
+                <p style={{ fontSize: 12, color: "var(--text-sub)" }}>Loading your bookings…</p>
+              </div>
+            ) : myBookings.length === 0 ? (
+              <div className="text-center py-12">
+                <p style={{ fontSize: 40, marginBottom: 12 }}>📋</p>
+                <p className="font-bold mb-2" style={{ color: "var(--text-main)", fontSize: 15 }}>No active bookings</p>
+                <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>
+                  You don't have any pending or confirmed appointments to reschedule.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div>
+                  <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-dim)" }}>Select booking to reschedule</p>
+                  <div className="space-y-2">
+                    {myBookings.map((b) => {
+                      const isSelected = selectedBookingId === b.id;
+                      return (
+                        <button key={b.id} onClick={() => { setSelectedBookingId(b.id); setRescheduleSlot(""); }}
+                          className="w-full text-left px-4 py-3 rounded-xl transition active:scale-[0.99]"
+                          style={{
+                            background: isSelected ? "rgba(20,184,166,0.12)" : "var(--glass-bg)",
+                            border: isSelected ? "1px solid rgba(20,184,166,0.4)" : "1px solid var(--glass-border)",
+                          }}>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate" style={{ color: "var(--text-main)" }}>{b.reason}</p>
+                              <p className="text-xs mt-0.5" style={{ color: "var(--text-sub)" }}>
+                                {new Date(b.requestedAt).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}
+                              </p>
+                            </div>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 capitalize"
+                              style={{
+                                background: b.status === "confirmed" ? "rgba(20,184,166,0.15)" : "rgba(251,191,36,0.15)",
+                                color: b.status === "confirmed" ? "#14b8a6" : "#fbbf24",
+                                border: `1px solid ${b.status === "confirmed" ? "rgba(20,184,166,0.3)" : "rgba(251,191,36,0.3)"}`,
+                              }}>
+                              {b.status}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {selectedBookingId && (
+                  <>
+                    {slotsLoading ? (
+                      <div className="flex items-center gap-2 py-3">
+                        <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#60a5fa", borderTopColor: "transparent" }} />
+                        <p style={{ fontSize: 12, color: "var(--text-sub)" }}>Loading slots…</p>
+                      </div>
+                    ) : slots.length === 0 ? (
+                      <p style={{ fontSize: 13, color: "var(--text-sub)" }}>No available slots to reschedule to.</p>
+                    ) : (
+                      <div>
+                        <p className="text-xs font-semibold mb-2 uppercase tracking-wide" style={{ color: "var(--text-dim)" }}>New preferred slot</p>
+                        <SlotPicker slots={slots} value={rescheduleSlot} onChange={setRescheduleSlot} />
+                      </div>
+                    )}
+
+                    {rescheduleSlot && (
+                      <div className="px-3 py-2 rounded-xl flex items-center gap-2"
+                        style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)" }}>
+                        <RefreshCw className="w-4 h-4 shrink-0" style={{ color: "#818cf8" }} />
+                        <p style={{ fontSize: 12, color: "#818cf8", fontWeight: 600 }}>
+                          New time: {new Date(rescheduleSlot).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}
+                        </p>
+                      </div>
+                    )}
+
+                    <button onClick={handleReschedule} disabled={!rescheduleSlot || reschedule.isPending}
+                      className="w-full py-4 rounded-2xl font-bold text-white text-base active:scale-95 transition disabled:opacity-50"
+                      style={{ background: "linear-gradient(135deg,#4f46e5,#818cf8)", boxShadow: "0 6px 20px rgba(99,102,241,0.35)" }}>
+                      {reschedule.isPending ? "Sending request…" : "Request reschedule"}
+                    </button>
+                    {reschedule.error && (
+                      <p className="text-center text-xs" style={{ color: "#f87171" }}>{reschedule.error.message}</p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
-
-      {selectedSlot && (
-        <div className="px-4 py-4 shrink-0" style={{ borderTop: "1px solid var(--glass-border)" }}>
-          <div className="mb-3 px-3 py-2 rounded-xl flex items-center gap-2"
-            style={{ background: "rgba(20,184,166,0.08)", border: "1px solid rgba(20,184,166,0.2)" }}>
-            <Calendar className="w-4 h-4 shrink-0" style={{ color: "#14b8a6" }} />
-            <p style={{ fontSize: 12, color: "#14b8a6", fontWeight: 600 }}>
-              {new Date(selectedSlot).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: true })}
-            </p>
-          </div>
-          <button onClick={handleSubmit} disabled={!reason.trim() || createBooking.isPending}
-            className="w-full py-4 rounded-2xl font-bold text-white text-base active:scale-95 transition disabled:opacity-50"
-            style={{ background: "linear-gradient(135deg,#0d9488,#14b8a6)", boxShadow: "0 6px 20px rgba(20,184,166,0.35)" }}>
-            {createBooking.isPending ? "Sending request…" : "Request this appointment"}
-          </button>
-          {createBooking.error && (
-            <p className="text-center text-xs mt-2" style={{ color: "#f87171" }}>{createBooking.error.message}</p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

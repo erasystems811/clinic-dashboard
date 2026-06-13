@@ -342,6 +342,65 @@ router.post("/call-tasks/:id/send-manual-email", async (req, res): Promise<void>
   }
 });
 
+// ── Send directly to patient's ERA app chat (no email/SMS) ───────────────────
+router.post("/call-tasks/:id/send-era", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospitalToken = req.headers["x-hospital-token"] as string;
+  const hospitalId = hospitalToken ? verifyHospitalToken(hospitalToken) : null;
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const parsed = SendMessageConfirmBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "message is required" }); return; }
+
+  const { data: task, error } = await supabase.from("call_tasks").select("*").eq("id", id).eq("hospital_id", hospitalId).single();
+  if (error || !task) { res.status(404).json({ error: "Call task not found" }); return; }
+
+  const patientId = task.patient_id as number;
+
+  const { data: conn } = await supabase
+    .from("patient_hospital_connections")
+    .select("id, account_id")
+    .eq("patient_record_id", patientId)
+    .eq("hospital_id", hospitalId)
+    .maybeSingle();
+
+  if (!conn) { res.status(404).json({ error: "Patient is not connected to the hospital on the ERA app" }); return; }
+
+  await supabase.from("patient_hospital_messages").insert({
+    connection_id: conn.id as number,
+    sender: "hospital",
+    message_type: "text",
+    content: parsed.data.message,
+    metadata: {},
+  });
+
+  if (conn.account_id) {
+    void supabase.from("patient_notifications").insert({
+      account_id: conn.account_id as number,
+      type: "message",
+      title: "New message from your hospital",
+      body: parsed.data.message.slice(0, 100),
+      metadata: { connectionId: conn.id },
+    });
+  }
+
+  const performedBy = (req.headers["x-performed-by"] as string | undefined) || null;
+  await supabase.from("call_tasks").update({ action_type: "manual_text" }).eq("id", id);
+  await supabase.from("activity").insert({
+    type: "era_message_sent",
+    description: `${performedBy ?? "Staff"} sent follow-up to ${task.patient_name as string} via ERA app`,
+    patient_id: patientId,
+    patient_name: task.patient_name as string,
+    hospital_id: hospitalId,
+    metadata: parsed.data.message.slice(0, 200),
+    performed_by: performedBy,
+  });
+
+  res.json({ ok: true });
+});
+
 router.delete("/call-tasks/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }

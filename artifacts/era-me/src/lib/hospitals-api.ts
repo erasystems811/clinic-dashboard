@@ -88,6 +88,10 @@ export function useMyHospitals() {
   return useQuery<HospitalConnection[]>({
     queryKey: ["hospitals"],
     queryFn: () => get(`${BASE}`),
+    staleTime: 0,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 }
 
@@ -182,8 +186,33 @@ export function useBookingSlots(connectionId: number, enabled: boolean) {
 }
 
 export function useCreateBooking(connectionId: number) {
+  const qc = useQueryClient();
   return useMutation<{ id: number; message: string }, Error, { requestedAt: string; reason: string }>({
     mutationFn: (body) => post(`${BASE}/${connectionId}/book`, body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["my-bookings", connectionId] }),
+  });
+}
+
+export interface MyBooking {
+  id: number;
+  reason: string;
+  requestedAt: string;
+  status: string;
+}
+
+export function useMyBookings(connectionId: number) {
+  return useQuery<MyBooking[]>({
+    queryKey: ["my-bookings", connectionId],
+    queryFn: () => get(`${BASE}/${connectionId}/my-bookings`),
+    staleTime: 0,
+  });
+}
+
+export function useRescheduleBooking(connectionId: number) {
+  const qc = useQueryClient();
+  return useMutation<{ ok: boolean; message: string }, Error, { bookingId: number; newRequestedAt: string }>({
+    mutationFn: (body) => post(`${BASE}/${connectionId}/reschedule`, body),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["my-bookings", connectionId] }),
   });
 }
 

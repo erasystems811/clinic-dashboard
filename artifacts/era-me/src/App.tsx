@@ -66,7 +66,7 @@ import NotificationsPage from "@/pages/notifications";
 import Layout from "@/components/layout";
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+  defaultOptions: { queries: { retry: false, refetchOnWindowFocus: true } },
 });
 
 function AppRoutes() {

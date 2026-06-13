@@ -14,7 +14,14 @@ export type AutomationStatus = "queued" | "sent" | "failed";
 // All helpers are non-fatal — a failure here must never block the main delivery.
 
 function stripEmailLine(text: string): string {
-  return text.replace(/Please do not reply to this email directly\.?/gi, "").replace(/\n{3,}/g, "\n\n").trim();
+  return text
+    .replace(/Please do not reply to this email directly\.?/gi, "")
+    // Strip "If you have any questions..." closing lines
+    .replace(/If you have any questions[^.\n]*\.[^\n]*/gi, "")
+    // Strip "Warm regards, ..." sign-off
+    .replace(/\nWarm regards[,.][\s\S]*$/i, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 async function pushEraNotification(
@@ -1012,7 +1019,7 @@ export async function sendCallTaskConfirmedMessage(
     const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
     await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject: `IMPORTANT - ${hCtx.hospitalName}`, html, text: body });
     await updateAutomationLog(logId, "sent", message);
-    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
+    try { await pushEraChatMessage(patientId, hospitalId, message); } catch { /* non-fatal */ }
     return { sentViaSms: false, insufficientFunds, senderIdMissing, dndBlocked: false };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1059,7 +1066,7 @@ export async function sendCallTaskManualEmail(
     });
 
     await updateAutomationLog(logId, "sent", `Manual email → ${patientEmail}`);
-    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(body)); } catch { /* non-fatal */ }
+    try { await pushEraChatMessage(patientId, hospitalId, customMessage); } catch { /* non-fatal */ }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendCallTaskManualEmail] failed:", msg, { hospitalId, patientId, patientEmail });

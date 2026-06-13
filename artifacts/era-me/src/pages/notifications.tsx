@@ -64,6 +64,9 @@ function NotifCard({ notif, onRead }: { notif: PatientNotification; onRead: () =
     birthday: "🎂",
     appointment_confirmed: "✅",
     appointment_cancelled: "❌",
+    stage_update: "🏥",
+    plan_integrated: "💊",
+    era_message_sent: "💬",
     general: "🔔",
   };
 

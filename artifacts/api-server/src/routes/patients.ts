@@ -819,18 +819,35 @@ router.post("/patients/:id/treatment-plan", async (req, res): Promise<void> => {
   }));
   await supabase.from("activity").insert(reminders);
 
-  // ── Automation: 1) WhatsApp/SMS notification + 2) OpenAI care plan email ──
+  // ── Automation: 1) ERA app notification + 2) WhatsApp/SMS + 3) care plan email ──
   const hospitalIntId = await resolveHospitalIntId(patient!.hospital_id as string);
   if (hospitalIntId) {
     const phone = (patient!.whatsapp_number as string) || (patient!.phone as string);
     const email = patient!.email as string | null;
 
-    // 1. Mobile notification (WhatsApp or SMS, templated)
+    // 1. ERA app notification (stage update prompt)
+    void supabase.from("patient_hospital_connections")
+      .select("account_id")
+      .eq("patient_record_id", id)
+      .eq("hospital_id", hospitalIntId)
+      .maybeSingle()
+      .then(({ data: conn }) => {
+        if (!conn?.account_id) return;
+        void supabase.from("patient_notifications").insert({
+          account_id: conn.account_id as number,
+          type: "stage_update",
+          title: "Your care plan has been updated",
+          body: `Your treatment plan at your hospital has been logged. You are now in active care.`,
+          metadata: { stage: "In Care" },
+        });
+      });
+
+    // 2. Mobile notification (WhatsApp or SMS, templated)
     if (phone) {
       sendCarePlanNotification(hospitalIntId, id, patientName, phone).catch(() => {});
     }
 
-    // 2. Detailed care plan email (OpenAI generated)
+    // 3. Detailed care plan email (OpenAI generated)
     if (email) {
       sendCarePlanEmail(
         hospitalIntId,

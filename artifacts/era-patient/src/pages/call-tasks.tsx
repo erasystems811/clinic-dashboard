@@ -66,6 +66,7 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
   const [draftIsAi, setDraftIsAi] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendingEra, setSendingEra] = useState(false);
   const [showWalletDialog, setShowWalletDialog] = useState(false);
   const [showSenderIdDialog, setShowSenderIdDialog] = useState(false);
   const [showDndDialog, setShowDndDialog] = useState(false);
@@ -277,6 +278,34 @@ function ActionPanel({ task, aiUsedToday, aiDailyLimit, onAiUsed, smsEnabled, sm
             ? <Loader2 className="w-4 h-4 animate-spin" />
             : <Send className="w-4 h-4" />}
           Send Text
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5 text-teal-500 border-teal-500/40 hover:bg-teal-500/10 shrink-0"
+          disabled={!textMsg.trim() || sendingEra || logOutcome.isPending}
+          onClick={async () => {
+            if (!hospital?.token || !textMsg.trim()) return;
+            setSendingEra(true);
+            try {
+              const res = await fetch(apiUrl(`/api/call-tasks/${task.id}/send-era`), {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token, ...(user?.staffName ? { "x-performed-by": user.staffName } : {}) },
+                body: JSON.stringify({ message: textMsg.trim() }),
+              });
+              const data = await res.json() as { ok?: boolean; error?: string };
+              if (!res.ok) throw new Error(data.error ?? "Send failed");
+              toast({ title: "Sent via ERA app", description: "Message delivered to patient's hospital chat." });
+              logOutcome.mutate({ id: task.id, data: { outcome: `[ERA sent] ${textMsg}` } });
+            } catch (err: unknown) {
+              toast({ title: "ERA send failed", description: err instanceof Error ? err.message : "Patient may not be connected to the ERA app.", variant: "destructive" });
+              setSendingEra(false);
+            }
+          }}
+          title="Send directly to patient's ERA app chat"
+        >
+          {sendingEra ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageSquare className="w-3.5 h-3.5" />}
+          ERA App
         </Button>
       </div>
 

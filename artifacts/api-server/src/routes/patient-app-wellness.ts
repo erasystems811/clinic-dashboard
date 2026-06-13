@@ -711,6 +711,7 @@ router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> =
   if (insightCache.has(cacheKey)) { res.json({ insight: insightCache.get(cacheKey) }); return; }
   for (const k of insightCache.keys()) { if (!k.endsWith(`:${today}`)) insightCache.delete(k); }
 
+
   // Gather 2 weeks of data for pattern detection
   const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 13);
   const fromDate = twoWeeksAgo.toISOString().split("T")[0];
@@ -731,7 +732,6 @@ router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> =
   }
 
   const thisWeekLines: string[] = [];
-  const lastWeekLines: string[] = [];
   for (const m of modules ?? []) {
     if (!DAILY_HABIT_TYPES.includes(m.module_type as string)) continue;
     const settings = (m.settings as Record<string, unknown>) ?? {};
@@ -749,22 +749,25 @@ router.get("/patient-app/wellness/ai-insight", async (req, res): Promise<void> =
     thisWeekLines.push(`${meta.label}: this week ${thisW}/7, last week ${lastW}/7`);
   }
 
-  const prompt = `You are a health data analyst. Analyse the following wellness habit data and write a concise insight (2-3 sentences, max 50 words).
+  const rawName = (account as { display_name?: string }).display_name ?? "";
+  const firstName = rawName.split(" ")[0] || "there";
+
+  const prompt = `You are ${firstName}'s personal wellness coach. Write a warm, personalised insight (2-3 sentences, max 60 words) based on their habit data below.
 
 DATA:
 ${thisWeekLines.join("\n") || "No habit data recorded yet."}
 
 Rules:
-- State the strongest habit (highest completion rate) and the weakest habit (lowest completion rate) using the exact numbers from the data.
-- Give one specific, actionable recommendation for the weakest habit.
-- Be direct and factual. No warm language, no encouragement phrases, no greetings.
-- Do not mention the user's name. No emojis. No quotes. Plain sentences only.`;
+- Address them by first name (${firstName}) naturally at the start.
+- Mention their standout strength specifically — what they're doing well and why it's impressive.
+- Identify their weakest habit by name and give one concrete, practical tip to improve it (e.g. link it to an existing habit they're already doing well).
+- Sound like a thoughtful, encouraging coach — warm and specific, not generic. No emojis. No quotes.`;
 
   try {
     const text = await generateOpenAIMessage(
-      "You are a health data analyst. Be direct and factual. No warm language, no encouragement phrases, no greetings.",
+      `You are a warm, encouraging personal wellness coach speaking directly to ${firstName}. Be specific and personal — use their actual data. Sound like a real coach, not a report.`,
       prompt,
-      120,
+      150,
     );
     if (text) insightCache.set(cacheKey, text.trim());
     res.json({ insight: text ? text.trim() : null });

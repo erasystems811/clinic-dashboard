@@ -254,7 +254,7 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
   return { generatedAt: new Date().toISOString(), weekStart: weekDates[0], days };
 }
 
-async function fetchAndSavePlan(accountId: number): Promise<WeekPlan> {
+export async function fetchAndSavePlan(accountId: number): Promise<WeekPlan> {
   const weekStart = getWeekStart();
   const weekDates = getWeekDates(weekStart);
   const { data: modules } = await supabase

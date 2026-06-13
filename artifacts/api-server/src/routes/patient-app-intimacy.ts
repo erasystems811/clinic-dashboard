@@ -19,10 +19,18 @@ async function getAge(accountId: number): Promise<number | null> {
   return Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
 }
 
-// ── POST save DOB (for age gate when DOB not yet on account) ─────────────────
+// ── POST save DOB — one-time only, locked after first save ───────────────────
 router.post("/patient-app/intimacy/save-dob", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  // If DOB is already on the account, do not allow changing it — return existing age
+  const { data: existing } = await supabase.from("patient_accounts").select("date_of_birth").eq("id", account.id).single();
+  if (existing?.date_of_birth) {
+    const age = Math.floor((Date.now() - new Date(existing.date_of_birth as string).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+    res.json({ ok: true, age, ageOk: age >= 18 });
+    return;
+  }
 
   const body = z.object({ dob: z.string() }).safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: "Invalid date" }); return; }

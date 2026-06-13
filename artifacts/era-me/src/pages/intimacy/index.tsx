@@ -214,18 +214,22 @@ function DobScreen() {
           type="date"
           value={dob}
           onChange={(e) => { setDob(e.target.value); setError(""); }}
+          max={new Date().toISOString().split("T")[0]}
           className="w-full rounded-xl px-4 py-3 text-base font-semibold outline-none text-center"
           style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)" }}
         />
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        {saveDob.isError && <p className="text-sm text-red-400">{(saveDob.error as Error).message}</p>}
+        <p className="text-xs text-center px-2" style={{ color: "var(--text-dim)" }}>
+          🔒 Your date of birth cannot be changed after this step
+        </p>
+        {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+        {saveDob.isError && <p className="text-sm text-red-400 text-center">{(saveDob.error as Error).message}</p>}
         <button
           onClick={handleSubmit}
           disabled={saveDob.isPending || !dob}
           className="w-full py-4 rounded-2xl font-bold text-base text-white transition active:scale-95 disabled:opacity-50"
           style={{ background: "var(--btn-gradient)" }}
         >
-          {saveDob.isPending ? "Verifying…" : "Continue"}
+          {saveDob.isPending ? "Verifying…" : "Confirm & continue"}
         </button>
         <button onClick={() => navigate("/")} className="w-full py-2 text-sm" style={{ color: "var(--text-dim)" }}>
           Go back

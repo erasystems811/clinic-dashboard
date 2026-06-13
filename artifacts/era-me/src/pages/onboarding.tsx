@@ -165,7 +165,7 @@ export default function OnboardingPage() {
                   Date of birth <span className="text-xs font-normal" style={{ color: "var(--accent)" }}>required</span>
                 </p>
                 <p className="text-xs mb-3" style={{ color: "var(--text-dim)" }}>
-                  Your age shapes your wellness recommendations.
+                  Used for age-appropriate features. Cannot be changed after this step.
                 </p>
                 <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)}
                   max={new Date().toISOString().split("T")[0]}

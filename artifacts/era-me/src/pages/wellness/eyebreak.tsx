@@ -88,11 +88,11 @@ export default function EyeBreakPage() {
         <div className="space-y-4 mb-5">
           <Field label="Screen time start">
             <input type="time" value={startTime} onChange={(e) => { setStartTime(e.target.value); setTargetBreaks(suggestTarget(e.target.value, endTime)); }}
-              className="w-full bg-muted rounded-xl px-4 py-3 text-base font-bold text-foreground text-center outline-none" />
+              className="w-full min-w-0 bg-muted rounded-xl px-4 py-3 text-base font-bold text-foreground text-center outline-none" />
           </Field>
           <Field label="Screen time end">
             <input type="time" value={endTime} onChange={(e) => { setEndTime(e.target.value); setTargetBreaks(suggestTarget(startTime, e.target.value)); }}
-              className="w-full bg-muted rounded-xl px-4 py-3 text-base font-bold text-foreground text-center outline-none" />
+              className="w-full min-w-0 bg-muted rounded-xl px-4 py-3 text-base font-bold text-foreground text-center outline-none" />
           </Field>
           <Field label={`Daily break target (suggested: ${suggested})`}>
             <div className="flex items-center gap-3">

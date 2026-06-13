@@ -165,7 +165,7 @@ export default function MedicationsPage() {
             {draft.times.map((t, i) => (
               <div key={i} className="flex items-center gap-2 mb-2">
                 <input type="time" value={t} onChange={(e) => updateTime(i, e.target.value)}
-                  className="flex-1 bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" />
+                  className="flex-1 min-w-0 bg-muted rounded-xl px-3 py-2.5 text-sm text-foreground outline-none" />
                 {draft.times.length > 1 && (
                   <button onClick={() => removeTime(i)} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
                     ×

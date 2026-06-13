@@ -69,11 +69,11 @@ export default function FruitPage() {
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl p-5 mb-5">
+        <div className="bg-card border border-border rounded-2xl p-5 mb-5 overflow-hidden">
           <p className="text-sm font-semibold text-foreground mb-1">Daily reminder time</p>
           <p className="text-xs text-muted-foreground mb-4">We'll remind you to eat your fruit at this time each day.</p>
           <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
-            className="w-full bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
+            className="w-full min-w-0 bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
         </div>
 
         <div className="bg-muted rounded-xl px-4 py-4 mb-5 text-center">

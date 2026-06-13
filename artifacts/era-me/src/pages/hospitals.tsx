@@ -535,7 +535,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
             placeholder={`Message ${connection.hospitalName}…`}
             rows={1}
             className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none resize-none"
-            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)", caretColor: "#14b8a6", maxHeight: 120, lineHeight: 1.5 }}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)", caretColor: "#14b8a6", maxHeight: "40vh", lineHeight: 1.5 }}
           />
           <button onClick={handleSend} disabled={!message.trim() || sendMessage.isPending}
             className="w-11 h-11 rounded-2xl flex items-center justify-center active:scale-90 transition disabled:opacity-40 shrink-0"

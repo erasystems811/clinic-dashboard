@@ -367,11 +367,11 @@ function NavBtn({ onClick, disabled, children }: { onClick: () => void; disabled
 
 function TimeCard({ emoji, label, value, onChange }: { emoji: string; label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="rounded-2xl p-4 overflow-hidden" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
       <p className="text-sm font-medium mb-3" style={{ color: "rgba(255,255,255,0.55)" }}>{emoji} {label}</p>
       <input type="time" value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 rounded-xl text-white font-bold text-xl outline-none transition"
-        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", colorScheme: "dark" }}
+        className="w-full px-4 py-3 rounded-xl text-white font-bold text-xl outline-none transition min-w-0"
+        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", colorScheme: "dark", boxSizing: "border-box" }}
         onFocus={(e) => (e.target.style.borderColor = `rgba(var(--glow-rgb),0.5)`)}
         onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.12)")} />
     </div>

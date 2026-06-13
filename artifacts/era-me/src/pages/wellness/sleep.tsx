@@ -95,16 +95,16 @@ export default function SleepPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-card border border-border rounded-2xl p-5">
+          <div className="bg-card border border-border rounded-2xl p-5 overflow-hidden">
             <p className="text-sm font-semibold text-foreground mb-4">Bedtime target</p>
             <input type="time" value={bedtimeTarget} onChange={(e) => setBedtimeTarget(e.target.value)}
-              className="w-full bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
+              className="w-full min-w-0 bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
           </div>
 
-          <div className="bg-card border border-border rounded-2xl p-5">
+          <div className="bg-card border border-border rounded-2xl p-5 overflow-hidden">
             <p className="text-sm font-semibold text-foreground mb-4">Wake time target</p>
             <input type="time" value={wakeTarget} onChange={(e) => setWakeTarget(e.target.value)}
-              className="w-full bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
+              className="w-full min-w-0 bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
           </div>
 
           <div className="bg-muted rounded-xl px-4 py-3 text-center">
@@ -156,21 +156,21 @@ export default function SleepPage() {
       </div>
 
       {/* Log last night */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-5">
+      <div className="bg-card border border-border rounded-2xl p-5 mb-5 overflow-hidden">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
           {hasLog ? "Last night (logged)" : "Log last night"}
         </p>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-1.5">I went to bed</p>
             <input type="time" value={logBedtime} onChange={(e) => setLogBedtime(e.target.value)}
-              className="w-full bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
+              className="w-full min-w-0 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-muted-foreground mb-1.5">I woke up</p>
             <input type="time" value={logWake} onChange={(e) => setLogWake(e.target.value)}
-              className="w-full bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
+              className="w-full min-w-0 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
           </div>
         </div>
 

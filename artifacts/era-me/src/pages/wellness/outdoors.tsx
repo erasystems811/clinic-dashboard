@@ -75,10 +75,10 @@ export default function OutdoorsPage() {
               </button>
             </div>
           </div>
-          <div className="bg-card border border-border rounded-2xl p-5">
+          <div className="bg-card border border-border rounded-2xl p-5 overflow-hidden">
             <p className="text-sm font-semibold text-foreground mb-3">Reminder time</p>
             <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
-              className="w-full bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
+              className="w-full min-w-0 bg-muted rounded-xl px-4 py-3 text-2xl font-bold text-foreground text-center outline-none" />
           </div>
           <div className="bg-card border border-border rounded-2xl p-5">
             <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>

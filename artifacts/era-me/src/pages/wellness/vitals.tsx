@@ -115,12 +115,12 @@ export default function VitalsPage() {
             </button>
           ))}
         </div>
-        <div className="bg-card border border-border rounded-2xl p-5 mb-4">
+        <div className="bg-card border border-border rounded-2xl p-5 mb-4 overflow-hidden">
           <p className="text-sm font-semibold text-foreground mb-1">Your preferences <span className="text-xs font-normal text-muted-foreground">(optional)</span></p>
           <p className="text-xs text-muted-foreground mb-3">Helps us tailor your plan — e.g. "I check my BP in the morning", "I weigh myself after waking"</p>
           <textarea value={notes} rows={3} onChange={(e) => setNotes(e.target.value)}
             placeholder="Anything that helps us plan better for you..."
-            className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
+            className="w-full min-w-0 bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none resize-none" />
         </div>
         <button onClick={saveSetup} disabled={(!trackBP && !trackSugar && !trackWeight) || saveModule.isPending}
           className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">
@@ -144,7 +144,7 @@ export default function VitalsPage() {
       </div>
 
       {/* Log today */}
-      <div className="bg-card border border-border rounded-2xl p-5 mb-5">
+      <div className="bg-card border border-border rounded-2xl p-5 mb-5 overflow-hidden">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
           {saved ? "Today (logged)" : "Log today's readings"}
         </p>
@@ -156,10 +156,10 @@ export default function VitalsPage() {
               </p>
               <div className="flex gap-2 items-center">
                 <input type="text" inputMode="numeric" pattern="[0-9]*" value={bpS} onChange={(e) => { setBpS(e.target.value.replace(/\D/g, "")); setSaved(false); }}
-                  placeholder="120" className="flex-1 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
-                <span className="text-muted-foreground font-bold">/</span>
+                  placeholder="120" className="flex-1 min-w-0 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
+                <span className="text-muted-foreground font-bold shrink-0">/</span>
                 <input type="text" inputMode="numeric" pattern="[0-9]*" value={bpD} onChange={(e) => { setBpD(e.target.value.replace(/\D/g, "")); setSaved(false); }}
-                  placeholder="80" className="flex-1 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
+                  placeholder="80" className="flex-1 min-w-0 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
               </div>
             </div>
           )}
@@ -169,7 +169,7 @@ export default function VitalsPage() {
                 Blood Sugar (mmol/L) <TrendIcon t={trend("bloodSugar")} />
               </p>
               <input type="text" inputMode="decimal" pattern="[0-9.]*" value={sugar} onChange={(e) => { setSugar(e.target.value.replace(/[^0-9.]/g, "")); setSaved(false); }}
-                placeholder="5.4" className="w-full bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
+                placeholder="5.4" className="w-full min-w-0 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
             </div>
           )}
           {settings.trackWeight && (
@@ -178,7 +178,7 @@ export default function VitalsPage() {
                 Weight (kg) <TrendIcon t={trend("weight")} />
               </p>
               <input type="text" inputMode="decimal" pattern="[0-9.]*" value={weight} onChange={(e) => { setWeight(e.target.value.replace(/[^0-9.]/g, "")); setSaved(false); }}
-                placeholder="70.0" className="w-full bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
+                placeholder="70.0" className="w-full min-w-0 bg-muted rounded-xl px-3 py-2.5 text-base font-bold text-foreground text-center outline-none" />
             </div>
           )}
         </div>

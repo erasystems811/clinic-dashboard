@@ -129,8 +129,8 @@ export default function ChatPage() {
             onKeyDown={handleKeyDown}
             placeholder="Say something…"
             rows={1}
-            className="flex-1 bg-muted rounded-2xl px-4 py-3 text-sm text-foreground outline-none resize-none max-h-32 leading-relaxed"
-            style={{ minHeight: "44px" }}
+            className="flex-1 bg-muted rounded-2xl px-4 py-3 text-sm text-foreground outline-none resize-none leading-relaxed"
+            style={{ minHeight: "44px", maxHeight: "40vh" }}
           />
           <button onClick={handleSend} disabled={!input.trim() || sendMessage.isPending}
             className="w-11 h-11 rounded-2xl bg-primary flex items-center justify-center shrink-0 disabled:opacity-50 transition active:scale-95">

@@ -158,7 +158,7 @@ function PositionSVG({ id }: { id: string }) {
 // ── Gate / Entry point ────────────────────────────────────────────────────────
 export default function IntimacyGate() {
   const { account } = useAuth();
-  const { data, isLoading, isError, refetch } = useIntimacySettings();
+  const { data, isLoading, isError, error, refetch } = useIntimacySettings();
   const [unlocked, setUnlocked] = useState(false);
 
   useIntimacyTheme();
@@ -174,6 +174,7 @@ export default function IntimacyGate() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-4">
         <p className="text-3xl">⚠️</p>
         <p className="text-sm" style={{ color: "var(--text-sub)" }}>Could not load your space. Check your connection and try again.</p>
+        {error && <p className="text-xs font-mono px-3 py-1 rounded" style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-dim)" }}>{String(error)}</p>}
         <button onClick={() => refetch()}
           className="px-6 py-3 rounded-2xl font-bold text-white text-sm transition active:scale-95"
           style={{ background: "var(--btn-gradient)" }}>

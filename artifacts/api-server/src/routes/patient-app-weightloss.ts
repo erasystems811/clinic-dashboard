@@ -141,7 +141,7 @@ async function awardCheatDay(accountId: number) {
 }
 
 // ── GET /api/patient-app/weightloss/profile ───────────────────────────────────
-router.get("/api/patient-app/weightloss/profile", async (req, res): Promise<void> => {
+router.get("/patient-app/weightloss/profile", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
   const profile = await getProfile(account.id);
@@ -149,7 +149,7 @@ router.get("/api/patient-app/weightloss/profile", async (req, res): Promise<void
 });
 
 // ── POST /api/patient-app/weightloss/onboard ─────────────────────────────────
-router.post("/api/patient-app/weightloss/onboard", async (req, res): Promise<void> => {
+router.post("/patient-app/weightloss/onboard", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -224,7 +224,7 @@ router.post("/api/patient-app/weightloss/onboard", async (req, res): Promise<voi
 });
 
 // ── POST /api/patient-app/weightloss/generate-plan ───────────────────────────
-router.post("/api/patient-app/weightloss/generate-plan", async (req, res): Promise<void> => {
+router.post("/patient-app/weightloss/generate-plan", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -376,7 +376,7 @@ Return ONLY valid JSON in this exact structure:
 });
 
 // ── GET /api/patient-app/weightloss/plan ─────────────────────────────────────
-router.get("/api/patient-app/weightloss/plan", async (req, res): Promise<void> => {
+router.get("/patient-app/weightloss/plan", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -392,7 +392,7 @@ router.get("/api/patient-app/weightloss/plan", async (req, res): Promise<void> =
 });
 
 // ── GET /api/patient-app/weightloss/today ────────────────────────────────────
-router.get("/api/patient-app/weightloss/today", async (req, res): Promise<void> => {
+router.get("/patient-app/weightloss/today", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -445,7 +445,7 @@ router.get("/api/patient-app/weightloss/today", async (req, res): Promise<void> 
 });
 
 // ── POST /api/patient-app/weightloss/log-meal ────────────────────────────────
-router.post("/api/patient-app/weightloss/log-meal", async (req, res): Promise<void> => {
+router.post("/patient-app/weightloss/log-meal", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -478,7 +478,7 @@ router.post("/api/patient-app/weightloss/log-meal", async (req, res): Promise<vo
 });
 
 // ── POST /api/patient-app/weightloss/complete-workout ────────────────────────
-router.post("/api/patient-app/weightloss/complete-workout", async (req, res): Promise<void> => {
+router.post("/patient-app/weightloss/complete-workout", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -502,7 +502,7 @@ router.post("/api/patient-app/weightloss/complete-workout", async (req, res): Pr
 });
 
 // ── POST /api/patient-app/weightloss/log-weight ──────────────────────────────
-router.post("/api/patient-app/weightloss/log-weight", async (req, res): Promise<void> => {
+router.post("/patient-app/weightloss/log-weight", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -527,7 +527,7 @@ router.post("/api/patient-app/weightloss/log-weight", async (req, res): Promise<
 
 // ── POST /api/patient-app/weightloss/calculate-calories ──────────────────────
 // Meal calorie calculator — user types what they want to eat, gets calories back
-router.post("/api/patient-app/weightloss/calculate-calories", async (req, res): Promise<void> => {
+router.post("/patient-app/weightloss/calculate-calories", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -562,7 +562,7 @@ When given a food description, return ONLY valid JSON:
 });
 
 // ── POST /api/patient-app/weightloss/coach-chat ──────────────────────────────
-router.post("/api/patient-app/weightloss/coach-chat", async (req, res): Promise<void> => {
+router.post("/patient-app/weightloss/coach-chat", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -684,7 +684,7 @@ Today is ${today}. If no adjustment mentioned, return {"adjustments": []}.`,
 }
 
 // ── GET /api/patient-app/weightloss/progress ─────────────────────────────────
-router.get("/api/patient-app/weightloss/progress", async (req, res): Promise<void> => {
+router.get("/patient-app/weightloss/progress", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -746,7 +746,7 @@ router.get("/api/patient-app/weightloss/progress", async (req, res): Promise<voi
 });
 
 // ── GET /api/patient-app/weightloss/adjustments ──────────────────────────────
-router.get("/api/patient-app/weightloss/adjustments", async (req, res): Promise<void> => {
+router.get("/patient-app/weightloss/adjustments", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 

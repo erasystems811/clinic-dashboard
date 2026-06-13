@@ -51,6 +51,24 @@ router.post("/patient-app/auto-health/sync", async (req, res): Promise<void> => 
   res.json({ ok: true });
 });
 
+type RawLog = {
+  date: string; steps: number;
+  distance_meters: number; active_minutes: number;
+  calories_burned: number; activity_type: string;
+  sleep_hours: number | null; sleep_quality: string | null;
+};
+function toLog(r: RawLog) {
+  return {
+    date: r.date, steps: r.steps,
+    distanceMeters: r.distance_meters,
+    activeMinutes: r.active_minutes,
+    caloriesBurned: r.calories_burned,
+    activityType: r.activity_type,
+    sleepHours: r.sleep_hours,
+    sleepQuality: r.sleep_quality,
+  };
+}
+
 // ── Get today's logged snapshot ───────────────────────────────────────────────
 router.get("/patient-app/auto-health/today", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
@@ -58,12 +76,12 @@ router.get("/patient-app/auto-health/today", async (req, res): Promise<void> => 
 
   const { data } = await supabase
     .from("patient_auto_health_logs")
-    .select("*")
+    .select("date, steps, distance_meters, active_minutes, calories_burned, sleep_hours, sleep_quality, activity_type")
     .eq("account_id", account.id)
     .eq("date", todayStr())
     .maybeSingle();
 
-  res.json({ log: data ?? null });
+  res.json({ log: data ? toLog(data as RawLog) : null });
 });
 
 // ── Get last 7 days history ───────────────────────────────────────────────────
@@ -82,7 +100,7 @@ router.get("/patient-app/auto-health/history", async (req, res): Promise<void> =
     .gte("date", since)
     .order("date", { ascending: false });
 
-  res.json({ history: data ?? [] });
+  res.json({ history: (data ?? []).map((r) => toLog(r as RawLog)) });
 });
 
 export default router;

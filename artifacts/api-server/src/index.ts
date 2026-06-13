@@ -364,4 +364,51 @@ app.listen(port, (err) => {
   migratePushNotificationTables();
   migrateWomensHealthTables();
   migrateAccountabilityGroupsTables();
+  migrateRagSearchFunction();
 });
+
+async function migrateRagSearchFunction() {
+  const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!projectRef || !token) {
+    logger.warn("[migration] SUPABASE_ACCESS_TOKEN not set — skipping rag_search function migration");
+    return;
+  }
+  const sql = `
+    CREATE TABLE IF NOT EXISTS rag_documents (
+      id BIGSERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'general',
+      source TEXT,
+      chunk_index INTEGER NOT NULL DEFAULT 0,
+      content TEXT NOT NULL,
+      embedding vector(1536),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+    CREATE OR REPLACE FUNCTION rag_search(
+      query_embedding vector(1536),
+      match_category text DEFAULT NULL,
+      match_count int DEFAULT 5
+    )
+    RETURNS TABLE (content text, similarity float)
+    LANGUAGE sql STABLE AS $$
+      SELECT content,
+             1 - (embedding <=> query_embedding) AS similarity
+      FROM rag_documents
+      WHERE (match_category IS NULL OR category = match_category)
+      ORDER BY embedding <=> query_embedding
+      LIMIT match_count;
+    $$;
+  `;
+  try {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (resp.ok) logger.info("[migration] rag_documents table and rag_search function ready");
+    else logger.warn({ body: await resp.text() }, "[migration] rag_search migration failed");
+  } catch (err) {
+    logger.warn({ err }, "[migration] rag_search migration error");
+  }
+}

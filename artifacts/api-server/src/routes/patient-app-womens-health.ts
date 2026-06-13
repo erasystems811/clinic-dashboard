@@ -113,6 +113,12 @@ router.get("/patient-app/womens-health/today", async (req, res): Promise<void> =
     return;
   }
 
+  const mode = (raw.mode as string | null) ?? "cycle";
+  if (mode === "pregnancy") {
+    res.json({ isSetUp: true, mode: "pregnancy" });
+    return;
+  }
+
   const settings: WSettings = {
     cycleLength: raw.cycle_length as number,
     periodLength: raw.period_length as number,
@@ -123,6 +129,7 @@ router.get("/patient-app/womens-health/today", async (req, res): Promise<void> =
 
   res.json({
     isSetUp: true,
+    mode: "cycle",
     settings,
     today,
     cycleInfo,

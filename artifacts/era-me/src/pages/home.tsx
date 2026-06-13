@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
 import { ChevronRight, CheckCircle2, Circle, Plus, Minus, X, Bell } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
+import { useHealthTracker } from "@/contexts/health-context";
 import { greeting, formatDate } from "@/lib/utils";
 import { useWellnessToday, useWeekSummary, useLogToday, useQuickLog, useUpcomingEvents } from "@/lib/wellness-api";
 import type { UpcomingEvent } from "@/lib/wellness-api";
@@ -106,6 +107,7 @@ export default function HomePage() {
   const { data: upcomingData } = useUpcomingEvents();
   const { data: notifData } = useUnreadNotifCount();
   const unreadNotifs = notifData?.count ?? 0;
+  const { snapshot: healthSnapshot, hasPermission: motionPermission, requestPermission: requestMotion } = useHealthTracker();
 
   // ── Secret diary gesture ──────────────────────────────────────────────────
   const [gesture, setGesture] = useState<GestureConfig | null>(null);
@@ -335,6 +337,11 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── Auto Health Widget ────────────────────────────────── */}
+        {healthSnapshot && (healthSnapshot.steps > 0 || healthSnapshot.sleepHours !== null || motionPermission === null) && (
+          <AutoHealthWidget snapshot={healthSnapshot} motionPermission={motionPermission} onEnableMotion={requestMotion} />
         )}
 
         {/* ── Today's Plan ───────────────────────────────────────── */}
@@ -877,6 +884,81 @@ function ComingUpCard({ events }: { events: UpcomingEvent[] }) {
         })}
       </div>
     </section>
+  );
+}
+
+function AutoHealthWidget({ snapshot, motionPermission, onEnableMotion }: {
+  snapshot: { steps: number; distanceMeters: number; activeMinutes: number; caloriesBurned: number; activityType: string; sleepHours: number | null; sleepQuality: string | null };
+  motionPermission: boolean | null;
+  onEnableMotion: () => Promise<void>;
+}) {
+  const activityEmoji = snapshot.activityType === "running" ? "🏃" : snapshot.activityType === "walking" ? "🚶" : "🧘";
+  const activityLabel = snapshot.activityType === "running" ? "Running" : snapshot.activityType === "walking" ? "Walking" : "Still";
+  const stepsGoal = 5000;
+  const stepsPct = Math.min(100, Math.round((snapshot.steps / stepsGoal) * 100));
+  const distLabel = snapshot.distanceMeters >= 1000
+    ? `${(snapshot.distanceMeters / 1000).toFixed(1)} km`
+    : `${snapshot.distanceMeters} m`;
+  const sleepLabel = snapshot.sleepHours !== null ? `${snapshot.sleepHours}h` : "—";
+  const sleepColor = snapshot.sleepQuality === "good" ? "#4ade80" : snapshot.sleepQuality === "fair" ? "#fbbf24" : snapshot.sleepQuality === "poor" ? "#f87171" : "var(--text-sub)";
+
+  return (
+    <div className="rounded-2xl overflow-hidden relative"
+      style={{ background: "linear-gradient(135deg,rgba(5,46,22,0.75),rgba(6,78,59,0.55))", border: "1px solid rgba(34,197,94,0.2)", boxShadow: "0 4px 24px rgba(34,197,94,0.1)" }}>
+      <div className="pointer-events-none absolute bottom-0 right-0 w-40 h-40 rounded-full"
+        style={{ background: "radial-gradient(circle,rgba(34,197,94,0.15) 0%,transparent 70%)", filter: "blur(20px)" }} />
+      <div className="relative p-4">
+        <p style={{ fontSize: 11, color: "rgba(74,222,128,0.8)", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>
+          {activityEmoji} TODAY'S ACTIVITY
+        </p>
+        <div className="flex items-end justify-between mb-4">
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span style={{ fontSize: 40, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>
+                {snapshot.steps.toLocaleString()}
+              </span>
+              <span style={{ fontSize: 15, color: "var(--text-sub)", fontWeight: 500 }}>steps</span>
+            </div>
+            <p style={{ fontSize: 12, marginTop: 3, color: stepsPct >= 100 ? "#4ade80" : "var(--text-sub)" }}>
+              {stepsPct >= 100 ? "Daily goal reached! 🎉" : `${stepsPct}% of ${stepsGoal.toLocaleString()} goal`}
+            </p>
+          </div>
+          <span style={{ fontSize: 32, lineHeight: 1 }}>{activityEmoji}</span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mb-4 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+          <div className="h-full rounded-full transition-all duration-700"
+            style={{ width: `${stepsPct}%`, background: "linear-gradient(90deg,#15803d,#4ade80)", boxShadow: "0 0 8px rgba(74,222,128,0.5)" }} />
+        </div>
+
+        {/* 4 mini stats */}
+        <div className="grid grid-cols-4 gap-2 mb-3">
+          {[
+            { label: "Distance", value: distLabel, icon: "📍" },
+            { label: "Active", value: `${snapshot.activeMinutes}m`, icon: "⏱️" },
+            { label: "Calories", value: `${snapshot.caloriesBurned}`, icon: "🔥" },
+            { label: "Sleep", value: sleepLabel, icon: "😴", color: sleepColor },
+          ].map(({ label, value, icon, color }) => (
+            <div key={label} className="rounded-xl p-2 text-center"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+              <p style={{ fontSize: 14 }}>{icon}</p>
+              <p style={{ fontSize: 13, fontWeight: 800, color: color ?? "var(--text-main)", lineHeight: 1.2, marginTop: 2 }}>{value}</p>
+              <p style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 1, fontWeight: 600 }}>{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* iOS motion permission prompt */}
+        {motionPermission === null && (
+          <button onClick={onEnableMotion}
+            className="w-full py-2.5 rounded-xl text-xs font-bold text-white active:scale-95 transition"
+            style={{ background: "linear-gradient(135deg,#15803d,#22c55e)", boxShadow: "0 4px 12px rgba(34,197,94,0.35)" }}>
+            Enable step counting
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

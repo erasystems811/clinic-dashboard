@@ -363,7 +363,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Scrollable body */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain" }}>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
             {fbDone ? (
               <div className="flex flex-col items-center py-6 gap-3">
                 <p style={{ fontSize: 40 }}>🙏</p>
@@ -436,7 +436,7 @@ export default function ProfilePage() {
             <p className="font-bold text-base" style={{ color: "var(--text-main)" }}>Change Username</p>
             <button onClick={() => setShowUsername(false)} className="text-xl leading-none" style={{ color: "var(--text-dim)" }}>✕</button>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain" }}>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
             <p className="text-xs mb-3" style={{ color: "var(--text-sub)" }}>
               Current: <span className="font-semibold" style={{ color: "var(--text-main)" }}>@{account.username}</span>
             </p>
@@ -472,7 +472,7 @@ export default function ProfilePage() {
             <p className="font-bold text-base" style={{ color: "var(--text-main)" }}>Change Nickname</p>
             <button onClick={() => setShowNickname(false)} className="text-xl leading-none" style={{ color: "var(--text-dim)" }}>✕</button>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain" }}>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
             <p className="text-xs mb-3" style={{ color: "var(--text-sub)" }}>This is the name shown across the app.</p>
             <input
               type="text" autoFocus maxLength={60}
@@ -511,7 +511,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Scrollable body */}
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain" }}>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5" style={{ overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
             <div className="space-y-3">
               {(["Current password", "New password", "Confirm new password"] as const).map((lbl, i) => {
                 const val = i === 0 ? pwdCurrent : i === 1 ? pwdNew : pwdConfirm;

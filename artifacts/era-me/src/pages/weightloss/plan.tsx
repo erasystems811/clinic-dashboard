@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { useWLPlan, useWLGeneratePlan, useWLToday, type WLDayPlan } from "@/lib/weightloss-api";
 import { useWLTheme } from "@/lib/section-theme";
 import { cn } from "@/lib/utils";
+import { Spinner as SpinnerEl } from "@/components/spinner";
 
 const DAY_ABBR = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -61,7 +62,7 @@ export default function WLPlanPage() {
       </div>
 
       {isLoading ? (
-        <Spinner />
+        <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}><SpinnerEl size={28} /></div>
       ) : !data?.plan ? (
         <div className="text-center py-16">
           <p style={{ fontSize: 48 }}>📋</p>
@@ -267,11 +268,3 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
   );
 }
 
-function Spinner() {
-  return (
-    <div className="flex justify-center py-16">
-      <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
-        style={{ borderColor: "var(--accent) transparent transparent transparent" }} />
-    </div>
-  );
-}

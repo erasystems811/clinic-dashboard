@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { ArrowLeft, ChevronRight, Flame, Trophy, Calendar, MessageCircle, Calculator, TrendingDown } from "lucide-react";
 import { useWLProfile, useWLToday } from "@/lib/weightloss-api";
 import { useWLTheme } from "@/lib/section-theme";
+import { FullPageSpinner } from "@/components/spinner";
 import WLOnboarding from "./onboarding";
 
 export default function WeightLossPage() {
@@ -11,7 +12,7 @@ export default function WeightLossPage() {
   const [, navigate] = useLocation();
   useWLTheme();
 
-  if (isLoading) return <Spinner />;
+  if (isLoading) return <FullPageSpinner />;
 
   if (showOnboarding || !data?.onboardingComplete) {
     return (
@@ -161,11 +162,3 @@ function Dashboard({ onBack }: { onBack: () => void }) {
   );
 }
 
-function Spinner() {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
-        style={{ borderColor: "var(--accent) transparent transparent transparent" }} />
-    </div>
-  );
-}

@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useWLProgress, useWLLogWeight } from "@/lib/weightloss-api";
 import { useWLTheme } from "@/lib/section-theme";
 import { useState } from "react";
+import { FullPageSpinner } from "@/components/spinner";
 
 export default function WLProgressPage() {
   const [, navigate] = useLocation();
@@ -11,7 +12,7 @@ export default function WLProgressPage() {
   const [weightInput, setWeightInput] = useState("");
   useWLTheme();
 
-  if (isLoading) return <Spinner />;
+  if (isLoading) return <FullPageSpinner />;
   if (data?.noProfile) {
     return (
       <div className="px-5 pt-6 pb-24">
@@ -212,11 +213,3 @@ function MiniWeightChart({ entries }: { entries: Array<{ date: string; weight: n
   );
 }
 
-function Spinner() {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
-        style={{ borderColor: "var(--accent) transparent transparent transparent" }} />
-    </div>
-  );
-}

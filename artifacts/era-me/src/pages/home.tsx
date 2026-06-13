@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
-import { ChevronRight, CheckCircle2, Circle, Plus, Minus, X, Bell } from "lucide-react";
+import { ChevronRight, CheckCircle2, Circle, Plus, Minus, X, Bell, MapPin, Timer, Flame, Moon, Zap } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useHealthTracker } from "@/contexts/health-context";
 import { greeting, formatDate } from "@/lib/utils";
@@ -624,7 +624,10 @@ function UrgencyBanner({ pending, level, hoursLeft, minutesLeft }: {
         border: `1px solid ${red ? "rgba(239,68,68,0.35)" : "rgba(249,115,22,0.3)"}`,
         boxShadow: red ? "0 0 20px rgba(239,68,68,0.12)" : "0 0 16px rgba(249,115,22,0.1)",
       }}>
-      <span style={{ fontSize: 20, animation: red ? "pulse 1.5s infinite" : undefined }}>{red ? "🔴" : "⚡"}</span>
+      {red
+        ? <div style={{ width: 14, height: 14, borderRadius: "50%", background: "#ef4444", flexShrink: 0, animation: "era-glow-pulse 1.5s ease-in-out infinite" }} />
+        : <Zap className="w-5 h-5" style={{ color: "#fb923c", flexShrink: 0 }} />
+      }
       <div style={{ flex: 1 }}>
         <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>
           {pending} habit{pending > 1 ? "s" : ""} left · {timeStr} to midnight
@@ -653,7 +656,7 @@ function NotifPrompt({ onDismiss }: { onDismiss: () => void }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
       style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-      <span style={{ fontSize: 18 }}>🔔</span>
+      <Bell className="w-5 h-5" style={{ color: "var(--accent)", flexShrink: 0 }} />
       <p style={{ flex: 1, fontSize: 12, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.4 }}>
         Get evening reminders to complete your daily plan
       </p>
@@ -937,17 +940,19 @@ function AutoHealthWidget({ snapshot, motionPermission, onEnableMotion }: {
 
         {/* 4 mini stats */}
         <div className="grid grid-cols-4 gap-2 mb-3">
-          {[
-            { label: "Distance", value: distLabel, icon: "📍" },
-            { label: "Active", value: `${snapshot.activeMinutes}m`, icon: "⏱️" },
-            { label: "Calories", value: `${snapshot.caloriesBurned}`, icon: "🔥" },
-            { label: "Sleep", value: sleepLabel, icon: "😴", color: sleepColor },
-          ].map(({ label, value, icon, color }) => (
+          {([
+            { label: "Distance", value: distLabel, Icon: MapPin, color: undefined },
+            { label: "Active",   value: `${snapshot.activeMinutes}m`, Icon: Timer, color: undefined },
+            { label: "Calories", value: `${snapshot.caloriesBurned}`, Icon: Flame, color: undefined },
+            { label: "Sleep",    value: sleepLabel, Icon: Moon, color: sleepColor },
+          ] as { label: string; value: string; Icon: React.ElementType; color?: string }[]).map(({ label, value, Icon, color }) => (
             <div key={label} className="rounded-xl p-2 text-center"
               style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <p style={{ fontSize: 14 }}>{icon}</p>
-              <p style={{ fontSize: 13, fontWeight: 800, color: color ?? "var(--text-main)", lineHeight: 1.2, marginTop: 2 }}>{value}</p>
-              <p style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 1, fontWeight: 600 }}>{label}</p>
+              <div style={{ display: "flex", justifyContent: "center", marginBottom: 3 }}>
+                <Icon style={{ width: 14, height: 14, color: color ?? "rgba(74,222,128,0.85)" }} />
+              </div>
+              <p style={{ fontSize: 13, fontWeight: 800, color: color ?? "var(--text-main)", lineHeight: 1.2 }}>{value}</p>
+              <p style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 2, fontWeight: 600 }}>{label}</p>
             </div>
           ))}
         </div>

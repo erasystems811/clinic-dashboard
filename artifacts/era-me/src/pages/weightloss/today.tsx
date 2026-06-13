@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, Check, Plus, Scale } from "lucide-react";
 import { useLocation } from "wouter";
+import { FullPageSpinner } from "@/components/spinner";
 import {
   useWLToday, useWLLogMeal, useWLCompleteWorkout, useWLLogWeight,
   type WLMeal, type WLLoggedMeal,
@@ -33,7 +34,7 @@ function TodayContent() {
   const [weightInput, setWeightInput] = useState("");
   const [showWeightInput, setShowWeightInput] = useState(false);
 
-  if (isLoading) return <Spinner />;
+  if (isLoading) return <FullPageSpinner />;
   if (!data?.todayPlan) {
     return (
       <div className="text-center py-16">
@@ -352,11 +353,3 @@ function Section({ title, total, children }: { title: string; total?: string; ch
   );
 }
 
-function Spinner() {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
-        style={{ borderColor: "var(--accent) transparent transparent transparent" }} />
-    </div>
-  );
-}

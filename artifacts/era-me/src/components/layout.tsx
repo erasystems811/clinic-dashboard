@@ -2,7 +2,6 @@ import { type ReactNode, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Home, Heart, CalendarDays, Building2, User, Bell } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useUnreadNotifCount } from "@/lib/hospitals-api";
 
 const NAV = [
@@ -42,7 +41,6 @@ export default function Layout({ children }: { children: ReactNode }) {
   }, [qc]);
 
   const hideFloatingBell = location.startsWith("/notifications") || location.startsWith("/hospitals");
-  // On companion chat pages move the bell up so it doesn't overlap the message input
   const bellBottom = location.startsWith("/companion") ? 148 : 76;
 
   return (
@@ -56,7 +54,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         {!hideFloatingBell && (
           <button
             onClick={() => navigate("/notifications")}
-            className="fixed z-50 active:scale-90 transition"
+            className="fixed z-50"
             style={{
               bottom: bellBottom,
               right: "calc(50% - min(50vw, 224px) + 16px)",
@@ -75,6 +73,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              transition: "transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease",
             }}
             aria-label="Notifications"
           >
@@ -90,8 +89,17 @@ export default function Layout({ children }: { children: ReactNode }) {
           </button>
         )}
 
-        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md safe-bottom z-50"
-          style={{ background: "color-mix(in srgb, var(--bg-base) 88%, transparent)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: "1px solid var(--glass-border)" }}>
+        {/* ── Bottom nav ── */}
+        <nav
+          className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md safe-bottom z-50"
+          style={{
+            background: "color-mix(in srgb, var(--bg-base) 82%, transparent)",
+            backdropFilter: "blur(28px) saturate(180%)",
+            WebkitBackdropFilter: "blur(28px) saturate(180%)",
+            borderTop: "1px solid var(--glass-border)",
+            boxShadow: "0 -4px 32px rgba(0,0,0,0.18)",
+          }}
+        >
           <div className="flex items-center">
             {NAV.map(({ href, label, Icon }) => {
               const active = href === "/" ? location === "/" : location.startsWith(href);
@@ -122,14 +130,55 @@ function NavTab({ href, label, Icon, active, onNavigate }: {
       className="flex-1 select-none"
       onClick={() => onNavigate(href)}
       aria-label={label}
+      style={{ background: "transparent", border: "none", padding: 0 }}
     >
-      <div className="relative flex flex-col items-center gap-1 py-3 px-2 transition-all">
-        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center transition-all", active && "scale-105")}
-          style={active ? { background: `rgba(var(--glow-rgb),0.15)`, boxShadow: `0 0 12px rgba(var(--glow-rgb),0.3)` } : {}}>
-          <Icon className="w-5 h-5" style={{ color: active ? "var(--accent)" : "var(--text-sub)" }} />
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 4, paddingBottom: 10 }}>
+
+        {/* Top accent bar — springs open when active */}
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          height: 3,
+          width: active ? 28 : 0,
+          borderRadius: "0 0 3px 3px",
+          background: active ? "var(--accent)" : "transparent",
+          boxShadow: active ? `0 2px 10px rgba(var(--glow-rgb), 0.7)` : "none",
+          transition: "width 0.38s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease",
+        }} />
+
+        {/* Icon with spring scale */}
+        <div style={{
+          width: 44,
+          height: 38,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transform: active ? "scale(1.14) translateY(-1px)" : "scale(1)",
+          transition: "transform 0.38s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        }}>
+          <Icon
+            style={{
+              width: 22,
+              height: 22,
+              color: active ? "var(--accent)" : "var(--text-sub)",
+              transition: "color 0.22s ease",
+              filter: active ? `drop-shadow(0 0 6px rgba(var(--glow-rgb), 0.5))` : "none",
+            }}
+          />
         </div>
-        <span className="text-[10px] font-semibold leading-none"
-          style={{ color: active ? "var(--accent)" : "var(--text-dim)" }}>
+
+        {/* Label */}
+        <span style={{
+          fontSize: 10,
+          fontWeight: active ? 700 : 500,
+          color: active ? "var(--accent)" : "var(--text-dim)",
+          letterSpacing: active ? 0.1 : 0,
+          transition: "color 0.22s ease",
+          lineHeight: 1,
+          fontFamily: "inherit",
+        }}>
           {label}
         </span>
       </div>

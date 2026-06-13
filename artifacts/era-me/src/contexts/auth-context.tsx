@@ -30,24 +30,24 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const SESSION_KEY = "era_me_session";
 
 interface ThemePalette {
-  // HSL for Tailwind --primary
   primaryHSL: string;
-  // Background (dark mode)
   bgDark: string;
   bgDarkMid: string;
-  // Background (light mode)
   bgLight: string;
   bgLightMid: string;
-  // Accent hex
   accent: string;
   accentLight: string;
-  // RGB string for rgba() glow e.g. "20,184,166"
   glowRGB: string;
-  // Primary button gradient
   btnGradient: string;
-  // Background HSL for Tailwind (dark)
   backgroundDarkHSL: string;
   backgroundLightHSL: string;
+  // Color-tinted text — dark mode uses light shades, light mode uses dark shades
+  textDark: string;
+  textDarkSub: string;
+  textDarkDim: string;
+  textLight: string;
+  textLightSub: string;
+  textLightDim: string;
 }
 
 const PALETTES: Record<string, ThemePalette> = {
@@ -60,6 +60,8 @@ const PALETTES: Record<string, ThemePalette> = {
     btnGradient: "linear-gradient(135deg,#0d9488,#14b8a6)",
     backgroundDarkHSL: "226 60% 10%",
     backgroundLightHSL: "175 60% 97%",
+    textDark: "#ccfbf1",    textDarkSub: "rgba(153,246,228,0.75)", textDarkDim: "rgba(94,234,212,0.45)",
+    textLight: "#134e4a",   textLightSub: "rgba(19,78,74,0.65)",   textLightDim: "rgba(19,78,74,0.42)",
   },
   blue: {
     primaryHSL: "217 91% 60%",
@@ -70,6 +72,8 @@ const PALETTES: Record<string, ThemePalette> = {
     btnGradient: "linear-gradient(135deg,#1d4ed8,#3b82f6)",
     backgroundDarkHSL: "222 70% 10%",
     backgroundLightHSL: "214 100% 97%",
+    textDark: "#dbeafe",    textDarkSub: "rgba(147,197,253,0.75)", textDarkDim: "rgba(96,165,250,0.45)",
+    textLight: "#1e3a5f",   textLightSub: "rgba(30,58,95,0.65)",   textLightDim: "rgba(30,58,95,0.42)",
   },
   purple: {
     primaryHSL: "271 91% 65%",
@@ -80,6 +84,8 @@ const PALETTES: Record<string, ThemePalette> = {
     btnGradient: "linear-gradient(135deg,#7c3aed,#a78bfa)",
     backgroundDarkHSL: "271 70% 8%",
     backgroundLightHSL: "270 100% 99%",
+    textDark: "#ede9fe",    textDarkSub: "rgba(196,181,253,0.75)", textDarkDim: "rgba(167,139,250,0.45)",
+    textLight: "#3b0764",   textLightSub: "rgba(59,7,100,0.65)",   textLightDim: "rgba(59,7,100,0.42)",
   },
   green: {
     primaryHSL: "142 71% 45%",
@@ -90,6 +96,8 @@ const PALETTES: Record<string, ThemePalette> = {
     btnGradient: "linear-gradient(135deg,#15803d,#22c55e)",
     backgroundDarkHSL: "142 65% 5%",
     backgroundLightHSL: "142 76% 97%",
+    textDark: "#dcfce7",    textDarkSub: "rgba(134,239,172,0.75)", textDarkDim: "rgba(74,222,128,0.45)",
+    textLight: "#14532d",   textLightSub: "rgba(20,83,45,0.65)",   textLightDim: "rgba(20,83,45,0.42)",
   },
   orange: {
     primaryHSL: "25 95% 53%",
@@ -100,6 +108,8 @@ const PALETTES: Record<string, ThemePalette> = {
     btnGradient: "linear-gradient(135deg,#c2410c,#f97316)",
     backgroundDarkHSL: "25 80% 6%",
     backgroundLightHSL: "33 100% 98%",
+    textDark: "#fff7ed",    textDarkSub: "rgba(253,186,116,0.75)", textDarkDim: "rgba(251,146,60,0.45)",
+    textLight: "#431407",   textLightSub: "rgba(67,20,7,0.65)",    textLightDim: "rgba(67,20,7,0.42)",
   },
   rose: {
     primaryHSL: "328 81% 60%",
@@ -110,6 +120,8 @@ const PALETTES: Record<string, ThemePalette> = {
     btnGradient: "linear-gradient(135deg,#be185d,#ec4899)",
     backgroundDarkHSL: "328 65% 8%",
     backgroundLightHSL: "322 100% 99%",
+    textDark: "#fce7f3",    textDarkSub: "rgba(244,114,182,0.75)", textDarkDim: "rgba(236,72,153,0.45)",
+    textLight: "#500724",   textLightSub: "rgba(80,7,36,0.65)",    textLightDim: "rgba(80,7,36,0.42)",
   },
   slate: {
     primaryHSL: "215 16% 47%",
@@ -120,6 +132,8 @@ const PALETTES: Record<string, ThemePalette> = {
     btnGradient: "linear-gradient(135deg,#475569,#94a3b8)",
     backgroundDarkHSL: "215 20% 7%",
     backgroundLightHSL: "210 40% 98%",
+    textDark: "#f1f5f9",    textDarkSub: "rgba(203,213,225,0.75)", textDarkDim: "rgba(148,163,184,0.45)",
+    textLight: "#1e293b",   textLightSub: "rgba(30,41,59,0.65)",   textLightDim: "rgba(30,41,59,0.42)",
   },
 };
 
@@ -145,19 +159,19 @@ function applyTheme(account: Account) {
   root.style.setProperty("--accent-light", palette.accentLight);
   root.style.setProperty("--btn-gradient", palette.btnGradient);
 
-  // Neutral glass card surfaces — never flooded with accent color
-  root.style.setProperty("--glass-bg",     dark ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.55)");
-  root.style.setProperty("--glass-border", dark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.70)");
-  root.style.setProperty("--glass-track",  dark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.40)");
-  root.style.setProperty("--input-bg",     dark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.60)");
-  root.style.setProperty("--input-border", dark ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.75)");
-  // Accent tints — used ONLY on intentionally highlighted panels (e.g. ERA score card border, today badge)
-  root.style.setProperty("--accent-tint-bg",     dark ? `rgba(${palette.glowRGB},0.08)` : `rgba(${palette.glowRGB},0.10)`);
-  root.style.setProperty("--accent-tint-border",  dark ? `rgba(${palette.glowRGB},0.22)` : `rgba(${palette.glowRGB},0.30)`);
-  // Text
-  root.style.setProperty("--text-main",    dark ? "#ffffff" : "#0f172a");
-  root.style.setProperty("--text-sub",     dark ? "rgba(255,255,255,0.45)" : "rgba(15,23,42,0.60)");
-  root.style.setProperty("--text-dim",     dark ? "rgba(255,255,255,0.25)" : "rgba(15,23,42,0.40)");
+  // Glass card surfaces — accent-tinted for premium feel
+  root.style.setProperty("--glass-bg",     dark ? `rgba(${palette.glowRGB},0.07)` : "rgba(255,255,255,0.60)");
+  root.style.setProperty("--glass-border", dark ? `rgba(${palette.glowRGB},0.16)` : `rgba(${palette.glowRGB},0.18)`);
+  root.style.setProperty("--glass-track",  dark ? `rgba(${palette.glowRGB},0.10)` : `rgba(${palette.glowRGB},0.12)`);
+  root.style.setProperty("--input-bg",     dark ? `rgba(${palette.glowRGB},0.06)` : "rgba(255,255,255,0.65)");
+  root.style.setProperty("--input-border", dark ? `rgba(${palette.glowRGB},0.14)` : `rgba(${palette.glowRGB},0.20)`);
+  // Accent tints — highlighted panels (ERA score card border, today badge)
+  root.style.setProperty("--accent-tint-bg",    dark ? `rgba(${palette.glowRGB},0.09)` : `rgba(${palette.glowRGB},0.10)`);
+  root.style.setProperty("--accent-tint-border", dark ? `rgba(${palette.glowRGB},0.24)` : `rgba(${palette.glowRGB},0.28)`);
+  // Color-tinted text — light shades in dark mode, dark shades in light mode
+  root.style.setProperty("--text-main", dark ? palette.textDark    : palette.textLight);
+  root.style.setProperty("--text-sub",  dark ? palette.textDarkSub : palette.textLightSub);
+  root.style.setProperty("--text-dim",  dark ? palette.textDarkDim : palette.textLightDim);
   // Tailwind --foreground for body text
   root.style.setProperty("--foreground",   dark ? "214 32% 91%" : "222 47% 11%");
   // Light-mode gradient body background

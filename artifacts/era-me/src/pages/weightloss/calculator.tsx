@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { ArrowLeft, Search } from "lucide-react";
 import { useLocation } from "wouter";
-import { useWLCalcCalories, WL_COLOR } from "@/lib/weightloss-api";
+import { useWLCalcCalories } from "@/lib/weightloss-api";
+import { useWLTheme } from "@/lib/section-theme";
 
 export default function WLCalculatorPage() {
   const [, navigate] = useLocation();
   const [input, setInput] = useState("");
   const calc = useWLCalcCalories();
+  useWLTheme();
 
   function handleSearch() {
     if (!input.trim()) return;
@@ -44,7 +46,7 @@ export default function WLCalculatorPage() {
         onClick={handleSearch}
         disabled={!input.trim() || calc.isPending}
         className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-sm font-bold text-white transition active:scale-95 disabled:opacity-50"
-        style={{ background: WL_COLOR }}>
+        style={{ background: "var(--accent)" }}>
         {calc.isPending
           ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Calculating…</>
           : <><Search className="w-4 h-4" /> Calculate calories</>}
@@ -54,8 +56,8 @@ export default function WLCalculatorPage() {
         <div className="mt-6 space-y-4">
           {/* Total */}
           <div className="rounded-2xl p-5 text-center"
-            style={{ background: `${WL_COLOR}12`, border: `1.5px solid ${WL_COLOR}35` }}>
-            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: WL_COLOR }}>Total calories</p>
+            style={{ background: "rgba(var(--glow-rgb),0.07)", border: "1.5px solid rgba(var(--glow-rgb),0.21)" }}>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--accent)" }}>Total calories</p>
             <p className="text-5xl font-black" style={{ color: "var(--text-main)" }}>{calc.data.totalCalories}</p>
             <p className="text-sm" style={{ color: "var(--text-sub)" }}>kcal</p>
           </div>
@@ -73,7 +75,7 @@ export default function WLCalculatorPage() {
                         <p className="text-xs" style={{ color: "var(--text-sub)" }}>{item.portion}</p>
                       )}
                     </div>
-                    <p className="text-base font-black shrink-0" style={{ color: WL_COLOR }}>{item.calories}</p>
+                    <p className="text-base font-black shrink-0" style={{ color: "var(--accent)" }}>{item.calories}</p>
                   </div>
                   <div className="flex gap-4 mt-2 pt-2" style={{ borderTop: "1px solid var(--glass-border)" }}>
                     <MacroChip label="Protein" value={item.protein_g} />

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useLocation } from "wouter";
-import { useWLPlan, useWLGeneratePlan, useWLToday, type WLDayPlan, WL_COLOR } from "@/lib/weightloss-api";
+import { useWLPlan, useWLGeneratePlan, useWLToday, type WLDayPlan } from "@/lib/weightloss-api";
+import { useWLTheme } from "@/lib/section-theme";
 import { cn } from "@/lib/utils";
 
 const DAY_ABBR = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -16,6 +17,7 @@ export default function WLPlanPage() {
   const [, navigate] = useLocation();
   const [tab, setTab] = useState<"today" | "week">("today");
   const [weekStart, setWeekStart] = useState(isoWeekStart());
+  useWLTheme();
 
   const { data, isLoading } = useWLPlan(weekStart);
   const { data: todayData } = useWLToday();
@@ -46,7 +48,7 @@ export default function WLPlanPage() {
           onClick={() => generatePlan.mutate(weekStart)}
           disabled={generatePlan.isPending}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-95"
-          style={{ background: `${WL_COLOR}18`, color: WL_COLOR, border: `1px solid ${WL_COLOR}30` }}>
+          style={{ background: "rgba(var(--glow-rgb),0.09)", color: "var(--accent)", border: "1px solid rgba(var(--glow-rgb),0.19)" }}>
           <RefreshCw className={cn("w-3.5 h-3.5", generatePlan.isPending && "animate-spin")} />
           {generatePlan.isPending ? "Generating…" : "New plan"}
         </button>
@@ -69,7 +71,7 @@ export default function WLPlanPage() {
             onClick={() => generatePlan.mutate(weekStart)}
             disabled={generatePlan.isPending}
             className="px-6 py-3 rounded-2xl text-sm font-bold text-white"
-            style={{ background: WL_COLOR }}>
+            style={{ background: "var(--accent)" }}>
             {generatePlan.isPending ? "Generating…" : "Generate plan"}
           </button>
         </div>
@@ -143,8 +145,8 @@ function WeekView({ plan, weekStart, onPrev, onNext, generatedAt }: {
             <button key={day.date} onClick={() => setSelectedDate(day.date)}
               className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl transition active:scale-90"
               style={{
-                background: isSelected ? WL_COLOR : "var(--glass-bg)",
-                border: `1.5px solid ${isSelected ? WL_COLOR : isToday ? `${WL_COLOR}50` : "var(--glass-border)"}`,
+                background: isSelected ? "var(--accent)" : "var(--glass-bg)",
+                border: `1.5px solid ${isSelected ? "var(--accent)" : isToday ? "rgba(var(--glow-rgb),0.31)" : "var(--glass-border)"}`,
               }}>
               <span style={{ fontSize: 10, fontWeight: 600, color: isSelected ? "rgba(255,255,255,0.7)" : "var(--text-dim)" }}>
                 {DAY_ABBR[d.getDay()]}
@@ -152,7 +154,7 @@ function WeekView({ plan, weekStart, onPrev, onNext, generatedAt }: {
               <span style={{ fontSize: 15, fontWeight: 800, color: isSelected ? "#fff" : "var(--text-main)" }}>
                 {d.getDate()}
               </span>
-              <div style={{ width: 4, height: 4, borderRadius: "50%", background: day.workout.isRestDay ? "var(--text-dim)" : WL_COLOR, opacity: isSelected ? 0.7 : 1 }} />
+              <div style={{ width: 4, height: 4, borderRadius: "50%", background: day.workout.isRestDay ? "var(--text-dim)" : "var(--accent)", opacity: isSelected ? 0.7 : 1 }} />
             </button>
           );
         })}
@@ -173,9 +175,9 @@ function DayDetail({ day, loggedMeals }: {
     <div className="space-y-4">
       {day.fastingWindow && (
         <div className="rounded-xl px-4 py-2.5 flex items-center gap-2"
-          style={{ background: `${WL_COLOR}10`, border: `1px solid ${WL_COLOR}25` }}>
+          style={{ background: "rgba(var(--glow-rgb),0.06)", border: "1px solid rgba(var(--glow-rgb),0.15)" }}>
           <span>⏰</span>
-          <p className="text-xs font-semibold" style={{ color: WL_COLOR }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
             Eating window: {day.fastingWindow.start} — {day.fastingWindow.end}
           </p>
         </div>
@@ -194,20 +196,20 @@ function DayDetail({ day, loggedMeals }: {
               <div key={meal.id} className="rounded-2xl p-4"
                 style={{
                   background: "var(--glass-bg)",
-                  border: `1px solid ${logged ? `${WL_COLOR}40` : "var(--glass-border)"}`,
+                  border: `1px solid ${logged ? "rgba(var(--glow-rgb),0.25)" : "var(--glass-border)"}`,
                   opacity: logged ? 0.75 : 1,
                 }}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full inline-block mb-1"
-                      style={{ background: `${WL_COLOR}18`, color: WL_COLOR }}>
+                      style={{ background: "rgba(var(--glow-rgb),0.09)", color: "var(--accent)" }}>
                       {meal.slot} · {meal.time}
                     </span>
                     <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{meal.name}</p>
                     {meal.description && (
                       <p className="text-xs mt-0.5 line-clamp-2" style={{ color: "var(--text-sub)" }}>{meal.description}</p>
                     )}
-                    <p className="text-xs mt-1 font-semibold" style={{ color: WL_COLOR }}>{meal.calories} kcal</p>
+                    <p className="text-xs mt-1 font-semibold" style={{ color: "var(--accent)" }}>{meal.calories} kcal</p>
                   </div>
                   {logged && <span className="text-base shrink-0">✅</span>}
                 </div>
@@ -228,7 +230,7 @@ function DayDetail({ day, loggedMeals }: {
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>{day.workout.name}</p>
                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                  style={{ background: `${WL_COLOR}18`, color: WL_COLOR }}>
+                  style={{ background: "rgba(var(--glow-rgb),0.09)", color: "var(--accent)" }}>
                   {day.workout.duration_mins} min
                 </span>
               </div>
@@ -257,7 +259,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
     <button onClick={onClick}
       className={cn("flex-1 py-2 rounded-xl text-xs font-bold transition")}
       style={{
-        background: active ? WL_COLOR : "transparent",
+        background: active ? "var(--accent)" : "transparent",
         color: active ? "#fff" : "var(--text-sub)",
       }}>
       {children}
@@ -269,7 +271,7 @@ function Spinner() {
   return (
     <div className="flex justify-center py-16">
       <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
-        style={{ borderColor: `${WL_COLOR} transparent transparent transparent` }} />
+        style={{ borderColor: "var(--accent) transparent transparent transparent" }} />
     </div>
   );
 }

@@ -3,12 +3,14 @@ import { ArrowLeft, Check, Plus, Scale } from "lucide-react";
 import { useLocation } from "wouter";
 import {
   useWLToday, useWLLogMeal, useWLCompleteWorkout, useWLLogWeight,
-  type WLMeal, type WLLoggedMeal, WL_COLOR,
+  type WLMeal, type WLLoggedMeal,
 } from "@/lib/weightloss-api";
+import { useWLTheme } from "@/lib/section-theme";
 import { cn } from "@/lib/utils";
 
 export default function WLTodayPage() {
   const [, navigate] = useLocation();
+  useWLTheme();
   return (
     <div className="px-5 pt-6 pb-24">
       <button onClick={() => navigate("/weightloss")} className="flex items-center gap-1.5 mb-5 -ml-1" style={{ color: "var(--text-sub)" }}>
@@ -40,7 +42,7 @@ function TodayContent() {
         <p className="text-sm mt-1" style={{ color: "var(--text-sub)" }}>Your coach hasn't generated this week's plan yet.</p>
         <button onClick={() => window.history.back()}
           className="mt-5 px-6 py-3 rounded-2xl text-sm font-bold"
-          style={{ background: WL_COLOR, color: "#fff" }}>
+          style={{ background: "var(--accent)", color: "#fff" }}>
           Go back
         </button>
       </div>
@@ -92,7 +94,7 @@ function TodayContent() {
             }}
             disabled={!weightInput || logWeight.isPending}
             className="px-4 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50"
-            style={{ background: WL_COLOR }}>
+            style={{ background: "var(--accent)" }}>
             Save
           </button>
         </div>
@@ -104,11 +106,11 @@ function TodayContent() {
           {pendingAdjustments!.map((adj) => (
             <div key={adj.id} className="rounded-2xl p-4"
               style={{
-                background: adj.type === "punishment" ? "rgba(239,68,68,0.06)" : "rgba(16,185,129,0.06)",
-                border: `1px solid ${adj.type === "punishment" ? "rgba(239,68,68,0.25)" : `${WL_COLOR}30`}`,
+                background: adj.type === "punishment" ? "rgba(239,68,68,0.06)" : "rgba(var(--glow-rgb),0.06)",
+                border: `1px solid ${adj.type === "punishment" ? "rgba(239,68,68,0.25)" : "rgba(var(--glow-rgb),0.19)"}`,
               }}>
               <p className="text-xs font-bold uppercase tracking-wider mb-1"
-                style={{ color: adj.type === "punishment" ? "#f87171" : WL_COLOR }}>
+                style={{ color: adj.type === "punishment" ? "#f87171" : "var(--accent)" }}>
                 {adj.type === "punishment" ? "⚠️ Coach Punishment" : "🎉 Coach Reward"} — {adj.applies_date}
               </p>
               <p className="text-sm font-semibold" style={{ color: "var(--text-main)" }}>{adj.description}</p>
@@ -122,10 +124,10 @@ function TodayContent() {
       <div className="rounded-2xl p-4 flex items-center gap-4"
         style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         <svg width={92} height={92} viewBox="0 0 92 92" className="shrink-0">
-          <circle cx={46} cy={46} r={r} fill="none" stroke="rgba(16,185,129,0.12)" strokeWidth={9} />
+          <circle cx={46} cy={46} r={r} fill="none" stroke="rgba(var(--glow-rgb),0.12)" strokeWidth={9} />
           <circle
             cx={46} cy={46} r={r} fill="none"
-            stroke={caloriesRemaining < 0 ? "#ef4444" : WL_COLOR}
+            stroke={caloriesRemaining < 0 ? "#ef4444" : "var(--accent)"}
             strokeWidth={9} strokeLinecap="round"
             strokeDasharray={circ}
             strokeDashoffset={circ * (1 - pct)}
@@ -140,7 +142,7 @@ function TodayContent() {
           </text>
         </svg>
         <div className="flex-1 min-w-0">
-          <p className="text-2xl font-black" style={{ color: caloriesRemaining < 0 ? "#f87171" : WL_COLOR }}>
+          <p className="text-2xl font-black" style={{ color: caloriesRemaining < 0 ? "#f87171" : "var(--accent)" }}>
             {caloriesRemaining > 0 ? `${caloriesRemaining}` : `+${Math.abs(caloriesRemaining)}`}
           </p>
           <p className="text-xs" style={{ color: "var(--text-sub)" }}>
@@ -155,9 +157,9 @@ function TodayContent() {
       {/* Fasting window */}
       {profile?.fastingWindow && (
         <div className="rounded-xl px-4 py-3 flex items-center gap-2"
-          style={{ background: `${WL_COLOR}10`, border: `1px solid ${WL_COLOR}25` }}>
+          style={{ background: "rgba(var(--glow-rgb),0.06)", border: "1px solid rgba(var(--glow-rgb),0.15)" }}>
           <span style={{ fontSize: 16 }}>⏰</span>
-          <p className="text-xs font-semibold" style={{ color: WL_COLOR }}>
+          <p className="text-xs font-semibold" style={{ color: "var(--accent)" }}>
             Eating window: {profile.fastingWindow.start} — {profile.fastingWindow.end}
           </p>
         </div>
@@ -180,12 +182,11 @@ function TodayContent() {
               />
             );
           })}
-          {/* Add custom meal */}
           {!addingMeal ? (
             <button
               onClick={() => setAddingMeal(true)}
               className="w-full flex items-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition active:scale-95"
-              style={{ background: "var(--glass-bg)", border: `1.5px dashed var(--glass-border)`, color: "var(--text-dim)" }}>
+              style={{ background: "var(--glass-bg)", border: "1.5px dashed var(--glass-border)", color: "var(--text-dim)" }}>
               <Plus className="w-4 h-4" /> Log additional meal
             </button>
           ) : (
@@ -213,7 +214,7 @@ function TodayContent() {
                     });
                   }}
                   className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white disabled:opacity-50"
-                  style={{ background: WL_COLOR }}>
+                  style={{ background: "var(--accent)" }}>
                   Add meal
                 </button>
               </div>
@@ -244,9 +245,9 @@ function TodayContent() {
                 className={cn("flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition active:scale-95",
                   workoutDone ? "opacity-60 cursor-default" : "")}
                 style={{
-                  background: workoutDone ? `${WL_COLOR}20` : WL_COLOR,
-                  color: workoutDone ? WL_COLOR : "#fff",
-                  border: workoutDone ? `1px solid ${WL_COLOR}40` : "none",
+                  background: workoutDone ? "rgba(var(--glow-rgb),0.12)" : "var(--accent)",
+                  color: workoutDone ? "var(--accent)" : "#fff",
+                  border: workoutDone ? "1px solid rgba(var(--glow-rgb),0.25)" : "none",
                 }}>
                 {workoutDone ? <><Check className="w-3.5 h-3.5" /> Done!</> : "Mark complete"}
               </button>
@@ -281,7 +282,7 @@ function TodayContent() {
                   <p className="text-sm font-semibold" style={{ color: "var(--text-main)" }}>{m.name}</p>
                   <p className="text-xs" style={{ color: "var(--text-dim)" }}>{m.time}</p>
                 </div>
-                <p className="text-sm font-bold" style={{ color: WL_COLOR }}>{m.calories} kcal</p>
+                <p className="text-sm font-bold" style={{ color: "var(--accent)" }}>{m.calories} kcal</p>
               </div>
             ))}
           </div>
@@ -300,7 +301,7 @@ function MealRow({ meal, done, onLog, loading }: {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full"
-              style={{ background: `${WL_COLOR}18`, color: WL_COLOR }}>
+              style={{ background: "rgba(var(--glow-rgb),0.09)", color: "var(--accent)" }}>
               {meal.slot} · {meal.time}
             </span>
           </div>
@@ -321,8 +322,8 @@ function MealRow({ meal, done, onLog, loading }: {
           className={cn("shrink-0 flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition active:scale-90",
             done ? "cursor-default" : "")}
           style={{
-            background: done ? `${WL_COLOR}18` : WL_COLOR,
-            color: done ? WL_COLOR : "#fff",
+            background: done ? "rgba(var(--glow-rgb),0.09)" : "var(--accent)",
+            color: done ? "var(--accent)" : "#fff",
           }}>
           {done ? <Check className="w-3.5 h-3.5" /> : "Log"}
         </button>
@@ -355,7 +356,7 @@ function Spinner() {
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
-        style={{ borderColor: `${WL_COLOR} transparent transparent transparent` }} />
+        style={{ borderColor: "var(--accent) transparent transparent transparent" }} />
     </div>
   );
 }

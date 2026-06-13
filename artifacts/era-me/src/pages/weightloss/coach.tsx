@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Send } from "lucide-react";
 import { useLocation } from "wouter";
-import { useWLCoachChat, WL_COLOR } from "@/lib/weightloss-api";
+import { useWLCoachChat } from "@/lib/weightloss-api";
+import { useWLTheme } from "@/lib/section-theme";
 
 interface Message {
   role: "user" | "assistant";
@@ -28,6 +29,7 @@ export default function WLCoachPage() {
   const chatMutation = useWLCoachChat();
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useWLTheme();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -37,10 +39,10 @@ export default function WLCoachPage() {
     const msg = (text ?? input).trim();
     if (!msg || pending) return;
     setInput("");
-    if (textareaRef.current) textareaRef.current.style.height = "auto";
 
     const userMsg: Message = { role: "user", content: msg };
     const history = messages.slice(-10);
+
     setMessages((p) => [...p, userMsg]);
     setPending(true);
 
@@ -58,87 +60,53 @@ export default function WLCoachPage() {
   }
 
   return (
-    <div className="flex flex-col" style={{ height: "100dvh", background: "var(--bg-base)" }}>
-      {/* Gradient header */}
-      <div className="shrink-0"
-        style={{
-          background: `linear-gradient(180deg, rgba(16,185,129,0.15) 0%, var(--bg-base) 100%)`,
-          borderBottom: "1px solid var(--glass-border)",
-        }}>
-        <div className="flex items-center gap-3 px-5 pt-6 pb-4">
-          <button onClick={() => navigate("/weightloss")} className="-ml-1 p-1" style={{ color: "var(--text-sub)" }}>
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
-          {/* Avatar with glow */}
-          <div className="relative shrink-0">
-            <div className="absolute inset-0 rounded-2xl pointer-events-none"
-              style={{ background: WL_COLOR, filter: "blur(10px)", opacity: 0.45, transform: "scale(1.15)" }} />
-            <div className="relative w-11 h-11 rounded-2xl flex items-center justify-center text-xl"
-              style={{ background: `linear-gradient(135deg, #34d399, ${WL_COLOR})` }}>
-              🏋️
-            </div>
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>Weight Loss Coach</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse"
-                style={{ background: WL_COLOR, boxShadow: `0 0 5px ${WL_COLOR}` }} />
-              <p className="text-xs font-medium" style={{ color: WL_COLOR }}>Active · personalised for you</p>
-            </div>
-          </div>
+    <div className="flex flex-col" style={{ height: "100dvh" }}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 pt-6 pb-4 shrink-0"
+        style={{ background: "var(--bg-base)", borderBottom: "1px solid var(--glass-border)" }}>
+        <button onClick={() => navigate("/weightloss")} className="-ml-1" style={{ color: "var(--text-sub)" }}>
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-white text-lg"
+          style={{ background: "var(--accent)" }}>
+          🏋️
+        </div>
+        <div>
+          <p className="text-sm font-bold" style={{ color: "var(--text-main)" }}>Weight Loss Coach</p>
+          <p className="text-xs" style={{ color: "var(--accent)" }}>● Personalised for you</p>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
         {messages.map((msg, i) => (
           <Bubble key={i} msg={msg} />
         ))}
-
-        {/* Typing indicator */}
         {pending && (
-          <div className="flex items-center gap-1.5 px-4 py-3 rounded-2xl"
-            style={{
-              background: `rgba(16,185,129,0.1)`,
-              border: `1px solid rgba(16,185,129,0.2)`,
-              width: "fit-content",
-              maxWidth: "75%",
-            }}>
+          <div className="flex gap-1.5 px-4 py-3 rounded-2xl self-start"
+            style={{ background: "rgba(var(--glow-rgb),0.08)", border: "1px solid rgba(var(--glow-rgb),0.15)", maxWidth: "75%" }}>
             {[0, 1, 2].map((d) => (
-              <span key={d} className="w-2 h-2 rounded-full animate-bounce"
-                style={{ background: WL_COLOR, animationDelay: `${d * 0.15}s` }} />
+              <span key={d} className="w-1.5 h-1.5 rounded-full animate-bounce"
+                style={{ background: "var(--accent)", animationDelay: `${d * 0.15}s` }} />
             ))}
           </div>
         )}
-
-        {/* Suggested prompts */}
         {messages.length === 1 && !pending && (
-          <div className="pt-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--text-dim)" }}>
-              Try asking
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {SUGGESTED.map((s) => (
-                <button key={s} onClick={() => void send(s)}
-                  className="px-3 py-1.5 rounded-full text-xs font-semibold transition active:scale-95"
-                  style={{
-                    background: "var(--glass-bg)",
-                    border: `1px solid rgba(16,185,129,0.22)`,
-                    color: "var(--text-sub)",
-                  }}>
-                  {s}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {SUGGESTED.map((s) => (
+              <button key={s} onClick={() => void send(s)}
+                className="px-3 py-1.5 rounded-full text-xs font-semibold transition active:scale-95"
+                style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-sub)" }}>
+                {s}
+              </button>
+            ))}
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input bar */}
-      <div className="px-4 py-3 shrink-0 flex gap-2 items-end"
+      {/* Input */}
+      <div className="px-5 py-3 shrink-0 flex gap-2 items-end"
         style={{ background: "var(--bg-base)", borderTop: "1px solid var(--glass-border)" }}>
         <textarea
           ref={textareaRef}
@@ -156,7 +124,7 @@ export default function WLCoachPage() {
             maxHeight: 120,
             lineHeight: 1.5,
           }}
-          className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none placeholder:opacity-40"
+          className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none placeholder:opacity-50"
           onInput={(e) => {
             const el = e.currentTarget;
             el.style.height = "auto";
@@ -167,7 +135,7 @@ export default function WLCoachPage() {
           onClick={() => void send()}
           disabled={!input.trim() || pending}
           className="w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition active:scale-90 disabled:opacity-40"
-          style={{ background: `linear-gradient(135deg, #34d399, ${WL_COLOR})` }}>
+          style={{ background: "var(--accent)" }}>
           <Send className="w-4 h-4 text-white" />
         </button>
       </div>
@@ -179,21 +147,11 @@ function Bubble({ msg }: { msg: Message }) {
   const isUser = msg.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        className="max-w-[80%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap"
+      <div className="max-w-[80%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap"
         style={
           isUser
-            ? {
-                background: `linear-gradient(135deg, #34d399, ${WL_COLOR})`,
-                color: "#fff",
-                borderRadius: "18px 18px 4px 18px",
-              }
-            : {
-                background: "var(--glass-bg)",
-                border: "1px solid var(--glass-border)",
-                color: "var(--text-main)",
-                borderRadius: "18px 18px 18px 4px",
-              }
+            ? { background: "var(--accent)", color: "#fff", borderBottomRightRadius: 6 }
+            : { background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)", borderBottomLeftRadius: 6 }
         }>
         {msg.content}
       </div>

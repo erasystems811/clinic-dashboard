@@ -1,6 +1,7 @@
 import { Component, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { applyEmeraldVars } from "@/lib/section-theme";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -110,6 +111,25 @@ function usePageTracker() {
   }, [location]);
 }
 
+// Watches the current path and applies the correct section palette automatically.
+// Any new page added under /weightloss/* gets emerald theming with zero extra code.
+// Companion routes are excluded — companion manages its own theme internally.
+function SectionThemeManager() {
+  const [location] = useLocation();
+  const { account, restoreAppTheme } = useAuth();
+  const dark = account?.darkMode ?? true;
+
+  useEffect(() => {
+    if (location.startsWith("/weightloss")) {
+      applyEmeraldVars(dark);
+    } else if (!location.startsWith("/companion")) {
+      restoreAppTheme();
+    }
+  }, [location, dark, restoreAppTheme]);
+
+  return null;
+}
+
 function AppRoutes() {
   const { account, loading } = useAuth();
   usePageTracker();
@@ -148,6 +168,8 @@ function AppRoutes() {
   }
 
   return (
+    <>
+    <SectionThemeManager />
     <Switch>
       {/* Companion routes — full-screen, no bottom nav */}
       <Route path="/weightloss/coach" component={WLCoachPage} />
@@ -206,6 +228,7 @@ function AppRoutes() {
         </Layout>
       </Route>
     </Switch>
+    </>
   );
 }
 

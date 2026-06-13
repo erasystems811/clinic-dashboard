@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import { useWLOnboard, useWLGeneratePlan, WL_COLOR } from "@/lib/weightloss-api";
+import { useWLOnboard, useWLGeneratePlan } from "@/lib/weightloss-api";
+import { useWLTheme } from "@/lib/section-theme";
 import { cn } from "@/lib/utils";
 
 const ACTIVITY_LEVELS = [
@@ -69,6 +70,7 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
 
   const onboard = useWLOnboard();
   const generatePlan = useWLGeneratePlan();
+  useWLTheme();
 
   function set(k: keyof FormData, v: string | boolean) {
     setForm((p) => ({ ...p, [k]: v }));
@@ -132,8 +134,8 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
             <button key={g} onClick={() => set("gender", g)}
               className="py-3 rounded-xl font-bold text-sm transition active:scale-95 capitalize"
               style={{
-                background: form.gender === g ? WL_COLOR : "var(--glass-bg)",
-                border: `1.5px solid ${form.gender === g ? WL_COLOR : "var(--glass-border)"}`,
+                background: form.gender === g ? "var(--accent)" : "var(--glass-bg)",
+                border: `1.5px solid ${form.gender === g ? "var(--accent)" : "var(--glass-border)"}`,
                 color: form.gender === g ? "#fff" : "var(--text-sub)",
               }}>
               {g === "male" ? "👨 Male" : "👩 Female"}
@@ -153,14 +155,14 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
             <button key={a.id} onClick={() => set("activityLevel", a.id)}
               className="w-full flex items-center justify-between rounded-xl px-4 py-3 transition active:scale-[0.98]"
               style={{
-                background: form.activityLevel === a.id ? `${WL_COLOR}18` : "var(--glass-bg)",
-                border: `1.5px solid ${form.activityLevel === a.id ? WL_COLOR : "var(--glass-border)"}`,
+                background: form.activityLevel === a.id ? "rgba(var(--glow-rgb),0.09)" : "var(--glass-bg)",
+                border: `1.5px solid ${form.activityLevel === a.id ? "var(--accent)" : "var(--glass-border)"}`,
               }}>
               <div className="text-left">
-                <p className="text-sm font-bold" style={{ color: form.activityLevel === a.id ? WL_COLOR : "var(--text-main)" }}>{a.label}</p>
+                <p className="text-sm font-bold" style={{ color: form.activityLevel === a.id ? "var(--accent)" : "var(--text-main)" }}>{a.label}</p>
                 <p className="text-xs" style={{ color: "var(--text-dim)" }}>{a.sub}</p>
               </div>
-              {form.activityLevel === a.id && <Check className="w-4 h-4 shrink-0" style={{ color: WL_COLOR }} />}
+              {form.activityLevel === a.id && <Check className="w-4 h-4 shrink-0" style={{ color: "var(--accent)" }} />}
             </button>
           ))}
         </div>
@@ -172,12 +174,12 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
             <button key={w.id} onClick={() => set("workoutStyle", w.id)}
               className="flex flex-col items-center gap-1 py-3 rounded-xl transition active:scale-90"
               style={{
-                background: form.workoutStyle === w.id ? `${WL_COLOR}20` : "var(--glass-bg)",
-                border: `1.5px solid ${form.workoutStyle === w.id ? WL_COLOR : "var(--glass-border)"}`,
+                background: form.workoutStyle === w.id ? "rgba(var(--glow-rgb),0.12)" : "var(--glass-bg)",
+                border: `1.5px solid ${form.workoutStyle === w.id ? "var(--accent)" : "var(--glass-border)"}`,
               }}>
               <span style={{ fontSize: 22 }}>{w.emoji}</span>
               <span className="text-[10px] font-semibold text-center leading-tight"
-                style={{ color: form.workoutStyle === w.id ? WL_COLOR : "var(--text-sub)" }}>
+                style={{ color: form.workoutStyle === w.id ? "var(--accent)" : "var(--text-sub)" }}>
                 {w.label}
               </span>
             </button>
@@ -196,12 +198,12 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
             <button key={m.id} onClick={() => set("mealPref", m.id)}
               className="flex items-center gap-2 rounded-xl px-3 py-3 transition active:scale-95"
               style={{
-                background: form.mealPref === m.id ? `${WL_COLOR}18` : "var(--glass-bg)",
-                border: `1.5px solid ${form.mealPref === m.id ? WL_COLOR : "var(--glass-border)"}`,
+                background: form.mealPref === m.id ? "rgba(var(--glow-rgb),0.09)" : "var(--glass-bg)",
+                border: `1.5px solid ${form.mealPref === m.id ? "var(--accent)" : "var(--glass-border)"}`,
               }}>
               <span style={{ fontSize: 20 }}>{m.emoji}</span>
               <span className="text-xs font-bold"
-                style={{ color: form.mealPref === m.id ? WL_COLOR : "var(--text-main)" }}>
+                style={{ color: form.mealPref === m.id ? "var(--accent)" : "var(--text-main)" }}>
                 {m.label}
               </span>
             </button>
@@ -218,7 +220,7 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
             </div>
             <button onClick={() => set("fastingEnabled", !form.fastingEnabled)}
               className="w-12 h-6 rounded-full transition relative shrink-0"
-              style={{ background: form.fastingEnabled ? WL_COLOR : "var(--glass-border)" }}>
+              style={{ background: form.fastingEnabled ? "var(--accent)" : "var(--glass-border)" }}>
               <span className={cn("absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all",
                 form.fastingEnabled ? "left-6" : "left-0.5")} />
             </button>
@@ -252,21 +254,21 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
           <button key={p.id} onClick={() => set("pace", p.id)}
             className="w-full flex items-center justify-between rounded-xl px-4 py-4 transition active:scale-[0.98]"
             style={{
-              background: form.pace === p.id ? `${WL_COLOR}18` : "var(--glass-bg)",
-              border: `2px solid ${form.pace === p.id ? WL_COLOR : "var(--glass-border)"}`,
+              background: form.pace === p.id ? "rgba(var(--glow-rgb),0.09)" : "var(--glass-bg)",
+              border: `2px solid ${form.pace === p.id ? "var(--accent)" : "var(--glass-border)"}`,
             }}>
             <div className="text-left">
-              <p className="font-bold text-sm" style={{ color: form.pace === p.id ? WL_COLOR : "var(--text-main)" }}>{p.label}</p>
+              <p className="font-bold text-sm" style={{ color: form.pace === p.id ? "var(--accent)" : "var(--text-main)" }}>{p.label}</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--text-dim)" }}>{p.sub}</p>
             </div>
-            {form.pace === p.id && <Check className="w-5 h-5 shrink-0" style={{ color: WL_COLOR }} />}
+            {form.pace === p.id && <Check className="w-5 h-5 shrink-0" style={{ color: "var(--accent)" }} />}
           </button>
         ))}
       </div>
 
       {parseFloat(form.currentWeightKg) > 0 && parseFloat(form.goalWeightKg) > 0 && (
-        <div className="rounded-2xl p-4" style={{ background: `${WL_COLOR}12`, border: `1px solid ${WL_COLOR}30` }}>
-          <p className="text-xs font-semibold mb-2" style={{ color: WL_COLOR }}>Your estimate</p>
+        <div className="rounded-2xl p-4" style={{ background: "rgba(var(--glow-rgb),0.07)", border: "1px solid rgba(var(--glow-rgb),0.19)" }}>
+          <p className="text-xs font-semibold mb-2" style={{ color: "var(--accent)" }}>Your estimate</p>
           {(() => {
             const diff = parseFloat(form.currentWeightKg) - parseFloat(form.goalWeightKg);
             const pace = PACES.find((p) => p.id === form.pace) ?? PACES[1];
@@ -291,7 +293,7 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
       <div className="flex gap-1 mb-6">
         {steps.map((_, i) => (
           <div key={i} className="flex-1 h-1 rounded-full transition-all"
-            style={{ background: i <= step ? WL_COLOR : "var(--glass-border)" }} />
+            style={{ background: i <= step ? "var(--accent)" : "var(--glass-border)" }} />
         ))}
       </div>
 
@@ -309,7 +311,7 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
           onClick={step === steps.length - 1 ? () => void handleFinish() : () => setStep((s) => s + 1)}
           disabled={!isValid || onboard.isPending || generatePlan.isPending}
           className="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-sm text-white transition active:scale-95 disabled:opacity-50"
-          style={{ background: WL_COLOR }}>
+          style={{ background: "var(--accent)" }}>
           {onboard.isPending || generatePlan.isPending
             ? "Setting up your plan…"
             : step === steps.length - 1

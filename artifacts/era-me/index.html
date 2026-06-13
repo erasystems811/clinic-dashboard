@@ -3,11 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Theme & app colours -->
     <meta name="theme-color" content="#0d9488" />
+    <meta name="background-color" content="#060d1f" />
+
+    <!-- iOS PWA: makes it open full-screen with no browser chrome when added to home screen -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>ERA Health</title>
+    <meta name="apple-mobile-web-app-title" content="ERA Health" />
+
+    <!-- iOS home screen icon -->
+    <link rel="apple-touch-icon" href="/era-logo.png" />
+
+    <!-- Standard icon + title -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>ERA Health</title>
+
+    <!-- Preload the logo so the splash doesn't flicker -->
     <link rel="preload" as="image" href="/era-logo.png" fetchpriority="high" />
   </head>
   <body>

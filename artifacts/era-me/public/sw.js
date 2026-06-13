@@ -1,7 +1,53 @@
-// ERA Health Service Worker — handles push notifications and notification clicks.
-// Designed for web-first with native app in mind:
-// when the native app ships, this file stays for web fallback, native uses its own channel.
+// ERA Health Service Worker
+// Handles: push notifications + offline caching (PWA install support)
 
+const CACHE = "era-health-v2";
+const SHELL  = ["/", "/index.html"];
+
+// ── Install: precache the app shell ──────────────────────────────────────────
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE)
+      .then(c => c.addAll(SHELL))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// ── Activate: remove stale caches ────────────────────────────────────────────
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+// ── Fetch: network-first, fall back to cache ─────────────────────────────────
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Never intercept API calls or non-GET requests
+  if (request.method !== "GET" || url.pathname.startsWith("/api/")) return;
+
+  event.respondWith(
+    fetch(request)
+      .then(response => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE).then(c => c.put(request, clone));
+        }
+        return response;
+      })
+      .catch(() =>
+        caches.match(request).then(r => r ?? caches.match("/"))
+      )
+  );
+});
+
+// ── Push notifications ────────────────────────────────────────────────────────
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -10,10 +56,10 @@ self.addEventListener("push", (event) => {
 
   const title = data.title ?? "ERA Health";
   const options = {
-    body:    data.body ?? "",
-    icon:    data.icon ?? "/era-icon-192.png",
-    badge:   data.badge ?? "/era-badge-72.png",
-    tag:     data.tag  ?? "era-health",
+    body:    data.body  ?? "",
+    icon:    data.icon  ?? "/era-logo.png",
+    badge:   data.badge ?? "/era-logo.png",
+    tag:     data.tag   ?? "era-health",
     data:    { url: data.url ?? "/" },
     vibrate: [200, 100, 200],
     requireInteraction: false,
@@ -40,7 +86,6 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Re-subscribe when the push subscription expires
 self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
     self.registration.pushManager.subscribe(event.oldSubscription.options)

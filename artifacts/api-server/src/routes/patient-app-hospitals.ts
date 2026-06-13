@@ -391,14 +391,17 @@ router.get("/patient-app/hospitals/:connectionId/messages", async (req, res): Pr
     .eq("sender", "hospital")
     .is("patient_read_at", null);
 
+  // Fetch newest 200 messages (descending), then reverse so client receives oldest-first.
+  // Previously used ascending+limit(100) which silently dropped new messages once the
+  // history exceeded 100 — automated in-care reminders were always cut off.
   const { data: messages } = await supabase
     .from("patient_hospital_messages")
     .select("id, sender, message_type, content, metadata, created_at")
     .eq("connection_id", connectionId)
-    .order("created_at", { ascending: true })
-    .limit(100);
+    .order("created_at", { ascending: false })
+    .limit(200);
 
-  res.json(messages ?? []);
+  res.json((messages ?? []).reverse());
 });
 
 // ── POST /api/patient-app/hospitals/:connectionId/messages ────────────────────

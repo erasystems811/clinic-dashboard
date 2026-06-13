@@ -1578,7 +1578,19 @@ export async function sendInCareAIReminder(
     });
 
     await updateAutomationLog(logId, "sent", `In-care ${slot} reminder (${deptLabel}) → ${patientEmail}`);
-    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(message)); } catch { /* non-fatal */ }
+    const stripped = stripEmailLine(message);
+    try { await pushEraChatMessage(patientId, hospitalId, stripped); } catch (e) {
+      console.error("[sendInCareAIReminder] pushEraChatMessage failed:", e instanceof Error ? e.message : String(e), { patientId, hospitalId, slot });
+      Sentry.captureException(e, { extra: { fn: "pushEraChatMessage", patientId, hospitalId, slot } });
+    }
+    try {
+      await pushEraNotification(patientId, hospitalId, "care_reminder",
+        `${greetings[slot]}, ${firstName} — ${deptLabel} reminder`,
+        stripped.slice(0, 200),
+      );
+    } catch (e) {
+      console.error("[sendInCareAIReminder] pushEraNotification failed:", e instanceof Error ? e.message : String(e), { patientId, hospitalId });
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendInCareAIReminder] failed:", msg, { hospitalId, patientId, patientEmail, slot, deptLabel });
@@ -1817,7 +1829,19 @@ export async function sendStoredCarePlanReminder(
       text: bookingUrl ? `${message}\n\nBook an appointment online: ${bookingUrl}` : message,
     });
     await updateAutomationLog(logId, "sent", `In-care ${slot} reminder (pre-generated, ${deptLabel}) → ${patientEmail}`);
-    try { await pushEraChatMessage(patientId, hospitalId, stripEmailLine(message)); } catch { /* non-fatal */ }
+    const stripped = stripEmailLine(message);
+    try { await pushEraChatMessage(patientId, hospitalId, stripped); } catch (e) {
+      console.error("[sendStoredCarePlanReminder] pushEraChatMessage failed:", e instanceof Error ? e.message : String(e), { patientId, hospitalId, slot });
+      Sentry.captureException(e, { extra: { fn: "pushEraChatMessage", patientId, hospitalId, slot } });
+    }
+    try {
+      await pushEraNotification(patientId, hospitalId, "care_reminder",
+        `${greetings[slot]}, ${firstName} — ${deptLabel} reminder`,
+        stripped.slice(0, 200),
+      );
+    } catch (e) {
+      console.error("[sendStoredCarePlanReminder] pushEraNotification failed:", e instanceof Error ? e.message : String(e), { patientId, hospitalId });
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendStoredCarePlanReminder] failed:", msg, { hospitalId, patientId, patientEmail, slot, deptLabel });

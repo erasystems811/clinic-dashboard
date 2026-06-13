@@ -94,6 +94,14 @@ export default function ProfilePage() {
     finally { setFbLoading(false); }
   }
 
+  const [showPwd, setShowPwd] = useState(false);
+  const [pwdCurrent, setPwdCurrent] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdError, setPwdError] = useState("");
+  const [pwdOk, setPwdOk] = useState(false);
+  const [pwdLoading, setPwdLoading] = useState(false);
+
   // Change password modal — visualViewport tracks keyboard so the sheet doesn't hide behind it
   const pwdOverlayRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -111,14 +119,6 @@ export default function ProfilePage() {
     update();
     return () => { vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
   }, [showPwd]);
-
-  const [showPwd, setShowPwd] = useState(false);
-  const [pwdCurrent, setPwdCurrent] = useState("");
-  const [pwdNew, setPwdNew] = useState("");
-  const [pwdConfirm, setPwdConfirm] = useState("");
-  const [pwdError, setPwdError] = useState("");
-  const [pwdOk, setPwdOk] = useState(false);
-  const [pwdLoading, setPwdLoading] = useState(false);
 
   async function handleChangePassword() {
     setPwdError("");

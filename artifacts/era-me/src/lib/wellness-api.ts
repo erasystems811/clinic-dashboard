@@ -133,6 +133,18 @@ export function useSaveModule(type: string) {
   });
 }
 
+export function useDisableModule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (moduleType: string) => put(`${BASE}/modules/${moduleType}`, { enabled: false }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["wellness"] });
+      void fetch("/api/patient-app/plan/regenerate", { method: "POST", headers: headers() })
+        .then(() => qc.invalidateQueries({ queryKey: ["plan"] }));
+    },
+  });
+}
+
 // Quick log — accepts moduleType + data in one call, for home-screen checkboxes
 export function useQuickLog() {
   const qc = useQueryClient();

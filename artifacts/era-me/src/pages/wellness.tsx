@@ -1,5 +1,8 @@
+import { type MouseEvent } from "react";
 import { Link } from "wouter";
+import { X } from "lucide-react";
 import { isCompanionHidden } from "@/lib/companion-api";
+import { useWellnessModules, useDisableModule } from "@/lib/wellness-api";
 
 interface Module {
   id: string;
@@ -36,8 +39,12 @@ const HEALTH_MODULES: Module[] = [
 ];
 
 const COMPANION_MODULES: Module[] = [
-  { id: "women",     emoji: "🌸", label: "Women's Health",      description: "Cycle, pregnancy & more",       gradient: "linear-gradient(135deg,#4a044e,#a21caf)", accent: "#f0abfc", comingSoon: true, href: "/womens-health" },
-  { id: "intimacy",  emoji: "💗", label: "Sex Life & Intimacy", description: "Celibacy or active tracking",   gradient: "linear-gradient(135deg,#4c0519,#be123c)", accent: "#fda4af" },
+  { id: "women",    emoji: "🌸", label: "Women's Health",      description: "Cycle, pregnancy & more",       gradient: "linear-gradient(135deg,#4a044e,#a21caf)", accent: "#f0abfc", comingSoon: true, href: "/womens-health" },
+  { id: "intimacy", emoji: "💗", label: "Sex Life & Intimacy", description: "Celibacy or active tracking",   gradient: "linear-gradient(135deg,#4c0519,#be123c)", accent: "#fda4af" },
+];
+
+const DIARY_MODULES: Module[] = [
+  { id: "my-diary", emoji: "📔", label: "My Diary", description: "Private journal, chats & personality", gradient: "linear-gradient(135deg,#1e1b4b,#4c1d95)", accent: "#c084fc", href: "/companion" },
 ];
 
 function moduleHref(m: Module): string {
@@ -55,63 +62,93 @@ function SectionDivider({ title }: { title: string }) {
   );
 }
 
-const DIARY_MODULES: Module[] = [
-  { id: "my-diary", emoji: "📔", label: "My Diary", description: "Private journal, chats & personality", gradient: "linear-gradient(135deg,#1e1b4b,#4c1d95)", accent: "#c084fc", href: "/companion" },
-];
-
 export default function WellnessPage() {
   const diaryHidden = isCompanionHidden();
+  const { data: modules } = useWellnessModules() as { data: Record<string, { enabled: boolean }> | undefined };
+  const disable = useDisableModule();
+
+  function isEnabled(id: string): boolean {
+    return modules?.[id]?.enabled ?? false;
+  }
+
+  function handleDisable(id: string, e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    disable.mutate(id);
+  }
 
   return (
     <div className="px-4 pt-6 pb-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold" style={{ color: "var(--accent)" }}>
-          Personal Settings
-        </h1>
-        <p className="text-xs mt-0.5" style={{ color: "var(--text-sub)" }}>Choose what to track — tap any module to set it up</p>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--accent)" }}>Personal Settings</h1>
+        <p className="text-xs mt-0.5" style={{ color: "var(--text-sub)" }}>
+          Tap a module to set it up · tap <span style={{ fontWeight: 700 }}>Stop</span> to remove it from your plan
+        </p>
       </div>
 
       <div className="mb-5">
         <SectionDivider title="Daily Habits" />
         <div className="grid grid-cols-2 gap-2.5">
-          {DAILY_MODULES.map((m) => <ModuleCard key={m.id} module={m} />)}
+          {DAILY_MODULES.map((m) => (
+            <ModuleCard key={m.id} module={m} enabled={isEnabled(m.id)} onDisable={(e) => handleDisable(m.id, e)} />
+          ))}
         </div>
       </div>
 
       <div className="mb-5">
         <SectionDivider title="Health Tracking" />
         <div className="grid grid-cols-2 gap-2.5">
-          {HEALTH_MODULES.map((m) => <ModuleCard key={m.id} module={m} />)}
+          {HEALTH_MODULES.map((m) => (
+            <ModuleCard key={m.id} module={m} enabled={isEnabled(m.id)} onDisable={(e) => handleDisable(m.id, e)} />
+          ))}
         </div>
       </div>
 
       <div>
         <SectionDivider title="Personal" />
         <div className="grid grid-cols-2 gap-2.5">
-          {COMPANION_MODULES.map((m) => <ModuleCard key={m.id} module={m} />)}
-          {!diaryHidden && DIARY_MODULES.map((m) => <ModuleCard key={m.id} module={m} />)}
+          {COMPANION_MODULES.map((m) => (
+            <ModuleCard key={m.id} module={m} enabled={isEnabled(m.id)} onDisable={(e) => handleDisable(m.id, e)} />
+          ))}
+          {!diaryHidden && DIARY_MODULES.map((m) => (
+            <ModuleCard key={m.id} module={m} enabled={isEnabled(m.id)} onDisable={(e) => handleDisable(m.id, e)} />
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-function ModuleCard({ module }: { module: Module }) {
+function ModuleCard({ module, enabled, onDisable }: {
+  module: Module;
+  enabled: boolean;
+  onDisable: (e: MouseEvent) => void;
+}) {
   const href = moduleHref(module);
 
   return (
     <Link href={module.comingSoon ? "#" : href}>
-      <div className="on-gradient relative rounded-2xl p-4 cursor-pointer active:scale-95 transition overflow-hidden"
+      <div className="relative rounded-2xl p-4 cursor-pointer active:scale-95 transition overflow-hidden"
         style={{
           background: module.gradient,
-          border: `1px solid ${module.accent}30`,
-          boxShadow: `0 4px 20px ${module.accent}15`,
-          opacity: module.comingSoon ? 0.7 : 1,
+          border: enabled ? `1px solid ${module.accent}55` : `1px solid ${module.accent}22`,
+          boxShadow: enabled ? `0 4px 20px ${module.accent}25` : `0 2px 10px ${module.accent}08`,
+          opacity: module.comingSoon ? 0.7 : enabled ? 1 : 0.55,
           minHeight: 90,
         }}>
 
         <div className="absolute inset-0 opacity-10 pointer-events-none"
           style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.3) 0%,transparent 60%)" }} />
+
+        {/* Active indicator dot */}
+        {enabled && (
+          <div style={{
+            position: "absolute", top: 8, right: 8,
+            width: 7, height: 7, borderRadius: "50%",
+            background: "#4ade80",
+            boxShadow: "0 0 6px rgba(74,222,128,0.9)",
+          }} />
+        )}
 
         <div className="text-2xl mb-2">{module.emoji}</div>
         <p className="text-xs font-bold leading-tight text-white">{module.label}</p>
@@ -122,6 +159,22 @@ function ModuleCard({ module }: { module: Module }) {
             style={{ background: "rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.7)" }}>
             Soon
           </div>
+        )}
+
+        {/* Stop button — only on active, non-comingSoon modules */}
+        {enabled && !module.comingSoon && (
+          <button
+            onClick={onDisable}
+            className="absolute bottom-2 right-2 flex items-center gap-0.5 active:scale-90 transition"
+            style={{
+              background: "rgba(0,0,0,0.4)",
+              border: "1px solid rgba(255,255,255,0.18)",
+              borderRadius: 6,
+              padding: "2px 6px 2px 4px",
+            }}>
+            <X style={{ width: 9, height: 9, color: "rgba(255,255,255,0.75)" }} />
+            <span style={{ fontSize: 9, color: "rgba(255,255,255,0.75)", fontWeight: 700 }}>Stop</span>
+          </button>
         )}
       </div>
     </Link>

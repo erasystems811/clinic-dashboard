@@ -7,7 +7,6 @@ import {
   hashPassword,
   verifyPassword,
   generateOtp,
-  generatePassword,
   generateResetToken,
   getPatientFromRequest,
 } from "../lib/patient-auth.js";
@@ -35,7 +34,7 @@ function otpEmail(username: string, otp: string): string {
 </div></body></html>`;
 }
 
-function welcomeEmail(username: string, password: string): string {
+function welcomeEmail(username: string): string {
   return `<!DOCTYPE html><html><body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
 <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
   <div style="background:linear-gradient(135deg,#0d9488,#0f766e);padding:32px 24px;text-align:center;">
@@ -44,14 +43,11 @@ function welcomeEmail(username: string, password: string): string {
   </div>
   <div style="padding:32px 24px;">
     <p style="margin:0 0 8px;color:#374151;font-size:16px;">Hi <strong>${username}</strong>,</p>
-    <p style="margin:0 0 24px;color:#6b7280;font-size:15px;">Your ERA Health account has been created. Here is your auto-generated password — save it somewhere safe:</p>
-    <div style="background:#f0fdfa;border:2px dashed #5eead4;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px;">
-      <span style="font-size:22px;font-weight:700;letter-spacing:3px;color:#0d9488;font-family:monospace;">${password}</span>
+    <p style="margin:0 0 24px;color:#6b7280;font-size:15px;">Your ERA Health account has been created successfully. You can now log in with the username and password you chose during registration.</p>
+    <div style="background:#f0fdfa;border:2px solid #5eead4;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px;">
+      <p style="margin:0;color:#0d9488;font-size:15px;font-weight:600;">Username: <strong>${username}</strong></p>
     </div>
-    <div style="background:#fefce8;border-left:4px solid #f59e0b;border-radius:8px;padding:16px;margin-bottom:24px;">
-      <p style="margin:0;color:#92400e;font-size:14px;"><strong>Important:</strong> Change this password in your Profile settings after your first login.</p>
-    </div>
-    <p style="margin:0;color:#6b7280;font-size:14px;">Your username is: <strong style="color:#111827;">${username}</strong></p>
+    <p style="margin:0;color:#9ca3af;font-size:13px;text-align:center;">Keep your password safe and never share it with anyone.</p>
   </div>
 </div></body></html>`;
 }
@@ -122,6 +118,12 @@ router.post("/patient-app/register/verify", async (req, res): Promise<void> => {
     phone: z.string().min(7),
     accountType: z.enum(["individual", "family"]).default("individual"),
     otp: z.string().length(6),
+    password: z.string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain an uppercase letter")
+      .regex(/[a-z]/, "Password must contain a lowercase letter")
+      .regex(/[0-9]/, "Password must contain a number")
+      .regex(/[^A-Za-z0-9]/, "Password must contain a special character"),
   }).safeParse(req.body);
 
   if (!body.success) { res.status(400).json({ error: body.error.issues[0]?.message ?? "Invalid input" }); return; }
@@ -150,8 +152,7 @@ router.post("/patient-app/register/verify", async (req, res): Promise<void> => {
   const { data: existingUser } = await supabase.from("patient_accounts").select("id").eq("username", username).maybeSingle();
   if (existingUser) { res.status(409).json({ error: "This username was just taken. Please choose another." }); return; }
 
-  const plainPassword = generatePassword();
-  const passwordHash = await hashPassword(plainPassword);
+  const passwordHash = await hashPassword(body.data.password);
 
   const { data: account, error } = await supabase.from("patient_accounts").insert({
     username,
@@ -165,7 +166,7 @@ router.post("/patient-app/register/verify", async (req, res): Promise<void> => {
 
   if (error || !account) { res.status(500).json({ error: "Failed to create account. Please try again." }); return; }
 
-  sendEmail({ to: email, from: FROM, subject: "Your ERA Health password", html: welcomeEmail(username, plainPassword) }).catch(() => {});
+  sendEmail({ to: email, from: FROM, subject: "Welcome to ERA Health", html: welcomeEmail(username) }).catch(() => {});
 
   const token = signPatientToken(account.id as number);
 

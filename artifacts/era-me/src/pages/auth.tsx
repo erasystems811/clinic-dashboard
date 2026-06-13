@@ -37,13 +37,34 @@ export default function AuthPage() {
   const [forgotUsername, setForgotUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [regPassword, setRegPassword] = useState("");
+  const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegPasswordConfirm, setShowRegPasswordConfirm] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   function clearError() { setError(""); }
 
+  function pwdChecks(pwd: string) {
+    return {
+      upper:   /[A-Z]/.test(pwd),
+      lower:   /[a-z]/.test(pwd),
+      number:  /[0-9]/.test(pwd),
+      special: /[^A-Za-z0-9]/.test(pwd),
+      length:  pwd.length >= 8,
+    };
+  }
+  function pwdStrong(pwd: string) {
+    const c = pwdChecks(pwd);
+    return c.upper && c.lower && c.number && c.special && c.length;
+  }
+
   async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault(); clearError(); setLoading(true);
+    e.preventDefault(); clearError();
+    if (!pwdStrong(regPassword)) { setError("Your password doesn't meet all the requirements below."); return; }
+    if (regPassword !== regPasswordConfirm) { setError("Passwords don't match."); return; }
+    setLoading(true);
     try {
       await apiFetch("/api/patient-app/register/send-otp", {
         method: "POST",
@@ -59,7 +80,7 @@ export default function AuthPage() {
     try {
       const res = await apiFetch<{ token: string; account: Account }>("/api/patient-app/register/verify", {
         method: "POST",
-        body: JSON.stringify({ username: regUsername.trim(), email: regEmail.trim().toLowerCase(), phone: regPhone.trim(), accountType, otp: otp.trim() }),
+        body: JSON.stringify({ username: regUsername.trim(), email: regEmail.trim().toLowerCase(), phone: regPhone.trim(), accountType, otp: otp.trim(), password: regPassword }),
       });
       login(res.token, res.account);
       setStep("register-success");
@@ -234,6 +255,43 @@ export default function AuthPage() {
                 <GlassInput type="tel" required autoComplete="tel" value={regPhone}
                   onChange={(e) => setRegPhone(e.target.value)} placeholder="+234 800 000 0000" />
               </GlassField>
+
+              {/* Password */}
+              <GlassField label="Create password">
+                <div className="relative">
+                  <GlassInput type={showRegPassword ? "text" : "password"} required
+                    autoComplete="new-password" value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    placeholder="Create a strong password"
+                    className="pr-12" />
+                  <button type="button" onClick={() => setShowRegPassword(v => !v)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 transition"
+                    style={{ color: "rgba(255,255,255,0.4)" }}>
+                    {showRegPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {regPassword && <PasswordRequirements checks={pwdChecks(regPassword)} />}
+              </GlassField>
+
+              {/* Confirm password */}
+              <GlassField label="Confirm password">
+                <div className="relative">
+                  <GlassInput type={showRegPasswordConfirm ? "text" : "password"} required
+                    autoComplete="new-password" value={regPasswordConfirm}
+                    onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                    placeholder="Repeat your password"
+                    className="pr-12" />
+                  <button type="button" onClick={() => setShowRegPasswordConfirm(v => !v)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 transition"
+                    style={{ color: "rgba(255,255,255,0.4)" }}>
+                    {showRegPasswordConfirm ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {regPasswordConfirm && regPassword !== regPasswordConfirm && (
+                  <p className="text-xs mt-1" style={{ color: "#fca5a5" }}>Passwords don't match</p>
+                )}
+              </GlassField>
+
               {error && <GlassError>{error}</GlassError>}
               <GlassButton type="submit" loading={loading}>
                 {loading ? "Sending code…" : "Send Verification Code"}
@@ -292,7 +350,7 @@ export default function AuthPage() {
               You're in!
             </h2>
             <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.65)" }}>
-              Your ERA Health account is ready. Check your email for your password — change it in Profile after you log in.
+              Your ERA Health account is ready. Taking you to your dashboard now…
             </p>
             <div style={{
               marginTop: 32,
@@ -398,20 +456,23 @@ export default function AuthPage() {
               style={{ background: "linear-gradient(135deg, #ffffff 30%, #94d4cf)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: "-0.02em" }}>
               Set a new password
             </h2>
-            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>Choose something you'll remember.</p>
+            <p className="text-sm mb-7" style={{ color: "rgba(255,255,255,0.65)" }}>Choose something strong you'll remember.</p>
             <form onSubmit={handleReset} className="space-y-4">
-              <div className="relative">
-                <GlassInput type={showNewPassword ? "text" : "password"} required
-                  value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="At least 8 characters" minLength={8} className="pr-12" />
-                <button type="button" onClick={() => setShowNewPassword((v) => !v)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 transition"
-                  style={{ color: "rgba(255,255,255,0.4)" }}>
-                  {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+              <div>
+                <div className="relative">
+                  <GlassInput type={showNewPassword ? "text" : "password"} required
+                    value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Create a strong password" className="pr-12" />
+                  <button type="button" onClick={() => setShowNewPassword((v) => !v)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 transition"
+                    style={{ color: "rgba(255,255,255,0.4)" }}>
+                    {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {newPassword && <PasswordRequirements checks={pwdChecks(newPassword)} />}
               </div>
               {error && <GlassError>{error}</GlassError>}
-              <GlassButton type="submit" loading={loading}>
+              <GlassButton type="submit" loading={loading} disabled={!pwdStrong(newPassword)}>
                 {loading ? "Saving…" : "Set New Password"}
               </GlassButton>
             </form>
@@ -489,6 +550,41 @@ function GlassError({ children }: { children: React.ReactNode }) {
     <div className="px-4 py-3 rounded-xl text-sm"
       style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.25)", color: "#fca5a5" }}>
       {children}
+    </div>
+  );
+}
+
+function PasswordRequirements({ checks }: { checks: { upper: boolean; lower: boolean; number: boolean; special: boolean; length: boolean } }) {
+  const rules = [
+    { key: "length",  label: "At least 8 characters" },
+    { key: "upper",   label: "Uppercase letter (A–Z)" },
+    { key: "lower",   label: "Lowercase letter (a–z)" },
+    { key: "number",  label: "Number (0–9)" },
+    { key: "special", label: "Special character (!@#$…)" },
+  ] as const;
+  return (
+    <div className="mt-2.5 grid grid-cols-1 gap-1">
+      {rules.map(({ key, label }) => {
+        const met = checks[key];
+        return (
+          <div key={key} className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 transition-all"
+              style={{
+                background: met ? "rgba(20,184,166,0.2)" : "rgba(255,255,255,0.06)",
+                border: met ? "1px solid rgba(20,184,166,0.5)" : "1px solid rgba(255,255,255,0.12)",
+              }}>
+              {met && (
+                <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                  <path d="M1.5 4.5L3.5 6.5L7.5 2.5" stroke="#14b8a6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </div>
+            <span className="text-xs transition-colors" style={{ color: met ? "rgba(20,184,166,0.9)" : "rgba(255,255,255,0.35)" }}>
+              {label}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -10,7 +10,33 @@ import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
   Clock, Users, Calendar, PhoneCall, ArrowRightLeft, AlertTriangle, CheckCircle2,
   Loader2, RefreshCw, X, ClipboardList, Search, CalendarPlus, Info,
+  MessageSquare, Send, CheckCheck,
 } from "lucide-react";
+
+interface DoctorMsgConvo {
+  connectionId: number;
+  patientId: number;
+  patientName: string;
+  lastMessage: string;
+  lastMessageSender: string;
+  lastMessageAt: string;
+  unread: number;
+}
+
+interface DoctorMsgMessage {
+  id: number;
+  sender: "patient" | "hospital" | "system";
+  messageType: string;
+  content: string;
+  createdAt: string;
+}
+
+interface DoctorMsgThread {
+  connectionId: number;
+  patientName: string;
+  eraStatus: string;
+  messages: DoctorMsgMessage[];
+}
 
 interface QueueEntry {
   id: number;
@@ -310,7 +336,20 @@ export default function DoctorView() {
   const [toggleLoading, setToggleLoading] = useState(false);
   const [callingIn, setCallingIn] = useState<number | null>(null);
   const [transferEntry, setTransferEntry] = useState<QueueEntry | null>(null);
-  const [activeTab, setActiveTab] = useState<"queue" | "appointments" | "followups">("queue");
+  const [activeTab, setActiveTab] = useState<"queue" | "appointments" | "followups" | "messages">("queue");
+
+  // ERA Messages state
+  const [msgConvos, setMsgConvos] = useState<DoctorMsgConvo[]>([]);
+  const [msgLoading, setMsgLoading] = useState(false);
+  const [msgSelected, setMsgSelected] = useState<DoctorMsgThread | null>(null);
+  const [msgLoadingThread, setMsgLoadingThread] = useState(false);
+  const [msgReply, setMsgReply] = useState("");
+  const [msgSending, setMsgSending] = useState(false);
+  const [msgResolving, setMsgResolving] = useState(false);
+  const [msgTransferDoctorId, setMsgTransferDoctorId] = useState("");
+  const [msgTransferring, setMsgTransferring] = useState(false);
+  const [msgUnread, setMsgUnread] = useState(0);
+  const msgBottomRef = useRef<HTMLDivElement>(null);
 
   // Follow-up tab — nurse-style patient search
   const [followUpSearch, setFollowUpSearch] = useState("");
@@ -366,6 +405,87 @@ export default function DoctorView() {
     finally { setFollowUpCPLoading(false); }
   }, [token]);
 
+  const msgHeaders = doctorId ? { "x-hospital-token": token, "x-doctor-id": String(doctorId) } : null;
+
+  const fetchMsgConvos = useCallback(async () => {
+    if (!msgHeaders) return;
+    setMsgLoading(true);
+    const r = await fetch(apiUrl("/api/era-messages/doctor"), { headers: msgHeaders });
+    if (r.ok) {
+      const data = await r.json() as DoctorMsgConvo[];
+      setMsgConvos(data);
+      setMsgUnread(data.reduce((s, c) => s + c.unread, 0));
+    }
+    setMsgLoading(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, doctorId]);
+
+  const openMsgThread = useCallback(async (convo: DoctorMsgConvo) => {
+    if (!msgHeaders) return;
+    setMsgLoadingThread(true);
+    setMsgSelected(null);
+    const r = await fetch(apiUrl(`/api/era-messages/doctor/${convo.connectionId}`), { headers: msgHeaders });
+    if (r.ok) {
+      setMsgSelected(await r.json());
+      setMsgConvos(prev => prev.map(c => c.connectionId === convo.connectionId ? { ...c, unread: 0 } : c));
+    }
+    setMsgLoadingThread(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, doctorId]);
+
+  const sendMsgReply = useCallback(async () => {
+    if (!msgReply.trim() || !msgSelected || msgSending || !msgHeaders) return;
+    setMsgSending(true);
+    const r = await fetch(apiUrl(`/api/era-messages/${msgSelected.connectionId}/send`), {
+      method: "POST",
+      headers: { ...msgHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ content: msgReply.trim() }),
+    });
+    if (r.ok) {
+      const msg = await r.json();
+      setMsgSelected(prev => prev ? { ...prev, messages: [...prev.messages, msg] } : prev);
+      setMsgReply("");
+    }
+    setMsgSending(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, doctorId, msgReply, msgSelected, msgSending]);
+
+  const resolveConvo = useCallback(async () => {
+    if (!msgSelected || msgResolving || !msgHeaders) return;
+    setMsgResolving(true);
+    const r = await fetch(apiUrl(`/api/era-messages/${msgSelected.connectionId}/resolve`), {
+      method: "POST",
+      headers: msgHeaders,
+    });
+    if (r.ok) {
+      setMsgSelected(prev => prev ? { ...prev, eraStatus: "resolved" } : prev);
+      setMsgConvos(prev => prev.filter(c => c.connectionId !== msgSelected.connectionId));
+      setMsgUnread(prev => Math.max(0, prev - (msgSelected.messages.filter(m => m.sender === "patient").length)));
+      // Refetch to get the resolve system message
+      const tr = await fetch(apiUrl(`/api/era-messages/doctor/${msgSelected.connectionId}`), { headers: msgHeaders });
+      if (tr.ok) setMsgSelected(await tr.json());
+    }
+    setMsgResolving(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, doctorId, msgSelected, msgResolving]);
+
+  const transferConvo = useCallback(async () => {
+    if (!msgSelected || !msgTransferDoctorId || msgTransferring || !msgHeaders) return;
+    setMsgTransferring(true);
+    const r = await fetch(apiUrl(`/api/era-messages/doctor/${msgSelected.connectionId}/transfer`), {
+      method: "POST",
+      headers: { ...msgHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ targetDoctorId: parseInt(msgTransferDoctorId) }),
+    });
+    if (r.ok) {
+      setMsgConvos(prev => prev.filter(c => c.connectionId !== msgSelected.connectionId));
+      setMsgSelected(null);
+      setMsgTransferDoctorId("");
+    }
+    setMsgTransferring(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, doctorId, msgSelected, msgTransferDoctorId, msgTransferring]);
+
   useEffect(() => {
     if (selectedFollowUpPatient) fetchFollowUpCarePlans(selectedFollowUpPatient.id);
     else setFollowUpCarePlans([]);
@@ -375,12 +495,35 @@ export default function DoctorView() {
     fetchQueue();
     fetchAppointments();
     fetchDoctors();
-  }, [fetchQueue, fetchAppointments, fetchDoctors]);
+    fetchMsgConvos();
+  }, [fetchQueue, fetchAppointments, fetchDoctors, fetchMsgConvos]);
 
   useEffect(() => {
     const t = setInterval(fetchQueue, 15_000);
     return () => clearInterval(t);
   }, [fetchQueue]);
+
+  // Poll ERA messages every 15s
+  useEffect(() => {
+    const t = setInterval(fetchMsgConvos, 15_000);
+    return () => clearInterval(t);
+  }, [fetchMsgConvos]);
+
+  // Scroll to bottom when thread messages change
+  useEffect(() => {
+    if (msgSelected) msgBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgSelected?.messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Background thread refresh while open
+  useEffect(() => {
+    if (!msgSelected || !msgHeaders) return;
+    const id = setInterval(async () => {
+      const r = await fetch(apiUrl(`/api/era-messages/doctor/${msgSelected.connectionId}`), { headers: msgHeaders });
+      if (r.ok) setMsgSelected(await r.json());
+    }, 10_000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msgSelected?.connectionId, token, doctorId]);
 
   const handleCallIn = async (entry: QueueEntry) => {
     setCallingIn(entry.id);
@@ -507,6 +650,13 @@ export default function DoctorView() {
               <ClipboardList className="w-3.5 h-3.5" /> Follow-Ups
             </span>
           </button>
+          <button onClick={() => setActiveTab("messages")}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${activeTab === "messages" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+            <span className="flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" /> Messages
+              {msgUnread > 0 && <span className="min-w-[16px] h-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center px-1">{msgUnread}</span>}
+            </span>
+          </button>
         </div>
 
         {/* Queue tab */}
@@ -597,6 +747,135 @@ export default function DoctorView() {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ERA Messages tab */}
+        {activeTab === "messages" && (
+          <div className="flex gap-4 h-[520px]">
+            {/* Conversation list */}
+            <div className={`flex flex-col border border-border rounded-lg bg-card shrink-0 ${msgSelected ? "hidden md:flex w-64" : "flex w-full md:w-64"}`}>
+              <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
+                <p className="text-sm font-semibold">Assigned to me</p>
+                <button onClick={fetchMsgConvos} className="text-muted-foreground hover:text-foreground"><RefreshCw className="w-3.5 h-3.5" /></button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                {msgLoading ? (
+                  <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+                ) : msgConvos.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 px-4 text-center gap-2">
+                    <MessageSquare className="w-8 h-8 text-muted-foreground/20" />
+                    <p className="text-xs text-muted-foreground">No conversations assigned to you yet</p>
+                  </div>
+                ) : (
+                  msgConvos.map(c => (
+                    <button key={c.connectionId} onClick={() => openMsgThread(c)}
+                      className={`w-full text-left px-3 py-2.5 border-b border-border transition hover:bg-muted/40 ${msgSelected?.connectionId === c.connectionId ? "bg-muted/60" : ""}`}>
+                      <div className="flex items-start gap-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                          {c.patientName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1 mb-0.5">
+                            <p className={`text-xs truncate ${c.unread > 0 ? "font-bold" : "font-medium"}`}>{c.patientName}</p>
+                            {c.unread > 0 && <span className="min-w-[16px] h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center px-1 shrink-0">{c.unread}</span>}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground truncate">{c.lastMessage}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Thread */}
+            {msgLoadingThread ? (
+              <div className="flex-1 flex items-center justify-center"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+            ) : msgSelected ? (
+              <div className="flex-1 flex flex-col border border-border rounded-lg bg-card overflow-hidden">
+                {/* Thread header */}
+                <div className="px-4 py-2.5 border-b border-border flex items-center gap-2 shrink-0">
+                  <button onClick={() => setMsgSelected(null)} className="md:hidden p-1 rounded hover:bg-muted text-muted-foreground"><X className="w-4 h-4" /></button>
+                  <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                    {msgSelected.patientName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                  <p className="text-sm font-semibold flex-1 min-w-0 truncate">{msgSelected.patientName}</p>
+                  {/* Transfer to another doctor */}
+                  {msgSelected.eraStatus !== "resolved" && allDoctors.filter(d => d.id !== doctorId).length > 0 && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <select value={msgTransferDoctorId} onChange={e => setMsgTransferDoctorId(e.target.value)}
+                        className="h-7 rounded-md border border-border bg-background px-2 text-xs max-w-[130px]">
+                        <option value="">Transfer to…</option>
+                        {allDoctors.filter(d => d.id !== doctorId && !d.unavailable).map(d => (
+                          <option key={d.id} value={d.id}>Dr. {d.fullName}</option>
+                        ))}
+                      </select>
+                      <button onClick={transferConvo} disabled={!msgTransferDoctorId || msgTransferring}
+                        className="flex items-center gap-1 px-2 h-7 rounded-md border border-border text-xs font-medium hover:bg-muted transition disabled:opacity-40">
+                        {msgTransferring ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRightLeft className="w-3 h-3" />}
+                        Transfer
+                      </button>
+                    </div>
+                  )}
+                  {msgSelected.eraStatus !== "resolved" && (
+                    <button onClick={resolveConvo} disabled={msgResolving}
+                      className="flex items-center gap-1 px-2.5 h-7 rounded-md bg-green-500/10 text-green-600 text-xs font-medium hover:bg-green-500/20 transition disabled:opacity-40 shrink-0 border border-green-500/20">
+                      {msgResolving ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCheck className="w-3 h-3" />}
+                      Resolve
+                    </button>
+                  )}
+                </div>
+
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+                  {msgSelected.messages.map(m => {
+                    if (m.sender === "system") {
+                      return (
+                        <div key={m.id} className="flex justify-center py-0.5">
+                          <span className="text-[10px] text-muted-foreground bg-muted/60 border border-border rounded-full px-2.5 py-0.5">{m.content}</span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={m.id} className={`flex ${m.sender === "hospital" ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${m.sender === "hospital" ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-muted text-foreground rounded-bl-sm"}`}>
+                          <p className="leading-relaxed">{m.content}</p>
+                          <p className={`text-[9px] mt-0.5 ${m.sender === "hospital" ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+                            {new Date(m.createdAt).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={msgBottomRef} />
+                </div>
+
+                {/* Reply input */}
+                {msgSelected.eraStatus === "resolved" ? (
+                  <div className="px-4 py-2.5 border-t border-border text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5 shrink-0">
+                    <CheckCheck className="w-3.5 h-3.5 text-green-500" /> Conversation resolved
+                  </div>
+                ) : (
+                  <div className="px-3 py-2.5 border-t border-border flex gap-2 shrink-0">
+                    <textarea value={msgReply} onChange={e => setMsgReply(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsgReply(); } }}
+                      placeholder="Type a reply…" rows={1}
+                      className="flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary transition"
+                      style={{ maxHeight: 80 }} />
+                    <button onClick={sendMsgReply} disabled={!msgReply.trim() || msgSending}
+                      className="w-9 h-9 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition disabled:opacity-40 shrink-0">
+                      {msgSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="hidden md:flex flex-1 items-center justify-center flex-col gap-2 text-center">
+                <MessageSquare className="w-10 h-10 text-muted-foreground/20" />
+                <p className="text-xs text-muted-foreground">Select a conversation</p>
               </div>
             )}
           </div>

@@ -400,8 +400,19 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
 }
 
 function MessageBubble({ message, hospitalName }: { message: import("@/lib/hospitals-api").HospitalMessage; hospitalName: string }) {
-  const isPatient = message.sender === "patient";
   const time = new Date(message.created_at).toLocaleTimeString("en-NG", { hour: "2-digit", minute: "2-digit" });
+
+  if (message.sender === "system") {
+    return (
+      <div className="flex justify-center py-1">
+        <span style={{ fontSize: 11, color: "var(--text-dim)", background: "rgba(255,255,255,0.06)", border: "1px solid var(--glass-border)", borderRadius: 20, padding: "3px 12px" }}>
+          {message.content}
+        </span>
+      </div>
+    );
+  }
+
+  const isPatient = message.sender === "patient";
   return (
     <div className={`flex ${isPatient ? "justify-end" : "justify-start"}`}>
       <div style={{ maxWidth: "80%" }}>

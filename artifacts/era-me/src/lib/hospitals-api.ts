@@ -75,8 +75,8 @@ export interface PatientNotification {
 
 export interface HospitalMessage {
   id: number;
-  sender: "patient" | "hospital";
-  message_type: "text" | "consultation_request";
+  sender: "patient" | "hospital" | "system";
+  message_type: "text" | "consultation_request" | "event";
   content: string;
   metadata: Record<string, unknown>;
   created_at: string;

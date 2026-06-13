@@ -185,6 +185,7 @@ function NavContent({
   user,
   collapsed,
   feedbackUnread,
+  eraMessagesUnread,
   setCollapsed,
   onLogout,
   onNavClick,

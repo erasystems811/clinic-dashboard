@@ -369,7 +369,9 @@ export default function HomePage() {
                     ? { moduleType: "eyebreak", data: { count: (item.count ?? 0) + 1 } }
                     : item.id.startsWith("sunscreen_")
                       ? { moduleType: "sunscreen", data: { count: parseInt(item.id.split("_")[1] ?? "0") + 1 } }
-                      : quickLogData[item.id];
+                      : item.batchIds?.length
+                        ? { moduleType: "medications", data: { taken: Object.fromEntries(item.batchIds.map(bid => [bid.replace(/^med_/, ""), true])) } }
+                        : quickLogData[item.id];
                 const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
                 const canTick = !item.done && !!entry;
                 return (

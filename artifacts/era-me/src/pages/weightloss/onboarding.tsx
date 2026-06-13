@@ -29,13 +29,13 @@ const ACTIVE_PERIODS = [
   { id: "evening",   label: "Evening",   sub: "5pm – 9pm" },
 ];
 
-const MEAL_PREFS = [
-  { id: "nigerian",    label: "Nigerian foods",  emoji: "🍲" },
-  { id: "balanced",    label: "Balanced diet",   emoji: "🥗" },
-  { id: "lowcarb",     label: "Low carb",        emoji: "🥩" },
-  { id: "vegetarian",  label: "Vegetarian",      emoji: "🥦" },
-  { id: "highprotein", label: "High protein",    emoji: "💪" },
-  { id: "snacker",     label: "Snack-based",     emoji: "🍎" },
+const EATING_PATTERNS = [
+  { id: "mostly_carbs",   label: "Mostly carbs",   sub: "Rice, eba, yam — I need my staples",      emoji: "🍚" },
+  { id: "mostly_protein", label: "Mostly protein", sub: "Meat, fish, eggs — I can cut the carbs",  emoji: "🥩" },
+  { id: "mostly_veg",     label: "Mostly veg",     sub: "Soups & vegetables fill me up",            emoji: "🥦" },
+  { id: "fruit_light",    label: "Fruits & light", sub: "I can replace junk with fruit & light meals", emoji: "🍉" },
+  { id: "snacker",        label: "Snack-based",    sub: "Small bites all day — no big meals",       emoji: "🥜" },
+  { id: "balanced",       label: "Balanced",       sub: "Measured amounts of everything, no extremes", emoji: "⚖️" },
 ];
 
 const COOKING_ABILITIES = [
@@ -45,9 +45,10 @@ const COOKING_ABILITIES = [
 ];
 
 const BUDGETS = [
-  { id: "tight",    label: "Tight",       sub: "₦500–₦1,000/day on food" },
-  { id: "moderate", label: "Moderate",    sub: "₦1,000–₦3,000/day on food" },
-  { id: "generous", label: "Comfortable", sub: "₦3,000+/day on food" },
+  { id: "tight",    label: "Tight",        sub: "₦500–₦1,500/day on food" },
+  { id: "moderate", label: "Moderate",     sub: "₦1,500–₦5,000/day on food" },
+  { id: "generous", label: "Comfortable",  sub: "₦5,000–₦10,000/day on food" },
+  { id: "premium",  label: "No limit",     sub: "₦10,000–₦15,000+/day on food" },
 ];
 
 const MEDICAL_CONDITIONS = [
@@ -74,10 +75,10 @@ interface FormData {
   age: string;
   gender: "male" | "female" | "";
   activityLevel: string;
-  workoutStyle: string;
+  workoutStyle: string[];
   workoutDaysPerWeek: number;
   activePeriod: string;
-  mealPref: string;
+  mealPref: string[];
   cookingAbility: string;
   budget: string;
   fastingEnabled: boolean;
@@ -99,10 +100,10 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
     age: "",
     gender: "",
     activityLevel: "moderate",
-    workoutStyle: "mixed",
+    workoutStyle: ["mixed"],
     workoutDaysPerWeek: 3,
     activePeriod: "morning",
-    mealPref: "nigerian",
+    mealPref: ["balanced"],
     cookingAbility: "can_cook",
     budget: "moderate",
     fastingEnabled: false,
@@ -132,6 +133,18 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
     set("medicalConditions", without.includes(id) ? without.filter((c) => c !== id) : [...without, id]);
   }
 
+  function toggleWorkoutStyle(id: string) {
+    set("workoutStyle", form.workoutStyle.includes(id)
+      ? form.workoutStyle.filter((w) => w !== id)
+      : [...form.workoutStyle, id]);
+  }
+
+  function toggleEatingPattern(id: string) {
+    set("mealPref", form.mealPref.includes(id)
+      ? form.mealPref.filter((m) => m !== id)
+      : [...form.mealPref, id]);
+  }
+
   async function handleFinish() {
     const payload = {
       currentWeightKg:    parseFloat(form.currentWeightKg),
@@ -140,10 +153,10 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
       age:                parseInt(form.age, 10),
       gender:             form.gender,
       activityLevel:      form.activityLevel,
-      workoutStyle:       form.workoutStyle,
+      workoutStyle:       form.workoutStyle.join(","),
       workoutDaysPerWeek: form.workoutDaysPerWeek,
       activePeriod:       form.activePeriod,
-      mealPreferences:    form.mealPref,
+      mealPreferences:    form.mealPref.join(","),
       cookingAbility:     form.cookingAbility,
       budget:             form.budget,
       fastingEnabled:     form.fastingEnabled,
@@ -236,22 +249,31 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
         </div>
       </Field>
 
-      <Field label="Preferred workout style">
+      <Field label="Workouts you will actually do (pick all that apply)">
         <div className="grid grid-cols-3 gap-2">
-          {WORKOUT_STYLES.map((w) => (
-            <button key={w.id} onClick={() => set("workoutStyle", w.id)}
-              className="flex flex-col items-center gap-1 py-3 rounded-xl transition active:scale-90"
-              style={{
-                background: form.workoutStyle === w.id ? "rgba(var(--glow-rgb),0.12)" : "var(--glass-bg)",
-                border: `1.5px solid ${form.workoutStyle === w.id ? "var(--accent)" : "var(--glass-border)"}`,
-              }}>
-              <span style={{ fontSize: 22 }}>{w.emoji}</span>
-              <span className="text-[10px] font-semibold text-center leading-tight"
-                style={{ color: form.workoutStyle === w.id ? "var(--accent)" : "var(--text-sub)" }}>
-                {w.label}
-              </span>
-            </button>
-          ))}
+          {WORKOUT_STYLES.map((w) => {
+            const selected = form.workoutStyle.includes(w.id);
+            return (
+              <button key={w.id} onClick={() => toggleWorkoutStyle(w.id)}
+                className="flex flex-col items-center gap-1 py-3 rounded-xl transition active:scale-90 relative"
+                style={{
+                  background: selected ? "rgba(var(--glow-rgb),0.12)" : "var(--glass-bg)",
+                  border: `1.5px solid ${selected ? "var(--accent)" : "var(--glass-border)"}`,
+                }}>
+                {selected && (
+                  <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center"
+                    style={{ background: "var(--accent)" }}>
+                    <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
+                  </div>
+                )}
+                <span style={{ fontSize: 22 }}>{w.emoji}</span>
+                <span className="text-[10px] font-semibold text-center leading-tight"
+                  style={{ color: selected ? "var(--accent)" : "var(--text-sub)" }}>
+                  {w.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </Field>
 
@@ -294,23 +316,31 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
     /* ── Step 2: Food & cooking ─────────────────────────────────────── */
     <StepBody key={2}>
       <h2 className="text-2xl font-black mb-1" style={{ color: "var(--text-main)" }}>Food & cooking</h2>
-      <p className="text-sm mb-5" style={{ color: "var(--text-sub)" }}>Your meal plan will match your real life — not just theory.</p>
+      <p className="text-sm mb-5" style={{ color: "var(--text-sub)" }}>Pick what you can actually commit to — not what sounds healthy. The plan will train you.</p>
 
-      <Field label="Food style">
-        <div className="grid grid-cols-2 gap-2">
-          {MEAL_PREFS.map((m) => (
-            <button key={m.id} onClick={() => set("mealPref", m.id)}
-              className="flex items-center gap-2 rounded-xl px-3 py-3 transition active:scale-95"
-              style={{
-                background: form.mealPref === m.id ? "rgba(var(--glow-rgb),0.09)" : "var(--glass-bg)",
-                border: `1.5px solid ${form.mealPref === m.id ? "var(--accent)" : "var(--glass-border)"}`,
-              }}>
-              <span style={{ fontSize: 20 }}>{m.emoji}</span>
-              <span className="text-xs font-bold" style={{ color: form.mealPref === m.id ? "var(--accent)" : "var(--text-main)" }}>
-                {m.label}
-              </span>
-            </button>
-          ))}
+      <Field label="Eating patterns you can stick to (pick all that apply)">
+        <div className="space-y-2">
+          {EATING_PATTERNS.map((m) => {
+            const selected = form.mealPref.includes(m.id);
+            return (
+              <button key={m.id} onClick={() => toggleEatingPattern(m.id)}
+                className="w-full flex items-center gap-3 rounded-xl px-4 py-3 transition active:scale-[0.98]"
+                style={{
+                  background: selected ? "rgba(var(--glow-rgb),0.09)" : "var(--glass-bg)",
+                  border: `1.5px solid ${selected ? "var(--accent)" : "var(--glass-border)"}`,
+                }}>
+                <div className={`w-5 h-5 rounded-full border-2 shrink-0 flex items-center justify-center`}
+                  style={{ borderColor: selected ? "var(--accent)" : "var(--glass-border)", background: selected ? "var(--accent)" : "transparent" }}>
+                  {selected && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                </div>
+                <span style={{ fontSize: 20 }}>{m.emoji}</span>
+                <div className="text-left">
+                  <p className="text-sm font-bold" style={{ color: selected ? "var(--accent)" : "var(--text-main)" }}>{m.label}</p>
+                  <p className="text-xs" style={{ color: "var(--text-dim)" }}>{m.sub}</p>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </Field>
 
@@ -334,7 +364,7 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
       </Field>
 
       <Field label="Daily food budget">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {BUDGETS.map((b) => (
             <button key={b.id} onClick={() => set("budget", b.id)}
               className="flex flex-col items-center gap-1 py-3 px-2 rounded-xl transition active:scale-95"
@@ -504,7 +534,9 @@ export default function WLOnboarding({ onDone }: { onDone: () => void }) {
   ];
 
   const step0Valid = form.currentWeightKg && form.goalWeightKg && form.heightCm && form.age && form.gender;
-  const isValid = [step0Valid, true, true, true, true][step];
+  const step1Valid = form.workoutStyle.length > 0;
+  const step2Valid = form.mealPref.length > 0;
+  const isValid = [step0Valid, step1Valid, step2Valid, true, true][step];
 
   return (
     <div className="min-h-screen px-5 pt-6 pb-8" style={{ background: "var(--bg-base)" }}>

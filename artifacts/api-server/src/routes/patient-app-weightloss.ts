@@ -35,20 +35,21 @@ function activityFactor(level: string): number {
 
 // Map frontend simplified fields to DB column equivalents
 function mapWorkoutStyle(style: string): string {
-  if (style === "gym")     return "gym";
-  if (style === "home")    return "home";
-  if (style === "walking" || style === "cardio") return "outdoor";
+  const styles = style.split(",").map((s) => s.trim());
+  if (styles.includes("gym")) return "gym";
+  if (styles.includes("home")) return "home";
+  if (styles.some((s) => s === "walking" || s === "cardio" || s === "yoga")) return "outdoor";
   return "any";
 }
 
 function buildFoodPrefs(pref: string, conditions: string[]): string[] {
-  const prefs: string[] = [pref];
-  if (conditions.includes("diabetes"))    prefs.push("low_sugar", "low_gi");
+  const selected = pref.split(",").map((s) => s.trim()).filter(Boolean);
+  const prefs: string[] = [...selected];
+  if (conditions.includes("diabetes"))     prefs.push("low_sugar", "low_gi");
   if (conditions.includes("hypertension")) prefs.push("low_sodium");
-  if (pref === "vegetarian")  prefs.push("no_meat");
-  if (pref === "lowcarb")     prefs.push("lowcarb");
-  if (pref === "highprotein") prefs.push("highprotein");
-  if (pref === "snacker")     prefs.push("snack_based", "frequent_small_meals");
+  if (selected.includes("mostly_veg"))     prefs.push("no_meat");
+  if (selected.includes("mostly_protein")) prefs.push("highprotein", "lowcarb");
+  if (selected.includes("snacker"))        prefs.push("snack_based", "frequent_small_meals");
   return [...new Set(prefs)];
 }
 
@@ -266,10 +267,12 @@ router.post("/patient-app/weightloss/generate-plan", async (req, res): Promise<v
       : "cooks most meals at home";
 
   const budgetDesc = profile.budget === "tight"
-    ? "very tight (₦500–₦1,000/day on food)"
+    ? "very tight (₦500–₦1,500/day on food)"
     : profile.budget === "generous"
-      ? "comfortable (₦3,000+/day on food)"
-      : "moderate (₦1,000–₦3,000/day on food)";
+      ? "comfortable (₦5,000–₦10,000/day on food)"
+      : profile.budget === "premium"
+        ? "high (₦10,000–₦15,000+/day — premium options are fine)"
+        : "moderate (₦1,500–₦5,000/day on food)";
 
   const activePeriodDesc = profile.active_period === "afternoon" ? "afternoon (12pm–4pm)"
     : profile.active_period === "evening" ? "evening (5pm–9pm)"
@@ -284,7 +287,7 @@ PROFILE:
 - Daily calorie target: ${profile.daily_calorie_target} kcal (NEVER exceed this)
 - Timeline: ${profile.timeline_weeks > 0 ? `${profile.timeline_weeks} weeks` : "maintenance (no deficit)"}
 - Activity level: ${profile.lifestyle}
-- Food style: ${(profile.food_preferences ?? []).join(", ") || "any — prefer Nigerian foods"}
+- Eating patterns committed to: ${(profile.food_preferences ?? []).join(", ") || "balanced"}
 - ${fastingNote}
 - Wake time: ${profile.wake_time} | Sleep time: ${profile.sleep_time}
 - Workout: ${profile.workout_location} · ${workoutDays} days/week · preferred time: ${activePeriodDesc}
@@ -309,12 +312,13 @@ RULES:
 7. If medical_notes mentions HEART condition: avoid high saturated fat. Lean proteins, vegetables, fibre-rich meals.
 8. If medical_notes lists dislikes/allergies, NEVER include those foods in any meal.
 9. Cooking ability matters: if they "cannot cook" or "rarely cook", suggest street food, canteen, or bought meals — never recipes that require 30+ minutes of cooking.
-10. Budget matters: if budget is tight, suggest affordable Nigerian staples (eba, beans, egg, indomie in moderation, market fish). If generous, can suggest grilled chicken, salmon, premium options.
-11. Workouts must match their location (home/gym/outdoor). Include specific exercises, sets, reps, and estimated duration.
-12. Schedule workouts in their preferred active period (${activePeriodDesc}).
-13. The plan must fit around their wake/sleep and fasting window.
-14. If it is a rest day, say so — gentle walk is always fine.
-15. If food_preferences includes "snack_based" or "frequent_small_meals": replace the standard 3-meal structure with 5–6 small snack-sized meals/snacks spread across the day. Each portion must be small. Examples: groundnuts, boiled egg, garden egg, small fruit, ofio, chin-chin (small), yoghurt, cucumber. Calories per snack should be 100–300 kcal. Total must still stay within the daily calorie target.`;
+10. Budget matters: tight budget → affordable staples (eba, beans, egg, market fish, indomie in moderation). Moderate → normal Nigerian meals with variety. Comfortable → grilled chicken, salmon, whole grains. Premium → any premium option is fine.
+11. Eating patterns: honour what they said they can commit to. "mostly_carbs" → keep carbs but control portion size; "mostly_protein" → build meals around meat/fish/eggs, reduce carbs significantly; "mostly_veg" → vegetable-heavy plates, soups with minimal starchy base; "fruit_light" → include fruit as snacks, light meals; "snacker" → 5–6 small meals instead of 3 big ones; "balanced" → equal mix. If multiple patterns selected, blend them together.
+12. Workouts must match their location (home/gym/outdoor). Include specific exercises, sets, reps, and estimated duration.
+13. Schedule workouts in their preferred active period (${activePeriodDesc}).
+14. The plan must fit around their wake/sleep and fasting window.
+15. If it is a rest day, say so — gentle walk is always fine.
+16. If eating patterns include "snacker" or "frequent_small_meals": replace the standard 3-meal structure with 5–6 small snack-sized meals spread across the day (100–300 kcal each). Examples: groundnuts, boiled egg, garden egg, small fruit, yoghurt, cucumber, ofio. Total must still stay within the daily calorie target.`;
 
   const userPrompt = `Generate the weekly plan for the week starting ${weekStart} (${dates.join(", ")}).
 

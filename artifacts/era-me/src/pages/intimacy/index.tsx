@@ -158,7 +158,7 @@ function PositionSVG({ id }: { id: string }) {
 // ── Gate / Entry point ────────────────────────────────────────────────────────
 export default function IntimacyGate() {
   const { account } = useAuth();
-  const { data, isLoading } = useIntimacySettings();
+  const { data, isLoading, isError, refetch } = useIntimacySettings();
   const [unlocked, setUnlocked] = useState(false);
 
   useIntimacyTheme();
@@ -169,8 +169,19 @@ export default function IntimacyGate() {
 
   if (isLoading || !account) return <Shell><Spinner /></Shell>;
 
-  // API error or still resolving — don't hard block, show spinner
-  if (!data) return <Shell><Spinner /></Shell>;
+  if (isError || !data) return (
+    <Shell>
+      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-4">
+        <p className="text-3xl">⚠️</p>
+        <p className="text-sm" style={{ color: "var(--text-sub)" }}>Could not load your space. Check your connection and try again.</p>
+        <button onClick={() => refetch()}
+          className="px-6 py-3 rounded-2xl font-bold text-white text-sm transition active:scale-95"
+          style={{ background: "var(--btn-gradient)" }}>
+          Try again
+        </button>
+      </div>
+    </Shell>
+  );
 
   // No DOB on file (null or undefined) → collect it in-app
   if (!data.ageOk && data.age == null) return <Shell><DobScreen /></Shell>;

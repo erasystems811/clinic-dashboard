@@ -13,10 +13,14 @@ function hashPin(pin: string, accountId: number): string {
 }
 
 async function getAge(accountId: number): Promise<number | null> {
-  const { data } = await supabase.from("patient_accounts").select("date_of_birth").eq("id", accountId).single();
-  const dob = data?.date_of_birth as string | null;
-  if (!dob) return null;
-  return Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+  try {
+    const { data } = await supabase.from("patient_accounts").select("date_of_birth").eq("id", accountId).maybeSingle();
+    const dob = data?.date_of_birth as string | null | undefined;
+    if (!dob) return null;
+    return Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+  } catch {
+    return null;
+  }
 }
 
 // ── POST save DOB — one-time only, locked after first save ───────────────────
@@ -43,33 +47,37 @@ router.post("/patient-app/intimacy/save-dob", async (req, res): Promise<void> =>
 
 // ── GET settings ──────────────────────────────────────────────────────────────
 router.get("/patient-app/intimacy/settings", async (req, res): Promise<void> => {
-  const account = await getPatientFromRequest(req);
-  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+  try {
+    const account = await getPatientFromRequest(req);
+    if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const age = await getAge(account.id);
-  const ageOk = age !== null && age >= 18;
+    const age = await getAge(account.id);
+    const ageOk = age !== null && age >= 18;
 
-  const { data } = await supabase
-    .from("patient_intimacy_settings")
-    .select("mode, freaky_mode_enabled, weekly_frequency_goal, contraception, last_sti_test, sti_test_interval_months, partner_id, notes")
-    .eq("account_id", account.id)
-    .maybeSingle();
+    const { data } = await supabase
+      .from("patient_intimacy_settings")
+      .select("mode, freaky_mode_enabled, weekly_frequency_goal, contraception, last_sti_test, sti_test_interval_months, partner_id, notes")
+      .eq("account_id", account.id)
+      .maybeSingle();
 
-  res.json({
-    isSetUp: !!data,
-    ageOk,
-    age,
-    settings: data ? {
-      mode: data.mode as string,
-      freakyMode: data.freaky_mode_enabled as boolean,
-      weeklyGoal: data.weekly_frequency_goal as number | null,
-      contraception: data.contraception as string | null,
-      lastStiTest: data.last_sti_test as string | null,
-      stiTestIntervalMonths: (data.sti_test_interval_months as number) ?? 6,
-      hasPartner: !!(data.partner_id),
-      notes: data.notes as string | null,
-    } : null,
-  });
+    res.json({
+      isSetUp: !!data,
+      ageOk,
+      age,
+      settings: data ? {
+        mode: data.mode as string,
+        freakyMode: data.freaky_mode_enabled as boolean,
+        weeklyGoal: data.weekly_frequency_goal as number | null,
+        contraception: data.contraception as string | null,
+        lastStiTest: data.last_sti_test as string | null,
+        stiTestIntervalMonths: (data.sti_test_interval_months as number) ?? 6,
+        hasPartner: !!(data.partner_id),
+        notes: data.notes as string | null,
+      } : null,
+    });
+  } catch {
+    res.status(500).json({ error: "Failed to load settings" });
+  }
 });
 
 // ── POST setup (first time) ───────────────────────────────────────────────────

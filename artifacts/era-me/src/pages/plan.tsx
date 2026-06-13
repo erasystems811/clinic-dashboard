@@ -56,7 +56,7 @@ export default function PlanPage() {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState(todayStr());
-  const [showTable, setShowTable] = useState(false);
+  const [view, setView] = useState<"today" | "timetable">("today");
   const { account } = useAuth();
   const firstName = (account?.displayName ?? "").split(" ")[0] || "Your";
 
@@ -279,6 +279,42 @@ export default function PlanPage() {
         )}
       </div>
 
+      {/* ── Tabs ── */}
+      <div className="px-4 mb-4">
+        <div className="flex gap-2 p-1 rounded-2xl" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+          {(["today", "timetable"] as const).map(tab => (
+            <button key={tab} onClick={() => setView(tab)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-bold transition active:scale-95"
+              style={{
+                background: view === tab ? "var(--btn-gradient)" : "transparent",
+                color: view === tab ? "#fff" : "var(--text-sub)",
+                boxShadow: view === tab ? `0 4px 14px rgba(var(--glow-rgb),0.3)` : "none",
+              }}>
+              {tab === "today" ? "Today" : "Full Week"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {view === "timetable" ? (
+        <div className="px-4">
+          <WeekTableView plan={plan} today={today} onPrint={openPrint} />
+          <button onClick={() => navigate("/report")}
+            className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl mt-3 active:scale-[0.98] transition"
+            style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+            <div className="flex items-center gap-2.5">
+              <span style={{ fontSize: 18 }}>📊</span>
+              <div className="text-left">
+                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>Weekly Report</p>
+                <p style={{ fontSize: 11, color: "var(--text-sub)" }}>See what you accomplished</p>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--text-sub)" }} />
+          </button>
+        </div>
+      ) : (
+        <>
+
       {/* ── 7-day strip ── */}
       <div className="px-3 mb-5">
         <div className="flex gap-1">
@@ -325,39 +361,7 @@ export default function PlanPage() {
         />
       </div>
 
-      {/* ── Bottom links ── */}
-      <div className="px-4 mt-6 space-y-2">
-        <button onClick={() => navigate("/report")}
-          className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl active:scale-[0.98] transition"
-          style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-          <div className="flex items-center gap-2.5">
-            <span style={{ fontSize: 18 }}>📊</span>
-            <div className="text-left">
-              <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>Weekly Report</p>
-              <p style={{ fontSize: 11, color: "var(--text-sub)" }}>See your week at a glance</p>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--text-sub)" }} />
-        </button>
-
-        <button onClick={() => setShowTable(t => !t)}
-          className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl active:scale-[0.98] transition"
-          style={{ background: showTable ? "var(--accent-tint-bg)" : "var(--glass-bg)", border: `1px solid ${showTable ? "var(--accent-tint-border)" : "var(--glass-border)"}` }}>
-          <div className="flex items-center gap-2.5">
-            <span style={{ fontSize: 18 }}>📋</span>
-            <div className="text-left">
-              <p style={{ fontSize: 13, fontWeight: 700, color: showTable ? "var(--accent)" : "var(--text-main)" }}>Full Week Timetable</p>
-              <p style={{ fontSize: 11, color: "var(--text-sub)" }}>All 7 days side by side</p>
-            </div>
-          </div>
-          <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${showTable ? "rotate-90" : ""}`} style={{ color: "var(--text-sub)" }} />
-        </button>
-      </div>
-
-      {showTable && (
-        <div className="px-4 mt-3">
-          <WeekTableView plan={plan} today={today} onPrint={openPrint} />
-        </div>
+        </>
       )}
     </div>
   );

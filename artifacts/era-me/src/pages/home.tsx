@@ -355,13 +355,16 @@ export default function HomePage() {
                 const quickLogData = buildQuickLogData(mods);
                 return (
                   <>
-                    {pendingItems.map((item) => (
-                      <CheckRow key={item.id} item={item} isUrgent={!!urgency}
-                        onQuickDone={quickLogData[item.id]
-                          ? () => quickLog.mutate({ moduleType: item.id, data: quickLogData[item.id] })
-                          : undefined}
-                      />
-                    ))}
+                    {pendingItems.map((item) => {
+                      const entry = quickLogData[item.id];
+                      return (
+                        <CheckRow key={item.id} item={item} isUrgent={!!urgency}
+                          onQuickDone={entry
+                            ? () => quickLog.mutate({ moduleType: entry.moduleType, data: entry.data })
+                            : undefined}
+                        />
+                      );
+                    })}
                     {doneItems.map((item) => <CheckRow key={item.id} item={item} isUrgent={false} />)}
                   </>
                 );
@@ -533,22 +536,36 @@ function NotifPrompt({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-// Build minimal one-tap log payloads. Modules missing from this map need detail input → tap navigates.
-function buildQuickLogData(mods: Record<string, ModuleEntry | undefined>): Record<string, Record<string, unknown>> {
+// Build minimal one-tap log payloads keyed by checklist item ID.
+// Each entry carries { moduleType, data } so the API call uses the right module type
+// (e.g. "med_abc" → moduleType "medications").
+interface QuickLogEntry { moduleType: string; data: Record<string, unknown> }
+function buildQuickLogData(mods: Record<string, ModuleEntry | undefined>): Record<string, QuickLogEntry> {
   const outdoorsTarget = (mods.outdoors?.settings?.targetMinutes as number | undefined) ?? 30;
   const eyeTarget = (mods.eyebreak?.settings?.targetBreaks as number | undefined) ?? 6;
   const intimacyMode = (mods.intimacy?.settings as { mode?: string } | undefined)?.mode;
-  const data: Record<string, Record<string, unknown>> = {
-    fruit:     { done: true },
-    sunscreen: { done: true },
-    smoking:   { smoked: false },
-    alcohol:   { drinks: 0 },
-    workout:   { completed: true },
-    outdoors:  { minutes: outdoorsTarget },
-    eyebreak:  { count: eyeTarget },
+  const entries: Record<string, QuickLogEntry> = {
+    fruit:     { moduleType: "fruit",     data: { done: true } },
+    sunscreen: { moduleType: "sunscreen", data: { done: true } },
+    smoking:   { moduleType: "smoking",   data: { smoked: false } },
+    alcohol:   { moduleType: "alcohol",   data: { drinks: 0 } },
+    workout:   { moduleType: "workout",   data: { completed: true } },
+    outdoors:  { moduleType: "outdoors",  data: { minutes: outdoorsTarget } },
+    eyebreak:  { moduleType: "eyebreak",  data: { count: eyeTarget } },
   };
-  if (intimacyMode === "celibacy") data.intimacy = { active: false };
-  return data;
+  if (intimacyMode === "celibacy") entries.intimacy = { moduleType: "intimacy", data: { active: false } };
+
+  // Medications — one quick-log entry per med, marks all doses taken
+  type Med = { id: string; times?: string[] };
+  const meds = (mods.medications?.settings?.medications as Med[]) ?? [];
+  for (const med of meds) {
+    const times: string[] = med.times?.length ? med.times : ["08:00"];
+    const taken: Record<string, boolean> = {};
+    for (const t of times) taken[`${med.id}_${t}`] = true;
+    entries[`med_${med.id}`] = { moduleType: "medications", data: { taken } };
+  }
+
+  return entries;
 }
 
 function CheckRow({ item, isUrgent, onQuickDone }: {

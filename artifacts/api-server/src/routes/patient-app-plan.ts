@@ -28,6 +28,7 @@ export function getWeekDates(weekStart: string): string[] {
 
 export interface PlanItem {
   moduleType: string;
+  checklistId?: string; // overrides moduleType for done-state lookup (e.g. hygiene_uuid)
   emoji: string;
   label: string;
   sub?: string;
@@ -93,11 +94,26 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       items.push({ moduleType: "vitals", emoji: "❤️", label: "Log vitals", sub: vNotes ?? "BP, sugar or weight", time: vTime });
     }
 
-    // Hygiene — morning routine
+    // Hygiene — specific replacement items on their due date (or first day of week if overdue)
     if (enabledMap["hygiene"]) {
+      interface HygieneItem { id: string; name: string; emoji: string; lastReplaced: string; intervalDays: number }
+      const hItems = (enabledMap["hygiene"].items as HygieneItem[]) ?? [];
       const hNotes = enabledMap["hygiene"].notes as string | undefined;
       const hTime = (hNotes && parseTimeHint(hNotes)) ?? "07:00";
-      items.push({ moduleType: "hygiene", emoji: "🪥", label: "Morning hygiene", sub: hNotes ?? "Brush teeth & routine", time: hTime });
+      const weekStart = weekDates[0];
+      const weekStartMs = new Date(weekStart + "T12:00:00").getTime();
+      const dayMs = new Date(date + "T12:00:00").getTime();
+      for (const hi of hItems) {
+        const dueMs = new Date(hi.lastReplaced + "T12:00:00").getTime() + hi.intervalDays * 86400000;
+        const dueDate = new Date(dueMs).toISOString().split("T")[0];
+        const isExactDay = dueDate === date;
+        const isOverdueOnWeekStart = date === weekStart && dueMs < weekStartMs;
+        if (isExactDay || isOverdueOnWeekStart) {
+          const daysOverdue = isOverdueOnWeekStart ? Math.floor((dayMs - dueMs) / 86400000) : 0;
+          const sub = daysOverdue > 0 ? `${daysOverdue}d overdue` : "Due today";
+          items.push({ moduleType: "hygiene", checklistId: `hygiene_${hi.id}`, emoji: hi.emoji, label: `Replace ${hi.name}`, sub, time: hTime });
+        }
+      }
     }
 
     // Sunscreen — after morning routine

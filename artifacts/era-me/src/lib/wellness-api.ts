@@ -114,7 +114,7 @@ export function useUpcomingEvents() {
   return useQuery<{ events: UpcomingEvent[] }>({
     queryKey: ["wellness", "upcoming-events"],
     queryFn: () => get<{ events: UpcomingEvent[] }>(`${BASE}/upcoming-events`),
-    staleTime: 30 * 60 * 1000,
+    staleTime: 0,
   });
 }
 
@@ -125,7 +125,7 @@ export function useSaveModule(type: string) {
   return useMutation({
     mutationFn: (body: { settings?: unknown; enabled?: boolean }) => put(`${BASE}/modules/${type}`, body),
     onSuccess: () => {
-      void qc.refetchQueries({ queryKey: ["wellness"] });
+      void qc.invalidateQueries({ queryKey: ["wellness"] });
       // Regenerate the weekly plan immediately so it reflects the new settings
       void fetch("/api/patient-app/plan/regenerate", { method: "POST", headers: headers() })
         .then(() => qc.invalidateQueries({ queryKey: ["plan"] }));

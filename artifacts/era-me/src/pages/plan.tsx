@@ -94,7 +94,7 @@ export default function PlanPage() {
     return { timedItems: timed, todayDayOnly: dayOnly };
   }, [plan, today]);
 
-  const todayDoneCount = timedItems.filter(i => todayDoneMap.get(i.moduleType) === true).length;
+  const todayDoneCount = timedItems.filter(i => todayDoneMap.get(i.checklistId ?? i.moduleType) === true).length;
   const todayPct = timedItems.length > 0 ? Math.round((todayDoneCount / timedItems.length) * 100) : 0;
 
   useEffect(() => {
@@ -547,7 +547,7 @@ function TodayView({ timedItems, dayOnlyItems, todayDoneMap, todayDoneCount, tod
             <div className="space-y-1.5">
               {items.map(item => {
                 const accent  = MODULE_ACCENT[item.moduleType] ?? "var(--accent)";
-                const done    = todayDoneMap.get(item.moduleType) === true;
+                const done    = todayDoneMap.get(item.checklistId ?? item.moduleType) === true;
                 const overdue = isPast && !done && !isClose;
                 return (
                   <Link key={`${item.moduleType}-${time}`} href={moduleHref(item.moduleType)}>
@@ -588,7 +588,7 @@ function TodayView({ timedItems, dayOnlyItems, todayDoneMap, todayDoneCount, tod
           <div className="space-y-1.5">
             {dayOnlyItems.map(item => {
               const accent = MODULE_ACCENT[item.moduleType] ?? "var(--accent)";
-              const done   = todayDoneMap.get(item.moduleType) === true;
+              const done   = todayDoneMap.get(item.checklistId ?? item.moduleType) === true;
               return (
                 <Link key={item.moduleType} href={moduleHref(item.moduleType)}>
                   <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl cursor-pointer active:scale-[0.98] transition"
@@ -631,14 +631,16 @@ function buildPrintHTML(plan: WeekPlan, today: string, firstName: string, palett
   weekEndObj.setDate(weekEndObj.getDate() + 6);
   const weekLabel = `${weekStartObj.toLocaleDateString("en-NG", { month: "long", day: "numeric" })} – ${weekEndObj.toLocaleDateString("en-NG", { month: "long", day: "numeric", year: "numeric" })}`;
 
-  const bg      = darkMode ? palette.bgDark : palette.bgLight;
-  const cardBg  = darkMode ? "rgba(255,255,255,0.05)" : "#ffffff";
-  const cardBdr = darkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)";
-  const textMain = darkMode ? "#f1f5f9" : "#0f172a";
-  const textSub  = darkMode ? "#94a3b8" : "#475569";
-  const textDim  = darkMode ? "#64748b" : "#94a3b8";
-  const todayCardBg  = darkMode ? `${palette.accent}18` : `${palette.accent}12`;
-  const todayCardBdr = `${palette.accent}50`;
+  // Always use light palette for print — dark backgrounds get stripped by browsers,
+  // which would leave light text invisible on white paper.
+  const bg       = "#f8fafc";
+  const cardBg   = "#ffffff";
+  const cardBdr  = "rgba(0,0,0,0.09)";
+  const textMain = "#0f172a";
+  const textSub  = "#475569";
+  const textDim  = "#94a3b8";
+  const todayCardBg  = `${palette.accent}14`;
+  const todayCardBdr = `${palette.accent}60`;
 
   const dayCards = plan.days.map((day, i) => {
     const isToday = day.date === today;
@@ -689,6 +691,8 @@ function buildPrintHTML(plan: WeekPlan, today: string, firstName: string, palett
       color:${textMain};
       padding:20px;
       min-height:100vh;
+      -webkit-print-color-adjust:exact;
+      print-color-adjust:exact;
     }
 
     /* ── Page header ── */

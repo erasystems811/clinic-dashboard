@@ -131,16 +131,21 @@ export default function ChatPage() {
     }
   }
 
-  const pageStyle = { background: "var(--bg-base)" } as const;
+  const rootStyle: React.CSSProperties = {
+    position: "fixed", inset: 0,
+    background: "var(--bg-base)",
+    display: "flex", flexDirection: "column",
+    overflow: "hidden",
+  };
 
   if (isLoading) return (
-    <div style={pageStyle} className="flex items-center justify-center">
+    <div style={{ ...rootStyle, alignItems: "center", justifyContent: "center" }}>
       <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   return (
-    <div style={{ ...pageStyle, display: "flex", flexDirection: "column", height: "calc(100% - 80px)", overflow: "hidden" }}>
+    <div style={rootStyle}>
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-card shrink-0">
         <button onClick={() => navigate("/companion")} className="flex items-center gap-1.5 text-muted-foreground -ml-1">
@@ -231,9 +236,9 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
+      {/* Input — paddingBottom lifts textarea above keyboard on iOS */}
       <div className="px-4 py-3 border-t border-border bg-card shrink-0 safe-bottom"
-        style={keyboardInset > 0 ? { paddingBottom: 12 + keyboardInset } : undefined}>
+        style={keyboardInset > 0 ? { paddingBottom: keyboardInset } : undefined}>
         <div className="flex gap-2 items-end">
           <textarea
             ref={textareaRef}

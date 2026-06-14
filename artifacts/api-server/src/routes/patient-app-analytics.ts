@@ -5,10 +5,10 @@ import { getPatientFromRequest } from "../lib/patient-auth.js";
 
 const router = Router();
 
-// ── POST /api/patient-app/track — fire-and-forget page view ─────────────────
+// ── POST /api/patient-app/track — page view tracker ──────────────────────────
 // No auth required. Called on every route change in the ERA patient app.
 router.post("/patient-app/track", async (req, res) => {
-  // Always respond immediately — tracking must never slow the app
+  // Respond immediately so the client is never blocked
   res.json({ ok: true });
   try {
     const body = z.object({
@@ -19,13 +19,17 @@ router.post("/patient-app/track", async (req, res) => {
 
     const patient = await getPatientFromRequest(req).catch(() => null);
 
-    void supabase.from("era_patient_analytics").insert({
+    const { error } = await supabase.from("era_patient_analytics").insert({
       patient_id:  patient?.id ?? null,
       session_id:  body.sessionId,
       route:       body.route,
       device_type: body.deviceType ?? "unknown",
     });
-  } catch { /* ignore */ }
+
+    if (error) console.error("[analytics:track]", error.code, error.message);
+  } catch (e) {
+    console.error("[analytics:track]", e instanceof Error ? e.message : e);
+  }
 });
 
 // ── POST /api/patient-app/feedback — submit in-app feedback ─────────────────

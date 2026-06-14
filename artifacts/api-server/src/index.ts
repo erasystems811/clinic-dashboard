@@ -452,7 +452,60 @@ app.listen(port, (err) => {
   migrateAccountabilityGroupsTables();
   migrateRagSearchFunction();
   migrateIntimacyTables();
+  migrateEraAnalyticsTables();
 });
+
+async function migrateEraAnalyticsTables() {
+  const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!projectRef || !token) {
+    logger.warn("[migration] SUPABASE_ACCESS_TOKEN not set — skipping era analytics tables migration");
+    return;
+  }
+  const sql = `
+    CREATE TABLE IF NOT EXISTS era_patient_analytics (
+      id          BIGSERIAL PRIMARY KEY,
+      patient_id  INTEGER REFERENCES patient_accounts(id) ON DELETE SET NULL,
+      session_id  TEXT NOT NULL,
+      route       TEXT NOT NULL,
+      device_type TEXT NOT NULL DEFAULT 'unknown',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_era_patient_analytics_patient ON era_patient_analytics(patient_id);
+    CREATE INDEX IF NOT EXISTS idx_era_patient_analytics_created ON era_patient_analytics(created_at);
+    CREATE INDEX IF NOT EXISTS idx_era_patient_analytics_route   ON era_patient_analytics(route, created_at);
+
+    CREATE TABLE IF NOT EXISTS era_patient_feedback (
+      id         BIGSERIAL PRIMARY KEY,
+      patient_id INTEGER REFERENCES patient_accounts(id) ON DELETE SET NULL,
+      username   TEXT,
+      rating     INTEGER CHECK (rating >= 1 AND rating <= 5),
+      category   TEXT NOT NULL DEFAULT 'general',
+      message    TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_era_patient_feedback_created ON era_patient_feedback(created_at);
+
+    ALTER TABLE feedback_broadcast DROP CONSTRAINT IF EXISTS feedback_broadcast_id_check;
+
+    -- Disable RLS so service-role inserts always work
+    ALTER TABLE era_patient_analytics DISABLE ROW LEVEL SECURITY;
+    ALTER TABLE era_patient_feedback  DISABLE ROW LEVEL SECURITY;
+
+    NOTIFY pgrst, 'reload schema';
+  `;
+  try {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (resp.ok) logger.info("[migration] ERA analytics tables ready + schema reloaded");
+    else logger.warn({ body: await resp.text() }, "[migration] ERA analytics tables migration failed (non-fatal)");
+  } catch (err) {
+    logger.warn({ err }, "[migration] ERA analytics tables migration error (non-fatal)");
+  }
+}
 
 async function migrateRagSearchFunction() {
   const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];

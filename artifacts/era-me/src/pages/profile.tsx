@@ -162,12 +162,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mt-1">
-          <Crown style={{ width: 14, height: 14, color: isPremium ? "#fbbf24" : "var(--text-dim)" }} />
-          <p style={{ fontSize: 12, fontWeight: 600, color: isPremium ? "#fbbf24" : "var(--text-dim)" }}>
-            {isPremium ? "Premium Member" : "Free Plan"}
-          </p>
-        </div>
       </div>
 
 

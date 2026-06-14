@@ -170,19 +170,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Premium upsell */}
-      {!isPremium && (
-        <Link href="/pricing">
-          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-4 flex items-center gap-3 mb-4 cursor-pointer active:scale-[0.98] transition">
-            <Crown className="w-6 h-6 text-white shrink-0" />
-            <div className="flex-1">
-              <p className="text-white font-semibold text-sm">Upgrade to ERA Premium</p>
-              <p className="text-white/80 text-xs">From ₦3,500/month</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-white/80 shrink-0" />
-          </div>
-        </Link>
-      )}
 
       {/* Theme + appearance */}
       <div className="mb-4">

@@ -65,4 +65,26 @@ router.post("/system-feedback/broadcast", requireSuperAdmin, async (_req, res) =
   res.json({ ok: true, triggeredAt: now });
 });
 
+// ── Patient app feedback broadcast ───────────────────────────────────────────
+
+// Public — ERA-me app polls this to detect when superadmin pushed a nudge
+router.get("/patient-app/feedback-broadcast", async (_req, res) => {
+  const { data } = await supabase
+    .from("feedback_broadcast")
+    .select("triggered_at")
+    .eq("id", 2)
+    .single();
+  res.json({ triggeredAt: (data?.triggered_at as string | null) ?? null });
+});
+
+// Super admin — push feedback nudge to all patient app users immediately
+router.post("/super-admin/patient-feedback/broadcast", requireSuperAdmin, async (_req, res) => {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("feedback_broadcast")
+    .upsert({ id: 2, triggered_at: now }, { onConflict: "id" });
+  if (error) { res.status(500).json({ error: "Failed to set broadcast" }); return; }
+  res.json({ ok: true, triggeredAt: now });
+});
+
 export default router;

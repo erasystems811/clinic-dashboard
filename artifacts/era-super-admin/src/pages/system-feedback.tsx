@@ -5,6 +5,7 @@ import { Star, Loader2, RefreshCw, MessageSquare, AlertCircle, Send } from "luci
 import { formatDistanceToNow, parseISO, isThisMonth } from "date-fns";
 
 type BroadcastState = "idle" | "confirming" | "sending" | "sent" | "error";
+type PatientBroadcastState = "idle" | "confirming" | "sending" | "sent" | "error";
 
 interface FeedbackEntry {
   id: number;
@@ -60,6 +61,8 @@ export default function SystemFeedbackPage() {
   const [error, setError] = useState("");
   const [broadcastState, setBroadcastState] = useState<BroadcastState>("idle");
   const [broadcastMsg, setBroadcastMsg] = useState("");
+  const [patientBroadcastState, setPatientBroadcastState] = useState<PatientBroadcastState>("idle");
+  const [patientBroadcastMsg, setPatientBroadcastMsg] = useState("");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -79,13 +82,27 @@ export default function SystemFeedbackPage() {
     setBroadcastState("sending");
     try {
       await post("/system-feedback/broadcast", {});
-      setBroadcastMsg("Popup queued — all logged-in users will see it within 5 minutes.");
+      setBroadcastMsg("Popup queued — all logged-in hospital users will see it within 5 minutes.");
       setBroadcastState("sent");
     } catch (e: unknown) {
       setBroadcastMsg(e instanceof Error ? e.message : "Failed to send");
       setBroadcastState("error");
     } finally {
       setTimeout(() => { setBroadcastState("idle"); setBroadcastMsg(""); }, 6000);
+    }
+  };
+
+  const handlePatientBroadcast = async () => {
+    setPatientBroadcastState("sending");
+    try {
+      await post("/super-admin/patient-feedback/broadcast", {});
+      setPatientBroadcastMsg("Nudge queued — ERA-me app users will see it on next app open.");
+      setPatientBroadcastState("sent");
+    } catch (e: unknown) {
+      setPatientBroadcastMsg(e instanceof Error ? e.message : "Failed to send");
+      setPatientBroadcastState("error");
+    } finally {
+      setTimeout(() => { setPatientBroadcastState("idle"); setPatientBroadcastMsg(""); }, 6000);
     }
   };
 
@@ -111,7 +128,7 @@ export default function SystemFeedbackPage() {
           <h1 className="text-2xl font-bold text-foreground tracking-tight">System Feedback</h1>
           <p className="text-sm text-muted-foreground mt-1">Ratings from hospital staff across all accounts</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           <button
             onClick={fetchData}
             disabled={loading}
@@ -121,40 +138,47 @@ export default function SystemFeedbackPage() {
             Refresh
           </button>
 
+          {/* Hospital staff broadcast */}
           {broadcastState === "confirming" ? (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card text-xs">
-              <span className="text-muted-foreground">Send to all now?</span>
-              <button
-                onClick={handleBroadcast}
-                className="font-semibold text-primary hover:opacity-80 transition-opacity"
-              >
-                Yes
-              </button>
-              <button
-                onClick={() => setBroadcastState("idle")}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Cancel
-              </button>
+              <span className="text-muted-foreground">Push to hospitals?</span>
+              <button onClick={handleBroadcast} className="font-semibold text-primary hover:opacity-80 transition-opacity">Yes</button>
+              <button onClick={() => setBroadcastState("idle")} className="text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
             </div>
           ) : (
             <button
               onClick={() => broadcastState === "idle" && setBroadcastState("confirming")}
               disabled={broadcastState === "sending"}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                broadcastState === "sent"
-                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                  : broadcastState === "error"
-                  ? "border-red-500/30 bg-red-500/10 text-red-400"
-                  : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
+                broadcastState === "sent" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                : broadcastState === "error" ? "border-red-500/30 bg-red-500/10 text-red-400"
+                : "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
               } disabled:opacity-50`}
             >
-              {broadcastState === "sending" ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Send className="w-3.5 h-3.5" />
-              )}
-              {broadcastState === "sent" ? "Sent!" : broadcastState === "error" ? "Failed" : "Push to all hospitals"}
+              {broadcastState === "sending" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {broadcastState === "sent" ? "Sent!" : broadcastState === "error" ? "Failed" : "Push to hospitals"}
+            </button>
+          )}
+
+          {/* Patient app broadcast */}
+          {patientBroadcastState === "confirming" ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card text-xs">
+              <span className="text-muted-foreground">Push to ERA-me users?</span>
+              <button onClick={handlePatientBroadcast} className="font-semibold text-violet-400 hover:opacity-80 transition-opacity">Yes</button>
+              <button onClick={() => setPatientBroadcastState("idle")} className="text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => patientBroadcastState === "idle" && setPatientBroadcastState("confirming")}
+              disabled={patientBroadcastState === "sending"}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                patientBroadcastState === "sent" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                : patientBroadcastState === "error" ? "border-red-500/30 bg-red-500/10 text-red-400"
+                : "border-violet-500/30 bg-violet-500/10 text-violet-400 hover:bg-violet-500/15"
+              } disabled:opacity-50`}
+            >
+              {patientBroadcastState === "sending" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {patientBroadcastState === "sent" ? "Sent!" : patientBroadcastState === "error" ? "Failed" : "Push to ERA-me users"}
             </button>
           )}
         </div>
@@ -168,6 +192,17 @@ export default function SystemFeedbackPage() {
         }`}>
           <AlertCircle className="w-4 h-4 shrink-0" />
           {broadcastMsg}
+        </div>
+      )}
+
+      {patientBroadcastMsg && (
+        <div className={`flex items-center gap-2 text-sm mb-4 p-3 rounded-lg border ${
+          patientBroadcastState === "error"
+            ? "text-red-400 bg-red-500/10 border-red-500/20"
+            : "text-violet-400 bg-violet-500/10 border-violet-500/20"
+        }`}>
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {patientBroadcastMsg}
         </div>
       )}
 

@@ -5,11 +5,10 @@ const SESSIONS_KEY    = "era_nudge_sessions";
 const LAST_SHOWN_KEY  = "era_nudge_last_shown";
 const SESSION_COUNTED = "era_nudge_counted";   // sessionStorage — clears on tab close
 
-const MIN_SESSIONS   = 3;   // show after the 3rd app open
-const REPEAT_DAYS    = 21;  // then every 21 days
+const MIN_SESSIONS   = 3;
+const REPEAT_DAYS    = 21;
 
 function getSessionCount(): number {
-  // sessionStorage clears when the tab/PWA is closed → counts once per open
   if (!sessionStorage.getItem(SESSION_COUNTED)) {
     sessionStorage.setItem(SESSION_COUNTED, "1");
     const next = parseInt(localStorage.getItem(SESSIONS_KEY) ?? "0", 10) + 1;
@@ -19,15 +18,17 @@ function getSessionCount(): number {
   return parseInt(localStorage.getItem(SESSIONS_KEY) ?? "0", 10);
 }
 
-function shouldShow(): boolean {
+function lastShownDate(): Date | null {
+  const raw = localStorage.getItem(LAST_SHOWN_KEY);
+  return raw ? new Date(raw) : null;
+}
+
+function shouldShowOrganic(): boolean {
   const sessions = getSessionCount();
   if (sessions < MIN_SESSIONS) return false;
-
-  const raw = localStorage.getItem(LAST_SHOWN_KEY);
-  if (!raw) return true;
-
-  const daysSince = (Date.now() - new Date(raw).getTime()) / 86_400_000;
-  return daysSince >= REPEAT_DAYS;
+  const last = lastShownDate();
+  if (!last) return true;
+  return (Date.now() - last.getTime()) / 86_400_000 >= REPEAT_DAYS;
 }
 
 function recordShown() {
@@ -46,11 +47,28 @@ export function FeedbackNudge() {
     if (checked.current) return;
     checked.current = true;
 
-    if (!shouldShow()) return;
+    // Check server broadcast first (superadmin manual trigger bypasses the 21-day wait)
+    void (async () => {
+      try {
+        const res = await fetch("/api/patient-app/feedback-broadcast");
+        if (res.ok) {
+          const { triggeredAt } = await res.json() as { triggeredAt: string | null };
+          if (triggeredAt) {
+            const last = lastShownDate();
+            const broadcastIsNewer = !last || new Date(triggeredAt) > last;
+            if (broadcastIsNewer) {
+              setTimeout(() => setVisible(true), 3000);
+              return;
+            }
+          }
+        }
+      } catch { /* fall through to organic check */ }
 
-    // Delay so it doesn't pop up the instant the page loads
-    const t = setTimeout(() => setVisible(true), 5000);
-    return () => clearTimeout(t);
+      // Organic: show after MIN_SESSIONS opens, then every REPEAT_DAYS
+      if (shouldShowOrganic()) {
+        setTimeout(() => setVisible(true), 5000);
+      }
+    })();
   }, []);
 
   function dismiss() {

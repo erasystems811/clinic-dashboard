@@ -53,4 +53,15 @@ router.post("/patient-app/feedback", async (req, res) => {
   }
 });
 
+// ── GET /api/patient-app/feedback-broadcast — client polls to detect manual nudge ──
+// Public (no auth needed). Returns the last time superadmin pushed the nudge.
+router.get("/patient-app/feedback-broadcast", async (_req, res) => {
+  const { data } = await supabase
+    .from("feedback_broadcast")
+    .select("triggered_at")
+    .eq("id", 2)
+    .single();
+  res.json({ triggeredAt: (data?.triggered_at as string | null) ?? null });
+});
+
 export default router;

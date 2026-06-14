@@ -277,7 +277,7 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       const times: string[] = (enabledMap["water"].reminderTimes as string[])?.length
         ? (enabledMap["water"].reminderTimes as string[])
         : ["08:00"];
-      items.push({ moduleType: "water", emoji: "💧", label: "Water intake", sub: wNotes ?? `Goal: ${target} cups today`, time: times[0] });
+      items.push({ moduleType: "water", emoji: "💧", label: "Water intake", sub: wNotes ?? `${target} cups`, time: times[0] });
     }
 
     // Outdoors — afternoon
@@ -285,7 +285,7 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       const oNotes = enabledMap["outdoors"].notes as string | undefined;
       const oTarget = (enabledMap["outdoors"].targetMinutes as number) ?? 30;
       const oTime = (oNotes && parseTimeHint(oNotes)) ?? "16:00";
-      items.push({ moduleType: "outdoors", emoji: "🌿", label: "Outdoor time", sub: oNotes ?? `Goal: ${oTarget} min`, time: oTime });
+      items.push({ moduleType: "outdoors", emoji: "🌿", label: "Outdoor time", sub: oNotes ?? `${oTarget} min`, time: oTime });
     }
 
     return { date, dayKey, dayLabel, items: sortItems(items) };

@@ -591,8 +591,9 @@ function TaskCell({ items, isToday }: { items: PlanItem[]; isToday: boolean }) {
         const accent = MODULE_ACCENT[item.moduleType] ?? "var(--accent)";
         return (
           <Link key={j} href={moduleHref(item.moduleType)}>
-            <div style={{ display: "inline-block", width: "100%", fontSize: 10, fontWeight: 700, lineHeight: 1.3, color: isToday ? "var(--text-main)" : "var(--text-sub)", padding: "3px 2px", borderRadius: 6, borderLeft: `3px solid ${accent}`, background: isToday ? `${accent}15` : `${accent}08`, textAlign: "left", paddingLeft: 5, cursor: "pointer", marginBottom: j < items.length - 1 ? 3 : 0 }}>
-              {item.label}
+            <div style={{ display: "inline-block", width: "100%", lineHeight: 1.3, padding: "4px 5px", borderRadius: 6, borderLeft: `3px solid ${accent}`, background: isToday ? `${accent}15` : `${accent}08`, textAlign: "left", cursor: "pointer", marginBottom: j < items.length - 1 ? 3 : 0 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: isToday ? "var(--text-main)" : "var(--text-sub)", margin: 0 }}>{item.emoji} {item.label}</p>
+              {item.sub && <p style={{ fontSize: 9, color: isToday ? "var(--text-sub)" : "var(--text-dim)", margin: "1px 0 0", fontWeight: 500 }}>{item.sub}</p>}
             </div>
           </Link>
         );

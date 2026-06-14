@@ -713,10 +713,9 @@ function SourceSplitView({ data, navigate }: {
   const today = todayStr();
   const carePlans    = data?.carePlans    ?? [];
   const returnVisits = data?.returnVisits ?? [];
-  const hospitalMods = data?.hospitalModules ?? [];
   const myMods       = data?.myModules ?? [];
 
-  const hasHospital = carePlans.length > 0 || returnVisits.length > 0 || hospitalMods.length > 0;
+  const hasHospital = carePlans.length > 0 || returnVisits.length > 0;
 
   return (
     <div className="space-y-6">
@@ -786,16 +785,6 @@ function SourceSplitView({ data, navigate }: {
                 </>
               )}
 
-              {/* Hospital-prescribed daily habits */}
-              {hospitalMods.length > 0 && (
-                <>
-                  {(carePlans.length > 0 || returnVisits.length > 0) && <Divider />}
-                  <SubHeading label="Daily Tasks (set by hospital)" />
-                  {hospitalMods.map((m) => (
-                    <PlanRow key={m.moduleType} left={`${m.emoji}  ${m.label}`} right={m.hospitalName} />
-                  ))}
-                </>
-              )}
             </>
           )}
         </div>

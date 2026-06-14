@@ -90,7 +90,7 @@ export default function HomePage() {
   const [, navigate] = useLocation();
   const displayName = account?.displayName ?? account?.username ?? "there";
 
-  const { data: todayData } = useWellnessToday() as { data: TodayData | undefined };
+  const { data: todayData, isLoading: todayLoading } = useWellnessToday() as { data: TodayData | undefined; isLoading: boolean };
   const { data: summary } = useWeekSummary();
   const quickLog = useQuickLog();
   const { data: hospitals } = useMyHospitals();
@@ -224,6 +224,7 @@ export default function HomePage() {
           navigate={navigate}
           hospitalName={primaryHospital?.hospitalName}
           todayReturnVisits={todayVisits}
+          isLoaded={!todayLoading}
         />
 
       </div>
@@ -478,17 +479,31 @@ function ProgressWidgets({ mods, checklist, navigate }: {
   );
 }
 
-function CarePlanSection({ items, mods, quickLog, navigate, hospitalName, todayReturnVisits }: {
+function CarePlanSection({ items, mods, quickLog, navigate, hospitalName, todayReturnVisits, isLoaded }: {
   items: ChecklistItem[];
   mods: Record<string, ModuleEntry | undefined>;
   quickLog: ReturnType<typeof useQuickLog>;
   navigate: (path: string) => void;
   hospitalName?: string;
   todayReturnVisits?: Array<{ visitDate: string; visitTime: string | null; reason: string; hospitalName: string | null }>;
+  isLoaded?: boolean;
 }) {
   const doneCount = items.filter(c => c.done).length;
   const total = items.length;
   const completionPct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  if (!isLoaded) {
+    return (
+      <div className="rounded-2xl p-4 space-y-3" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+        {[1, 2, 3].map(i => (
+          <div key={i} className="flex items-center gap-3">
+            <div className="w-5 h-5 rounded-full shrink-0" style={{ background: "var(--glass-border)" }} />
+            <div className="flex-1 h-4 rounded-lg" style={{ background: "var(--glass-border)", opacity: 0.6 - i * 0.1 }} />
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   if (total === 0) {
     return (

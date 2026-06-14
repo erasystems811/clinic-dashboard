@@ -48,8 +48,8 @@ export function useWellnessWeek(type: string) {
   return useQuery({ queryKey: ["wellness", "week", type], queryFn: () => get<WeekLog[]>(`${BASE}/week/${type}`) });
 }
 
-export function useWellnessStreak(type: string) {
-  return useQuery({ queryKey: ["wellness", "streak", type], queryFn: () => get<{ streak: number }>(`${BASE}/streak/${type}`) });
+export function useWellnessStreak(type: string, options?: { enabled?: boolean }) {
+  return useQuery({ queryKey: ["wellness", "streak", type], queryFn: () => get<{ streak: number }>(`${BASE}/streak/${type}`), enabled: options?.enabled ?? true });
 }
 
 export interface WeeklyReportDay { date: string; completed: boolean }

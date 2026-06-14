@@ -52,10 +52,10 @@ async function getWellnessContext(accountId: number): Promise<string> {
     const twoWeeksAgo = new Date(); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 13);
     const fromDate = twoWeeksAgo.toISOString().split("T")[0];
 
-    const DAILY_TYPES = ["water","medications","workout","sleep","mood_check","fruit","vitals","eyebreak","sunscreen","outdoors"];
+    const DAILY_TYPES = ["water","medications","workout","fruit","vitals","eyebreak","sunscreen","outdoors"];
     const MODULE_LABELS: Record<string, string> = {
-      water:"water intake", medications:"medications", workout:"workouts", sleep:"sleep",
-      mood_check:"mood check-ins", fruit:"eating fruit", vitals:"vitals", eyebreak:"eye breaks",
+      water:"water intake", medications:"medications", workout:"workouts",
+      fruit:"eating fruit", vitals:"vitals", eyebreak:"eye breaks",
       sunscreen:"sunscreen", outdoors:"outdoor time",
     };
 
@@ -145,14 +145,10 @@ Rules:
 
 function buildSystemPrompt(
   name: string, age: number | null, isBirthday: boolean,
-  personality: Record<string, unknown>, recentMoods: number[],
+  personality: Record<string, unknown>,
   wellnessContext?: string,
   ragContext?: string
 ): string {
-  const moodLabels = ["", "very sad", "down", "neutral", "good", "great"];
-  const moodSummary = recentMoods.length
-    ? `Recent moods (last ${recentMoods.length} days): ${recentMoods.map((m) => moodLabels[m] ?? m).join(", ")}`
-    : "No mood data yet.";
 
   const companionName = personality._companionName as string | undefined;
   const companionPersona = personality._companionPersona as Record<string, unknown> | undefined;
@@ -195,7 +191,6 @@ ${birthdaySection}
 
 ${personalitySection}
 
-${moodSummary}
 ${wellnessSection}
 
 How you show up:
@@ -458,12 +453,9 @@ router.post("/patient-app/companion/conversation", async (req, res): Promise<voi
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const [accountInfo, settings, recentMoodLogs, wellnessCtx, ragCtx] = await Promise.all([
+  const [accountInfo, settings, wellnessCtx, ragCtx] = await Promise.all([
     getAccountInfo(account.id),
     getOrCreateSettings(account.id),
-    supabase.from("wellness_logs").select("data").eq("account_id", account.id)
-      .eq("module_type", "mood_check").gte("log_date", (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0]; })())
-      .order("log_date", { ascending: false }).limit(7),
     getWellnessContext(account.id),
     buildRagContext("emotional wellbeing mental health support", "psychology"),
   ]);
@@ -473,8 +465,7 @@ router.post("/patient-app/companion/conversation", async (req, res): Promise<voi
   const age = calcAge(dob);
   const birthday = isBirthdayToday(dob);
   const personality = (settings?.personality as Record<string, unknown>) ?? {};
-  const recentMoods = (recentMoodLogs.data ?? []).map((l) => (l.data as Record<string, number>).mood).filter(Boolean);
-  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods, wellnessCtx, ragCtx);
+  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, wellnessCtx, ragCtx);
 
   // Create entry row
   const { data: entry, error: entryErr } = await supabase.from("diary_entries").insert({
@@ -532,12 +523,9 @@ router.post("/patient-app/companion/entries/:id/chat", async (req, res): Promise
   const { data: history } = await supabase
     .from("diary_messages").select("role, content").eq("entry_id", entry.id).order("created_at", { ascending: true });
 
-  const [accountInfo, settings, recentMoodLogs, wellnessCtx, ragCtx] = await Promise.all([
+  const [accountInfo, settings, wellnessCtx, ragCtx] = await Promise.all([
     getAccountInfo(account.id),
     getOrCreateSettings(account.id),
-    supabase.from("wellness_logs").select("data").eq("account_id", account.id)
-      .eq("module_type", "mood_check").gte("log_date", (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().split("T")[0]; })())
-      .limit(7),
     getWellnessContext(account.id),
     buildRagContext(String(message), "psychology"),
   ]);
@@ -547,8 +535,7 @@ router.post("/patient-app/companion/entries/:id/chat", async (req, res): Promise
   const age = calcAge(dob);
   const birthday = isBirthdayToday(dob);
   const personality = (settings?.personality as Record<string, unknown>) ?? {};
-  const recentMoods = (recentMoodLogs.data ?? []).map((l) => (l.data as Record<string, number>).mood).filter(Boolean);
-  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, recentMoods, wellnessCtx, ragCtx);
+  const systemPrompt = buildSystemPrompt(name, age, birthday, personality, wellnessCtx, ragCtx);
 
   // Build messages array for API
   const msgs: { role: "user" | "assistant"; content: string }[] = [

@@ -99,7 +99,7 @@ export default function WomensHealthPage() {
 
   if (cycleLoading || pregLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center" style={{ minHeight: "60vh" }}>
         <div className="w-7 h-7 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
       </div>
     );
@@ -174,7 +174,7 @@ function SetupFlow() {
   const setupPregnancy = useSetupPregnancy();
 
   if (step === "pick") return (
-    <div className="px-4 pt-8 flex flex-col min-h-screen">
+    <div className="px-4 pt-8 flex flex-col">
       <button onClick={() => navigate("/")} className="self-start p-2 rounded-xl mb-6"
         style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         <ArrowLeft style={{ width: 18, height: 18, color: "var(--text-main)" }} />

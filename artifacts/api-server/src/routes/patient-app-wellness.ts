@@ -7,21 +7,19 @@ import { getWeekStart, type WeekPlan } from "./patient-app-plan.js";
 const router: IRouter = Router();
 
 const VALID_TYPES = [
-  "water", "medications", "workout", "sleep", "mood_check", "fruit",
+  "water", "medications", "workout", "fruit",
   "vitals", "smoking", "alcohol", "eyebreak", "sunscreen", "outdoors",
   "vaccines", "checkups", "hygiene", "intimacy", "hospital_visit",
 ];
 // Daily habit modules — shown in checklist and used for week summary
 const DAILY_HABIT_TYPES = [
-  "water", "medications", "workout", "sleep", "mood_check", "fruit",
+  "water", "medications", "workout", "fruit",
   "vitals", "eyebreak", "sunscreen", "outdoors", "smoking", "alcohol", "intimacy",
 ];
 const MODULE_META: Record<string, { label: string; emoji: string }> = {
   water:      { label: "Water intake",   emoji: "💧" },
   medications:{ label: "Medications",    emoji: "💊" },
   workout:    { label: "Workout",        emoji: "🏃" },
-  sleep:      { label: "Sleep log",      emoji: "😴" },
-  mood_check: { label: "Daily check-in", emoji: "😊" },
   fruit:      { label: "Eat fruit",      emoji: "🍎" },
   vitals:     { label: "Vitals",         emoji: "❤️" },
   eyebreak:   { label: "Eye breaks",     emoji: "👁️" },
@@ -49,8 +47,6 @@ export function isModuleCompleted(
   }
   if (type === "fruit") return log.done === true;
   if (type === "sunscreen") return ((log.count as number) ?? 0) >= ((settings.target as number) ?? 2);
-  if (type === "sleep") return !!(log.bedtime && log.wakeTime);
-  if (type === "mood_check") return !!(log.mood && log.energy && log.stress);
   if (type === "vitals") return !!(log.systolic || log.glucose || log.weight);
   if (type === "outdoors") return ((log.minutes as number) ?? 0) >= ((settings.target as number) ?? 30);
   if (type === "workout") {
@@ -125,16 +121,6 @@ function checklistSub(type: string, log: Record<string, unknown>, settings: Reco
     const total = meds.reduce((a, m) => a + (m.times as string[]).length, 0);
     const done  = meds.reduce((a, m) => a + (m.times as string[]).filter((t) => taken[`${m.id}_${t}`]).length, 0);
     return total > 0 ? `${done} / ${total} doses taken` : undefined;
-  }
-  if (type === "sleep") {
-    if (log.bedtime && log.wakeTime) {
-      return `${log.bedtime as string} → ${log.wakeTime as string}`;
-    }
-    return "Log last night's sleep";
-  }
-  if (type === "mood_check") {
-    if (!log.mood) return "Mood, energy & stress";
-    return undefined;
   }
   if (type === "sunscreen") {
     const count = (log.count as number) ?? 0;
@@ -395,7 +381,7 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
 
       const meta = MODULE_META[type];
       const done = isModuleCompleted(type, log ?? undefined, settings, today);
-      const sub = log ? checklistSub(type, log, settings, today) : (type === "sleep" ? "Log last night's sleep" : type === "mood_check" ? "Mood, energy & stress" : undefined);
+      const sub = log ? checklistSub(type, log, settings, today) : undefined;
       const typePb = mod.prescribedBy;
       checklist.push({ id: type, emoji: meta.emoji, label: meta.label, sub, done, ...(typePb ? { prescribedBy: typePb } : {}) });
     }
@@ -524,8 +510,6 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       water:      { enabled: moduleMap["water"]?.enabled ?? false,      settings: moduleMap["water"]?.settings ?? {},      log: logMap["water"] ?? null },
       medications:{ enabled: moduleMap["medications"]?.enabled ?? false, settings: moduleMap["medications"]?.settings ?? {}, log: logMap["medications"] ?? null },
       workout:    { enabled: moduleMap["workout"]?.enabled ?? false,     settings: moduleMap["workout"]?.settings ?? {},    log: logMap["workout"] ?? null, todayPlan: todayWorkout?.enabled ? todayWorkout : null },
-      sleep:      { enabled: moduleMap["sleep"]?.enabled ?? false,       settings: moduleMap["sleep"]?.settings ?? {},      log: logMap["sleep"] ?? null },
-      mood_check: { enabled: moduleMap["mood_check"]?.enabled ?? false,  log: logMap["mood_check"] ?? null },
       fruit:      { enabled: moduleMap["fruit"]?.enabled ?? false,       settings: moduleMap["fruit"]?.settings ?? {},      log: logMap["fruit"] ?? null },
     },
   });
@@ -595,22 +579,11 @@ router.get("/patient-app/wellness/week-summary", async (req, res): Promise<void>
     moduleStats.push({ type, label: MODULE_META[type].label, emoji: MODULE_META[type].emoji, completedDays, days });
   }
 
-  // Mood average from mood_check logs
-  let moodAvg: { mood: number; energy: number; stress: number } | null = null;
-  const moodLogs = Object.values(logIndex["mood_check"] ?? {});
-  if (moodLogs.length > 0) {
-    const sum = moodLogs.reduce<{ mood: number; energy: number; stress: number }>(
-      (a, l) => ({ mood: a.mood + ((l.mood as number) ?? 0), energy: a.energy + ((l.energy as number) ?? 0), stress: a.stress + ((l.stress as number) ?? 0) }),
-      { mood: 0, energy: 0, stress: 0 }
-    );
-    moodAvg = { mood: Math.round((sum.mood / moodLogs.length) * 10) / 10, energy: Math.round((sum.energy / moodLogs.length) * 10) / 10, stress: Math.round((sum.stress / moodLogs.length) * 10) / 10 };
-  }
-
   res.json({
     weekStart: weekDates[0],
     weekEnd: weekDates[6],
     moduleStats,
-    moodAvg,
+    moodAvg: null,
     overallRate: totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0,
     totalCompleted,
     totalPossible,

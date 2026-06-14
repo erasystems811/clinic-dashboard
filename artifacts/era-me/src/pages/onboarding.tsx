@@ -6,11 +6,9 @@ import { apiFetch } from "@/lib/api";
 
 const GOALS = [
   { id: "stay_hydrated", emoji: "💧", label: "Stay hydrated",     accent: "#38bdf8" },
-  { id: "sleep_better",  emoji: "😴", label: "Sleep better",      accent: "#a78bfa" },
   { id: "exercise_more", emoji: "🏃", label: "Exercise regularly", accent: "#fb923c" },
   { id: "eat_healthier", emoji: "🍎", label: "Eat more fruit",     accent: "#4ade80" },
   { id: "manage_meds",   emoji: "💊", label: "Manage medications", accent: "#2dd4bf" },
-  { id: "reduce_stress", emoji: "🧘", label: "Reduce stress",      accent: "#c084fc" },
 ];
 
 const GENDERS = [

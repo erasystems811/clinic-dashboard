@@ -407,18 +407,14 @@ router.post("/patient-app/onboard", async (req, res): Promise<void> => {
   // Map goals → modules to enable
   const GOAL_MODULE: Record<string, string> = {
     stay_hydrated: "water",
-    sleep_better:  "sleep",
     exercise_more: "workout",
     eat_healthier: "fruit",
     manage_meds:   "medications",
-    reduce_stress: "stress",
   };
 
   // Build module list: always-on baseline + goal-based additions
   const modules = new Map<string, Record<string, unknown>>([
-    ["mood_check", {}],
-    ["energy",     {}],
-    ["water",      { target: 8 }],
+    ["water", { target: 8 }],
   ]);
 
   for (const goal of goals) {
@@ -426,13 +422,7 @@ router.post("/patient-app/onboard", async (req, res): Promise<void> => {
     if (!mod) continue;
     const settings: Record<string, unknown> = {};
     if (mod === "water") settings.target = 8;
-    if (mod === "sleep") { settings.wakeTime = wakeTime ?? "07:00"; settings.bedTime = bedTime ?? "23:00"; }
     modules.set(mod, settings);
-  }
-
-  // Update sleep settings even if goal not selected (always have schedule)
-  if (!modules.has("sleep") && (wakeTime || bedTime)) {
-    modules.set("sleep", { wakeTime: wakeTime ?? "07:00", bedTime: bedTime ?? "23:00" });
   }
 
   // Upsert all modules in parallel

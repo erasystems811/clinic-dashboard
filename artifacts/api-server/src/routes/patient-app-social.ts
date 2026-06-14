@@ -9,8 +9,6 @@ const DAILY_MODULES: Record<string, { label: string; emoji: string }> = {
   water:      { label: "Water",      emoji: "💧" },
   medications:{ label: "Medications",emoji: "💊" },
   workout:    { label: "Workout",    emoji: "🏃" },
-  sleep:      { label: "Sleep",      emoji: "😴" },
-  mood_check: { label: "Mood",       emoji: "😊" },
   fruit:      { label: "Fruit",      emoji: "🍎" },
   vitals:     { label: "Vitals",     emoji: "❤️" },
   eyebreak:   { label: "Eye Break",  emoji: "👁️" },
@@ -22,7 +20,6 @@ export const SHAREABLE_GOAL_MODULES = [
   { type: "water",     label: "Water",    emoji: "💧", unit: "cups",       defaultTarget: 8  },
   { type: "workout",   label: "Workout",  emoji: "🏃", unit: "sessions",   defaultTarget: 1  },
   { type: "fruit",     label: "Fruit",    emoji: "🍎", unit: "portions",   defaultTarget: 5  },
-  { type: "sleep",     label: "Sleep",    emoji: "😴", unit: "hrs sleep",  defaultTarget: 7  },
   { type: "outdoors",  label: "Outdoors", emoji: "🌿", unit: "minutes",    defaultTarget: 30 },
   { type: "sunscreen", label: "Sunscreen",emoji: "☀️", unit: "applications",defaultTarget: 2 },
 ];
@@ -35,8 +32,6 @@ function isLogCompleted(type: string, log: Record<string, unknown>, settings: Re
   if (type === "water") return ((log.cups as number) ?? 0) >= ((settings.target as number) ?? 8);
   if (type === "fruit") return log.done === true;
   if (type === "sunscreen") return ((log.count as number) ?? 0) >= ((settings.target as number) ?? 2);
-  if (type === "sleep") return !!(log.bedtime && log.wakeTime);
-  if (type === "mood_check") return !!(log.mood && log.energy && log.stress);
   if (type === "workout") return log.completed === true;
   if (type === "eyebreak") {
     const [sh, sm] = ((settings.startTime as string) ?? "09:00").split(":").map(Number);
@@ -55,7 +50,6 @@ function getModuleValue(type: string, log: Record<string, unknown>): number {
   if (type === "sunscreen") return (log.count as number) ?? 0;
   if (type === "fruit") return log.done ? 1 : 0;
   if (type === "workout") return log.completed ? 1 : 0;
-  if (type === "sleep") return (log.hoursSlept as number) ?? 0;
   if (type === "outdoors") return (log.minutes as number) ?? 0;
   if (type === "eyebreak") return (log.count as number) ?? 0;
   if (type === "medications") return Object.values((log.taken as Record<string, boolean>) ?? {}).filter((v) => v).length;

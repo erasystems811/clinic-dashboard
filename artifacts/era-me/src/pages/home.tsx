@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Bell, CheckCircle2, Circle, ChevronRight, MessageSquare, CalendarPlus } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate } from "@/lib/utils";
-import { useWellnessToday, useWeekSummary, useQuickLog } from "@/lib/wellness-api";
+import { useWellnessToday, useWeekSummary, useQuickLog, useWellnessStreak } from "@/lib/wellness-api";
 import { useMyHospitals, useUnreadCounts, useUnreadNotifCount } from "@/lib/hospitals-api";
 import { useReturnVisits, useCareSchedule, useWellnessUpcomingEvents } from "@/lib/return-visits-api";
 import { decodeGesture, useCompanionSettings } from "@/lib/companion-api";
@@ -26,8 +26,7 @@ interface QuickLogEntry { moduleType: string; data: Record<string, unknown> }
 
 const MODULE_ACCENT: Record<string, string> = {
   water: "#38bdf8", medications: "#14b8a6", workout: "#f97316",
-  sleep: "#8b5cf6", mood_check: "#fbbf24", energy: "#84cc16",
-  stress: "#a855f7", fruit: "#22c55e", vitals: "#ef4444",
+  fruit: "#22c55e", vitals: "#ef4444",
   smoking: "#64748b", alcohol: "#fbbf24", eyebreak: "#6366f1",
   sunscreen: "#eab308", outdoors: "#16a34a", hygiene: "#93c5fd",
   intimacy: "#fda4af", vaccines: "#a78bfa", checkups: "#22d3ee",
@@ -43,8 +42,6 @@ function baseModule(id: string): string {
 }
 
 function moduleHref(id: string): string {
-  if (id === "mood_check") return "/wellness/mood";
-  if (id === "energy" || id === "stress") return "/wellness/mood";
   const base = baseModule(id);
   if (base !== id) return `/wellness/${base}`;
   return `/wellness/${id}`;
@@ -215,6 +212,9 @@ export default function HomePage() {
         {primaryHospital && (
           <UpcomingEventsCard events={allUpcoming} navigate={navigate} />
         )}
+
+        {/* ── Progress widgets: water, smoking, alcohol ──────────────── */}
+        <ProgressWidgets mods={mods} checklist={checklist} navigate={navigate} />
 
         {/* ── Today's Care Plan ──────────────────────────────────────── */}
         <CarePlanSection
@@ -391,6 +391,72 @@ function UpcomingEventsCard({ events, navigate }: {
           View full plan →
         </button>
       </div>
+    </div>
+  );
+}
+
+function ProgressWidgets({ mods, checklist, navigate }: {
+  mods: Record<string, ModuleEntry | undefined>;
+  checklist: ChecklistItem[];
+  navigate: (path: string) => void;
+}) {
+  const waterEnabled   = mods.water?.enabled ?? false;
+  const smokingEnabled = checklist.some(c => c.id === "smoking");
+  const alcoholEnabled = checklist.some(c => c.id === "alcohol");
+
+  const { data: smokingStreak } = useWellnessStreak("smoking", { enabled: smokingEnabled });
+  const { data: alcoholStreak } = useWellnessStreak("alcohol", { enabled: alcoholEnabled });
+
+  if (!waterEnabled && !smokingEnabled && !alcoholEnabled) return null;
+
+  const waterLog   = mods.water?.log;
+  const cups       = (waterLog?.cups as number | undefined) ?? 0;
+  const target     = (mods.water?.settings?.target as number | undefined) ?? 8;
+  const waterPct   = Math.min(100, Math.round((cups / target) * 100));
+
+  const smokingLog = checklist.find(c => c.id === "smoking");
+  const alcoholLog = checklist.find(c => c.id === "alcohol");
+  const smokedToday  = smokingLog ? !smokingLog.done : null;
+  const drankToday   = alcoholLog ? !alcoholLog.done : null;
+
+  const goalType = (mods.alcohol?.settings?.goalType as string | undefined) ?? "quit";
+
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      {waterEnabled && (
+        <button onClick={() => navigate("/wellness/water")} className="active:scale-95 transition" style={{ flex: 1, background: "var(--glass-bg)", border: "1px solid var(--glass-border)", borderRadius: 16, padding: "10px 12px", textAlign: "left" }}>
+          <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>💧 Water</p>
+          <p style={{ fontSize: 18, fontWeight: 900, color: "#38bdf8", lineHeight: 1 }}>{cups}<span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>/{target}</span></p>
+          <p style={{ fontSize: 9, color: "var(--text-dim)", marginBottom: 5 }}>cups today</p>
+          <div style={{ height: 4, borderRadius: 2, background: "var(--glass-track)" }}>
+            <div style={{ height: 4, borderRadius: 2, width: `${waterPct}%`, background: "#38bdf8", transition: "width 0.3s" }} />
+          </div>
+        </button>
+      )}
+
+      {smokingEnabled && (
+        <button onClick={() => navigate("/wellness/smoking")} className="active:scale-95 transition" style={{ flex: 1, background: "var(--glass-bg)", border: `1px solid ${smokedToday ? "#ef444440" : "var(--glass-border)"}`, borderRadius: 16, padding: "10px 12px", textAlign: "left" }}>
+          <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>🚭 Smoking</p>
+          <p style={{ fontSize: 18, fontWeight: 900, color: smokedToday ? "#ef4444" : "#4ade80", lineHeight: 1 }}>
+            {smokingStreak?.streak ?? 0}<span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>d</span>
+          </p>
+          <p style={{ fontSize: 9, color: smokedToday ? "#ef4444" : "var(--text-dim)" }}>
+            {smokedToday ? "smoked today" : "smoke-free"}
+          </p>
+        </button>
+      )}
+
+      {alcoholEnabled && (
+        <button onClick={() => navigate("/wellness/alcohol")} className="active:scale-95 transition" style={{ flex: 1, background: "var(--glass-bg)", border: `1px solid ${drankToday && goalType === "quit" ? "#ef444440" : "var(--glass-border)"}`, borderRadius: 16, padding: "10px 12px", textAlign: "left" }}>
+          <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>🍷 Alcohol</p>
+          <p style={{ fontSize: 18, fontWeight: 900, color: drankToday && goalType === "quit" ? "#ef4444" : "#4ade80", lineHeight: 1 }}>
+            {alcoholStreak?.streak ?? 0}<span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>d</span>
+          </p>
+          <p style={{ fontSize: 9, color: drankToday && goalType === "quit" ? "#ef4444" : "var(--text-dim)" }}>
+            {goalType === "quit" ? (drankToday ? "had a drink" : "drink-free") : "streak"}
+          </p>
+        </button>
+      )}
     </div>
   );
 }

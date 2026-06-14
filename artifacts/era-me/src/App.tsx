@@ -37,8 +37,6 @@ import ProgramsPage from "@/pages/programs";
 import WaterPage from "@/pages/wellness/water";
 import MedicationsPage from "@/pages/wellness/medications";
 import WorkoutPage from "@/pages/wellness/workout";
-import SleepPage from "@/pages/wellness/sleep";
-import MoodPage from "@/pages/wellness/mood";
 import FruitPage from "@/pages/wellness/fruit";
 import VitalsPage from "@/pages/wellness/vitals";
 import SmokingPage from "@/pages/wellness/smoking";
@@ -224,10 +222,6 @@ function AppRoutes() {
             <Route path="/wellness/water" component={WaterPage} />
             <Route path="/wellness/medications" component={MedicationsPage} />
             <Route path="/wellness/workout" component={WorkoutPage} />
-            <Route path="/wellness/sleep" component={SleepPage} />
-            <Route path="/wellness/mood" component={MoodPage} />
-            <Route path="/wellness/energy" component={MoodPage} />
-            <Route path="/wellness/stress" component={MoodPage} />
             <Route path="/wellness/fruit" component={FruitPage} />
             <Route path="/wellness/vitals" component={VitalsPage} />
             <Route path="/wellness/smoking" component={SmokingPage} />

@@ -49,11 +49,7 @@ const WELLNESS_PROGRAMS: WellnessProgram[] = [
 const DAILY_MODULES: Module[] = [
   { id: "water",       emoji: "💧", label: "Water Intake",     description: "Daily hydration goal",          gradient: "linear-gradient(135deg,#0c4a6e,#0369a1)", accent: "#38bdf8" },
   { id: "medications", emoji: "💊", label: "Medications",       description: "Schedule & reminders",          gradient: "linear-gradient(135deg,#042f2e,#0f766e)", accent: "#2dd4bf" },
-  { id: "mood_check",  emoji: "😊", label: "Daily Mood",        description: "Mood, energy & stress check-in", gradient: "linear-gradient(135deg,#451a03,#b45309)", accent: "#fbbf24" },
-  { id: "sleep",       emoji: "😴", label: "Sleep Tracker",     description: "Bedtime & quality log",         gradient: "linear-gradient(135deg,#2e1065,#6d28d9)", accent: "#a78bfa" },
   { id: "workout",     emoji: "🏃", label: "Workout",           description: "Weekly plan & check-ins",       gradient: "linear-gradient(135deg,#431407,#c2410c)", accent: "#fb923c" },
-  { id: "energy",      emoji: "⚡", label: "Energy Level",      description: "Track your daily energy",       gradient: "linear-gradient(135deg,#1a2e05,#3f6212)", accent: "#a3e635" },
-  { id: "stress",      emoji: "🧘", label: "Stress Level",      description: "Monitor and manage stress",     gradient: "linear-gradient(135deg,#2d1b69,#7c3aed)", accent: "#c084fc" },
   { id: "fruit",       emoji: "🍎", label: "Fruit Reminder",    description: "Daily fruit intake habit",      gradient: "linear-gradient(135deg,#052e16,#166534)", accent: "#4ade80" },
 ];
 
@@ -73,7 +69,6 @@ const LIFESTYLE_MODULES: Module[] = [
 ];
 
 function moduleHref(m: Module): string {
-  if (m.id === "mood_check") return "/wellness/mood";
   return `/wellness/${m.id}`;
 }
 

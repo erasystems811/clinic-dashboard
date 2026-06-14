@@ -10,8 +10,7 @@ import { usePlanBySource } from "@/lib/return-visits-api";
 
 const MODULE_ACCENT: Record<string, string> = {
   water: "#38bdf8", medications: "#14b8a6", workout: "#f97316",
-  sleep: "#8b5cf6", mood_check: "#fbbf24", fruit: "#22c55e",
-  vitals: "#ef4444", smoking: "#64748b", alcohol: "#fbbf24",
+  fruit: "#22c55e", vitals: "#ef4444", smoking: "#64748b", alcohol: "#fbbf24",
   eyebreak: "#6366f1", sunscreen: "#eab308", outdoors: "#16a34a",
   hygiene: "#93c5fd", intimacy: "#fda4af",
 };
@@ -28,7 +27,7 @@ function getMonday(offsetWeeks = 0): string {
   return d.toISOString().split("T")[0];
 }
 
-function moduleHref(t: string) { return t === "mood_check" ? "/wellness/mood" : `/wellness/${t}`; }
+function moduleHref(t: string) { return `/wellness/${t}`; }
 function todayStr()            { return new Date().toISOString().split("T")[0]; }
 
 function checklistKey(item: PlanItem): string {

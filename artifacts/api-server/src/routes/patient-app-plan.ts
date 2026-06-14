@@ -213,14 +213,6 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       }
     }
 
-    // Mood check-in — flexible time (afternoon default)
-    if (enabledMap["mood_check"]) {
-      const mNotes = enabledMap["mood_check"].notes as string | undefined;
-      const mReminderTime = enabledMap["mood_check"].reminderTime as string | undefined;
-      const mTime = mReminderTime ?? (mNotes && parseTimeHint(mNotes)) ?? "14:00";
-      items.push({ moduleType: "mood_check", emoji: "😊", label: "Daily mood check-in", sub: mNotes ?? "Mood, energy & stress", time: mTime });
-    }
-
     // Eye breaks — first break at work start
     if (enabledMap["eyebreak"]) {
       const ebNotes = enabledMap["eyebreak"].notes as string | undefined;
@@ -294,14 +286,6 @@ export function generateWeekPlan(weekDates: string[], modules: ModuleRow[]): Wee
       const oTarget = (enabledMap["outdoors"].targetMinutes as number) ?? 30;
       const oTime = (oNotes && parseTimeHint(oNotes)) ?? "16:00";
       items.push({ moduleType: "outdoors", emoji: "🌿", label: "Outdoor time", sub: oNotes ?? `Goal: ${oTarget} min`, time: oTime });
-    }
-
-    // Sleep — at bedtime target
-    if (enabledMap["sleep"]) {
-      const slNotes = enabledMap["sleep"].notes as string | undefined;
-      const bedtime = (enabledMap["sleep"].bedtimeTarget as string) ?? "22:30";
-      const slTime = (slNotes && parseTimeHint(slNotes)) ?? bedtime;
-      items.push({ moduleType: "sleep", emoji: "😴", label: "Sleep log", sub: slNotes ?? "Log last night's sleep", time: slTime });
     }
 
     return { date, dayKey, dayLabel, items: sortItems(items) };

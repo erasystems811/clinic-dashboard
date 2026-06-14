@@ -1,38 +1,27 @@
-import { useEffect, useState, useRef, type MouseEvent } from "react";
+import { useState, useEffect, useRef, type MouseEvent } from "react";
 import { Link, useLocation } from "wouter";
-import { ChevronRight, CheckCircle2, Circle, Plus, Minus, X, Bell, MapPin, Timer, Flame, Moon, Zap } from "lucide-react";
+import { Bell, CheckCircle2, Circle, ChevronRight, MessageSquare, CalendarPlus } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
-import { useHealthTracker } from "@/contexts/health-context";
 import { greeting, formatDate } from "@/lib/utils";
-import { useWellnessToday, useWeekSummary, useLogToday, useQuickLog, useUpcomingEvents } from "@/lib/wellness-api";
-import type { UpcomingEvent } from "@/lib/wellness-api";
-import { useCoins, useUnreadNotifCount } from "@/lib/hospitals-api";
-import { canNotify, notifPermission, requestNotifPermission, fireNotification, maybeFireEveningReminder } from "@/lib/notifications";
-import { decodeGesture, isCompanionHidden, useCompanionSettings } from "@/lib/companion-api";
-import type { WeekSummary } from "@/lib/wellness-api";
+import { useWellnessToday, useWeekSummary, useQuickLog } from "@/lib/wellness-api";
+import { useMyHospitals, useUnreadCounts, useUnreadNotifCount } from "@/lib/hospitals-api";
+import { decodeGesture, useCompanionSettings } from "@/lib/companion-api";
 import type { GestureConfig } from "@/lib/companion-api";
+import type { HospitalConnection } from "@/lib/hospitals-api";
 
 interface ChecklistItem {
   id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean;
   count?: number; target?: number; batchIds?: string[];
 }
-
-function fmtTime(t: string): string {
-  const [h, m] = t.split(":").map(Number);
-  const p = h < 12 ? "AM" : "PM";
-  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return m === 0 ? `${hr}${p}` : `${hr}:${String(m).padStart(2, "0")}${p}`;
-}
 interface ModuleEntry {
-  enabled: boolean;
-  settings: Record<string, unknown>;
-  log: Record<string, unknown> | null;
+  enabled: boolean; settings: Record<string, unknown>; log: Record<string, unknown> | null;
 }
 interface TodayData {
   date: string; dayKey: string;
   checklist: ChecklistItem[];
   modules: Record<string, ModuleEntry | undefined>;
 }
+interface QuickLogEntry { moduleType: string; data: Record<string, unknown> }
 
 const MODULE_ACCENT: Record<string, string> = {
   water: "#38bdf8", medications: "#14b8a6", workout: "#f97316",
@@ -44,16 +33,13 @@ const MODULE_ACCENT: Record<string, string> = {
 };
 
 function baseModule(id: string): string {
-  if (id.startsWith("med_"))        return "medications";
-  if (id.startsWith("hygiene_"))    return "hygiene";
-  if (id.startsWith("vaccine_"))    return "vaccines";
-  if (id.startsWith("checkup_"))    return "checkups";
-  if (id.startsWith("sunscreen_"))  return "sunscreen";
+  if (id.startsWith("med_"))       return "medications";
+  if (id.startsWith("hygiene_"))   return "hygiene";
+  if (id.startsWith("vaccine_"))   return "vaccines";
+  if (id.startsWith("checkup_"))   return "checkups";
+  if (id.startsWith("sunscreen_")) return "sunscreen";
   return id;
 }
-
-const TRACKING_MODULES = new Set(["vitals", "smoking", "alcohol", "intimacy"]);
-const WIDGET_MODULES = new Set(["water"]); // has its own dedicated widget on the home screen
 
 function moduleHref(id: string): string {
   if (id === "mood_check") return "/wellness/mood";
@@ -63,53 +49,57 @@ function moduleHref(id: string): string {
   return `/wellness/${id}`;
 }
 
-function todayIndex(weekStart: string): number {
-  const start = new Date(weekStart + "T12:00:00");
-  const now = new Date();
-  now.setHours(12, 0, 0, 0);
-  return Math.min(6, Math.max(0, Math.round((now.getTime() - start.getTime()) / 86400000)));
+function fmtTime(t: string): string {
+  const [h, m] = t.split(":").map(Number);
+  const p = h < 12 ? "AM" : "PM";
+  const hr = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m === 0 ? `${hr}${p}` : `${hr}:${String(m).padStart(2, "0")}${p}`;
 }
 
-function computeEraScore(completionPct: number, weekRate: number): { score: number; label: string; color: string } {
-  if (completionPct === 0 && weekRate === 0) {
-    return { score: 0, label: "Just Getting Started", color: "#64748b" };
+const TRACKING_MODULES = new Set(["vitals", "smoking", "alcohol", "intimacy"]);
+const WIDGET_MODULES   = new Set(["water"]);
+
+function buildQuickLogData(mods: Record<string, ModuleEntry | undefined>): Record<string, QuickLogEntry> {
+  const outdoorsTarget = (mods.outdoors?.settings?.targetMinutes as number | undefined) ?? 30;
+  const intimacyMode = (mods.intimacy?.settings as { mode?: string } | undefined)?.mode;
+  const entries: Record<string, QuickLogEntry> = {
+    fruit:    { moduleType: "fruit",    data: { done: true } },
+    workout:  { moduleType: "workout",  data: { completed: true } },
+    outdoors: { moduleType: "outdoors", data: { minutes: outdoorsTarget } },
+  };
+  if (intimacyMode === "celibacy") entries.intimacy = { moduleType: "intimacy", data: { active: false } };
+  type Med = { id: string; times?: string[] };
+  const meds = (mods.medications?.settings?.medications as Med[]) ?? [];
+  for (const med of meds) {
+    const times: string[] = med.times?.length ? med.times : ["08:00"];
+    for (const t of times) {
+      entries[`med_${med.id}_${t}`] = { moduleType: "medications", data: { taken: { [`${med.id}_${t}`]: true } } };
+    }
   }
-  const score = Math.min(100, Math.round(weekRate * 0.55 + completionPct * 0.45));
-  if (score >= 90) return { score, label: "Wellness Champion 🏆", color: "#4ade80" };
-  if (score >= 75) return { score, label: "Consistently Healthy", color: "#86efac" };
-  if (score >= 60) return { score, label: "Finding Your Rhythm", color: "#fbbf24" };
-  if (score >= 40) return { score, label: "Building Habits", color: "#fb923c" };
-  return { score, label: "Just Getting Started", color: "#94a3b8" };
+  return entries;
 }
 
-function getUrgency(pendingCount: number): { level: 1 | 2; hoursLeft: number; minutesLeft: number } | null {
-  if (pendingCount === 0) return null;
-  const now = new Date();
-  const midnight = new Date(now); midnight.setHours(24, 0, 0, 0);
-  const msLeft = midnight.getTime() - now.getTime();
-  const hoursLeft = Math.floor(msLeft / 3_600_000);
-  const minutesLeft = Math.floor((msLeft % 3_600_000) / 60_000);
-  if (hoursLeft < 2) return { level: 2, hoursLeft, minutesLeft };
-  if (hoursLeft < 5) return { level: 1, hoursLeft, minutesLeft };
-  return null;
+function getQuickLogEntry(item: ChecklistItem, data: Record<string, QuickLogEntry>): QuickLogEntry | undefined {
+  if (item.id === "eyebreak") return { moduleType: "eyebreak", data: { count: (item.count ?? 0) + 1 } };
+  if (item.id.startsWith("sunscreen_")) return { moduleType: "sunscreen", data: { count: parseInt(item.id.split("_")[1] ?? "0") + 1 } };
+  if (item.batchIds?.length) return { moduleType: "medications", data: { taken: Object.fromEntries(item.batchIds.map(bid => [bid.replace(/^med_/, ""), true])) } };
+  return data[item.id];
 }
 
 export default function HomePage() {
   const { account } = useAuth();
   const [, navigate] = useLocation();
   const displayName = account?.displayName ?? account?.username ?? "there";
+
   const { data: todayData } = useWellnessToday() as { data: TodayData | undefined };
   const { data: summary } = useWeekSummary();
-  const logWater = useLogToday("water");
   const quickLog = useQuickLog();
-  const { data: coinsData } = useCoins();
-  const coins = coinsData?.coins ?? 0;
-  const { data: upcomingData } = useUpcomingEvents();
+  const { data: hospitals } = useMyHospitals();
+  const { data: unreadCounts } = useUnreadCounts();
   const { data: notifData } = useUnreadNotifCount();
   const unreadNotifs = notifData?.count ?? 0;
-  const { snapshot: healthSnapshot, hasPermission: motionPermission, requestPermission: requestMotion } = useHealthTracker();
 
-  // ── Secret diary gesture ──────────────────────────────────────────────────
+  // ── Secret diary gesture ──────────────────────────────────────────────────────
   const [gesture, setGesture] = useState<GestureConfig | null>(null);
   const tapRef = useRef<{ element: string; count: number; timer: ReturnType<typeof setTimeout> | null }>({ element: "", count: 0, timer: null });
   const { data: companionSettings } = useCompanionSettings();
@@ -119,7 +109,6 @@ export default function HomePage() {
     if (raw) {
       setGesture(decodeGesture(raw));
     } else if (companionSettings?.isSetUp) {
-      // Sync from API when localStorage is missing (e.g. after setup on another device)
       const g: GestureConfig = { element: companionSettings.gestureElement, count: companionSettings.gestureCount, hidden: companionSettings.isHidden };
       localStorage.setItem("era_companion_tab", JSON.stringify(g));
       setGesture(g);
@@ -146,375 +135,65 @@ export default function HomePage() {
   }
 
   const mods = todayData?.modules ?? {};
-  const waterMod = mods.water;
-  const waterEnabled = waterMod?.enabled ?? false;
-  const waterCups = (waterMod?.log?.cups as number | undefined) ?? 0;
-  const waterGoal = (waterMod?.settings?.target as number | undefined) ?? 8;
-  const waterLeft = Math.max(0, waterGoal - waterCups);
-  const waterPct = Math.min(100, Math.round((waterCups / waterGoal) * 100));
-
   const checklist: ChecklistItem[] = todayData?.checklist ?? [];
-  const checklistItems = checklist.filter((c) => !TRACKING_MODULES.has(baseModule(c.id)) && !WIDGET_MODULES.has(baseModule(c.id)));
-  const trackingItems = checklist.filter((c) => TRACKING_MODULES.has(baseModule(c.id)));
-  const doneItems = checklistItems.filter((c) => c.done);
-  const pendingItems = checklistItems.filter((c) => !c.done);
-  const doneCount = doneItems.length;
-  const total = checklistItems.length;
-  const completionPct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+  const planItems = checklist.filter(c => !TRACKING_MODULES.has(baseModule(c.id)) && !WIDGET_MODULES.has(baseModule(c.id)));
   const weekRate = summary?.overallRate ?? 0;
-  const eraScore = computeEraScore(completionPct, weekRate);
-  const urgency = getUrgency(pendingItems.length);
-
-  // Notification prompt — shown once when permission not yet asked
-  const [showNotifPrompt, setShowNotifPrompt] = useState(() => {
-    if (!canNotify()) return false;
-    const asked = localStorage.getItem("era_notif_asked");
-    return !asked && notifPermission() === "default";
-  });
-
-  // Fire evening reminder on mount
-  useEffect(() => {
-    maybeFireEveningReminder(pendingItems.length);
-  }, [pendingItems.length]);
+  const primaryHospital = hospitals?.[0] ?? null;
+  const primaryUnread = unreadCounts && primaryHospital ? (unreadCounts[primaryHospital.hospitalId] ?? 0) : 0;
 
   return (
     <div className="pb-10">
 
-      {/* ── Hero Header ──────────────────────────────────────────── */}
-      <div className="relative px-5 pt-8 pb-7 overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full opacity-20"
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <div className="relative px-5 pt-8 pb-6 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-24 -right-16 w-80 h-80 rounded-full opacity-15"
             style={{ background: `radial-gradient(circle,rgba(var(--glow-rgb),1) 0%,transparent 70%)`, filter: "blur(56px)" }} />
-          <div className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full opacity-10"
-            style={{ background: `radial-gradient(circle,rgba(var(--glow-rgb),0.6) 0%,transparent 70%)`, filter: "blur(44px)" }} />
         </div>
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <p
-                onClick={() => handleGestureTap("date")}
-                style={{ color: "var(--text-dim)", fontSize: 12, fontWeight: 500, cursor: gesture?.element === "date" ? "default" : undefined }}
-              >{formatDate()}</p>
-              {(coins > 0 || gesture?.element === "coins") && (gesture?.element === "coins" ? (
-                <div
-                  onClick={(e) => handleGestureTap("coins", e)}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full active:scale-95 transition"
-                  style={{ background: "linear-gradient(135deg,#92400e,#d97706)", boxShadow: "0 2px 8px rgba(217,119,6,0.4)", cursor: "pointer" }}>
-                  <span style={{ fontSize: 10 }}>🪙</span>
-                  {coins > 0 && <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{coins}</span>}
-                </div>
-              ) : (
-                <Link href="/profile">
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full active:scale-95 transition"
-                    style={{ background: "linear-gradient(135deg,#92400e,#d97706)", boxShadow: "0 2px 8px rgba(217,119,6,0.4)" }}>
-                    <span style={{ fontSize: 10 }}>🪙</span>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{coins}</span>
-                  </div>
-                </Link>
-              ))}
-              <Link href="/notifications">
-                <div className="relative active:scale-90 transition" style={{ lineHeight: 0 }}>
-                  <Bell className="w-5 h-5" style={{ color: unreadNotifs > 0 ? "var(--accent)" : "var(--text-dim)" }} />
-                  {unreadNotifs > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"
-                      style={{ background: "#ef4444", color: "#fff" }}>
-                      {unreadNotifs > 9 ? "9+" : unreadNotifs}
-                    </span>
-                  )}
-                </div>
-              </Link>
-            </div>
-            <h1
-              onClick={() => handleGestureTap("greeting")}
-              style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, color: "var(--text-main)", cursor: gesture?.element === "greeting" ? "default" : undefined }}
-            >
+            <p onClick={() => handleGestureTap("date")}
+              style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 500 }}>
+              {formatDate()}
+            </p>
+            <h1 onClick={() => handleGestureTap("greeting")}
+              style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, color: "var(--text-main)", marginTop: 4 }}>
               {greeting()},<br />
               <span style={{ background: "linear-gradient(120deg,var(--accent-light),var(--accent))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                 {displayName} 👋
               </span>
             </h1>
-            {total > 0 && (
-              <p style={{ marginTop: 7, fontSize: 13, color: "var(--text-sub)", fontWeight: 500 }}>
-                {doneCount === total ? "All tasks complete today 🎉" : `${doneCount} of ${total} tasks done`}
-              </p>
-            )}
           </div>
-          {(total > 0 || gesture?.element === "score") && (
-            <div className="relative shrink-0" style={{ width: 76, height: 76 }}
-              onClick={() => handleGestureTap("score")}>
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 76 76">
-                <circle cx="38" cy="38" r="30" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="7" />
-                <circle cx="38" cy="38" r="30" fill="none"
-                  stroke={completionPct === 100 ? "#4ade80" : "var(--accent)"}
-                  strokeWidth="7" strokeLinecap="round"
-                  strokeDasharray={`${2 * Math.PI * 30}`}
-                  strokeDashoffset={`${2 * Math.PI * 30 * (1 - completionPct / 100)}`}
-                  style={{ filter: `drop-shadow(0 0 7px rgba(var(--glow-rgb),0.9))`, transition: "stroke-dashoffset 0.8s ease" }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                {completionPct === 100
-                  ? <span style={{ fontSize: 24 }}>🎉</span>
-                  : <>
-                      <span style={{ fontSize: 15, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{completionPct}%</span>
-                      <span style={{ fontSize: 9, color: "var(--text-sub)" }}>done</span>
-                    </>
-                }
-              </div>
+          <Link href="/notifications">
+            <div className="relative active:scale-90 transition mt-1" style={{ lineHeight: 0 }}>
+              <Bell className="w-5 h-5" style={{ color: unreadNotifs > 0 ? "var(--accent)" : "var(--text-dim)" }} />
+              {unreadNotifs > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black"
+                  style={{ background: "#ef4444", color: "#fff" }}>
+                  {unreadNotifs > 9 ? "9+" : unreadNotifs}
+                </span>
+              )}
             </div>
-          )}
+          </Link>
         </div>
       </div>
 
       <div className="px-4 space-y-4">
 
-        {/* ── ERA Score + Module Rings Card ─────────────────────── */}
-        {(total > 0 || summary) && (
-          <EraScoreCard score={eraScore.score} label={eraScore.label} color={eraScore.color}
-            completionPct={completionPct} weekRate={weekRate}
-            moduleStats={summary?.moduleStats ?? []} />
-        )}
+        {/* ── Adherence ──────────────────────────────────────────────── */}
+        <AdherenceCard weekRate={weekRate} hasData={summary !== undefined} />
 
-        {/* ── Urgency Banner ────────────────────────────────────── */}
-        {urgency && <UrgencyBanner pending={pendingItems.length} {...urgency} />}
+        {/* ── Care Team ──────────────────────────────────────────────── */}
+        <CareTeamCard hospital={primaryHospital} unread={primaryUnread} navigate={navigate} />
 
-        {/* ── Notification Opt-In ───────────────────────────────── */}
-        {showNotifPrompt && doneCount > 0 && (
-          <NotifPrompt onDismiss={() => {
-            setShowNotifPrompt(false);
-            localStorage.setItem("era_notif_asked", "dismissed");
-          }} />
-        )}
-
-        {/* ── Coming Up ─────────────────────────────────────────── */}
-        {(upcomingData?.events?.length ?? 0) > 0 && (
-          <ComingUpCard events={upcomingData!.events} />
-        )}
-
-        {/* ── Live Water Widget ──────────────────────────────────── */}
-        {waterEnabled && (
-          <div className="rounded-2xl overflow-hidden relative"
-            style={{ background: "linear-gradient(135deg,rgba(12,74,110,0.7),rgba(3,105,161,0.5))", border: "1px solid rgba(56,189,248,0.22)", boxShadow: "0 4px 24px rgba(56,189,248,0.12)" }}>
-            <div className="pointer-events-none absolute bottom-0 right-0 w-40 h-40 rounded-full"
-              style={{ background: "radial-gradient(circle,rgba(56,189,248,0.18) 0%,transparent 70%)", filter: "blur(20px)" }} />
-            <div className="relative p-4">
-              <p style={{ fontSize: 11, color: "rgba(56,189,248,0.8)", fontWeight: 700, marginBottom: 8, letterSpacing: 1 }}>💧 WATER TODAY</p>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-baseline gap-2">
-                    <span style={{ fontSize: 40, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{waterCups}</span>
-                    <span style={{ fontSize: 15, color: "var(--text-sub)", fontWeight: 500 }}>/ {waterGoal} cups</span>
-                  </div>
-                  <p style={{ fontSize: 12, marginTop: 3, color: waterPct >= 100 ? "#4ade80" : "var(--text-sub)" }}>
-                    {waterPct >= 100 ? "Goal reached! 🎉" : `${waterLeft} more cup${waterLeft !== 1 ? "s" : ""} to go`}
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <button onClick={() => logWater.mutate({ cups: Math.min(waterCups + 1, 20) })}
-                    disabled={logWater.isPending}
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center active:scale-90 transition text-white font-bold"
-                    style={{ background: "linear-gradient(135deg,#0c4a6e,#0369a1)", boxShadow: "0 4px 16px rgba(56,189,248,0.35)", border: "1px solid rgba(56,189,248,0.3)" }}>
-                    <Plus className="w-5 h-5" />
-                  </button>
-                  <button onClick={() => { if (waterCups > 0) logWater.mutate({ cups: waterCups - 1 }); }}
-                    disabled={logWater.isPending || waterCups === 0}
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center active:scale-90 transition"
-                    style={{ background: "var(--glass-bg)", border: "1px solid var(--input-border)", color: "var(--text-sub)" }}>
-                    <Minus className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              <div className="mt-4 h-2 rounded-full overflow-hidden" style={{ background: "var(--glass-track)" }}>
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${waterPct}%`, background: "linear-gradient(90deg,#0ea5e9,#38bdf8)", boxShadow: "0 0 8px rgba(56,189,248,0.6)" }} />
-              </div>
-              <div className="flex gap-1 mt-2 flex-wrap">
-                {Array.from({ length: Math.min(waterGoal, 14) }, (_, i) => (
-                  <div key={i} className="w-4 h-4 rounded-full transition-colors duration-200"
-                    style={{ background: i < waterCups ? "rgba(56,189,248,0.7)" : "var(--glass-track)" }} />
-                ))}
-                {waterGoal > 14 && <span style={{ fontSize: 10, color: "var(--text-dim)", marginLeft: 2 }}>+{waterGoal - 14}</span>}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Auto Health Widget ────────────────────────────────── */}
-        {healthSnapshot && (healthSnapshot.steps > 0 || healthSnapshot.sleepHours !== null || motionPermission === null) && (
-          <AutoHealthWidget snapshot={healthSnapshot} motionPermission={motionPermission} onEnableMotion={requestMotion} />
-        )}
-
-        {/* ── Today's Plan ───────────────────────────────────────── */}
-        {total > 0 ? (
-          <section>
-            <div className="flex items-center justify-between mb-2.5">
-              <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>Today's plan</h2>
-              <Link href="/plan">
-                <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>View week →</span>
-              </Link>
-            </div>
-            <div className="mb-3 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--glass-track)" }}>
-              <div className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${completionPct}%`, background: completionPct === 100 ? "#4ade80" : "var(--btn-gradient)", boxShadow: `0 0 8px rgba(var(--glow-rgb),0.5)` }} />
-            </div>
-            {/* 2-column task grid — column 1 fills top-to-bottom, then column 2 */}
-            {(() => {
-              const quickLogData = buildQuickLogData(mods);
-              const allItems = [...checklistItems].sort((a, b) => {
-                if (!a.time && !b.time) return 0;
-                if (!a.time) return 1;
-                if (!b.time) return -1;
-                return a.time.localeCompare(b.time);
-              });
-              const half = Math.ceil(allItems.length / 2);
-              const leftItems = allItems.slice(0, half);
-              const rightItems = allItems.slice(half);
-
-              function renderCell(item: ChecklistItem, isLast: boolean, hasRightBorder: boolean) {
-                const entry: QuickLogEntry | undefined = item.done ? undefined :
-                  item.id === "eyebreak"
-                    ? { moduleType: "eyebreak", data: { count: (item.count ?? 0) + 1 } }
-                    : item.id.startsWith("sunscreen_")
-                      ? { moduleType: "sunscreen", data: { count: parseInt(item.id.split("_")[1] ?? "0") + 1 } }
-                      : item.batchIds?.length
-                        ? { moduleType: "medications", data: { taken: Object.fromEntries(item.batchIds.map(bid => [bid.replace(/^med_/, ""), true])) } }
-                        : quickLogData[item.id];
-                const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
-                const canTick = !item.done && !!entry;
-                return (
-                  <div key={item.id} style={{
-                    display: "flex", alignItems: "stretch",
-                    borderBottom: isLast ? "none" : `1px solid var(--glass-border)`,
-                    borderRight: hasRightBorder ? `1px solid var(--glass-border)` : "none",
-                    background: item.done ? "rgba(74,222,128,0.04)" : "transparent",
-                    minHeight: 62,
-                  }}>
-                    {/* BIG tick zone — left side, full height, easy to tap */}
-                    <button
-                      onClick={() => {
-                        if (item.done) return;
-                        if (canTick) quickLog.mutate({ moduleType: entry!.moduleType, data: entry!.data });
-                        else navigate(moduleHref(item.id));
-                      }}
-                      className="flex items-center justify-center shrink-0 active:scale-90 transition"
-                      style={{
-                        width: 54,
-                        alignSelf: "stretch",
-                        borderRight: `1px solid var(--glass-border)`,
-                        background: item.done ? "transparent" : canTick ? `${accent}08` : "transparent",
-                      }}>
-                      {item.done
-                        ? <CheckCircle2 style={{ width: 22, height: 22, color: "var(--accent)" }} />
-                        : canTick
-                          ? <Circle style={{ width: 22, height: 22, color: accent }} />
-                          : <ChevronRight style={{ width: 18, height: 18, color: accent, opacity: 0.5 }} />
-                      }
-                    </button>
-
-                    {/* Content + navigate arrow (for eyebreak, tapping label also increments) */}
-                    <button
-                      onClick={() => {
-                        if (item.id === "eyebreak" && entry) quickLog.mutate({ moduleType: entry.moduleType, data: entry.data });
-                        else navigate(moduleHref(item.id));
-                      }}
-                      className="flex-1 flex items-center gap-1 py-3 pl-2.5 pr-2 text-left min-w-0 active:opacity-70 transition"
-                      style={{ background: "transparent", border: "none" }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="flex items-center gap-1 mb-0.5 flex-wrap">
-                          <span style={{ fontSize: 13 }}>{item.emoji}</span>
-                          {item.time && (
-                            <span style={{ fontSize: 9, fontWeight: 700, color: item.done ? "var(--text-dim)" : accent, background: `${accent}18`, padding: "1px 5px", borderRadius: 6, flexShrink: 0 }}>
-                              {fmtTime(item.time)}
-                            </span>
-                          )}
-                          {item.count !== undefined && item.target !== undefined && (
-                            <span style={{ fontSize: 9, fontWeight: 800, color: item.done ? "var(--accent)" : accent, background: item.done ? "rgba(74,222,128,0.15)" : `${accent}18`, padding: "1px 5px", borderRadius: 6, flexShrink: 0 }}>
-                              {item.count}/{item.target}
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ fontSize: 12, fontWeight: 700, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none", lineHeight: 1.3 }}>
-                          {item.label}
-                        </p>
-                        {item.sub && (
-                          <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1, lineHeight: 1.3 }}>
-                            {item.sub}
-                          </p>
-                        )}
-                      </div>
-                      {item.id !== "eyebreak" && <ChevronRight style={{ width: 12, height: 12, color: "var(--text-dim)", flexShrink: 0, opacity: 0.45 }} />}
-                    </button>
-                  </div>
-                );
-              }
-
-              return (
-                <>
-                  <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-                    <div style={{ display: "flex" }}>
-                      <div style={{ flex: 1 }}>
-                        {leftItems.map((item, i) => renderCell(item, i === leftItems.length - 1, true))}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        {rightItems.map((item, i) => renderCell(item, i === rightItems.length - 1, false))}
-                      </div>
-                    </div>
-                  </div>
-                  {trackingItems.length > 0 && (
-                    <div className="rounded-2xl overflow-hidden mt-3" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-                      <div className="px-4 pt-3 pb-1">
-                        <p style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", letterSpacing: 1 }}>LOG TODAY</p>
-                      </div>
-                      {trackingItems.map((item) => {
-                        const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
-                        return (
-                          <Link key={item.id} href={moduleHref(item.id)}>
-                            <div className="flex items-center gap-3 px-4 py-3 cursor-pointer active:scale-[0.98] transition"
-                              style={{ borderTop: "1px solid var(--glass-border)" }}>
-                              <span style={{ fontSize: 20, flexShrink: 0 }}>{item.emoji}</span>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: 13, fontWeight: 700, color: item.done ? "var(--text-dim)" : "var(--text-main)", lineHeight: 1.3 }}>{item.label}</p>
-                                {item.sub && <p style={{ fontSize: 11, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-sub)", marginTop: 1 }}>{item.sub}</p>}
-                              </div>
-                              {item.done
-                                ? <CheckCircle2 style={{ width: 16, height: 16, color: "var(--accent)", flexShrink: 0 }} />
-                                : <ChevronRight style={{ width: 16, height: 16, color: "var(--text-dim)", flexShrink: 0 }} />
-                              }
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              );
-            })()}
-          </section>
-        ) : (
-          <div className="rounded-2xl p-6 text-center"
-            style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-            <p style={{ fontSize: 40, marginBottom: 12 }}>✨</p>
-            <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 15, marginBottom: 6 }}>Your plan is empty</p>
-            <p style={{ fontSize: 13, color: "var(--text-sub)", marginBottom: 20, lineHeight: 1.5 }}>
-              Set up wellness modules to see your daily plan and weekly habit tracker here.
-            </p>
-            <Link href="/wellness">
-              <button className="px-6 py-2.5 rounded-xl font-bold text-white text-sm active:scale-95 transition"
-                style={{ background: "var(--btn-gradient)", boxShadow: `0 4px 16px rgba(var(--glow-rgb),0.3)` }}>
-                Set up wellness →
-              </button>
-            </Link>
-          </div>
-        )}
-
-        {/* ── This Week Grid ─────────────────────────────────────── */}
-        {summary && summary.moduleStats.length > 0 && (
-          <ThisWeekCard summary={summary} />
-        )}
-
-        {/* ── Special Feature Cards ─────────────────────────────── */}
-        <SpecialFeatureCards />
-
+        {/* ── Today's Care Plan ──────────────────────────────────────── */}
+        <CarePlanSection
+          items={planItems}
+          mods={mods}
+          quickLog={quickLog}
+          navigate={navigate}
+          hospitalName={primaryHospital?.hospitalName}
+        />
 
       </div>
     </div>
@@ -523,81 +202,29 @@ export default function HomePage() {
 
 // ── Sub-components ──────────────────────────────────────────────────────────────
 
-function EraScoreCard({ score, label, color, completionPct, weekRate, moduleStats }: {
-  score: number; label: string; color: string;
-  completionPct: number; weekRate: number;
-  moduleStats: import("@/lib/wellness-api").WeekSummaryModuleStat[];
-}) {
-  const c = 2 * Math.PI * 22;
-  const ringC = 2 * Math.PI * 10;
+function AdherenceCard({ weekRate, hasData }: { weekRate: number; hasData: boolean }) {
+  const color = weekRate >= 80 ? "#4ade80" : weekRate >= 50 ? "#fbbf24" : weekRate > 0 ? "#f87171" : "var(--text-dim)";
+  const label = weekRate >= 80 ? "Excellent — keep it up" : weekRate >= 50 ? "Good — room to improve" : weekRate > 0 ? "Let's get back on track" : "";
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--accent-tint-border)" }}>
-      <div className="p-4 flex items-center gap-4">
-        {/* Text side */}
-        <div className="flex-1 min-w-0">
-          <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.5, marginBottom: 3 }}>ERA SCORE</p>
-          <p style={{ fontSize: 32, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{score}</p>
-          <p style={{ fontSize: 12, fontWeight: 700, color, marginTop: 4, lineHeight: 1.3 }}>{label}</p>
-          <div style={{ display: "flex", gap: 16, marginTop: 10 }}>
-            <div>
-              <p style={{ fontSize: 17, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{completionPct}%</p>
-              <p style={{ fontSize: 9, color: "var(--text-dim)", fontWeight: 600, marginTop: 2 }}>TODAY</p>
-            </div>
-            <div style={{ width: 1, background: "var(--glass-border)" }} />
-            <div>
-              <p style={{ fontSize: 17, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>{weekRate}%</p>
-              <p style={{ fontSize: 9, color: "var(--text-dim)", fontWeight: 600, marginTop: 2 }}>THIS WEEK</p>
-            </div>
-          </div>
+    <div className="rounded-2xl p-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+      <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.5, marginBottom: 10 }}>ADHERENCE</p>
+      {!hasData || weekRate === 0 ? (
+        <div>
+          <p style={{ fontSize: 28, fontWeight: 900, color: "var(--text-dim)", lineHeight: 1 }}>—</p>
+          <p style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>No data yet this week</p>
         </div>
-
-        {/* Score ring */}
-        <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
-          <svg className="-rotate-90" viewBox="0 0 54 54" style={{ width: 72, height: 72 }}>
-            <circle cx="27" cy="27" r="22" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="5" />
-            <circle cx="27" cy="27" r="22" fill="none"
-              stroke={color} strokeWidth="5" strokeLinecap="round"
-              strokeDasharray={c}
-              strokeDashoffset={c * (1 - score / 100)}
-              style={{ filter: `drop-shadow(0 0 5px ${color}90)`, transition: "stroke-dashoffset 1.2s ease" }}
-            />
-          </svg>
-          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 15, fontWeight: 900, color: "var(--text-main)" }}>{score}</span>
+      ) : (
+        <div className="flex items-center gap-4">
+          <div className="shrink-0">
+            <p style={{ fontSize: 38, fontWeight: 900, color, lineHeight: 1 }}>{weekRate}%</p>
+            <p style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 600, marginTop: 4, letterSpacing: 0.3 }}>THIS WEEK</p>
           </div>
-        </div>
-      </div>
-
-      {/* Module progress rings */}
-      {moduleStats.length > 0 && (
-        <div style={{ borderTop: "1px solid var(--glass-border)", padding: "10px 16px 12px" }}>
-          <p style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.5, marginBottom: 10 }}>THIS WEEK</p>
-          <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 2 }}>
-            {moduleStats.map((mod) => {
-              const pct = mod.completedDays / 7;
-              const ringColor = mod.completedDays >= 5 ? "#4ade80" : mod.completedDays >= 3 ? "var(--accent)" : "#f87171";
-              return (
-                <div key={mod.type} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <div style={{ position: "relative", width: 36, height: 36 }}>
-                    <svg className="-rotate-90" viewBox="0 0 26 26" style={{ width: 36, height: 36 }}>
-                      <circle cx="13" cy="13" r="10" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
-                      <circle cx="13" cy="13" r="10" fill="none"
-                        stroke={ringColor} strokeWidth="3" strokeLinecap="round"
-                        strokeDasharray={ringC}
-                        strokeDashoffset={ringC * (1 - pct)}
-                        style={{ transition: "stroke-dashoffset 1s ease" }}
-                      />
-                    </svg>
-                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <span style={{ fontSize: 13 }}>{mod.emoji}</span>
-                    </div>
-                  </div>
-                  <p style={{ fontSize: 8, fontWeight: 700, color: "var(--text-dim)", textAlign: "center", maxWidth: 36, lineHeight: 1.2 }}>
-                    {mod.completedDays}/7
-                  </p>
-                </div>
-              );
-            })}
+          <div style={{ flex: 1 }}>
+            <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--glass-track)" }}>
+              <div className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${weekRate}%`, background: color, boxShadow: `0 0 8px ${color}60` }} />
+            </div>
+            <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 6 }}>{label}</p>
           </div>
         </div>
       )}
@@ -605,526 +232,185 @@ function EraScoreCard({ score, label, color, completionPct, weekRate, moduleStat
   );
 }
 
-function UrgencyBanner({ pending, level, hoursLeft, minutesLeft }: {
-  pending: number; level: 1 | 2; hoursLeft: number; minutesLeft: number;
+function CareTeamCard({ hospital, unread, navigate }: {
+  hospital: HospitalConnection | null;
+  unread: number;
+  navigate: (path: string) => void;
 }) {
-  const red = level === 2;
-  const timeStr = hoursLeft > 0 ? `${hoursLeft}h ${minutesLeft}m` : `${minutesLeft}m`;
-  return (
-    <div className="flex items-center gap-3 px-4 py-3.5 rounded-2xl"
-      style={{
-        background: red ? "linear-gradient(135deg,rgba(239,68,68,0.14),rgba(220,38,38,0.07))" : "linear-gradient(135deg,rgba(249,115,22,0.14),rgba(234,88,12,0.07))",
-        border: `1px solid ${red ? "rgba(239,68,68,0.35)" : "rgba(249,115,22,0.3)"}`,
-        boxShadow: red ? "0 0 20px rgba(239,68,68,0.12)" : "0 0 16px rgba(249,115,22,0.1)",
-      }}>
-      {red
-        ? <div style={{ width: 14, height: 14, borderRadius: "50%", background: "#ef4444", flexShrink: 0, animation: "era-glow-pulse 1.5s ease-in-out infinite" }} />
-        : <Zap className="w-5 h-5" style={{ color: "#fb923c", flexShrink: 0 }} />
-      }
-      <div style={{ flex: 1 }}>
-        <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>
-          {pending} habit{pending > 1 ? "s" : ""} left · {timeStr} to midnight
-        </p>
-        <p style={{ fontSize: 11, marginTop: 2, color: red ? "#f87171" : "#fb923c", fontWeight: 600 }}>
-          Log now to protect your streak
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function NotifPrompt({ onDismiss }: { onDismiss: () => void }) {
-  const [asking, setAsking] = useState(false);
-
-  async function handleEnable() {
-    setAsking(true);
-    const granted = await requestNotifPermission();
-    localStorage.setItem("era_notif_asked", granted ? "granted" : "denied");
-    if (granted) {
-      fireNotification("ERA Health 🌿", "Reminders enabled! We'll nudge you each evening to log your habits.");
-    }
-    onDismiss();
-  }
-
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl"
-      style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-      <Bell className="w-5 h-5" style={{ color: "var(--accent)", flexShrink: 0 }} />
-      <p style={{ flex: 1, fontSize: 12, color: "var(--text-sub)", fontWeight: 500, lineHeight: 1.4 }}>
-        Get evening reminders to complete your daily plan
-      </p>
-      <button onClick={handleEnable} disabled={asking}
-        className="px-3 py-1.5 rounded-xl text-xs font-bold text-white active:scale-95 transition disabled:opacity-50"
-        style={{ background: "var(--btn-gradient)", flexShrink: 0 }}>
-        Enable
-      </button>
-      <button onClick={onDismiss} className="active:scale-95 transition"
-        style={{ color: "var(--text-dim)", flexShrink: 0, padding: "2px 4px" }}>
-        <X className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
-
-// Build minimal one-tap log payloads keyed by checklist item ID.
-// Each entry carries { moduleType, data } so the API call uses the right module type
-// (e.g. "med_abc" → moduleType "medications").
-interface QuickLogEntry { moduleType: string; data: Record<string, unknown> }
-function buildQuickLogData(mods: Record<string, ModuleEntry | undefined>): Record<string, QuickLogEntry> {
-  const outdoorsTarget = (mods.outdoors?.settings?.targetMinutes as number | undefined) ?? 30;
-  const eyeTarget = (mods.eyebreak?.settings?.targetBreaks as number | undefined) ?? 6;
-  const intimacyMode = (mods.intimacy?.settings as { mode?: string } | undefined)?.mode;
-  const entries: Record<string, QuickLogEntry> = {
-    fruit:    { moduleType: "fruit",    data: { done: true } },
-    smoking:  { moduleType: "smoking",  data: { smoked: false } },
-    alcohol:  { moduleType: "alcohol",  data: { drinks: 0 } },
-    workout:  { moduleType: "workout",  data: { completed: true } },
-    outdoors: { moduleType: "outdoors", data: { minutes: outdoorsTarget } },
-  };
-  if (intimacyMode === "celibacy") entries.intimacy = { moduleType: "intimacy", data: { active: false } };
-  // eyebreak and sunscreen_N are handled inline in the render (they need dynamic count data)
-
-  // Medications — one quick-log entry per dose per med (key matches checklist item id)
-  type Med = { id: string; times?: string[] };
-  const meds = (mods.medications?.settings?.medications as Med[]) ?? [];
-  for (const med of meds) {
-    const times: string[] = med.times?.length ? med.times : ["08:00"];
-    for (const t of times) {
-      entries[`med_${med.id}_${t}`] = { moduleType: "medications", data: { taken: { [`${med.id}_${t}`]: true } } };
-    }
-  }
-
-  return entries;
-}
-
-function CheckRow({ item, isUrgent, onQuickDone }: {
-  item: ChecklistItem;
-  isUrgent: boolean;
-  onQuickDone?: () => void;
-}) {
-  const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
-  const urgentGlow = isUrgent && !item.done;
-
-  const rowContent = (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl transition"
-      style={{
-        background: item.done ? "var(--glass-bg)" : urgentGlow ? `${accent}12` : `${accent}0c`,
-        border: `1px solid ${item.done ? "var(--glass-border)" : urgentGlow ? `${accent}55` : `${accent}28`}`,
-        boxShadow: urgentGlow ? `0 0 12px ${accent}25` : "none",
-      }}>
-
-      {/* Left: tappable check circle */}
-      <button
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onQuickDone?.(); }}
-        disabled={item.done || !onQuickDone}
-        className="shrink-0 active:scale-90 transition disabled:cursor-default"
-        style={{ lineHeight: 0 }}>
-        {item.done
-          ? <CheckCircle2 style={{ width: 22, height: 22, color: "var(--accent)" }} />
-          : onQuickDone
-            ? <Circle style={{ width: 22, height: 22, color: accent }} />
-            : <Circle style={{ width: 22, height: 22, color: accent, opacity: 0.5 }} />
-        }
-      </button>
-
-      <span style={{ fontSize: 18, flexShrink: 0 }}>{item.emoji}</span>
-
-      {/* Middle: label + sub + time — this whole area navigates */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.3, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none" }}>
-          {item.label}
-        </p>
-        {(item.time || item.sub) && (
-          <p style={{ fontSize: 11, marginTop: 1.5, color: item.done ? "var(--text-dim)" : accent }}>
-            {item.time && <span style={{ fontWeight: 700, marginRight: item.sub ? 4 : 0 }}>{fmtTime(item.time)}</span>}
-            {item.time && item.sub && <span style={{ opacity: 0.5, marginRight: 4 }}>·</span>}
-            {item.sub}
+  if (!hospital) {
+    return (
+      <div className="rounded-2xl p-5" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+        <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.5, marginBottom: 14 }}>CARE TEAM</p>
+        <div className="text-center py-2">
+          <p style={{ fontSize: 32, marginBottom: 8 }}>🏥</p>
+          <p style={{ fontSize: 14, fontWeight: 700, color: "var(--text-main)", marginBottom: 6 }}>No hospital connected</p>
+          <p style={{ fontSize: 12, color: "var(--text-sub)", marginBottom: 16, lineHeight: 1.5 }}>
+            Connect your hospital so they can actively manage your care from inside the app
           </p>
-        )}
+          <button onClick={() => navigate("/hospitals")}
+            className="px-5 py-2.5 rounded-xl text-sm font-bold text-white active:scale-95 transition"
+            style={{ background: "var(--btn-gradient)", boxShadow: `0 4px 16px rgba(var(--glow-rgb),0.3)` }}>
+            Find my hospital →
+          </button>
+        </div>
       </div>
+    );
+  }
 
-      <ChevronRight style={{ width: 15, height: 15, flexShrink: 0, color: item.done ? "var(--text-dim)" : accent }} />
+  return (
+    <div className="rounded-2xl p-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+      <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.5, marginBottom: 12 }}>CARE TEAM</p>
+      <div className="flex items-center gap-3 mb-4">
+        {hospital.hospitalLogo ? (
+          <img src={hospital.hospitalLogo} alt={hospital.hospitalName}
+            className="w-11 h-11 rounded-xl object-cover shrink-0"
+            style={{ border: "1px solid var(--glass-border)" }} />
+        ) : (
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0"
+            style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.2)" }}>🏥</div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)", lineHeight: 1.2 }}>{hospital.hospitalName}</p>
+          {unread > 0 ? (
+            <p style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600, marginTop: 3 }}>
+              {unread} unread message{unread !== 1 ? "s" : ""}
+            </p>
+          ) : (
+            <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 3 }}>Your care provider</p>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={() => navigate("/hospitals")}
+          className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white active:scale-95 transition flex items-center justify-center gap-1.5"
+          style={{ background: "var(--btn-gradient)", boxShadow: `0 4px 12px rgba(var(--glow-rgb),0.25)` }}>
+          <MessageSquare className="w-4 h-4" />
+          Message
+        </button>
+        <button onClick={() => navigate("/hospitals")}
+          className="flex-1 py-2.5 rounded-xl text-sm font-bold active:scale-95 transition flex items-center justify-center gap-1.5"
+          style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", color: "var(--text-main)" }}>
+          <CalendarPlus className="w-4 h-4" />
+          Book
+        </button>
+      </div>
     </div>
   );
-
-  return (
-    <Link href={moduleHref(item.id)}>
-      <div className="cursor-pointer active:scale-[0.98] transition">{rowContent}</div>
-    </Link>
-  );
 }
 
-function ThisWeekCard({ summary }: { summary: WeekSummary }) {
-  const { moduleStats, overallRate, weekStart } = summary;
-  const rateColor = overallRate >= 80 ? "#4ade80" : overallRate >= 50 ? "#fbbf24" : "#f87171";
-  const todayIdx = todayIndex(weekStart);
-  const DAY_CHARS = ["M", "T", "W", "T", "F", "S", "S"];
+function CarePlanSection({ items, mods, quickLog, navigate, hospitalName }: {
+  items: ChecklistItem[];
+  mods: Record<string, ModuleEntry | undefined>;
+  quickLog: ReturnType<typeof useQuickLog>;
+  navigate: (path: string) => void;
+  hospitalName?: string;
+}) {
+  const doneCount = items.filter(c => c.done).length;
+  const total = items.length;
+  const completionPct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
-  return (
-    <section>
-      <div className="flex items-center justify-between mb-3">
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>This week</h2>
-        <div className="flex items-center gap-3">
-          <Link href="/report">
-            <span style={{ fontSize: 11, color: "var(--text-sub)", fontWeight: 600 }}>Past weeks →</span>
-          </Link>
-          <Link href="/plan?tab=week">
-            <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>Full plan →</span>
-          </Link>
-        </div>
+  if (total === 0) {
+    return (
+      <div className="rounded-2xl p-6 text-center" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+        <p style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
+        <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 15, marginBottom: 6 }}>No care plan yet</p>
+        <p style={{ fontSize: 13, color: "var(--text-sub)", marginBottom: 20, lineHeight: 1.5 }}>
+          Browse Programs to set up your daily health habits and care routine.
+        </p>
+        <button onClick={() => navigate("/programs")}
+          className="px-6 py-2.5 rounded-xl font-bold text-white text-sm active:scale-95 transition"
+          style={{ background: "var(--btn-gradient)", boxShadow: `0 4px 16px rgba(var(--glow-rgb),0.3)` }}>
+          Browse Programs →
+        </button>
       </div>
-      <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-        {/* Rate header */}
-        <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
-          <p style={{ fontSize: 13, color: "var(--text-sub)", fontWeight: 500 }}>Overall completion</p>
-          <p style={{ fontSize: 22, fontWeight: 900, color: rateColor, filter: `drop-shadow(0 0 6px ${rateColor}70)`, lineHeight: 1 }}>{overallRate}%</p>
-        </div>
-        <div className="px-4 pb-3">
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--glass-track)" }}>
-            <div className="h-full rounded-full transition-all duration-800"
-              style={{ width: `${overallRate}%`, background: rateColor, boxShadow: `0 0 8px ${rateColor}60` }} />
-          </div>
-        </div>
-        {/* Day headers */}
-        <div className="px-4 pb-1" style={{ borderTop: "1px solid var(--glass-border)" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: 3, paddingTop: 8 }}>
-            <div />
-            {DAY_CHARS.map((d, i) => (
-              <div key={i} style={{
-                textAlign: "center", fontSize: 9, fontWeight: 700,
-                color: i === todayIdx ? "var(--accent)" : "var(--text-dim)",
-                padding: "2px 0", borderRadius: 3,
-                background: i === todayIdx ? `rgba(var(--glow-rgb),0.1)` : "transparent",
-              }}>{d}</div>
-            ))}
-          </div>
-        </div>
-        {/* Module rows */}
-        <div>
-          {moduleStats.map((stat) => {
-            const accent = MODULE_ACCENT[stat.type] ?? "var(--accent)";
-            return (
-              <Link key={stat.type} href={moduleHref(stat.type)}>
-                <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 1fr 1fr 1fr 1fr 1fr 1fr", gap: 3, padding: "7px 16px", borderTop: "1px solid var(--glass-bg)", alignItems: "center", cursor: "pointer" }}>
-                  <span style={{ fontSize: 13, textAlign: "center" }}>{stat.emoji}</span>
-                  {stat.days.map((done, i) => {
-                    const isFuture = i > todayIdx;
-                    const isToday = i === todayIdx;
-                    return (
-                      <div key={i} style={{
-                        height: 18, borderRadius: 4,
-                        background: done ? accent : isFuture ? "var(--glass-bg)" : "var(--glass-track)",
-                        border: isToday ? `1.5px solid ${accent}80` : "1px solid transparent",
-                        boxShadow: done ? `0 0 5px ${accent}55` : "none",
-                        opacity: isFuture ? 0.4 : 1,
-                        transition: "background 0.3s",
-                      }} />
-                    );
-                  })}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function dueDateLabel(daysUntil: number, dueDate: string): { text: string; color: string } {
-  if (daysUntil < 0) return { text: `Overdue ${Math.abs(daysUntil)}d ago`, color: "#f87171" };
-  if (daysUntil === 0) return { text: "Due today", color: "#fb923c" };
-  if (daysUntil === 1) return { text: "Due tomorrow", color: "#fbbf24" };
-  if (daysUntil <= 7) {
-    const d = new Date(dueDate + "T12:00:00");
-    return { text: `Due ${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()]}`, color: "#fbbf24" };
+    );
   }
-  return { text: `Due in ${daysUntil}d`, color: "var(--text-sub)" };
-}
 
-function moduleHrefForEvent(module: string): string {
-  if (module === "hygiene") return "/wellness/hygiene";
-  if (module === "vaccines") return "/wellness/vaccines";
-  if (module === "checkups") return "/wellness/checkups";
-  return "/wellness";
-}
+  const logData = buildQuickLogData(mods);
 
-function ComingUpCard({ events }: { events: UpcomingEvent[] }) {
-  const overdueCount = events.filter((e) => e.daysUntil < 0).length;
   return (
     <section>
-      <div className="flex items-center justify-between mb-2.5">
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>
-          Coming up
-          {overdueCount > 0 && (
-            <span className="ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: "rgba(248,113,113,0.15)", color: "#f87171" }}>
-              {overdueCount} overdue
-            </span>
+      <div className="flex items-start justify-between mb-2.5">
+        <div>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>Today's Care Plan</h2>
+          {hospitalName && (
+            <p style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>Managed with {hospitalName}</p>
           )}
-        </h2>
-        <span style={{ fontSize: 11, color: "var(--text-dim)" }}>next 2 weeks</span>
+        </div>
+        <Link href="/plan">
+          <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>View week →</span>
+        </Link>
       </div>
+
+      <div className="mb-3 flex items-center gap-2.5">
+        <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--glass-track)" }}>
+          <div className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${completionPct}%`,
+              background: completionPct === 100 ? "#4ade80" : "var(--btn-gradient)",
+              boxShadow: `0 0 8px rgba(var(--glow-rgb),0.5)`,
+            }} />
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-sub)", flexShrink: 0 }}>
+          {doneCount}/{total} done
+        </span>
+      </div>
+
       <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-        {events.map((event, i) => {
-          const { text, color } = dueDateLabel(event.daysUntil, event.dueDate);
+        {items.map((item, i) => {
+          const entry = getQuickLogEntry(item, logData);
+          const accent = MODULE_ACCENT[baseModule(item.id)] ?? "var(--accent)";
+          const canTick = !item.done && !!entry;
+
           return (
-            <Link key={event.id} href={moduleHrefForEvent(event.module)}>
-              <div className="flex items-center gap-3 px-4 py-3 cursor-pointer active:scale-[0.98] transition"
-                style={{ borderTop: i > 0 ? "1px solid var(--glass-border)" : "none" }}>
-                <span style={{ fontSize: 22, flexShrink: 0 }}>{event.emoji}</span>
+            <div key={item.id} className="flex items-stretch"
+              style={{ borderTop: i > 0 ? "1px solid var(--glass-border)" : "none", minHeight: 58, background: item.done ? "rgba(74,222,128,0.03)" : "transparent" }}>
+
+              {/* Tick zone */}
+              <button
+                onClick={() => {
+                  if (item.done) return;
+                  if (canTick) quickLog.mutate({ moduleType: entry!.moduleType, data: entry!.data });
+                  else navigate(moduleHref(item.id));
+                }}
+                className="shrink-0 flex items-center justify-center active:scale-90 transition"
+                style={{ width: 52, background: "transparent" }}>
+                {item.done
+                  ? <CheckCircle2 style={{ width: 20, height: 20, color: "var(--accent)" }} />
+                  : canTick
+                    ? <Circle style={{ width: 20, height: 20, color: accent }} />
+                    : <Circle style={{ width: 20, height: 20, color: accent, opacity: 0.45 }} />
+                }
+              </button>
+
+              {/* Content */}
+              <button
+                onClick={() => navigate(moduleHref(item.id))}
+                className="flex-1 flex items-center gap-3 py-3 pr-3 text-left active:opacity-70 transition"
+                style={{ background: "transparent", border: "none", borderLeft: "1px solid var(--glass-border)" }}>
+                <span style={{ fontSize: 18, flexShrink: 0 }}>{item.emoji}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", lineHeight: 1.3 }}>{event.label}</p>
+                  <p style={{
+                    fontSize: 13, fontWeight: 700, lineHeight: 1.3,
+                    color: item.done ? "var(--text-dim)" : "var(--text-main)",
+                    textDecoration: item.done ? "line-through" : "none",
+                  }}>{item.label}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    {item.time && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: item.done ? "var(--text-dim)" : accent, background: `${accent}18`, padding: "1px 5px", borderRadius: 5 }}>
+                        {fmtTime(item.time)}
+                      </span>
+                    )}
+                    {item.sub && (
+                      <span style={{ fontSize: 11, color: item.done ? "var(--text-dim)" : "var(--text-sub)" }}>{item.sub}</span>
+                    )}
+                  </div>
                 </div>
-                <span style={{ fontSize: 11, fontWeight: 700, color, flexShrink: 0 }}>{text}</span>
-                <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)", flexShrink: 0 }} />
-              </div>
-            </Link>
+                <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)", flexShrink: 0, opacity: 0.4 }} />
+              </button>
+            </div>
           );
         })}
-      </div>
-    </section>
-  );
-}
-
-function AutoHealthWidget({ snapshot, motionPermission, onEnableMotion }: {
-  snapshot: { steps: number; distanceMeters: number; activeMinutes: number; caloriesBurned: number; activityType: string; sleepHours: number | null; sleepQuality: string | null };
-  motionPermission: boolean | null;
-  onEnableMotion: () => Promise<void>;
-}) {
-  const activityEmoji = snapshot.activityType === "running" ? "🏃" : snapshot.activityType === "walking" ? "🚶" : "🧘";
-  const activityLabel = snapshot.activityType === "running" ? "Running" : snapshot.activityType === "walking" ? "Walking" : "Still";
-  const stepsGoal = 5000;
-  const stepsPct = Math.min(100, Math.round((snapshot.steps / stepsGoal) * 100));
-  const distLabel = snapshot.distanceMeters >= 1000
-    ? `${(snapshot.distanceMeters / 1000).toFixed(1)} km`
-    : `${snapshot.distanceMeters} m`;
-  const sleepLabel = snapshot.sleepHours !== null ? `${snapshot.sleepHours}h` : "—";
-  const sleepColor = snapshot.sleepQuality === "good" ? "#4ade80" : snapshot.sleepQuality === "fair" ? "#fbbf24" : snapshot.sleepQuality === "poor" ? "#f87171" : "var(--text-sub)";
-
-  return (
-    <div className="rounded-2xl overflow-hidden relative"
-      style={{ background: "linear-gradient(135deg,rgba(5,46,22,0.75),rgba(6,78,59,0.55))", border: "1px solid rgba(34,197,94,0.2)", boxShadow: "0 4px 24px rgba(34,197,94,0.1)" }}>
-      <div className="pointer-events-none absolute bottom-0 right-0 w-40 h-40 rounded-full"
-        style={{ background: "radial-gradient(circle,rgba(34,197,94,0.15) 0%,transparent 70%)", filter: "blur(20px)" }} />
-      <div className="relative p-4">
-        <p style={{ fontSize: 11, color: "rgba(74,222,128,0.8)", fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>
-          {activityEmoji} TODAY'S ACTIVITY
-        </p>
-        <div className="flex items-end justify-between mb-4">
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span style={{ fontSize: 40, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>
-                {snapshot.steps.toLocaleString()}
-              </span>
-              <span style={{ fontSize: 15, color: "var(--text-sub)", fontWeight: 500 }}>steps</span>
-            </div>
-            <p style={{ fontSize: 12, marginTop: 3, color: stepsPct >= 100 ? "#4ade80" : "var(--text-sub)" }}>
-              {stepsPct >= 100 ? "Daily goal reached! 🎉" : `${stepsPct}% of ${stepsGoal.toLocaleString()} goal`}
-            </p>
-          </div>
-          <span style={{ fontSize: 32, lineHeight: 1 }}>{activityEmoji}</span>
-        </div>
-
-        {/* Progress bar */}
-        <div className="mb-4 h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-          <div className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${stepsPct}%`, background: "linear-gradient(90deg,#15803d,#4ade80)", boxShadow: "0 0 8px rgba(74,222,128,0.5)" }} />
-        </div>
-
-        {/* 4 mini stats */}
-        <div className="grid grid-cols-4 gap-2 mb-3">
-          {([
-            { label: "Distance", value: distLabel, Icon: MapPin, color: undefined },
-            { label: "Active",   value: `${snapshot.activeMinutes}m`, Icon: Timer, color: undefined },
-            { label: "Calories", value: `${snapshot.caloriesBurned}`, Icon: Flame, color: undefined },
-            { label: "Sleep",    value: sleepLabel, Icon: Moon, color: sleepColor },
-          ] as { label: string; value: string; Icon: React.ElementType; color?: string }[]).map(({ label, value, Icon, color }) => (
-            <div key={label} className="rounded-xl p-2 text-center"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 3 }}>
-                <Icon style={{ width: 14, height: 14, color: color ?? "rgba(74,222,128,0.85)" }} />
-              </div>
-              <p style={{ fontSize: 13, fontWeight: 800, color: color ?? "var(--text-main)", lineHeight: 1.2 }}>{value}</p>
-              <p style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 2, fontWeight: 600 }}>{label}</p>
-            </div>
-          ))}
-        </div>
-
-        {/* iOS motion permission prompt */}
-        {motionPermission === null && (
-          <button onClick={onEnableMotion}
-            className="w-full py-2.5 rounded-xl text-xs font-bold text-white active:scale-95 transition"
-            style={{ background: "linear-gradient(135deg,#15803d,#22c55e)", boxShadow: "0 4px 12px rgba(34,197,94,0.35)" }}>
-            Enable step counting
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function QuickCard({ href, emoji, label, description }: { href: string; emoji: string; label: string; description: string }) {
-  return (
-    <Link href={href}>
-      <div className="relative rounded-2xl p-4 cursor-pointer active:scale-95 transition overflow-hidden"
-        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", minHeight: 92 }}>
-        <div className="absolute inset-0 opacity-10 pointer-events-none"
-          style={{ background: "linear-gradient(135deg,rgba(255,255,255,0.25) 0%,transparent 60%)" }} />
-        <p style={{ fontSize: 24, marginBottom: 6 }}>{emoji}</p>
-        <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 13 }}>{label}</p>
-        <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>{description}</p>
-      </div>
-    </Link>
-  );
-}
-
-function MiniFeatureCard({ href, bg, border, shadow, glowBg, icon, iconBg, iconBorder, title, sub, ctaColor, ctaText }: {
-  href: string; bg: string; border: string; shadow: string; glowBg: string;
-  icon: string; iconBg: string; iconBorder: string;
-  title: React.ReactNode; sub: string; ctaColor: string; ctaText: string;
-}) {
-  return (
-    <Link href={href}>
-      <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.97] transition"
-        style={{ background: bg, border, boxShadow: shadow, minHeight: 142 }}>
-        <div className="absolute top-0 right-0 pointer-events-none"
-          style={{ width: 85, height: 85, background: glowBg, transform: "translate(25%,-25%)" }} />
-        <div className="relative" style={{ padding: 14 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 11, background: iconBg, border: iconBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, marginBottom: 10 }}>
-            {icon}
-          </div>
-          <p style={{ fontSize: 13, fontWeight: 800, color: "#fff", lineHeight: 1.3 }}>{title}</p>
-          <p style={{ fontSize: 10, color: "rgba(255,255,255,0.42)", marginTop: 4, lineHeight: 1.5 }}>{sub}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 10 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: ctaColor }}>{ctaText}</span>
-            <ChevronRight style={{ width: 11, height: 11, color: ctaColor }} />
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-function SpecialFeatureCards() {
-  return (
-    <section>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: "var(--text-main)" }}>Features</h2>
-        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 2, color: "var(--text-dim)" }}>EXPLORE ERA</span>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-
-        {/* ── Weight Loss Coach — hero ── */}
-        <Link href="/weightloss">
-          <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.985] transition"
-            style={{ background: "linear-gradient(135deg, #030d07 0%, #052e16 35%, #064e3b 70%, #065f46 100%)", border: "1px solid rgba(16,185,129,0.3)", boxShadow: "0 8px 36px rgba(16,185,129,0.2)" }}>
-            <div className="absolute top-0 right-0 pointer-events-none"
-              style={{ width: 200, height: 200, background: "radial-gradient(circle, rgba(16,185,129,0.3) 0%, transparent 65%)", transform: "translate(35%,-35%)", filter: "blur(8px)" }} />
-            <div className="absolute bottom-0 left-0 pointer-events-none"
-              style={{ width: 120, height: 120, background: "radial-gradient(circle, rgba(52,211,153,0.14) 0%, transparent 70%)", transform: "translate(-30%,30%)" }} />
-            <div className="relative" style={{ padding: "20px 20px 16px" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 99, background: "rgba(16,185,129,0.18)", border: "1px solid rgba(16,185,129,0.32)" }}>
-                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#10b981", display: "inline-block", boxShadow: "0 0 5px #10b981" }} />
-                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: "#10b981" }}>COACH-GUIDED</span>
-                </div>
-                <div style={{ flexShrink: 0, position: "relative" }}>
-                  <div style={{ position: "absolute", inset: 0, borderRadius: 16, background: "#10b981", filter: "blur(12px)", opacity: 0.4, transform: "scale(1.1)" }} />
-                  <div style={{ position: "relative", width: 52, height: 52, borderRadius: 16, background: "linear-gradient(135deg,#34d399,#10b981)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>🏋️</div>
-                </div>
-              </div>
-              <p style={{ fontSize: 24, fontWeight: 900, color: "#fff", lineHeight: 1.15, marginBottom: 6 }}>Weight Loss<br />Coach</p>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", lineHeight: 1.6, maxWidth: 230 }}>Personalised meal plans · Nigerian food calorie calculator · daily accountability & rewards</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 16, paddingTop: 14, borderTop: "1px solid rgba(16,185,129,0.15)" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#10b981" }}>Start your programme</span>
-                <ChevronRight style={{ width: 15, height: 15, color: "#10b981" }} />
-              </div>
-            </div>
-          </div>
-        </Link>
-
-        {/* ── Row: My Diary + Women's Health ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <MiniFeatureCard
-            href="/companion"
-            bg="linear-gradient(160deg, #06020f 0%, #1e0845 50%, #2a0d5e 100%)"
-            border="1px solid rgba(139,92,246,0.3)"
-            shadow="0 5px 22px rgba(139,92,246,0.18)"
-            glowBg="radial-gradient(circle, rgba(139,92,246,0.4) 0%, transparent 70%)"
-            icon="📓"
-            iconBg="rgba(139,92,246,0.2)"
-            iconBorder="1px solid rgba(139,92,246,0.35)"
-            title={<>My<br />Diary</>}
-            sub="Private journal<br />& companion"
-            ctaColor="#a78bfa"
-            ctaText="Open"
-          />
-          <MiniFeatureCard
-            href="/womens-health"
-            bg="linear-gradient(160deg, #3b0a1e 0%, #7c1040 45%, #9d174d 100%)"
-            border="1px solid rgba(236,72,153,0.28)"
-            shadow="0 5px 22px rgba(236,72,153,0.16)"
-            glowBg="radial-gradient(circle, rgba(244,114,182,0.45) 0%, transparent 70%)"
-            icon="🌸"
-            iconBg="rgba(244,114,182,0.22)"
-            iconBorder="1px solid rgba(244,114,182,0.35)"
-            title={<>Women's<br />Health</>}
-            sub="Cycle · hormones<br />& fertility"
-            ctaColor="#f472b6"
-            ctaText="Track"
-          />
-        </div>
-
-        {/* ── Row: Sex Life + Social ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <MiniFeatureCard
-            href="/intimacy"
-            bg="linear-gradient(160deg, #130008 0%, #4c0519 45%, #7f1d1d 100%)"
-            border="1px solid rgba(251,113,133,0.28)"
-            shadow="0 5px 20px rgba(239,68,68,0.15)"
-            glowBg="radial-gradient(circle, rgba(251,113,133,0.42) 0%, transparent 70%)"
-            icon="🌹"
-            iconBg="rgba(251,113,133,0.18)"
-            iconBorder="1px solid rgba(251,113,133,0.3)"
-            title={<>Sex<br />Life</>}
-            sub="Intimacy · drive<br />& connection"
-            ctaColor="#fca5a5"
-            ctaText="Explore"
-          />
-          <MiniFeatureCard
-            href="/social"
-            bg="linear-gradient(160deg, #030712 0%, #1e3a8a 45%, #1d4ed8 100%)"
-            border="1px solid rgba(59,130,246,0.28)"
-            shadow="0 5px 20px rgba(59,130,246,0.14)"
-            glowBg="radial-gradient(circle, rgba(96,165,250,0.4) 0%, transparent 70%)"
-            icon="👥"
-            iconBg="rgba(96,165,250,0.2)"
-            iconBorder="1px solid rgba(96,165,250,0.35)"
-            title={<>Social<br />Health</>}
-            sub="Partner · groups<br />& community"
-            ctaColor="#60a5fa"
-            ctaText="Connect"
-          />
-        </div>
-
-        {/* ── Hospitals — slim banner ── */}
-        <Link href="/hospitals">
-          <div className="relative rounded-2xl overflow-hidden cursor-pointer active:scale-[0.985] transition"
-            style={{ background: "linear-gradient(135deg, rgba(15,23,42,0.95) 0%, rgba(30,41,59,0.9) 100%)", border: "1px solid rgba(148,163,184,0.15)" }}>
-            <div className="absolute top-0 left-0 right-0 h-px pointer-events-none"
-              style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 16px" }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.22)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>🏥</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0", lineHeight: 1.3 }}>Find hospitals & clinics</p>
-                <p style={{ fontSize: 11, color: "rgba(148,163,184,0.8)", marginTop: 2 }}>Book appointments near you</p>
-              </div>
-              <ChevronRight style={{ width: 15, height: 15, color: "rgba(148,163,184,0.6)", flexShrink: 0 }} />
-            </div>
-          </div>
-        </Link>
-
       </div>
     </section>
   );

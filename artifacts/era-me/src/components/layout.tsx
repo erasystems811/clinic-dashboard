@@ -1,15 +1,15 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
-import { Home, Heart, CalendarDays, Building2, User, Bell } from "lucide-react";
+import { Home, CalendarDays, Building2, User, Bell, Layers } from "lucide-react";
 import { useUnreadNotifCount } from "@/lib/hospitals-api";
 import { FeedbackNudge } from "@/components/feedback-nudge";
 
 const NAV = [
   { href: "/",          label: "Home",      Icon: Home },
-  { href: "/wellness",  label: "Settings",  Icon: Heart },
   { href: "/plan",      label: "Plan",      Icon: CalendarDays },
   { href: "/hospitals", label: "Hospitals", Icon: Building2 },
+  { href: "/programs",  label: "Programs",  Icon: Layers },
   { href: "/profile",   label: "Profile",   Icon: User },
 ];
 

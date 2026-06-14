@@ -33,6 +33,7 @@ import { HealthProvider } from "@/contexts/health-context";
 import AuthPage from "@/pages/auth";
 import HomePage from "@/pages/home";
 import WellnessPage from "@/pages/wellness";
+import ProgramsPage from "@/pages/programs";
 import WaterPage from "@/pages/wellness/water";
 import MedicationsPage from "@/pages/wellness/medications";
 import WorkoutPage from "@/pages/wellness/workout";
@@ -218,7 +219,8 @@ function AppRoutes() {
             <Route path="/report" component={ReportPage} />
             <Route path="/notifications" component={NotificationsPage} />
             <Route path="/notification-settings" component={NotificationSettingsPage} />
-            <Route path="/wellness" component={WellnessPage} />
+            <Route path="/programs" component={ProgramsPage} />
+            <Route path="/wellness" component={ProgramsPage} />
             <Route path="/wellness/water" component={WaterPage} />
             <Route path="/wellness/medications" component={MedicationsPage} />
             <Route path="/wellness/workout" component={WorkoutPage} />

@@ -996,8 +996,9 @@ router.get("/patient-app/plan-by-source", async (req, res): Promise<void> => {
 
   for (const m of modules ?? []) {
     const meta = MODULE_META[m.module_type as string];
-    const label = meta?.label ?? String(m.module_type);
-    const emoji = meta?.emoji ?? "⚡";
+    if (!meta) continue; // skip retired module types (mood, energy, sleep, stress)
+    const label = meta.label;
+    const emoji = meta.emoji;
 
     if (m.source === "hospital" && m.prescribed_by_hospital_name) {
       hospitalModules.push({ moduleType: m.module_type as string, label, emoji, hospitalName: m.prescribed_by_hospital_name as string });

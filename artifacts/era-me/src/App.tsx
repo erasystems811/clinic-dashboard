@@ -2,6 +2,7 @@ import { Component, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { applyEmeraldVars, applyCrimsonVars } from "@/lib/section-theme";
+import { apiUrl } from "@/lib/api";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null };
@@ -98,7 +99,7 @@ function usePageTracker() {
     const token = (() => {
       try { return (JSON.parse(localStorage.getItem("era_me_session") ?? "{}") as { token?: string }).token ?? null; } catch { return null; }
     })();
-    void fetch("/api/patient-app/track", {
+    void fetch(apiUrl("/api/patient-app/track"), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(token ? { "x-patient-token": token } : {}) },
       body: JSON.stringify({

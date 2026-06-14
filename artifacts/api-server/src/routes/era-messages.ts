@@ -128,7 +128,7 @@ router.get("/era-messages/doctor", async (req, res): Promise<void> => {
 
   const specialty = (doc.specialty as string | null) ?? null;
 
-  const [{ data: owned }, deptResult] = await Promise.all([
+  const [{ data: owned }, deptResult, { data: untagged }] = await Promise.all([
     supabase
       .from("patient_hospital_connections")
       .select("id, patient_record_id, routed_to_doctor_id, era_status, conversation_department")
@@ -143,14 +143,22 @@ router.get("/era-messages/doctor", async (req, res): Promise<void> => {
           .eq("era_status", "open")
           .eq("conversation_department", specialty)
       : Promise.resolve({ data: [] as unknown[] }),
+    // Unclaimed messages with no department go to all doctors
+    supabase
+      .from("patient_hospital_connections")
+      .select("id, patient_record_id, routed_to_doctor_id, era_status, conversation_department")
+      .eq("hospital_id", hospitalId)
+      .eq("era_status", "open")
+      .is("conversation_department", null),
   ]);
 
   const ownedIds = new Set((owned ?? []).map(c => (c as { id: number }).id));
   type ConnRow = { id: number; patient_record_id: number; routed_to_doctor_id: number | null; era_status: string; conversation_department: string | null };
-  const allConnections: ConnRow[] = [
-    ...(owned ?? []) as ConnRow[],
-    ...((deptResult.data ?? []) as ConnRow[]).filter(c => !ownedIds.has(c.id)),
-  ];
+  const seen = new Set(ownedIds);
+  const allConnections: ConnRow[] = [...(owned ?? []) as ConnRow[]];
+  for (const c of [...((deptResult.data ?? []) as ConnRow[]), ...((untagged ?? []) as ConnRow[])]) {
+    if (!seen.has(c.id)) { seen.add(c.id); allConnections.push(c); }
+  }
 
   if (allConnections.length === 0) { res.json([]); return; }
 
@@ -227,8 +235,10 @@ router.get("/era-messages/doctor/:connectionId", async (req, res): Promise<void>
 
   const ownedByMe = (conn.routed_to_doctor_id as number | null) === doctorId;
   const specialty = (doc.specialty as string | null) ?? null;
-  const unclaimedInMyDept = (conn.era_status as string) === "open" && !!specialty && (conn.conversation_department as string | null) === specialty;
-  if (!ownedByMe && !unclaimedInMyDept) { res.status(403).json({ error: "Not assigned to you" }); return; }
+  const dept = (conn.conversation_department as string | null) ?? null;
+  const unclaimedInMyDept = (conn.era_status as string) === "open" && !!specialty && dept === specialty;
+  const unclaimedUntagged = (conn.era_status as string) === "open" && dept === null;
+  if (!ownedByMe && !unclaimedInMyDept && !unclaimedUntagged) { res.status(403).json({ error: "Not assigned to you" }); return; }
 
   const [{ data: messages }, { data: patient }] = await Promise.all([
     supabase.from("patient_hospital_messages").select("id, sender, message_type, content, metadata, created_at").eq("connection_id", connectionId).order("created_at", { ascending: true }).limit(200),

@@ -155,16 +155,19 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
   const weekStart = getWeekStart();
 
   const [modulesResult, logsResult, planResult] = await Promise.all([
-    supabase.from("wellness_modules").select("module_type, settings, enabled").eq("account_id", account.id),
+    supabase.from("wellness_modules").select("module_type, settings, enabled, source, prescribed_by_hospital_name").eq("account_id", account.id),
     supabase.from("wellness_logs").select("module_type, data").eq("account_id", account.id).eq("log_date", today),
     supabase.from("weekly_plans").select("plan_data").eq("account_id", account.id).eq("week_start", weekStart).maybeSingle(),
   ]);
 
-  const moduleMap: Record<string, { settings: Record<string, unknown>; enabled: boolean }> = {};
+  const moduleMap: Record<string, { settings: Record<string, unknown>; enabled: boolean; source: string; prescribedBy?: string }> = {};
   for (const m of modulesResult.data ?? []) {
+    const src = (m.source as string | null) ?? "self";
     moduleMap[m.module_type as string] = {
       settings: (m.settings as Record<string, unknown>) ?? {},
       enabled: m.enabled as boolean,
+      source: src,
+      prescribedBy: src === "hospital" ? ((m.prescribed_by_hospital_name as string | null) ?? undefined) : undefined,
     };
   }
   const logMap: Record<string, Record<string, unknown>> = {};
@@ -173,7 +176,7 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
   }
 
   // Build checklist from the weekly plan (falls back to module-based logic if no plan)
-  const checklist: Array<{ id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean; count?: number; target?: number; batchIds?: string[] }> = [];
+  const checklist: Array<{ id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean; count?: number; target?: number; batchIds?: string[]; prescribedBy?: string }> = [];
   const plan = planResult.data?.plan_data as WeekPlan | null;
   const todayPlanDay = plan?.days.find((d) => d.date === today);
 
@@ -188,7 +191,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (item.isRestDay) {
         if (!seen.has(item.moduleType)) {
           seen.add(item.moduleType);
-          checklist.push({ id: item.moduleType, emoji: item.emoji, label: item.label, sub: item.sub, done: true });
+          const pb = moduleMap[item.moduleType]?.prescribedBy;
+          checklist.push({ id: item.moduleType, emoji: item.emoji, label: item.label, sub: item.sub, done: true, ...(pb ? { prescribedBy: pb } : {}) });
         }
         continue;
       }
@@ -215,12 +219,13 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
             byTime.get(t)!.push({ med, isDone: taken[`${med.id as string}_${t}`] === true });
           }
         }
+        const medPb = moduleMap["medications"]?.prescribedBy;
         for (const [time, doses] of [...byTime.entries()].sort(([a], [b]) => a.localeCompare(b))) {
           const allDone = doses.every(d => d.isDone);
           const batchIds = doses.map(d => `med_${d.med.id as string}_${time}`);
           const label = doses.length === 1 ? `Take ${doses[0].med.name as string}` : `Take ${doses.length} medications`;
           const sub = doses.map(d => (d.med.name as string) + (d.med.dosage ? ` — ${d.med.dosage as string}` : "")).join(", ");
-          checklist.push({ id: `medications_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds });
+          checklist.push({ id: `medications_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds, ...(medPb ? { prescribedBy: medPb } : {}) });
         }
         continue;
       }
@@ -229,13 +234,14 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (item.moduleType === "hygiene") {
         interface HygieneItem { id: string; name: string; emoji: string; lastReplaced: string; intervalDays: number }
         const items = ((settings.items as HygieneItem[]) ?? []);
+        const hygienePb = moduleMap["hygiene"]?.prescribedBy;
         for (const hi of items) {
           const age = Math.floor((Date.now() - new Date(hi.lastReplaced + "T12:00:00").getTime()) / 86400000);
           if (age < hi.intervalDays) continue; // only on/after the due date
           const replacedToday = hi.lastReplaced === today;
           const daysOverdue = age - hi.intervalDays;
           const sub = daysOverdue > 0 && !replacedToday ? `${daysOverdue}d overdue` : "Due today";
-          checklist.push({ id: `hygiene_${hi.id}`, emoji: hi.emoji, label: `Replace ${hi.name}`, sub, done: replacedToday });
+          checklist.push({ id: `hygiene_${hi.id}`, emoji: hi.emoji, label: `Replace ${hi.name}`, sub, done: replacedToday, ...(hygienePb ? { prescribedBy: hygienePb } : {}) });
         }
         continue;
       }
@@ -244,12 +250,13 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (item.moduleType === "vaccines") {
         interface Vaccine { id: string; name: string; nextDueDate?: string }
         const todayMs = new Date(today + "T12:00:00").getTime();
+        const vaccinesPb = moduleMap["vaccines"]?.prescribedBy;
         for (const v of ((settings.vaccines as Vaccine[]) ?? [])) {
           if (!v.nextDueDate) continue;
           const daysUntil = Math.ceil((new Date(v.nextDueDate + "T12:00:00").getTime() - todayMs) / 86400000);
           if (daysUntil > 0) continue;
           const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
-          checklist.push({ id: `vaccine_${v.id}`, emoji: "💉", label: `${v.name} vaccine`, sub, done: false });
+          checklist.push({ id: `vaccine_${v.id}`, emoji: "💉", label: `${v.name} vaccine`, sub, done: false, ...(vaccinesPb ? { prescribedBy: vaccinesPb } : {}) });
         }
         continue;
       }
@@ -259,12 +266,13 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         interface Checkup { id: string; type: string; lastDate: string; intervalMonths: number }
         const CHECKUP_EMOJIS: Record<string, string> = { "Dental": "🦷", "Eye / Vision": "👁️", "GP / General": "🩺", "Blood Test": "🩸", "Blood Pressure": "💗", "Cancer Screening": "🔬", "Skin Check": "🧴" };
         const todayMs = new Date(today + "T12:00:00").getTime();
+        const checkupsPb = moduleMap["checkups"]?.prescribedBy;
         for (const c of ((settings.checkups as Checkup[]) ?? [])) {
           const due = new Date(c.lastDate); due.setMonth(due.getMonth() + c.intervalMonths);
           const daysUntil = Math.ceil((due.getTime() - todayMs) / 86400000);
           if (daysUntil > 0) continue;
           const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
-          checklist.push({ id: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, done: false });
+          checklist.push({ id: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, done: false, ...(checkupsPb ? { prescribedBy: checkupsPb } : {}) });
         }
         continue;
       }
@@ -274,7 +282,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         const focus = (item.sub ?? "").trim();
         const label = focus || "Workout";
         const done = isModuleCompleted("workout", log ?? undefined, settings, today);
-        checklist.push({ id: "workout", emoji: item.emoji, label, time: item.time ?? undefined, done });
+        const workoutPb = moduleMap["workout"]?.prescribedBy;
+        checklist.push({ id: "workout", emoji: item.emoji, label, time: item.time ?? undefined, done, ...(workoutPb ? { prescribedBy: workoutPb } : {}) });
         continue;
       }
 
@@ -285,7 +294,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         const [eh, em] = ((settings.endTime as string) ?? "18:00").split(":").map(Number);
         const defaultTarget = Math.max(4, Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 25));
         const ebTarget = (settings.targetBreaks as number) ?? defaultTarget;
-        checklist.push({ id: "eyebreak", emoji: "👁️", label: "Eye breaks", sub: `${ebCount} / ${ebTarget} breaks`, time: item.time ?? undefined, done: ebCount >= ebTarget, count: ebCount, target: ebTarget });
+        const eyebreakPb = moduleMap["eyebreak"]?.prescribedBy;
+        checklist.push({ id: "eyebreak", emoji: "👁️", label: "Eye breaks", sub: `${ebCount} / ${ebTarget} breaks`, time: item.time ?? undefined, done: ebCount >= ebTarget, count: ebCount, target: ebTarget, ...(eyebreakPb ? { prescribedBy: eyebreakPb } : {}) });
         continue;
       }
 
@@ -297,10 +307,11 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         const [rh, rm] = reminderTime.split(":").map(Number);
         const startMins = rh * 60 + rm;
         const endMins = 18 * 60;
+        const sunscreenPb = moduleMap["sunscreen"]?.prescribedBy;
         for (let i = 0; i < ssTarget; i++) {
           const t = ssTarget === 1 ? startMins : Math.round(startMins + (i * (endMins - startMins)) / Math.max(1, ssTarget - 1));
           const timeStr = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
-          checklist.push({ id: `sunscreen_${i}`, emoji: "☀️", label: "Apply sunscreen", sub: ssTarget > 1 ? `Application ${i + 1} of ${ssTarget}` : "Daily protection", time: timeStr, done: ssCount > i });
+          checklist.push({ id: `sunscreen_${i}`, emoji: "☀️", label: "Apply sunscreen", sub: ssTarget > 1 ? `Application ${i + 1} of ${ssTarget}` : "Daily protection", time: timeStr, done: ssCount > i, ...(sunscreenPb ? { prescribedBy: sunscreenPb } : {}) });
         }
         continue;
       }
@@ -308,7 +319,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       const done = isModuleCompleted(item.moduleType, log ?? undefined, settings, today);
       const sub = log ? (checklistSub(item.moduleType, log, settings, today) ?? item.sub) : item.sub;
       const label = item.moduleType === "water" ? "Water intake" : item.label;
-      checklist.push({ id: item.moduleType, emoji: item.emoji, label, sub, time: item.time ?? undefined, done });
+      const defaultPb = moduleMap[item.moduleType]?.prescribedBy;
+      checklist.push({ id: item.moduleType, emoji: item.emoji, label, sub, time: item.time ?? undefined, done, ...(defaultPb ? { prescribedBy: defaultPb } : {}) });
     }
   } else {
     // No plan yet — fall back to direct module-based checklist
@@ -321,11 +333,12 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (type === "workout") {
         const workoutDays = (settings.days as Record<string, Record<string, unknown>>) ?? {};
         const todayWorkout = workoutDays[dayKey];
+        const woPb = mod.prescribedBy;
         if (todayWorkout?.enabled) {
           const focus = (todayWorkout.focus as string | undefined)?.trim();
-          checklist.push({ id: "workout", emoji: "🏃", label: focus ?? "Workout", done: log?.completed === true });
+          checklist.push({ id: "workout", emoji: "🏃", label: focus ?? "Workout", done: log?.completed === true, ...(woPb ? { prescribedBy: woPb } : {}) });
         } else if (dayKey in workoutDays) {
-          checklist.push({ id: "workout", emoji: "😌", label: "Rest day", sub: "No workout today", done: true });
+          checklist.push({ id: "workout", emoji: "😌", label: "Rest day", sub: "No workout today", done: true, ...(woPb ? { prescribedBy: woPb } : {}) });
         }
         continue;
       }
@@ -348,12 +361,13 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
             byTime.get(t)!.push({ med, isDone: taken[`${med.id as string}_${t}`] === true });
           }
         }
+        const fallbackMedPb = mod.prescribedBy;
         for (const [time, doses] of [...byTime.entries()].sort(([a], [b]) => a.localeCompare(b))) {
           const allDone = doses.every(d => d.isDone);
           const batchIds = doses.map(d => `med_${d.med.id as string}_${time}`);
           const label = doses.length === 1 ? `Take ${doses[0].med.name as string}` : `Take ${doses.length} medications`;
           const sub = doses.map(d => (d.med.name as string) + (d.med.dosage ? ` — ${d.med.dosage as string}` : "")).join(", ");
-          checklist.push({ id: `medications_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds });
+          checklist.push({ id: `medications_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds, ...(fallbackMedPb ? { prescribedBy: fallbackMedPb } : {}) });
         }
         continue;
       }
@@ -364,7 +378,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         const [eh, em] = ((settings.endTime as string) ?? "18:00").split(":").map(Number);
         const defaultTarget = Math.max(4, Math.round(((eh * 60 + em) - (sh * 60 + sm)) / 25));
         const ebTarget = (settings.targetBreaks as number) ?? defaultTarget;
-        checklist.push({ id: "eyebreak", emoji: "👁️", label: "Eye breaks", sub: `${ebCount} / ${ebTarget} breaks`, done: ebCount >= ebTarget, count: ebCount, target: ebTarget });
+        const ebPb = mod.prescribedBy;
+        checklist.push({ id: "eyebreak", emoji: "👁️", label: "Eye breaks", sub: `${ebCount} / ${ebTarget} breaks`, done: ebCount >= ebTarget, count: ebCount, target: ebTarget, ...(ebPb ? { prescribedBy: ebPb } : {}) });
         continue;
       }
 
@@ -375,10 +390,11 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         const [rh, rm] = reminderTime.split(":").map(Number);
         const startMins = rh * 60 + rm;
         const endMins = 18 * 60;
+        const ssPb = mod.prescribedBy;
         for (let i = 0; i < ssTarget; i++) {
           const t = ssTarget === 1 ? startMins : Math.round(startMins + (i * (endMins - startMins)) / Math.max(1, ssTarget - 1));
           const timeStr = `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
-          checklist.push({ id: `sunscreen_${i}`, emoji: "☀️", label: "Apply sunscreen", sub: ssTarget > 1 ? `Application ${i + 1} of ${ssTarget}` : "Daily protection", time: timeStr, done: ssCount > i });
+          checklist.push({ id: `sunscreen_${i}`, emoji: "☀️", label: "Apply sunscreen", sub: ssTarget > 1 ? `Application ${i + 1} of ${ssTarget}` : "Daily protection", time: timeStr, done: ssCount > i, ...(ssPb ? { prescribedBy: ssPb } : {}) });
         }
         continue;
       }
@@ -386,7 +402,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       const meta = MODULE_META[type];
       const done = isModuleCompleted(type, log ?? undefined, settings, today);
       const sub = log ? checklistSub(type, log, settings, today) : (type === "sleep" ? "Log last night's sleep" : type === "mood_check" ? "Mood, energy & stress" : undefined);
-      checklist.push({ id: type, emoji: meta.emoji, label: meta.label, sub, done });
+      const typePb = mod.prescribedBy;
+      checklist.push({ id: type, emoji: meta.emoji, label: meta.label, sub, done, ...(typePb ? { prescribedBy: typePb } : {}) });
     }
 
     // Periodic modules: appear in daily checklist only on/after their due date
@@ -395,25 +412,27 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
     const hygieneMod = moduleMap["hygiene"];
     if (hygieneMod?.enabled) {
       interface HygieneItem { id: string; name: string; emoji: string; lastReplaced: string; intervalDays: number }
+      const hPb = hygieneMod.prescribedBy;
       for (const item of ((hygieneMod.settings.items as HygieneItem[]) ?? [])) {
         const age = Math.floor((Date.now() - new Date(item.lastReplaced + "T12:00:00").getTime()) / 86400000);
         if (age < item.intervalDays) continue;
         const replacedToday = item.lastReplaced === today;
         const daysOverdue = age - item.intervalDays;
         const sub = daysOverdue > 0 && !replacedToday ? `${daysOverdue}d overdue` : "Due today";
-        checklist.push({ id: `hygiene_${item.id}`, emoji: item.emoji, label: `Replace ${item.name}`, sub, done: replacedToday });
+        checklist.push({ id: `hygiene_${item.id}`, emoji: item.emoji, label: `Replace ${item.name}`, sub, done: replacedToday, ...(hPb ? { prescribedBy: hPb } : {}) });
       }
     }
 
     const vaccinesMod = moduleMap["vaccines"];
     if (vaccinesMod?.enabled) {
       interface Vaccine { id: string; name: string; nextDueDate?: string }
+      const vPb = vaccinesMod.prescribedBy;
       for (const v of ((vaccinesMod.settings.vaccines as Vaccine[]) ?? [])) {
         if (!v.nextDueDate) continue;
         const daysUntil = Math.ceil((new Date(v.nextDueDate + "T12:00:00").getTime() - todayMs) / 86400000);
         if (daysUntil > 0) continue;
         const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
-        checklist.push({ id: `vaccine_${v.id}`, emoji: "💉", label: `${v.name} vaccine`, sub, done: false });
+        checklist.push({ id: `vaccine_${v.id}`, emoji: "💉", label: `${v.name} vaccine`, sub, done: false, ...(vPb ? { prescribedBy: vPb } : {}) });
       }
     }
 
@@ -421,12 +440,13 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
     if (checkupsMod?.enabled) {
       interface Checkup { id: string; type: string; lastDate: string; intervalMonths: number }
       const CHECKUP_EMOJIS: Record<string, string> = { "Dental": "🦷", "Eye / Vision": "👁️", "GP / General": "🩺", "Blood Test": "🩸", "Blood Pressure": "💗", "Cancer Screening": "🔬", "Skin Check": "🧴" };
+      const cPb = checkupsMod.prescribedBy;
       for (const c of ((checkupsMod.settings.checkups as Checkup[]) ?? [])) {
         const due = new Date(c.lastDate); due.setMonth(due.getMonth() + c.intervalMonths);
         const daysUntil = Math.ceil((due.getTime() - todayMs) / 86400000);
         if (daysUntil > 0) continue;
         const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
-        checklist.push({ id: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, done: false });
+        checklist.push({ id: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, done: false, ...(cPb ? { prescribedBy: cPb } : {}) });
       }
     }
   }

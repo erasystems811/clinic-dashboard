@@ -49,14 +49,14 @@ function formatTimeShort(time: string): string {
   return m === 0 ? `${hour}${period}` : `${hour}:${String(m).padStart(2,"0")}${period}`;
 }
 
-interface ChecklistItem { id: string; done: boolean; sub?: string }
+interface ChecklistItem { id: string; done: boolean; sub?: string; prescribedBy?: string }
 
 export default function PlanPage() {
   const [, navigate] = useLocation();
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDate, setSelectedDate] = useState(todayStr());
-  const [view, setView] = useState<"today" | "timetable">(() =>
+  const [view, setView] = useState<"today" | "timetable" | "source">(() =>
     new URLSearchParams(window.location.search).get("tab") === "week" ? "timetable" : "today"
   );
   const { account } = useAuth();
@@ -284,22 +284,26 @@ export default function PlanPage() {
 
       {/* ── Tabs ── */}
       <div className="px-4 mb-4">
-        <div className="flex gap-2 p-1 rounded-2xl" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-          {(["today", "timetable"] as const).map(tab => (
+        <div className="flex gap-1.5 p-1 rounded-2xl" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+          {(["today", "timetable", "source"] as const).map(tab => (
             <button key={tab} onClick={() => setView(tab)}
-              className="flex-1 py-2.5 rounded-xl text-sm font-bold transition active:scale-95"
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold transition active:scale-95"
               style={{
                 background: view === tab ? "var(--btn-gradient)" : "transparent",
                 color: view === tab ? "#fff" : "var(--text-sub)",
                 boxShadow: view === tab ? `0 4px 14px rgba(var(--glow-rgb),0.3)` : "none",
               }}>
-              {tab === "today" ? "Today" : "Full Week"}
+              {tab === "today" ? "Today" : tab === "timetable" ? "Full Week" : "By Source"}
             </button>
           ))}
         </div>
       </div>
 
-      {view === "timetable" ? (
+      {view === "source" ? (
+        <div className="px-4">
+          <SourceSplitView checklist={todayRaw?.checklist ?? []} navigate={navigate} />
+        </div>
+      ) : view === "timetable" ? (
         <div className="px-4">
           <WeekTableView plan={plan} today={today} onPrint={openPrint} />
           <button onClick={() => navigate("/report")}
@@ -658,6 +662,113 @@ function WeekTableView({ plan, today, onPrint }: { plan: WeekPlan; today: string
         style={{ background: "var(--btn-gradient)", boxShadow: `0 4px 14px rgba(var(--glow-rgb),0.3)` }}>
         <Printer className="w-4 h-4" /> Save / Print timetable
       </button>
+    </div>
+  );
+}
+
+// ── Source split view: Hospital Plan vs My Plan ───────────────────────────────
+
+function SourceSplitView({ checklist, navigate }: {
+  checklist: ChecklistItem[];
+  navigate: (path: string) => void;
+}) {
+  const hospitalItems = checklist.filter(c => !!c.prescribedBy);
+  const selfItems     = checklist.filter(c => !c.prescribedBy);
+
+  const renderItem = (item: ChecklistItem) => {
+    const base = item.id.startsWith("med_") ? "medications"
+      : item.id.startsWith("hygiene_") ? "hygiene"
+      : item.id.startsWith("vaccine_") ? "vaccines"
+      : item.id.startsWith("checkup_") ? "checkups"
+      : item.id.startsWith("sunscreen_") ? "sunscreen"
+      : item.id;
+    const href = base === "mood_check" ? "/wellness/mood" : `/wellness/${base}`;
+    const accent = MODULE_ACCENT[base] ?? "var(--accent)";
+    return (
+      <button key={item.id} onClick={() => navigate(href)} className="w-full text-left">
+        <div className="flex items-center gap-3 px-4 py-3.5 active:scale-[0.98] transition"
+          style={{ borderTop: "1px solid var(--glass-border)", background: item.done ? "rgba(74,222,128,0.04)" : "transparent" }}>
+          <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: item.done ? "#4ade80" : "var(--glass-track)", border: item.done ? "none" : `2px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {item.done && <span style={{ fontSize: 12, color: "#fff", fontWeight: 900 }}>✓</span>}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none" }}>
+              {item.id.startsWith("sunscreen_") ? "Apply sunscreen"
+                : item.id.startsWith("hygiene_") ? (item.sub?.startsWith("Replace") ? item.sub.split(" – ")[0] : "Replace item")
+                : item.id.startsWith("vaccine_") ? "Vaccine"
+                : item.id.startsWith("checkup_") ? "Checkup"
+                : item.id.startsWith("medications_") ? "Take medications"
+                : item.id === "mood_check" ? "Daily check-in"
+                : item.id.charAt(0).toUpperCase() + item.id.slice(1).replace(/_/g, " ")}
+            </p>
+            {item.sub && <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>{item.sub}</p>}
+          </div>
+          <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)", opacity: 0.4, flexShrink: 0 }} />
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Hospital Plan */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.2, color: "var(--accent)", whiteSpace: "nowrap" }}>HOSPITAL PLAN</span>
+          <div className="flex-1 h-px" style={{ background: "var(--accent-tint-border)" }} />
+          {hospitalItems.length > 0 && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", background: "var(--accent-tint-bg)", padding: "2px 8px", borderRadius: 8, whiteSpace: "nowrap" }}>
+              {hospitalItems.filter(c => c.done).length}/{hospitalItems.length}
+            </span>
+          )}
+        </div>
+        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+          {hospitalItems.length === 0 ? (
+            <div className="py-8 text-center">
+              <p style={{ fontSize: 22, marginBottom: 8 }}>🏥</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 4 }}>No hospital-prescribed tasks</p>
+              <p style={{ fontSize: 11, color: "var(--text-sub)", lineHeight: 1.5 }}>
+                When your hospital prescribes health modules, they'll appear here.
+              </p>
+            </div>
+          ) : (
+            hospitalItems.map(renderItem)
+          )}
+        </div>
+        {hospitalItems.length > 0 && (
+          <p style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 6, textAlign: "center" }}>
+            Prescribed by {hospitalItems[0].prescribedBy}
+          </p>
+        )}
+      </div>
+
+      {/* My Plan */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.2, color: "var(--text-sub)", whiteSpace: "nowrap" }}>MY PLAN</span>
+          <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
+          {selfItems.length > 0 && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-sub)", background: "var(--glass-track)", padding: "2px 8px", borderRadius: 8, whiteSpace: "nowrap" }}>
+              {selfItems.filter(c => c.done).length}/{selfItems.length}
+            </span>
+          )}
+        </div>
+        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+          {selfItems.length === 0 ? (
+            <div className="py-8 text-center">
+              <p style={{ fontSize: 22, marginBottom: 8 }}>✨</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 4 }}>No personal tasks yet</p>
+              <button onClick={() => navigate("/programs")}
+                className="text-sm font-bold active:scale-95 transition"
+                style={{ color: "var(--accent)" }}>
+                Browse Programs →
+              </button>
+            </div>
+          ) : (
+            selfItems.map(renderItem)
+          )}
+        </div>
+      </div>
     </div>
   );
 }

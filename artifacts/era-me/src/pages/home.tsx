@@ -11,7 +11,7 @@ import type { HospitalConnection } from "@/lib/hospitals-api";
 
 interface ChecklistItem {
   id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean;
-  count?: number; target?: number; batchIds?: string[];
+  count?: number; target?: number; batchIds?: string[]; prescribedBy?: string;
 }
 interface ModuleEntry {
   enabled: boolean; settings: Record<string, unknown>; log: Record<string, unknown> | null;
@@ -405,6 +405,11 @@ function CarePlanSection({ items, mods, quickLog, navigate, hospitalName }: {
                       <span style={{ fontSize: 11, color: item.done ? "var(--text-dim)" : "var(--text-sub)" }}>{item.sub}</span>
                     )}
                   </div>
+                  {item.prescribedBy && (
+                    <p style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600, marginTop: 3 }}>
+                      Prescribed by {item.prescribedBy}
+                    </p>
+                  )}
                 </div>
                 <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)", flexShrink: 0, opacity: 0.4 }} />
               </button>

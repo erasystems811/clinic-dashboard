@@ -340,6 +340,127 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
+// ── List modules prescribed by this hospital to a connected ERA patient ────────
+router.get("/patients/:id/prescribed-modules", async (req, res): Promise<void> => {
+  const patientId = parseInt(req.params.id, 10);
+  if (isNaN(patientId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const hospitalIntId = await resolveHospitalIntId(hospital.code);
+  if (!hospitalIntId) { res.status(404).json({ error: "Hospital not found" }); return; }
+
+  const { data: conn } = await supabase
+    .from("patient_hospital_connections")
+    .select("account_id")
+    .eq("patient_record_id", patientId)
+    .eq("hospital_id", hospitalIntId)
+    .maybeSingle();
+
+  if (!conn?.account_id) {
+    res.json({ connected: false, modules: [] });
+    return;
+  }
+
+  const { data: modules } = await supabase
+    .from("wellness_modules")
+    .select("module_type, enabled, source, prescribed_by_hospital_name")
+    .eq("account_id", conn.account_id as number)
+    .eq("source", "hospital")
+    .eq("prescribed_by_hospital_id", hospitalIntId);
+
+  res.json({
+    connected: true,
+    modules: (modules ?? []).map((m) => ({
+      moduleType: m.module_type as string,
+      enabled: m.enabled as boolean,
+    })),
+  });
+});
+
+// ── Prescribe or un-prescribe a wellness module for a connected ERA patient ────
+const PrescribeModuleBody = z.object({
+  moduleType: z.string().min(1),
+  action: z.enum(["prescribe", "unprescribe"]),
+});
+
+router.post("/patients/:id/prescribe-module", async (req, res): Promise<void> => {
+  const patientId = parseInt(req.params.id, 10);
+  if (isNaN(patientId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const parsed = PrescribeModuleBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const hospitalIntId = await resolveHospitalIntId(hospital.code);
+  if (!hospitalIntId) { res.status(404).json({ error: "Hospital not found" }); return; }
+
+  const { data: conn } = await supabase
+    .from("patient_hospital_connections")
+    .select("account_id")
+    .eq("patient_record_id", patientId)
+    .eq("hospital_id", hospitalIntId)
+    .maybeSingle();
+
+  if (!conn?.account_id) {
+    res.status(404).json({ error: "Patient does not have a connected ERA account" });
+    return;
+  }
+
+  const accountId = conn.account_id as number;
+  const { moduleType, action } = parsed.data;
+
+  if (action === "unprescribe") {
+    // Remove hospital attribution — revert to self-managed or delete if no prior settings
+    const { data: existing } = await supabase
+      .from("wellness_modules")
+      .select("settings")
+      .eq("account_id", accountId)
+      .eq("module_type", moduleType)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from("wellness_modules").update({
+        source: "self",
+        prescribed_by_hospital_id: null,
+        prescribed_by_hospital_name: null,
+        updated_at: new Date().toISOString(),
+      }).eq("account_id", accountId).eq("module_type", moduleType);
+    }
+    res.json({ ok: true });
+    return;
+  }
+
+  // Prescribe: fetch hospital name, upsert with source='hospital'
+  const { data: hosp } = await supabase.from("hospitals").select("name").eq("id", hospitalIntId).single();
+  const hospitalName = (hosp?.name as string | null) ?? hospital.code;
+
+  await supabase.from("wellness_modules").upsert({
+    account_id: accountId,
+    module_type: moduleType,
+    enabled: true,
+    settings: {},
+    source: "hospital",
+    prescribed_by_hospital_id: hospitalIntId,
+    prescribed_by_hospital_name: hospitalName,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "account_id,module_type" });
+
+  // Notify the patient
+  await supabase.from("patient_notifications").insert({
+    account_id: accountId,
+    type: "module_prescribed",
+    title: `${hospitalName} added a health module`,
+    body: `${hospitalName} has added a new health routine to your ERA plan. Check your Programs to see it.`,
+    metadata: { moduleType, hospitalId: hospitalIntId },
+  });
+
+  res.json({ ok: true });
+});
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 interface GeneralOutpatientData {

@@ -130,6 +130,9 @@ export default function PatientHistory() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmEndPlanId, setConfirmEndPlanId] = useState<number | null>(null);
   const [endingPlanId, setEndingPlanId] = useState<number | null>(null);
+  const [eraConnected, setEraConnected] = useState<boolean | null>(null);
+  const [prescribedModules, setPrescribedModules] = useState<Set<string>>(new Set());
+  const [prescribingModule, setPrescribingModule] = useState<string | null>(null);
 
   const startEditing = (patient: Record<string, unknown>) => {
     setEditForm({
@@ -201,6 +204,19 @@ export default function PatientHistory() {
       .catch(() => {});
   }, [hospital?.token]);
 
+  useEffect(() => {
+    const token = hospital?.token;
+    if (!token || isNaN(id)) return;
+    fetch(apiUrl(`/api/patients/${id}/prescribed-modules`), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { connected: boolean; modules: { moduleType: string }[] } | null) => {
+        if (!data) return;
+        setEraConnected(data.connected);
+        setPrescribedModules(new Set(data.modules.map(m => m.moduleType)));
+      })
+      .catch(() => {});
+  }, [hospital?.token, id]);
+
   const handleCheckIn = async () => {
     setCheckingIn(true);
     try {
@@ -253,6 +269,31 @@ export default function PatientHistory() {
       toast({ title: "Failed to end care plan", variant: "destructive" });
     } finally {
       setEndingPlanId(null);
+    }
+  };
+
+  const handlePrescribeModule = async (moduleType: string) => {
+    if (!hospital?.token || prescribingModule) return;
+    const action = prescribedModules.has(moduleType) ? "unprescribe" : "prescribe";
+    setPrescribingModule(moduleType);
+    try {
+      const res = await fetch(apiUrl(`/api/patients/${id}/prescribe-module`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
+        body: JSON.stringify({ moduleType, action }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      setPrescribedModules(prev => {
+        const next = new Set(prev);
+        if (action === "prescribe") next.add(moduleType);
+        else next.delete(moduleType);
+        return next;
+      });
+      toast({ title: action === "prescribe" ? "Module prescribed" : "Module removed", description: action === "prescribe" ? `${moduleType} added to patient's ERA plan.` : `${moduleType} removed from patient's ERA plan.` });
+    } catch {
+      toast({ title: "Failed to update module", variant: "destructive" });
+    } finally {
+      setPrescribingModule(null);
     }
   };
 
@@ -563,6 +604,62 @@ export default function PatientHistory() {
             </div>
           )}
         </Section>
+
+        {/* ── ERA HEALTH MODULES ── */}
+        {eraConnected !== false && (
+          <Section icon={Link2} title="ERA Health — Prescribe Modules" actions={
+            eraConnected === null ? <span className="text-xs text-muted-foreground">Loading…</span>
+            : eraConnected ? <span className="text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">Connected</span>
+            : null
+          }>
+            {eraConnected === null ? (
+              <div className="py-6 text-center text-muted-foreground text-sm">Checking ERA connection…</div>
+            ) : !eraConnected ? (
+              <div className="py-6 text-center text-muted-foreground text-sm">Patient does not have an ERA app account linked.</div>
+            ) : (
+              <div className="p-5 space-y-4">
+                <p className="text-xs text-muted-foreground">Prescribe health modules directly into this patient's ERA daily plan. They'll see it as a hospital-assigned task.</p>
+                {[
+                  { type: "medications", emoji: "💊", label: "Medications" },
+                  { type: "vitals", emoji: "❤️", label: "Vitals Tracking" },
+                  { type: "water", emoji: "💧", label: "Water Intake" },
+                  { type: "workout", emoji: "🏃", label: "Workout" },
+                  { type: "sleep", emoji: "😴", label: "Sleep Log" },
+                  { type: "mood_check", emoji: "😊", label: "Daily Check-in" },
+                  { type: "fruit", emoji: "🍎", label: "Eat Fruit" },
+                  { type: "smoking", emoji: "🚭", label: "Quit Smoking" },
+                  { type: "alcohol", emoji: "🍷", label: "Alcohol" },
+                  { type: "outdoors", emoji: "🌿", label: "Outdoors" },
+                  { type: "eyebreak", emoji: "👁️", label: "Eye Breaks" },
+                  { type: "checkups", emoji: "🩺", label: "Checkups" },
+                ].map(({ type, emoji, label }) => {
+                  const isPrescribed = prescribedModules.has(type);
+                  const isLoading = prescribingModule === type;
+                  return (
+                    <div key={type} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base">{emoji}</span>
+                        <div>
+                          <p className="text-sm font-medium">{label}</p>
+                          {isPrescribed && <p className="text-xs text-primary mt-0.5">Prescribed</p>}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={isPrescribed ? "outline" : "default"}
+                        className={isPrescribed ? "border-destructive/40 text-destructive hover:bg-destructive/10 text-xs" : "text-xs"}
+                        onClick={() => handlePrescribeModule(type)}
+                        disabled={!!prescribingModule}
+                      >
+                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : isPrescribed ? "Remove" : "Prescribe"}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+        )}
 
         {/* ── APPOINTMENTS ── */}
         {apptEnabled && (

@@ -952,6 +952,55 @@ export async function sendCareVisitReminderEmail(
   }
 }
 
+// ── Return Visit Reminder — 24h and 3h before the visit ──────────────────────
+
+export async function sendReturnVisitReminderEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+  visitDate: string,
+  visitTime: string | null,
+  reason: string,
+  hoursUntil: 24 | 3,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const automationType = hoursUntil === 24 ? "return_visit_reminder_24h" : "return_visit_reminder_3h";
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType,
+    channel: "email",
+  };
+  if (await skipIfSuspended(hCtx, ctx)) return;
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const firstName = patientName.split(" ")[0];
+    const formatted = new Date(visitDate + "T12:00:00").toLocaleDateString("en-GB", {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    });
+    const timeStr = visitTime ? ` at ${visitTime}` : "";
+    const contact = contactLine(hCtx.phoneNumber);
+    const whenPhrase = hoursUntil === 24 ? "tomorrow" : "in about 3 hours";
+    const body = `Hi ${firstName},\n\nThis is a friendly reminder that you have a return visit scheduled at ${hCtx.hospitalName} ${whenPhrase} — ${formatted}${timeStr}.\n\nReason: ${reason}\n\nPlease make sure you are available. If you need to reschedule please ${contact} as soon as possible. Please do not reply to this email directly.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+    const subject = `Return visit reminder — ${formatted} — ${hCtx.hospitalName}`;
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject, html, text: body });
+    await updateAutomationLog(logId, "sent", `Return visit reminder (${hoursUntil}h) → ${patientEmail}`);
+    try {
+      await pushEraNotification(patientId, hospitalId, "return_visit_reminder",
+        `Return visit ${whenPhrase} — ${hCtx.hospitalName}`,
+        `You have a visit scheduled at ${hCtx.hospitalName} ${whenPhrase}${timeStr}. Reason: ${reason}`,
+        { hospitalId, visitDate, visitTime },
+      );
+    } catch { /* non-fatal */ }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendReturnVisitReminderEmail] failed:", msg, { hospitalId, patientId, patientEmail });
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
 // ── Call Task — Nurse-Flagged Automated Message — OpenAI — WhatsApp/SMS ───────
 // Returns the generated draft message WITHOUT sending.
 // The receptionist edits and confirms, then calls sendCallTaskConfirmedMessage.

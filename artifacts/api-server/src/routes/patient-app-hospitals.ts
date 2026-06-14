@@ -757,4 +757,42 @@ router.post("/patient-app/notifications/:id/action", async (req, res): Promise<v
   res.json({ ok: true });
 });
 
+// ── Patient-facing return visits — all upcoming visits across connected hospitals ──
+router.get("/api/patient-app/return-visits", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: connections } = await supabase
+    .from("patient_hospital_connections")
+    .select("patient_record_id, hospital_id")
+    .eq("account_id", account.id);
+
+  if (!connections?.length) { res.json({ visits: [] }); return; }
+
+  const patientRecordIds = connections.map(c => c.patient_record_id as number);
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: visits } = await supabase
+    .from("patient_return_visits")
+    .select("*, hospitals(name)")
+    .in("patient_id", patientRecordIds)
+    .eq("status", "scheduled")
+    .gte("visit_date", today)
+    .order("visit_date", { ascending: true });
+
+  res.json({
+    visits: (visits ?? []).map(v => ({
+      id: v.id,
+      visitDate: v.visit_date,
+      visitTime: v.visit_time ?? null,
+      reason: v.reason,
+      notes: v.notes ?? null,
+      scheduledBy: v.scheduled_by,
+      scheduledByName: v.scheduled_by_name ?? null,
+      hospitalName: ((v as Record<string, unknown>).hospitals as Record<string, unknown> | null)?.name ?? null,
+      status: v.status,
+    })),
+  });
+});
+
 export default router;

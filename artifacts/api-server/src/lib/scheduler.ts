@@ -17,6 +17,7 @@ import {
   sendQueueLongWaitApology,
   sendBeneficiaryReminderEmail,
   sendDoctorAppointmentReminderEmail,
+  sendReturnVisitReminderEmail,
   type InCareTimeSlot,
   type PregeneratedMessages,
 } from "./automation.js";
@@ -1023,6 +1024,7 @@ export function startScheduler() {
   // Every 15 minutes: appointment reminders + no-show detection + 1-hour follow-up email + queue long-wait check
   cron.schedule("*/15 * * * *", async () => {
     await runAppointmentReminders();
+    await runReturnVisitReminders();
     await runNoShowDetection();
     await runNoShowFollowup();
     await runQueueLongWaitCheck();
@@ -1444,6 +1446,94 @@ async function runCareVisitReminders() {
   } catch (err) {
     Sentry.captureException(err);
     log(`Care visit reminders error: ${err}`);
+  }
+}
+
+// ── Return Visit Reminders — runs every 15 minutes ───────────────────────────
+// 24h before and 3h before — email + ERA in-app notification.
+async function runReturnVisitReminders() {
+  try {
+    const now = new Date();
+    const in24h       = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const in24hPlus15 = new Date(in24h.getTime() + 15 * 60 * 1000);
+    const in3h        = new Date(now.getTime() +  3 * 60 * 60 * 1000);
+    const in3hPlus15  = new Date(in3h.getTime()  + 15 * 60 * 1000);
+    const in15min     = new Date(now.getTime() + 15 * 60 * 1000);
+
+    // Build datetime from visit_date + optional visit_time (default noon if no time)
+    // We query by date range covering ±24h window; filter by visit_datetime in code.
+    // Simpler: query just by date proximity.
+    const todayDate   = now.toISOString().split("T")[0];
+    const tomorrowDate = in24hPlus15.toISOString().split("T")[0];
+    const in3dDate    = in3hPlus15.toISOString().split("T")[0];
+
+    // ── 24-hour reminder ────────────────────────────────────────────────────────
+    const { data: visits24 } = await supabase
+      .from("patient_return_visits")
+      .select("*, patients(id, first_name, last_name, email), hospitals(id, name)")
+      .eq("status", "scheduled")
+      .is("reminder_24h_sent_at", null)
+      .gte("visit_date", todayDate)
+      .lte("visit_date", tomorrowDate);
+
+    for (const visit of visits24 ?? []) {
+      const visitAt = new Date(`${visit.visit_date as string}T${(visit.visit_time as string | null) ?? "12:00:00"}`);
+      const hoursAway = (visitAt.getTime() - now.getTime()) / 3600000;
+      if (hoursAway < 20 || hoursAway > 28) continue; // only in the 24h ±4h window + catch-up
+      const patient = (visit as Record<string, unknown>).patients as Record<string, unknown> | null;
+      if (!patient?.email) continue;
+      const hospital = (visit as Record<string, unknown>).hospitals as Record<string, unknown> | null;
+      const hospitalId = hospital?.id as number | null;
+      if (!hospitalId) continue;
+      await sendReturnVisitReminderEmail(
+        hospitalId,
+        patient.id as number,
+        `${patient.first_name} ${patient.last_name}`,
+        patient.email as string,
+        visit.visit_date as string,
+        (visit.visit_time as string | null) ?? null,
+        visit.reason as string,
+        24,
+      );
+      await supabase.from("patient_return_visits").update({ reminder_24h_sent_at: now.toISOString() }).eq("id", visit.id as number);
+      log(`Sent 24h return visit reminder for visit ${visit.id as number}`);
+    }
+
+    // ── 3-hour reminder ─────────────────────────────────────────────────────────
+    const { data: visits3h } = await supabase
+      .from("patient_return_visits")
+      .select("*, patients(id, first_name, last_name, email), hospitals(id, name)")
+      .eq("status", "scheduled")
+      .is("reminder_3h_sent_at", null)
+      .gte("visit_date", todayDate)
+      .lte("visit_date", in3dDate);
+
+    for (const visit of visits3h ?? []) {
+      const visitAt = new Date(`${visit.visit_date as string}T${(visit.visit_time as string | null) ?? "12:00:00"}`);
+      const hoursAway = (visitAt.getTime() - now.getTime()) / 3600000;
+      if (hoursAway < 2.5 || hoursAway > 4) continue; // only in the 3h ±1.5h window + catch-up (min 15 min away)
+      if (visitAt.getTime() < in15min.getTime()) continue;
+      const patient = (visit as Record<string, unknown>).patients as Record<string, unknown> | null;
+      if (!patient?.email) continue;
+      const hospital = (visit as Record<string, unknown>).hospitals as Record<string, unknown> | null;
+      const hospitalId = hospital?.id as number | null;
+      if (!hospitalId) continue;
+      await sendReturnVisitReminderEmail(
+        hospitalId,
+        patient.id as number,
+        `${patient.first_name} ${patient.last_name}`,
+        patient.email as string,
+        visit.visit_date as string,
+        (visit.visit_time as string | null) ?? null,
+        visit.reason as string,
+        3,
+      );
+      await supabase.from("patient_return_visits").update({ reminder_3h_sent_at: now.toISOString() }).eq("id", visit.id as number);
+      log(`Sent 3h return visit reminder for visit ${visit.id as number}`);
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Return visit reminders error: ${err}`);
   }
 }
 

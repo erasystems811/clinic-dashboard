@@ -22,7 +22,7 @@ import {
   ArrowLeft, Phone, Mail, Calendar, Stethoscope,
   ClipboardList, PhoneCall, MessageSquare, Bot, Activity,
   Clock, CheckCircle2, AlertTriangle, Flag, Trash2, Pencil, X, Save, Loader2,
-  CheckCircle, Link2,
+  CheckCircle, Plus,
 } from "lucide-react";
 
 function fmt(iso: string | null | undefined) {
@@ -130,9 +130,17 @@ export default function PatientHistory() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmEndPlanId, setConfirmEndPlanId] = useState<number | null>(null);
   const [endingPlanId, setEndingPlanId] = useState<number | null>(null);
-  const [eraConnected, setEraConnected] = useState<boolean | null>(null);
-  const [prescribedModules, setPrescribedModules] = useState<Set<string>>(new Set());
-  const [prescribingModule, setPrescribingModule] = useState<string | null>(null);
+
+  // Return visits
+  const [returnVisits, setReturnVisits] = useState<{ id: number; visitDate: string; visitTime: string | null; reason: string; notes: string | null; scheduledByName: string | null; status: string }[]>([]);
+  const [rvLoading, setRvLoading] = useState(false);
+  const [showRvForm, setShowRvForm] = useState(false);
+  const [rvDate, setRvDate] = useState("");
+  const [rvTime, setRvTime] = useState("");
+  const [rvReason, setRvReason] = useState("");
+  const [rvNotes, setRvNotes] = useState("");
+  const [savingRv, setSavingRv] = useState(false);
+  const [deletingRvId, setDeletingRvId] = useState<number | null>(null);
 
   const startEditing = (patient: Record<string, unknown>) => {
     setEditForm({
@@ -207,14 +215,13 @@ export default function PatientHistory() {
   useEffect(() => {
     const token = hospital?.token;
     if (!token || isNaN(id)) return;
-    fetch(apiUrl(`/api/patients/${id}/prescribed-modules`), { headers: { "x-hospital-token": token } })
-      .then(r => r.ok ? r.json() : null)
-      .then((data: { connected: boolean; modules: { moduleType: string }[] } | null) => {
-        if (!data) return;
-        setEraConnected(data.connected);
-        setPrescribedModules(new Set(data.modules.map(m => m.moduleType)));
-      })
-      .catch(() => {});
+    setRvLoading(true);
+    fetch(apiUrl(`/api/patients/${id}/return-visits`), { headers: { "x-hospital-token": token } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: typeof returnVisits) => setReturnVisits(data))
+      .catch(() => {})
+      .finally(() => setRvLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hospital?.token, id]);
 
   const handleCheckIn = async () => {
@@ -272,28 +279,50 @@ export default function PatientHistory() {
     }
   };
 
-  const handlePrescribeModule = async (moduleType: string) => {
-    if (!hospital?.token || prescribingModule) return;
-    const action = prescribedModules.has(moduleType) ? "unprescribe" : "prescribe";
-    setPrescribingModule(moduleType);
+  const handleScheduleReturnVisit = async () => {
+    if (!hospital?.token || !rvDate || !rvReason.trim()) return;
+    setSavingRv(true);
     try {
-      const res = await fetch(apiUrl(`/api/patients/${id}/prescribe-module`), {
+      const res = await fetch(apiUrl(`/api/patients/${id}/return-visits`), {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-hospital-token": hospital.token },
-        body: JSON.stringify({ moduleType, action }),
+        body: JSON.stringify({
+          visitDate: rvDate,
+          visitTime: rvTime || undefined,
+          reason: rvReason.trim(),
+          notes: rvNotes.trim() || undefined,
+          scheduledBy: user?.role === "doctor" ? "doctor" : "staff",
+          scheduledByName: user ? (user.name ?? user.username) : undefined,
+        }),
       });
       if (!res.ok) throw new Error("Failed");
-      setPrescribedModules(prev => {
-        const next = new Set(prev);
-        if (action === "prescribe") next.add(moduleType);
-        else next.delete(moduleType);
-        return next;
-      });
-      toast({ title: action === "prescribe" ? "Module prescribed" : "Module removed", description: action === "prescribe" ? `${moduleType} added to patient's ERA plan.` : `${moduleType} removed from patient's ERA plan.` });
+      toast({ title: "Return visit scheduled", description: "Patient will be reminded 24h and 3h before the visit." });
+      setRvDate(""); setRvTime(""); setRvReason(""); setRvNotes(""); setShowRvForm(false);
+      // Refresh list
+      const updated = await fetch(apiUrl(`/api/patients/${id}/return-visits`), { headers: { "x-hospital-token": hospital.token } });
+      if (updated.ok) setReturnVisits(await updated.json() as typeof returnVisits);
     } catch {
-      toast({ title: "Failed to update module", variant: "destructive" });
+      toast({ title: "Failed to schedule return visit", variant: "destructive" });
     } finally {
-      setPrescribingModule(null);
+      setSavingRv(false);
+    }
+  };
+
+  const handleDeleteReturnVisit = async (visitId: number) => {
+    if (!hospital?.token) return;
+    setDeletingRvId(visitId);
+    try {
+      const res = await fetch(apiUrl(`/api/return-visits/${visitId}`), {
+        method: "DELETE",
+        headers: { "x-hospital-token": hospital.token },
+      });
+      if (!res.ok) throw new Error("Failed");
+      setReturnVisits(prev => prev.filter(v => v.id !== visitId));
+      toast({ title: "Return visit cancelled" });
+    } catch {
+      toast({ title: "Failed to cancel return visit", variant: "destructive" });
+    } finally {
+      setDeletingRvId(null);
     }
   };
 
@@ -388,7 +417,7 @@ export default function PatientHistory() {
                         </Button>
                         <Button size="sm" variant="outline" className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setShowFollowUp(true)}>
                           <Flag className="w-3.5 h-3.5" />
-                          Flag Follow-Up
+                          Flag for Outreach
                         </Button>
                       </>
                     )}
@@ -605,61 +634,113 @@ export default function PatientHistory() {
           )}
         </Section>
 
-        {/* ── ERA HEALTH MODULES ── */}
-        {eraConnected !== false && (
-          <Section icon={Link2} title="ERA Health — Prescribe Modules" actions={
-            eraConnected === null ? <span className="text-xs text-muted-foreground">Loading…</span>
-            : eraConnected ? <span className="text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">Connected</span>
-            : null
-          }>
-            {eraConnected === null ? (
-              <div className="py-6 text-center text-muted-foreground text-sm">Checking ERA connection…</div>
-            ) : !eraConnected ? (
-              <div className="py-6 text-center text-muted-foreground text-sm">Patient does not have an ERA app account linked.</div>
-            ) : (
-              <div className="p-5 space-y-4">
-                <p className="text-xs text-muted-foreground">Prescribe health modules directly into this patient's ERA daily plan. They'll see it as a hospital-assigned task.</p>
-                {[
-                  { type: "medications", emoji: "💊", label: "Medications" },
-                  { type: "vitals", emoji: "❤️", label: "Vitals Tracking" },
-                  { type: "water", emoji: "💧", label: "Water Intake" },
-                  { type: "workout", emoji: "🏃", label: "Workout" },
-                  { type: "sleep", emoji: "😴", label: "Sleep Log" },
-                  { type: "mood_check", emoji: "😊", label: "Daily Check-in" },
-                  { type: "fruit", emoji: "🍎", label: "Eat Fruit" },
-                  { type: "smoking", emoji: "🚭", label: "Quit Smoking" },
-                  { type: "alcohol", emoji: "🍷", label: "Alcohol" },
-                  { type: "outdoors", emoji: "🌿", label: "Outdoors" },
-                  { type: "eyebreak", emoji: "👁️", label: "Eye Breaks" },
-                  { type: "checkups", emoji: "🩺", label: "Checkups" },
-                ].map(({ type, emoji, label }) => {
-                  const isPrescribed = prescribedModules.has(type);
-                  const isLoading = prescribingModule === type;
-                  return (
-                    <div key={type} className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-base">{emoji}</span>
-                        <div>
-                          <p className="text-sm font-medium">{label}</p>
-                          {isPrescribed && <p className="text-xs text-primary mt-0.5">Prescribed</p>}
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant={isPrescribed ? "outline" : "default"}
-                        className={isPrescribed ? "border-destructive/40 text-destructive hover:bg-destructive/10 text-xs" : "text-xs"}
-                        onClick={() => handlePrescribeModule(type)}
-                        disabled={!!prescribingModule}
-                      >
-                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : isPrescribed ? "Remove" : "Prescribe"}
-                      </Button>
-                    </div>
-                  );
-                })}
+        {/* ── RETURN VISITS ── */}
+        <Section
+          icon={Calendar}
+          title="Return Visits"
+          actions={
+            <Button size="sm" variant="outline" className="gap-1.5 text-xs h-7" onClick={() => setShowRvForm(v => !v)}>
+              <Plus className="w-3 h-3" />
+              Schedule Visit
+            </Button>
+          }
+        >
+          {/* Schedule form */}
+          {showRvForm && (
+            <div className="px-5 py-4 border-b border-border bg-muted/10 space-y-3">
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">Schedule Return Visit</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Date *</Label>
+                  <Input type="date" value={rvDate} onChange={e => setRvDate(e.target.value)} className="h-8 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Time (optional)</Label>
+                  <Input type="time" value={rvTime} onChange={e => setRvTime(e.target.value)} className="h-8 text-sm" />
+                </div>
               </div>
-            )}
-          </Section>
-        )}
+              <div className="space-y-1">
+                <Label className="text-xs">Reason *</Label>
+                <Input
+                  placeholder="e.g. Follow-up scan, Blood test, Review results…"
+                  value={rvReason}
+                  onChange={e => setRvReason(e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Notes (optional)</Label>
+                <Input
+                  placeholder="Any additional instructions for the patient…"
+                  value={rvNotes}
+                  onChange={e => setRvNotes(e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button size="sm" variant="outline" className="text-xs" onClick={() => { setShowRvForm(false); setRvDate(""); setRvTime(""); setRvReason(""); setRvNotes(""); }}>
+                  Cancel
+                </Button>
+                <Button size="sm" className="text-xs gap-1.5" onClick={handleScheduleReturnVisit} disabled={savingRv || !rvDate || !rvReason.trim()}>
+                  {savingRv ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                  {savingRv ? "Saving…" : "Schedule"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* List */}
+          {rvLoading ? (
+            <div className="py-8 text-center text-muted-foreground text-sm">
+              <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />Loading…
+            </div>
+          ) : returnVisits.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground text-sm">No return visits scheduled.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {returnVisits.map(rv => {
+                const dateLabel = new Date(rv.visitDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+                const isPast = rv.visitDate < new Date().toISOString().split("T")[0];
+                return (
+                  <div key={rv.id} className={`flex items-start gap-4 px-5 py-3.5 ${isPast ? "opacity-60" : ""}`}>
+                    <div className="w-11 h-11 rounded-lg bg-primary/10 border border-primary/20 flex flex-col items-center justify-center shrink-0 text-xs">
+                      <span className="font-bold text-primary uppercase">{new Date(rv.visitDate + "T12:00:00").toLocaleDateString("en-GB", { month: "short" })}</span>
+                      <span className="font-bold text-sm leading-none">{new Date(rv.visitDate + "T12:00:00").getDate()}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{rv.reason}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {dateLabel}{rv.visitTime ? ` · ${rv.visitTime}` : ""}
+                        {rv.scheduledByName ? ` · By ${rv.scheduledByName}` : ""}
+                      </p>
+                      {rv.notes && <p className="text-xs text-muted-foreground mt-0.5 italic">{rv.notes}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        rv.status === "completed" ? "bg-green-500/10 text-green-400" :
+                        rv.status === "cancelled" ? "bg-muted text-muted-foreground" :
+                        isPast ? "bg-amber-500/10 text-amber-400" : "bg-primary/10 text-primary"
+                      }`}>
+                        {rv.status === "scheduled" && isPast ? "overdue" : rv.status}
+                      </span>
+                      {rv.status === "scheduled" && (
+                        <Button
+                          size="sm" variant="ghost"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteReturnVisit(rv.id)}
+                          disabled={deletingRvId === rv.id}
+                          title="Cancel visit"
+                        >
+                          {deletingRvId === rv.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Section>
 
         {/* ── APPOINTMENTS ── */}
         {apptEnabled && (

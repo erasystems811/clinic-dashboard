@@ -6,6 +6,7 @@ import { useCurrentPlan, useRegeneratePlan } from "@/lib/plan-api";
 import type { PlanItem, WeekPlan } from "@/lib/plan-api";
 import { useWellnessToday, useWeekSummary, useQuickLog } from "@/lib/wellness-api";
 import { useAuth } from "@/contexts/auth-context";
+import { useReturnVisits, type ReturnVisit } from "@/lib/return-visits-api";
 
 const MODULE_ACCENT: Record<string, string> = {
   water: "#38bdf8", medications: "#14b8a6", workout: "#f97316",
@@ -68,6 +69,7 @@ export default function PlanPage() {
   const { data: summary } = useWeekSummary();
   const regenerate = useRegeneratePlan();
   const quickLog = useQuickLog();
+  const { data: returnVisitsData } = useReturnVisits();
 
   const plan = planData?.plan;
   const today = todayStr();
@@ -301,7 +303,11 @@ export default function PlanPage() {
 
       {view === "source" ? (
         <div className="px-4">
-          <SourceSplitView checklist={todayRaw?.checklist ?? []} navigate={navigate} />
+          <SourceSplitView
+            checklist={todayRaw?.checklist ?? []}
+            returnVisits={returnVisitsData?.visits ?? []}
+            navigate={navigate}
+          />
         </div>
       ) : view === "timetable" ? (
         <div className="px-4">
@@ -668,12 +674,15 @@ function WeekTableView({ plan, today, onPrint }: { plan: WeekPlan; today: string
 
 // ── Source split view: Hospital Plan vs My Plan ───────────────────────────────
 
-function SourceSplitView({ checklist, navigate }: {
+function SourceSplitView({ checklist, returnVisits, navigate }: {
   checklist: ChecklistItem[];
+  returnVisits: ReturnVisit[];
   navigate: (path: string) => void;
 }) {
   const hospitalItems = checklist.filter(c => !!c.prescribedBy);
   const selfItems     = checklist.filter(c => !c.prescribedBy);
+  const today = todayStr();
+  const upcomingVisits = returnVisits.filter(v => v.visitDate >= today);
 
   const renderItem = (item: ChecklistItem) => {
     const base = item.id.startsWith("med_") ? "medications"
@@ -723,12 +732,34 @@ function SourceSplitView({ checklist, navigate }: {
           )}
         </div>
         <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-          {hospitalItems.length === 0 ? (
+          {/* Return visits */}
+          {upcomingVisits.map((v, i) => {
+            const isToday = v.visitDate === today;
+            const dateLabel = isToday ? "Today"
+              : new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+            return (
+              <div key={`rv_${v.id}`} style={{ borderTop: i > 0 || hospitalItems.length > 0 ? "1px solid var(--glass-border)" : "none", padding: "12px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(var(--glow-rgb),0.1)", border: "1px solid rgba(var(--glow-rgb),0.2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <span style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 0.5, lineHeight: 1 }}>{new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}</span>
+                  <span style={{ fontSize: 15, fontWeight: 900, color: "var(--text-main)", lineHeight: 1.1 }}>{new Date(v.visitDate + "T12:00:00").getDate()}</span>
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1, marginBottom: 2 }}>RETURN VISIT</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{v.reason}</p>
+                  <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>
+                    {dateLabel}{v.visitTime ? ` · ${v.visitTime}` : ""}{v.hospitalName ? ` · ${v.hospitalName}` : ""}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+          {/* Prescribed daily tasks */}
+          {hospitalItems.length === 0 && upcomingVisits.length === 0 ? (
             <div className="py-8 text-center">
               <p style={{ fontSize: 22, marginBottom: 8 }}>🏥</p>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 4 }}>No hospital-prescribed tasks</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 4 }}>No hospital plan items</p>
               <p style={{ fontSize: 11, color: "var(--text-sub)", lineHeight: 1.5 }}>
-                When your hospital prescribes health modules, they'll appear here.
+                Return visits and hospital-assigned tasks will appear here.
               </p>
             </div>
           ) : (

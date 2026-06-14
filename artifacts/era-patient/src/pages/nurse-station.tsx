@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -123,6 +124,19 @@ export default function NurseStation() {
   const [selectedFlagPatient, setSelectedFlagPatient] = useState<Patient | null>(null);
   const [showFlagModal, setShowFlagModal] = useState(false);
 
+  // Return visit section
+  const [rvSearch, setRvSearch] = useState("");
+  const [selectedRvPatient, setSelectedRvPatient] = useState<Patient | null>(null);
+  const [rvVisits, setRvVisits] = useState<{ id: number; visitDate: string; visitTime: string | null; reason: string; notes: string | null; scheduledByName: string | null; status: string }[]>([]);
+  const [rvLoading, setRvLoading] = useState(false);
+  const [showRvForm, setShowRvForm] = useState(false);
+  const [rvDate, setRvDate] = useState("");
+  const [rvTime, setRvTime] = useState("");
+  const [rvReason, setRvReason] = useState("");
+  const [rvNotes, setRvNotes] = useState("");
+  const [savingRv, setSavingRv] = useState(false);
+  const [deletingRvId, setDeletingRvId] = useState<number | null>(null);
+
 
   const { data: searchResults = [], isFetching: searching } = useListPatients(
     { search },
@@ -133,6 +147,11 @@ export default function NurseStation() {
     { search: flagSearch },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     { query: { enabled: flagSearch.trim().length >= 2 } as any }
+  );
+  const { data: rvSearchResults = [], isFetching: rvSearching } = useListPatients(
+    { search: rvSearch },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    { query: { enabled: rvSearch.trim().length >= 2 } as any }
   );
 
 
@@ -192,6 +211,59 @@ export default function NurseStation() {
   const cancelPlanForm = () => {
     setPlanMode("list");
     setEditingPlan(null);
+  };
+
+  const fetchRvVisits = async (patientId: number) => {
+    setRvLoading(true);
+    try {
+      const res = await fetch(apiUrl(`/api/patients/${patientId}/return-visits`), { headers: authHeader() });
+      if (!res.ok) throw new Error("Failed");
+      setRvVisits(await res.json() as typeof rvVisits);
+    } catch {
+      setRvVisits([]);
+    } finally {
+      setRvLoading(false);
+    }
+  };
+
+  const handleScheduleRv = async () => {
+    if (!selectedRvPatient || !rvDate || !rvReason.trim()) return;
+    setSavingRv(true);
+    try {
+      const res = await fetch(apiUrl(`/api/patients/${selectedRvPatient.id}/return-visits`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({
+          visitDate: rvDate,
+          visitTime: rvTime || undefined,
+          reason: rvReason.trim(),
+          notes: rvNotes.trim() || undefined,
+          scheduledBy: "nurse",
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: "Return visit scheduled", description: "Patient will be reminded 24h and 3h before." });
+      setRvDate(""); setRvTime(""); setRvReason(""); setRvNotes(""); setShowRvForm(false);
+      await fetchRvVisits(selectedRvPatient.id);
+    } catch {
+      toast({ title: "Failed to schedule return visit", variant: "destructive" });
+    } finally {
+      setSavingRv(false);
+    }
+  };
+
+  const handleDeleteRv = async (visitId: number) => {
+    setDeletingRvId(visitId);
+    try {
+      const res = await fetch(apiUrl(`/api/return-visits/${visitId}`), { method: "DELETE", headers: authHeader() });
+      if (!res.ok) throw new Error("Failed");
+      setRvVisits(prev => prev.filter(v => v.id !== visitId));
+      toast({ title: "Return visit cancelled" });
+    } catch {
+      toast({ title: "Failed to cancel return visit", variant: "destructive" });
+    } finally {
+      setDeletingRvId(null);
+    }
   };
 
 
@@ -599,11 +671,140 @@ export default function NurseStation() {
           </div>
         </div>
 
-        {/* ── FLAG PATIENT FOR FOLLOW-UP ── */}
+        {/* ── RETURN VISITS ── */}
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border bg-muted/10">
+            <Calendar className="w-4 h-4 text-primary" />
+            <span className="font-semibold text-sm">Schedule Return Visit</span>
+          </div>
+          <div className="p-5 space-y-3">
+            <p className="text-xs text-muted-foreground">Book a patient to come back on a specific date. They will receive a reminder 24 hours and 3 hours before the visit. Distinct from outreach — this is for the patient to physically return.</p>
+            {/* Patient search */}
+            {!selectedRvPatient ? (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Input
+                    placeholder="Search patient by name or ID…"
+                    value={rvSearch}
+                    onChange={e => setRvSearch(e.target.value)}
+                    className="pr-9"
+                  />
+                  {rvSearching
+                    ? <Loader2 className="absolute right-3 top-2.5 w-4 h-4 animate-spin text-muted-foreground" />
+                    : <Search className="absolute right-3 top-2.5 w-4 h-4 text-muted-foreground" />}
+                </div>
+                {rvSearch.trim().length >= 2 && (
+                  <div className="space-y-1.5">
+                    {(rvSearchResults as Patient[]).filter(p => !getPatientStages(p as never, { apptEnabled }).every(s => s === "Dormant")).length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-3">No patients found</p>
+                    ) : (rvSearchResults as Patient[]).filter(p => !getPatientStages(p as never, { apptEnabled }).every(s => s === "Dormant")).map(patient => (
+                      <button
+                        key={patient.id}
+                        type="button"
+                        className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/40 text-left transition-colors"
+                        onClick={() => { setSelectedRvPatient(patient); setRvSearch(""); fetchRvVisits(patient.id); }}
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0">
+                          {patient.firstName[0]}{patient.lastName[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{patient.firstName} {patient.lastName}</p>
+                          <p className="text-xs text-muted-foreground">{patient.patientId && <span className="font-mono mr-2">ID: {patient.patientId}</span>}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Selected patient bar */}
+                <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+                  <div className="w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center shrink-0">
+                    {selectedRvPatient.firstName[0]}{selectedRvPatient.lastName[0]}
+                  </div>
+                  <p className="flex-1 font-semibold text-sm">{selectedRvPatient.firstName} {selectedRvPatient.lastName}</p>
+                  <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => { setSelectedRvPatient(null); setRvVisits([]); setShowRvForm(false); }}>Change</Button>
+                </div>
+
+                {/* Existing visits */}
+                {rvLoading ? (
+                  <div className="flex items-center justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
+                ) : rvVisits.filter(v => v.status === "scheduled").length > 0 && (
+                  <div className="space-y-1.5">
+                    {rvVisits.filter(v => v.status === "scheduled").map(rv => (
+                      <div key={rv.id} className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/10">
+                        <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex flex-col items-center justify-center shrink-0 text-xs">
+                          <span className="font-bold text-primary uppercase leading-none">{new Date(rv.visitDate + "T12:00:00").toLocaleDateString("en-GB", { month: "short" })}</span>
+                          <span className="font-bold text-sm leading-none mt-0.5">{new Date(rv.visitDate + "T12:00:00").getDate()}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{rv.reason}</p>
+                          <p className="text-xs text-muted-foreground">{new Date(rv.visitDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}{rv.visitTime ? ` · ${rv.visitTime}` : ""}</p>
+                        </div>
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0" onClick={() => handleDeleteRv(rv.id)} disabled={deletingRvId === rv.id}>
+                          {deletingRvId === rv.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Schedule form toggle */}
+                {!showRvForm ? (
+                  <Button type="button" variant="outline" size="sm" className="w-full gap-1.5 text-xs" onClick={() => setShowRvForm(true)}>
+                    <Plus className="w-3.5 h-3.5" />
+                    Schedule New Visit
+                  </Button>
+                ) : (
+                  <div className="space-y-3 p-3 rounded-lg border border-border bg-muted/5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Date *</Label>
+                        <Input type="date" value={rvDate} onChange={e => setRvDate(e.target.value)} className="h-8 text-sm" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Time (optional)</Label>
+                        <Input type="time" value={rvTime} onChange={e => setRvTime(e.target.value)} className="h-8 text-sm" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Reason *</Label>
+                      <Input
+                        placeholder="e.g. Follow-up scan, Blood test, Review results…"
+                        value={rvReason}
+                        onChange={e => setRvReason(e.target.value)}
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Notes (optional)</Label>
+                      <Input
+                        placeholder="Additional instructions…"
+                        value={rvNotes}
+                        onChange={e => setRvNotes(e.target.value)}
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => { setShowRvForm(false); setRvDate(""); setRvTime(""); setRvReason(""); setRvNotes(""); }}>Cancel</Button>
+                      <Button type="button" size="sm" className="text-xs gap-1.5" onClick={handleScheduleRv} disabled={savingRv || !rvDate || !rvReason.trim()}>
+                        {savingRv ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        {savingRv ? "Saving…" : "Schedule"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── FLAG PATIENT FOR OUTREACH ── */}
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border bg-muted/10">
             <Flag className="w-4 h-4 text-destructive" />
-            <span className="font-semibold text-sm">Flag Patient for Follow-up</span>
+            <span className="font-semibold text-sm">Flag Patient for Outreach</span>
           </div>
           <div className="p-5">
             <div className="space-y-3">

@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate } from "@/lib/utils";
 import { useWellnessToday, useWeekSummary, useQuickLog } from "@/lib/wellness-api";
 import { useMyHospitals, useUnreadCounts, useUnreadNotifCount } from "@/lib/hospitals-api";
+import { useReturnVisits, type ReturnVisit } from "@/lib/return-visits-api";
 import { decodeGesture, useCompanionSettings } from "@/lib/companion-api";
 import type { GestureConfig } from "@/lib/companion-api";
 import type { HospitalConnection } from "@/lib/hospitals-api";
@@ -97,6 +98,7 @@ export default function HomePage() {
   const { data: hospitals } = useMyHospitals();
   const { data: unreadCounts } = useUnreadCounts();
   const { data: notifData } = useUnreadNotifCount();
+  const { data: returnVisitsData } = useReturnVisits();
   const unreadNotifs = notifData?.count ?? 0;
 
   // ── Secret diary gesture ──────────────────────────────────────────────────────
@@ -140,6 +142,11 @@ export default function HomePage() {
   const weekRate = summary?.overallRate ?? 0;
   const primaryHospital = hospitals?.[0] ?? null;
   const primaryUnread = unreadCounts && primaryHospital ? (unreadCounts[primaryHospital.hospitalId] ?? 0) : 0;
+
+  const today = new Date().toISOString().split("T")[0];
+  const in7days = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+  const upcomingVisits = (returnVisitsData?.visits ?? []).filter(v => v.visitDate >= today && v.visitDate <= in7days);
+  const todayVisits = upcomingVisits.filter(v => v.visitDate === today);
 
   return (
     <div className="pb-10">
@@ -186,6 +193,11 @@ export default function HomePage() {
         {/* ── Care Team ──────────────────────────────────────────────── */}
         <CareTeamCard hospital={primaryHospital} unread={primaryUnread} navigate={navigate} />
 
+        {/* ── Upcoming Events (next 7 days) ───────────────────────── */}
+        {upcomingVisits.length > 0 && (
+          <UpcomingEventsCard visits={upcomingVisits} navigate={navigate} />
+        )}
+
         {/* ── Today's Care Plan ──────────────────────────────────────── */}
         <CarePlanSection
           items={planItems}
@@ -193,6 +205,7 @@ export default function HomePage() {
           quickLog={quickLog}
           navigate={navigate}
           hospitalName={primaryHospital?.hospitalName}
+          todayReturnVisits={todayVisits}
         />
 
       </div>
@@ -298,12 +311,50 @@ function CareTeamCard({ hospital, unread, navigate }: {
   );
 }
 
-function CarePlanSection({ items, mods, quickLog, navigate, hospitalName }: {
+function UpcomingEventsCard({ visits, navigate }: { visits: ReturnVisit[]; navigate: (path: string) => void }) {
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+        <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.5 }}>UPCOMING EVENTS</p>
+        <p style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 600 }}>NEXT 7 DAYS</p>
+      </div>
+      {visits.map((v, i) => {
+        const dateLabel = new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+        const isToday = v.visitDate === new Date().toISOString().split("T")[0];
+        return (
+          <div key={v.id} style={{ borderTop: i > 0 ? "1px solid var(--glass-border)" : "1px solid var(--glass-border)", padding: "10px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(var(--glow-rgb),0.12)", border: "1px solid rgba(var(--glow-rgb),0.2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <span style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 0.5, lineHeight: 1 }}>{new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}</span>
+              <span style={{ fontSize: 15, fontWeight: 900, color: "var(--text-main)", lineHeight: 1.1 }}>{new Date(v.visitDate + "T12:00:00").getDate()}</span>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", lineHeight: 1.3 }}>{v.reason}</p>
+              <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>
+                {isToday ? "Today" : dateLabel}{v.visitTime ? ` · ${v.visitTime}` : ""}{v.hospitalName ? ` · ${v.hospitalName}` : ""}
+              </p>
+            </div>
+            {isToday && (
+              <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: "var(--btn-gradient)", padding: "2px 8px", borderRadius: 6, flexShrink: 0, letterSpacing: 0.5 }}>TODAY</span>
+            )}
+          </div>
+        );
+      })}
+      <div className="px-4 pb-3 pt-1">
+        <button onClick={() => navigate("/plan?tab=source")} style={{ fontSize: 12, color: "var(--accent)", fontWeight: 600 }}>
+          View hospital plan →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CarePlanSection({ items, mods, quickLog, navigate, hospitalName, todayReturnVisits }: {
   items: ChecklistItem[];
   mods: Record<string, ModuleEntry | undefined>;
   quickLog: ReturnType<typeof useQuickLog>;
   navigate: (path: string) => void;
   hospitalName?: string;
+  todayReturnVisits?: ReturnVisit[];
 }) {
   const doneCount = items.filter(c => c.done).length;
   const total = items.length;
@@ -417,6 +468,21 @@ function CarePlanSection({ items, mods, quickLog, navigate, hospitalName }: {
           );
         })}
       </div>
+
+      {/* Today's hospital return visits */}
+      {(todayReturnVisits ?? []).length > 0 && (
+        <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: "rgba(var(--glow-rgb),0.06)", border: "1px solid rgba(var(--glow-rgb),0.15)" }}>
+          {(todayReturnVisits ?? []).map((v, i) => (
+            <div key={v.id} style={{ borderTop: i > 0 ? "1px solid rgba(var(--glow-rgb),0.12)" : "none", padding: "12px 16px" }}>
+              <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.2, marginBottom: 4 }}>HOSPITAL VISIT TODAY</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{v.reason}</p>
+              <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>
+                {v.hospitalName}{v.visitTime ? ` · ${v.visitTime}` : ""}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

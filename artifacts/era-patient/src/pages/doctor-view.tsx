@@ -155,94 +155,89 @@ function TransferModal({
 }
 
 
-// ── Book Follow-Up Appointment Modal ──────────────────────────────────────────
-function BookFollowUpModal({
-  patient, doctorId, doctorName, token, onClose, onBooked,
+// ── Schedule Return Visit Modal ───────────────────────────────────────────────
+function ScheduleReturnVisitModal({
+  patient, token, onClose, onScheduled,
 }: {
-  patient: Patient; doctorId: number; doctorName: string; token: string; onClose: () => void; onBooked: () => void;
+  patient: Patient; token: string; onClose: () => void; onScheduled: () => void;
 }) {
   const { toast } = useToast();
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [duration, setDuration] = useState("30");
+  const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const handleBook = async () => {
-    if (!date || !time) return;
+  const handleSchedule = async () => {
+    if (!date || !reason.trim()) return;
     setSaving(true);
     try {
-      const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
-      const res = await fetch(apiUrl("/api/appointments"), {
+      const res = await fetch(apiUrl(`/api/patients/${patient.id}/return-visits`), {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-hospital-token": token, "x-performed-by": `Dr. ${doctorName}` },
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
         body: JSON.stringify({
-          patientId: patient.id,
-          title: `Follow-up appointment`,
-          scheduledAt,
-          durationMinutes: parseInt(duration) || 30,
-          notes: notes || undefined,
-          doctorId,
-          doctorName,
+          visitDate: date,
+          visitTime: time || undefined,
+          reason: reason.trim(),
+          notes: notes.trim() || undefined,
+          scheduledBy: "doctor",
         }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(d.error ?? "Booking failed");
+        throw new Error(d.error ?? "Failed to schedule");
       }
-      toast({ title: "Appointment booked", description: `Follow-up for ${patient.firstName} ${patient.lastName} confirmed. Patient will receive an email.` });
-      onBooked();
+      toast({ title: "Return visit scheduled", description: `${patient.firstName} ${patient.lastName} will be reminded 24h and 3h before.` });
+      onScheduled();
       onClose();
     } catch (err: unknown) {
-      toast({ title: "Failed to book", description: (err as Error).message, variant: "destructive" });
+      toast({ title: "Failed to schedule", description: (err as Error).message, variant: "destructive" });
     } finally { setSaving(false); }
   };
 
-  // Min date = today
   const today = new Date().toISOString().split("T")[0];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
       <div className="bg-card border border-border rounded-xl w-full max-w-sm shadow-xl">
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-          <p className="font-semibold text-sm flex items-center gap-2"><CalendarPlus className="w-4 h-4 text-primary" /> Book Follow-Up Appointment</p>
+          <p className="font-semibold text-sm flex items-center gap-2"><CalendarPlus className="w-4 h-4 text-primary" /> Schedule Return Visit</p>
           <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground" /></button>
         </div>
         <div className="p-5 space-y-4">
           <div className="rounded-md bg-muted/40 px-3 py-2 text-sm">
             Patient: <strong>{patient.firstName} {patient.lastName}</strong>
-            <span className="text-xs text-muted-foreground block mt-0.5">Appointment will be assigned to you and patient will receive a confirmation email.</span>
+            <span className="text-xs text-muted-foreground block mt-0.5">Patient will receive a reminder 24 hours and 3 hours before the visit.</span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Date</label>
+              <label className="text-xs font-medium text-muted-foreground">Date *</label>
               <input type="date" min={today} value={date} onChange={e => setDate(e.target.value)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Time</label>
+              <label className="text-xs font-medium text-muted-foreground">Time (optional)</label>
               <input type="time" value={time} onChange={e => setTime(e.target.value)}
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" />
             </div>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Duration (minutes)</label>
-            <select value={duration} onChange={e => setDuration(e.target.value)}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-              {["15","20","30","45","60","90"].map(d => <option key={d} value={d}>{d} min</option>)}
-            </select>
+            <label className="text-xs font-medium text-muted-foreground">Reason *</label>
+            <input type="text" value={reason} onChange={e => setReason(e.target.value)}
+              placeholder="e.g. Follow-up scan, Blood test, Review results…"
+              className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm" />
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Notes (optional)</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
-              placeholder="e.g. follow up on blood pressure readings"
+              placeholder="Additional instructions for the patient…"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none" />
           </div>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            <Button size="sm" disabled={!date || !time || saving} onClick={handleBook} className="gap-1.5">
+            <Button size="sm" disabled={!date || !reason.trim() || saving} onClick={handleSchedule} className="gap-1.5">
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarPlus className="w-3.5 h-3.5" />}
-              {saving ? "Booking…" : "Book Appointment"}
+              {saving ? "Scheduling…" : "Schedule Visit"}
             </Button>
           </div>
         </div>
@@ -357,7 +352,7 @@ export default function DoctorView() {
   const [followUpCarePlans, setFollowUpCarePlans] = useState<DoctorCarePlan[]>([]);
   const [followUpCPLoading, setFollowUpCPLoading] = useState(false);
   const [flagPatient, setFlagPatient] = useState<{ name: string; id: number } | null>(null);
-  const [bookFollowUpPatient, setBookFollowUpPatient] = useState<Patient | null>(null);
+  const [rvPatient, setRvPatient] = useState<Patient | null>(null);
   const [reassignAppt, setReassignAppt] = useState<DoctorAppointment | null>(null);
 
   const fetchQueue = useCallback(async () => {
@@ -588,14 +583,12 @@ export default function DoctorView() {
           onClose={() => setFlagPatient(null)}
         />
       )}
-      {bookFollowUpPatient && doctorId && (
-        <BookFollowUpModal
-          patient={bookFollowUpPatient}
-          doctorId={doctorId}
-          doctorName={doctorName}
+      {rvPatient && (
+        <ScheduleReturnVisitModal
+          patient={rvPatient}
           token={token}
-          onClose={() => setBookFollowUpPatient(null)}
-          onBooked={fetchAppointments}
+          onClose={() => setRvPatient(null)}
+          onScheduled={() => setRvPatient(null)}
         />
       )}
       {reassignAppt && doctorId && (
@@ -939,11 +932,11 @@ export default function DoctorView() {
                   <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
                     <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs"
                       onClick={() => setFlagPatient({ name: `${selectedFollowUpPatient.firstName} ${selectedFollowUpPatient.lastName}`, id: selectedFollowUpPatient.id })}>
-                      <ClipboardList className="w-3.5 h-3.5" /> Flag Task
+                      <ClipboardList className="w-3.5 h-3.5" /> Flag for Outreach
                     </Button>
                     <Button size="sm" className="gap-1.5 h-8 text-xs"
-                      onClick={() => setBookFollowUpPatient(selectedFollowUpPatient)}>
-                      <CalendarPlus className="w-3.5 h-3.5" /> Book Appointment
+                      onClick={() => setRvPatient(selectedFollowUpPatient)}>
+                      <CalendarPlus className="w-3.5 h-3.5" /> Schedule Return Visit
                     </Button>
                     <button onClick={() => { setSelectedFollowUpPatient(null); setFollowUpSearch(""); }}
                       className="p-1.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition">

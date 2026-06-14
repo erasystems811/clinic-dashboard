@@ -804,7 +804,7 @@ function SourceSplitView({ data, navigate }: {
             <>
               <SubHeading label="Active Programs" />
               {myMods.map((m) => (
-                <PlanRow key={m.moduleType} left={`${m.emoji}  ${m.label}`} right="Daily" />
+                <PlanRow key={m.moduleType} left={`${m.emoji}  ${m.label}`} right={m.detail} />
               ))}
             </>
           )}

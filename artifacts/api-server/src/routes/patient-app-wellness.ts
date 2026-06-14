@@ -982,6 +982,74 @@ router.get("/patient-app/wellness/upcoming-events", async (req, res): Promise<vo
   res.json({ events });
 });
 
+function moduleDetail(type: string, settings: Record<string, unknown>): string {
+  switch (type) {
+    case "water": {
+      const t = (settings.target as number | undefined) ?? 8;
+      return `${t} cups of water a day`;
+    }
+    case "medications": {
+      const meds = (settings.medications as Array<{ name: string }> | undefined) ?? [];
+      if (meds.length === 0) return "Medication reminders";
+      if (meds.length === 1) return `${meds[0].name} daily`;
+      return meds.map(m => m.name).join(", ");
+    }
+    case "workout": {
+      const days = (settings.days as Record<string, { enabled?: boolean; focus?: string }> | undefined) ?? {};
+      const dayOrder = ["mon","tue","wed","thu","fri","sat","sun"];
+      const dayShort: Record<string, string> = { mon:"Mon",tue:"Tue",wed:"Wed",thu:"Thu",fri:"Fri",sat:"Sat",sun:"Sun" };
+      const active = dayOrder.filter(d => days[d]?.enabled);
+      if (active.length === 0) return "Workout tracker";
+      if (active.length === 7) return "Workout every day";
+      return `${active.map(d => dayShort[d]).join(", ")} — ${active.length} day${active.length > 1 ? "s" : ""} a week`;
+    }
+    case "fruit":
+      return "Eat fruit every day";
+    case "vitals":
+      return "Blood pressure, weight & blood sugar";
+    case "smoking": {
+      const goal = (settings.goalType as string | undefined) ?? "quit";
+      return goal === "quit" ? "Quit smoking completely" : "Cutting down on smoking";
+    }
+    case "alcohol": {
+      const goal = (settings.goalType as string | undefined) ?? "quit";
+      return goal === "quit" ? "Quit alcohol completely" : "Reducing alcohol intake";
+    }
+    case "eyebreak": {
+      const target = (settings.targetBreaks as number | undefined) ?? 6;
+      return `${target} eye breaks during the day`;
+    }
+    case "sunscreen": {
+      const t = (settings.target as number | undefined) ?? 2;
+      return `Apply sunscreen ${t} time${t > 1 ? "s" : ""} a day`;
+    }
+    case "outdoors": {
+      const t = (settings.targetMinutes as number | undefined) ?? 30;
+      return `${t} minutes outdoors daily`;
+    }
+    case "hygiene": {
+      const items = (settings.items as Array<{ name: string }> | undefined) ?? [];
+      if (items.length === 0) return "Hygiene reminders";
+      return items.map(i => i.name).join(", ");
+    }
+    case "vaccines": {
+      const vs = (settings.vaccines as unknown[] | undefined) ?? [];
+      return vs.length > 0 ? `${vs.length} vaccine${vs.length > 1 ? "s" : ""} tracked` : "Vaccination tracking";
+    }
+    case "checkups": {
+      const cs = (settings.checkups as Array<{ type: string }> | undefined) ?? [];
+      if (cs.length === 0) return "Annual checkup reminders";
+      return cs.map(c => c.type).join(", ");
+    }
+    case "intimacy": {
+      const mode = (settings.mode as string | undefined) ?? "celibacy";
+      return mode === "celibacy" ? "Celibacy tracker" : "Intimacy log";
+    }
+    default:
+      return "Daily habit";
+  }
+}
+
 // ── Plan split by source — all active modules grouped as Hospital Plan vs My Plan ──
 router.get("/patient-app/plan-by-source", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
@@ -994,18 +1062,19 @@ router.get("/patient-app/plan-by-source", async (req, res): Promise<void> => {
     .eq("enabled", true);
 
   const hospitalModules: { moduleType: string; label: string; emoji: string; hospitalName: string }[] = [];
-  const myModules: { moduleType: string; label: string; emoji: string }[] = [];
+  const myModules: { moduleType: string; label: string; emoji: string; detail: string }[] = [];
 
   for (const m of modules ?? []) {
     const meta = MODULE_META[m.module_type as string];
     if (!meta) continue; // skip retired module types (mood, energy, sleep, stress)
     const label = meta.label;
     const emoji = meta.emoji;
+    const settings = (m.settings as Record<string, unknown>) ?? {};
 
     if (m.source === "hospital" && m.prescribed_by_hospital_name) {
       hospitalModules.push({ moduleType: m.module_type as string, label, emoji, hospitalName: m.prescribed_by_hospital_name as string });
     } else {
-      myModules.push({ moduleType: m.module_type as string, label, emoji });
+      myModules.push({ moduleType: m.module_type as string, label, emoji, detail: moduleDetail(m.module_type as string, settings) });
     }
   }
 

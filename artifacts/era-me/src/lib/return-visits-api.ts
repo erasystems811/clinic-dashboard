@@ -59,7 +59,7 @@ export function useCareSchedule() {
 
 export interface PlanBySource {
   hospitalModules: { moduleType: string; label: string; emoji: string; hospitalName: string }[];
-  myModules: { moduleType: string; label: string; emoji: string }[];
+  myModules: { moduleType: string; label: string; emoji: string; detail: string }[];
   carePlans: { id: number; department: string; summary: string; hospitalName: string | null; startedAt: string }[];
   returnVisits: { id: number; visitDate: string; visitTime: string | null; reason: string; hospitalName: string | null }[];
 }

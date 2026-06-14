@@ -505,7 +505,22 @@ function CarePlanSection({ items, mods, quickLog, navigate, hospitalName, todayR
     );
   }
 
-  if (total === 0) return null;
+  if (total === 0) {
+    return (
+      <div className="rounded-2xl p-6 text-center" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+        <p style={{ fontSize: 36, marginBottom: 12 }}>📋</p>
+        <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 15, marginBottom: 6 }}>No care plan yet</p>
+        <p style={{ fontSize: 13, color: "var(--text-sub)", marginBottom: 20, lineHeight: 1.5 }}>
+          Browse Programs to set up your daily health habits and care routine.
+        </p>
+        <button onClick={() => navigate("/programs")}
+          className="px-6 py-2.5 rounded-xl font-bold text-white text-sm active:scale-95 transition"
+          style={{ background: "var(--btn-gradient)", boxShadow: `0 4px 16px rgba(var(--glow-rgb),0.3)` }}>
+          Browse Programs →
+        </button>
+      </div>
+    );
+  }
 
   const logData = buildQuickLogData(mods);
 

@@ -668,118 +668,161 @@ function WeekTableView({ plan, today, onPrint }: { plan: WeekPlan; today: string
   );
 }
 
-// ── Source split view: Hospital Plan vs My Plan (full, not just today) ───────
+// ── Source split view: Hospital Plan vs My Plan — structured schedule view ────
+
+function SectionHeading({ label, color }: { label: string; color: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+      <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: 1.4, color, whiteSpace: "nowrap" }}>{label}</span>
+      <div style={{ flex: 1, height: 1, background: color, opacity: 0.25 }} />
+    </div>
+  );
+}
+
+function SubHeading({ label }: { label: string }) {
+  return (
+    <p style={{ fontSize: 9, fontWeight: 900, letterSpacing: 1.4, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 6, marginTop: 2 }}>{label}</p>
+  );
+}
+
+function PlanRow({ left, right, sub, badge }: { left: string; right?: string; sub?: string; badge?: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 8, paddingBottom: 8 }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", flex: 1, lineHeight: 1.4 }}>{left}</span>
+      {badge && (
+        <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: "var(--btn-gradient)", padding: "2px 7px", borderRadius: 5, flexShrink: 0, alignSelf: "center" }}>{badge}</span>
+      )}
+      {right && !badge && (
+        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-sub)", flexShrink: 0, textAlign: "right", maxWidth: "45%" }}>{right}</span>
+      )}
+      {sub && (
+        <span style={{ fontSize: 11, color: "var(--text-sub)", flexShrink: 0, textAlign: "right" }}>{sub}</span>
+      )}
+    </div>
+  );
+}
+
+function Divider() {
+  return <div style={{ height: 1, background: "var(--glass-border)", margin: "10px 0" }} />;
+}
 
 function SourceSplitView({ data, navigate }: {
   data: import("@/lib/return-visits-api").PlanBySource | undefined;
   navigate: (path: string) => void;
 }) {
   const today = todayStr();
-  const carePlans   = data?.carePlans    ?? [];
+  const carePlans    = data?.carePlans    ?? [];
   const returnVisits = data?.returnVisits ?? [];
   const hospitalMods = data?.hospitalModules ?? [];
   const myMods       = data?.myModules ?? [];
 
   const hasHospital = carePlans.length > 0 || returnVisits.length > 0 || hospitalMods.length > 0;
-  const hasMy       = myMods.length > 0;
-
-  const renderModule = (m: { moduleType: string; label: string; emoji: string }, i: number, isFirst: boolean) => {
-    const href = m.moduleType === "mood_check" ? "/wellness/mood" : `/wellness/${m.moduleType}`;
-    return (
-      <button key={m.moduleType} onClick={() => navigate(href)} className="w-full text-left active:scale-[0.98] transition">
-        <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderTop: (i > 0 || !isFirst) ? "1px solid var(--glass-border)" : "none" }}>
-          <span style={{ fontSize: 20, flexShrink: 0 }}>{m.emoji}</span>
-          <p style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--text-main)" }}>{m.label}</p>
-          <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)", opacity: 0.4, flexShrink: 0 }} />
-        </div>
-      </button>
-    );
-  };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
 
-      {/* ── HOSPITAL PLAN ── */}
+      {/* ── HOSPITAL PLAN ─────────────────────────────────────────────── */}
       <div>
-        <div className="flex items-center gap-2 mb-2">
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.2, color: "var(--accent)", whiteSpace: "nowrap" }}>HOSPITAL PLAN</span>
-          <div className="flex-1 h-px" style={{ background: "var(--accent-tint-border)" }} />
-        </div>
-
-        {!hasHospital ? (
-          <div className="rounded-2xl py-8 text-center" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-            <p style={{ fontSize: 22, marginBottom: 8 }}>🏥</p>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 4 }}>No hospital plan yet</p>
-            <p style={{ fontSize: 11, color: "var(--text-sub)", lineHeight: 1.5 }}>
-              Connect your hospital to see your care plans and return visits here.
+        <SectionHeading label="HOSPITAL PLAN" color="var(--accent)" />
+        <div className="rounded-2xl px-4 py-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+          {!hasHospital ? (
+            <p style={{ fontSize: 13, color: "var(--text-sub)", textAlign: "center", padding: "20px 0" }}>
+              No hospital plan yet. Connect your hospital to see your care plans here.
             </p>
-          </div>
-        ) : (
-          <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+          ) : (
+            <>
+              {/* Treatment / care plans */}
+              {carePlans.length > 0 && (
+                <>
+                  <SubHeading label="Active Treatment" />
+                  {carePlans.map((plan, i) => (
+                    <React.Fragment key={plan.id}>
+                      <div style={{ paddingBottom: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", flex: 1 }}>{plan.summary}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", background: "var(--accent-tint-bg)", padding: "2px 8px", borderRadius: 5, flexShrink: 0 }}>{plan.department}</span>
+                        </div>
+                        <p style={{ fontSize: 11, color: "var(--text-sub)" }}>
+                          {plan.hospitalName ?? "Hospital"} · since {new Date(plan.startedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </p>
+                      </div>
+                      {i < carePlans.length - 1 && <Divider />}
+                    </React.Fragment>
+                  ))}
+                </>
+              )}
 
-            {/* Active care plans */}
-            {carePlans.map((plan, i) => (
-              <div key={plan.id} style={{ borderTop: i > 0 ? "1px solid var(--glass-border)" : "none", padding: "14px 16px" }}>
-                <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1, marginBottom: 4 }}>TREATMENT PLAN · {plan.department.toUpperCase()}</p>
-                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", lineHeight: 1.4 }}>{plan.summary}</p>
-                {plan.hospitalName && (
-                  <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 4 }}>
-                    {plan.hospitalName} · started {new Date(plan.startedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                  </p>
-                )}
-              </div>
-            ))}
-
-            {/* Return visits */}
-            {returnVisits.map((v, i) => {
-              const isToday = v.visitDate === today;
-              const dateLabel = isToday ? "Today"
-                : new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
-              return (
-                <div key={`rv_${v.id}`} style={{ borderTop: "1px solid var(--glass-border)", padding: "12px 16px", display: "flex", gap: 12, alignItems: "center" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(var(--glow-rgb),0.1)", border: "1px solid rgba(var(--glow-rgb),0.2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <span style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 0.5, lineHeight: 1 }}>{new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}</span>
-                    <span style={{ fontSize: 14, fontWeight: 900, color: "var(--text-main)", lineHeight: 1.1 }}>{new Date(v.visitDate + "T12:00:00").getDate()}</span>
+              {/* Return visits */}
+              {returnVisits.length > 0 && (
+                <>
+                  {carePlans.length > 0 && <Divider />}
+                  <SubHeading label="Scheduled Visits" />
+                  {/* Column headers */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "var(--text-dim)", letterSpacing: 0.8, width: 68, flexShrink: 0 }}>DATE</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "var(--text-dim)", letterSpacing: 0.8, flex: 1 }}>REASON</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "var(--text-dim)", letterSpacing: 0.8, width: 60, textAlign: "right", flexShrink: 0 }}>TIME</span>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1, marginBottom: 2 }}>RETURN VISIT</p>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{v.reason}</p>
-                    <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 1 }}>
-                      {dateLabel}{v.visitTime ? ` · ${v.visitTime}` : ""}{v.hospitalName ? ` · ${v.hospitalName}` : ""}
-                    </p>
-                  </div>
-                  {isToday && <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: "var(--btn-gradient)", padding: "2px 8px", borderRadius: 6, flexShrink: 0 }}>TODAY</span>}
-                </div>
-              );
-            })}
+                  {returnVisits.map((v) => {
+                    const isToday = v.visitDate === today;
+                    const d = new Date(v.visitDate + "T12:00:00");
+                    const dateStr = isToday ? "Today"
+                      : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+                    const timeStr = v.visitTime
+                      ? v.visitTime.slice(0, 5).replace(/^(\d):/, "0$1:")
+                        .replace(/^(\d{2}):(\d{2})$/, (_, h, m) => {
+                          const hr = parseInt(h); return `${hr > 12 ? hr - 12 : hr || 12}:${m} ${hr < 12 ? "AM" : "PM"}`;
+                        })
+                      : "—";
+                    return (
+                      <div key={v.id} style={{ display: "flex", gap: 8, alignItems: "baseline", paddingBottom: 7 }}>
+                        <span style={{ fontSize: 12, fontWeight: isToday ? 800 : 600, color: isToday ? "var(--accent)" : "var(--text-main)", width: 68, flexShrink: 0, lineHeight: 1.3 }}>{dateStr}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-main)", flex: 1, lineHeight: 1.3 }}>{v.reason}{v.hospitalName ? <span style={{ color: "var(--text-sub)", fontWeight: 400 }}> · {v.hospitalName}</span> : null}</span>
+                        <span style={{ fontSize: 11, color: "var(--text-sub)", width: 60, textAlign: "right", flexShrink: 0 }}>{timeStr}</span>
+                        {isToday && <span style={{ fontSize: 8, fontWeight: 900, color: "#fff", background: "var(--btn-gradient)", padding: "2px 6px", borderRadius: 4, flexShrink: 0, alignSelf: "center" }}>TODAY</span>}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
 
-            {/* Hospital-prescribed daily modules */}
-            {hospitalMods.map((m, i) => renderModule(m, i, carePlans.length === 0 && returnVisits.length === 0))}
-          </div>
-        )}
+              {/* Hospital-prescribed daily habits */}
+              {hospitalMods.length > 0 && (
+                <>
+                  {(carePlans.length > 0 || returnVisits.length > 0) && <Divider />}
+                  <SubHeading label="Daily Tasks (set by hospital)" />
+                  {hospitalMods.map((m) => (
+                    <PlanRow key={m.moduleType} left={`${m.emoji}  ${m.label}`} right={m.hospitalName} />
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      {/* ── MY PLAN ── */}
+      {/* ── MY PLAN ───────────────────────────────────────────────────── */}
       <div>
-        <div className="flex items-center gap-2 mb-2">
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.2, color: "var(--text-sub)", whiteSpace: "nowrap" }}>MY PLAN</span>
-          <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
-        </div>
-
-        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-          {!hasMy ? (
-            <div className="py-8 text-center">
-              <p style={{ fontSize: 22, marginBottom: 8 }}>✨</p>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 6 }}>No personal programs yet</p>
-              <button onClick={() => navigate("/programs")} className="text-sm font-bold active:scale-95 transition" style={{ color: "var(--accent)" }}>
+        <SectionHeading label="MY PLAN" color="var(--text-sub)" />
+        <div className="rounded-2xl px-4 py-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+          {myMods.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "20px 0" }}>
+              <p style={{ fontSize: 13, color: "var(--text-sub)", marginBottom: 10 }}>You have not set up any personal programs yet.</p>
+              <button onClick={() => navigate("/programs")} style={{ fontSize: 13, fontWeight: 700, color: "var(--accent)", background: "none", border: "none", cursor: "pointer" }}>
                 Browse Programs →
               </button>
             </div>
           ) : (
-            myMods.map((m, i) => renderModule(m, i, true))
+            <>
+              <SubHeading label="Active Programs" />
+              {myMods.map((m) => (
+                <PlanRow key={m.moduleType} left={`${m.emoji}  ${m.label}`} right="Daily" />
+              ))}
+            </>
           )}
         </div>
       </div>
+
     </div>
   );
 }

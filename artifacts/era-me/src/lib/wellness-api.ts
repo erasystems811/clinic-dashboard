@@ -125,7 +125,7 @@ export function useSaveModule(type: string) {
     mutationFn: (body: { settings?: unknown; enabled?: boolean }) => put(`${BASE}/modules/${type}`, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["wellness"] });
-      // Regenerate the weekly plan immediately so it reflects the new settings
+      void qc.invalidateQueries({ queryKey: ["patient-plan-by-source"] });
       void fetch("/api/patient-app/plan/regenerate", { method: "POST", headers: headers() })
         .then(() => qc.invalidateQueries({ queryKey: ["plan"] }));
     },
@@ -138,6 +138,7 @@ export function useDisableModule() {
     mutationFn: (moduleType: string) => put(`${BASE}/modules/${moduleType}`, { enabled: false }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["wellness"] });
+      void qc.invalidateQueries({ queryKey: ["patient-plan-by-source"] });
       void fetch("/api/patient-app/plan/regenerate", { method: "POST", headers: headers() })
         .then(() => qc.invalidateQueries({ queryKey: ["plan"] }));
     },

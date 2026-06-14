@@ -758,7 +758,7 @@ router.post("/patient-app/notifications/:id/action", async (req, res): Promise<v
 });
 
 // ── Patient-facing care plan schedule — upcoming visit dates from active care plans ──
-router.get("/api/patient-app/care-schedule", async (req, res): Promise<void> => {
+router.get("/patient-app/care-schedule", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
@@ -826,7 +826,7 @@ router.get("/api/patient-app/care-schedule", async (req, res): Promise<void> => 
 });
 
 // ── Patient-facing return visits — all upcoming visits across connected hospitals ──
-router.get("/api/patient-app/return-visits", async (req, res): Promise<void> => {
+router.get("/patient-app/return-visits", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 

@@ -1008,7 +1008,7 @@ router.get("/patient-app/wellness/upcoming-events", async (req, res): Promise<vo
 });
 
 // ── Plan split by source — all active modules grouped as Hospital Plan vs My Plan ──
-router.get("/api/patient-app/plan-by-source", async (req, res): Promise<void> => {
+router.get("/patient-app/plan-by-source", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 

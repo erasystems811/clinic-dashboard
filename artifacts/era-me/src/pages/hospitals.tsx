@@ -473,15 +473,16 @@ function BookingPage({ connection, onBack }: { connection: HospitalConnection; o
 // ── Hospital chat page ─────────────────────────────────────────────────────────
 function HospitalChatPage({ connection, onBack }: { connection: HospitalConnection; onBack: () => void }) {
   const [message, setMessage] = useState("");
-  const [selectedDept, setSelectedDept] = useState("");
+  const [selectedDept, setSelectedDept] = useState(connection.conversationDepartment ?? "");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: messages = [], isLoading } = useHospitalMessages(connection.connectionId);
-  const { data: departments = [] } = useHospitalDepartments(connection.connectionId);
+  const { data: departments = [], isLoading: deptsLoading } = useHospitalDepartments(connection.connectionId);
   const sendMessage = useSendMessage(connection.connectionId);
 
-  const isFirstMessage = !isLoading && messages.length === 0;
-  const needsDeptPick = isFirstMessage && departments.length > 0 && !selectedDept;
+  // Show department picker if: no dept saved on the connection, departments exist, and user hasn't picked one this session
+  const deptAlreadySet = !!connection.conversationDepartment;
+  const showDeptPicker = !deptAlreadySet && departments.length > 0 && !selectedDept && !deptsLoading;
 
   function scrollToBottom() {
     if (scrollRef.current) {
@@ -507,13 +508,63 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
 
   function handleSend() {
     const text = message.trim();
-    if (!text || sendMessage.isPending) return;
+    if (!text || sendMessage.isPending || showDeptPicker) return;
     setMessage("");
     sendMessage.mutate({
       content: text,
       messageType: "text",
-      ...(isFirstMessage && selectedDept ? { department: selectedDept } : {}),
+      ...(!deptAlreadySet && selectedDept ? { department: selectedDept } : {}),
     });
+  }
+
+  // Department picker — full screen shown before chat when no dept is set
+  if (showDeptPicker) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "var(--bg-base)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div className="px-4 pt-6 pb-4 flex items-center gap-3 shrink-0"
+          style={{ borderBottom: "1px solid var(--glass-border)" }}>
+          <button onClick={onBack} className="w-9 h-9 flex items-center justify-center rounded-xl active:scale-90 transition"
+            style={{ background: "rgba(255,255,255,0.06)" }}>
+            <ArrowLeft className="w-5 h-5" style={{ color: "var(--text-sub)" }} />
+          </button>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{ background: "linear-gradient(135deg,#1e3a5f,#1e40af)" }}>
+            {connection.hospitalLogo
+              ? <img src={connection.hospitalLogo} alt={connection.hospitalName} className="w-7 h-7 rounded-lg object-contain" />
+              : <Building2 className="w-4 h-4" style={{ color: "#60a5fa" }} />
+            }
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-white text-sm truncate">{connection.hospitalName}</p>
+            <p className="text-[11px]" style={{ color: "var(--text-sub)" }}>Select a department</p>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-8">
+          <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 18, marginBottom: 8 }}>Which department do you need?</p>
+          <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.6, marginBottom: 24 }}>
+            Your message will go directly to the team that can help you.
+          </p>
+          <div className="space-y-3">
+            {departments.map(dept => (
+              <button
+                key={dept}
+                onClick={() => setSelectedDept(dept)}
+                className="w-full text-left px-5 py-4 rounded-2xl transition active:scale-[0.98]"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid var(--glass-border)",
+                  color: "var(--text-main)",
+                  fontSize: 15,
+                  fontWeight: 500,
+                }}
+              >
+                {dept}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -534,7 +585,7 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
         <div className="flex-1 min-w-0">
           <p className="font-bold text-white text-sm truncate">{connection.hospitalName}</p>
           <p className="text-[11px]" style={{ color: "var(--text-sub)" }}>
-            {selectedDept ? selectedDept : "Hospital messaging"}
+            {selectedDept || connection.conversationDepartment || "Hospital messaging"}
           </p>
         </div>
       </div>
@@ -544,43 +595,11 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
           <div className="flex justify-center py-10">
             <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#60a5fa", borderTopColor: "transparent" }} />
           </div>
-        ) : isFirstMessage ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-10 px-2">
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-16">
             <p style={{ fontSize: 44, marginBottom: 12 }}>💬</p>
-            <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 15, marginBottom: 6 }}>Start a conversation</p>
-            <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5, marginBottom: departments.length > 0 ? 20 : 0 }}>
-              Send a message to {connection.hospitalName}.
-            </p>
-            {departments.length > 0 && (
-              <div className="w-full max-w-xs">
-                <p className="text-xs font-semibold mb-2 uppercase tracking-wide text-left" style={{ color: "var(--text-dim)" }}>
-                  Select a department
-                </p>
-                <div className="space-y-2">
-                  {departments.map(dept => (
-                    <button
-                      key={dept}
-                      onClick={() => setSelectedDept(dept)}
-                      className="w-full text-left px-4 py-3 rounded-2xl transition active:scale-[0.98]"
-                      style={{
-                        background: selectedDept === dept ? "rgba(96,165,250,0.15)" : "rgba(255,255,255,0.05)",
-                        border: selectedDept === dept ? "1px solid rgba(96,165,250,0.5)" : "1px solid var(--glass-border)",
-                        color: selectedDept === dept ? "#60a5fa" : "var(--text-main)",
-                        fontWeight: selectedDept === dept ? 600 : 400,
-                        fontSize: 14,
-                      }}
-                    >
-                      {dept}
-                    </button>
-                  ))}
-                </div>
-                {selectedDept && (
-                  <p className="text-xs mt-3" style={{ color: "var(--text-dim)" }}>
-                    Your message will go to the {selectedDept} team.
-                  </p>
-                )}
-              </div>
-            )}
+            <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 15, marginBottom: 6 }}>No messages yet</p>
+            <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>Send a message to {connection.hospitalName}.</p>
           </div>
         ) : (
           (() => {
@@ -606,13 +625,12 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={needsDeptPick ? "Select a department above first…" : `Message ${connection.hospitalName}…`}
-            disabled={needsDeptPick}
+            placeholder={`Message ${connection.hospitalName}…`}
             rows={1}
             className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none resize-none"
-            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)", caretColor: "#14b8a6", maxHeight: "40vh", lineHeight: 1.5, opacity: needsDeptPick ? 0.5 : 1 }}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)", caretColor: "#14b8a6", maxHeight: "40vh", lineHeight: 1.5 }}
           />
-          <button onClick={handleSend} disabled={!message.trim() || sendMessage.isPending || needsDeptPick}
+          <button onClick={handleSend} disabled={!message.trim() || sendMessage.isPending}
             className="w-11 h-11 rounded-2xl flex items-center justify-center active:scale-90 transition disabled:opacity-40 shrink-0"
             style={{ background: "linear-gradient(135deg,#1e3a5f,#1e40af)", boxShadow: "0 4px 12px rgba(30,64,175,0.4)" }}>
             <Send className="w-4 h-4 text-white" />

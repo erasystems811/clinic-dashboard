@@ -54,6 +54,7 @@ export interface HospitalConnection {
   patientName: string;
   stage: string | null;
   department: string | null;
+  conversationDepartment: string | null;
   verifiedAt: string;
 }
 

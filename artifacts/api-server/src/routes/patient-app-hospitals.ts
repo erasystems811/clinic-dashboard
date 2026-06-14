@@ -72,7 +72,7 @@ router.get("/patient-app/hospitals", async (req, res): Promise<void> => {
 
   const { data: connections } = await supabase
     .from("patient_hospital_connections")
-    .select("id, hospital_id, patient_record_id, verified_at")
+    .select("id, hospital_id, patient_record_id, verified_at, conversation_department")
     .eq("account_id", account.id);
 
   if (!connections || connections.length === 0) { res.json([]); return; }
@@ -122,6 +122,7 @@ router.get("/patient-app/hospitals", async (req, res): Promise<void> => {
       // "In Care" is derived from having an active care plan — mirrors hospital admin logic
       stage: inCareSet.has(rid) ? "In Care" : (record?.stage ?? null),
       department: record?.department ?? null,
+      conversationDepartment: (c.conversation_department as string | null) ?? null,
       verifiedAt: c.verified_at,
     };
   });

@@ -573,35 +573,7 @@ export async function pushEraPlanIntegration(opts: {
       }, { onConflict: "account_id,module_type" });
     }
 
-    // 5. If plan includes hospital visits, add a vitals module (remind patient to monitor health)
-    const hasHospitalVisit = td.treatmentType === "come_to_hospital" || td.treatmentType === "combination";
-    if (hasHospitalVisit) {
-      const visitTimes = Object.values((td.hospitalTimingTimes as Record<string, string>) ?? {}).filter(Boolean);
-      const vitalTime = visitTimes.length > 0
-        ? (() => {
-            // Set vitals reminder 1 hour before first visit
-            const [h, m] = visitTimes[0].split(":").map(Number);
-            const total = h * 60 + m - 60;
-            const hh = Math.max(0, Math.floor(total / 60));
-            const mm = total % 60;
-            return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-          })()
-        : "07:00";
-
-      await supabase.from("wellness_modules").upsert({
-        account_id: accountId,
-        module_type: "vitals",
-        enabled: true,
-        settings: { notes: "Log the vitals recorded at your hospital visit" },
-        source: "hospital",
-        prescribed_by_hospital_id: opts.hospitalIntId,
-        prescribed_by_hospital_name: (await supabase.from("hospitals").select("name").eq("id", opts.hospitalIntId).maybeSingle()).data?.name ?? "Your hospital",
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "account_id,module_type" });
-      void vitalTime; // used in plan generator via module settings
-    }
-
-    // 6. Regenerate the weekly plan with the new modules
+    // 5. Regenerate the weekly plan with the new modules
     await fetchAndSavePlan(accountId);
 
     // 7. Notify the patient

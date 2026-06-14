@@ -9,7 +9,7 @@ const router: IRouter = Router();
 const VALID_TYPES = [
   "water", "medications", "workout", "sleep", "mood_check", "fruit",
   "vitals", "smoking", "alcohol", "eyebreak", "sunscreen", "outdoors",
-  "vaccines", "checkups", "hygiene", "intimacy",
+  "vaccines", "checkups", "hygiene", "intimacy", "hospital_visit",
 ];
 // Daily habit modules — shown in checklist and used for week summary
 const DAILY_HABIT_TYPES = [
@@ -155,19 +155,18 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
   const weekStart = getWeekStart();
 
   const [modulesResult, logsResult, planResult] = await Promise.all([
-    supabase.from("wellness_modules").select("module_type, settings, enabled, source, prescribed_by_hospital_name").eq("account_id", account.id),
+    supabase.from("wellness_modules").select("module_type, settings, enabled, source").eq("account_id", account.id),
     supabase.from("wellness_logs").select("module_type, data").eq("account_id", account.id).eq("log_date", today),
     supabase.from("weekly_plans").select("plan_data").eq("account_id", account.id).eq("week_start", weekStart).maybeSingle(),
   ]);
 
-  const moduleMap: Record<string, { settings: Record<string, unknown>; enabled: boolean; source: string; prescribedBy?: string }> = {};
+  const moduleMap: Record<string, { settings: Record<string, unknown>; enabled: boolean; source: string }> = {};
   for (const m of modulesResult.data ?? []) {
     const src = (m.source as string | null) ?? "self";
     moduleMap[m.module_type as string] = {
       settings: (m.settings as Record<string, unknown>) ?? {},
       enabled: m.enabled as boolean,
       source: src,
-      prescribedBy: src === "hospital" ? ((m.prescribed_by_hospital_name as string | null) ?? undefined) : undefined,
     };
   }
   const logMap: Record<string, Record<string, unknown>> = {};
@@ -176,7 +175,7 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
   }
 
   // Build checklist from the weekly plan (falls back to module-based logic if no plan)
-  const checklist: Array<{ id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean; count?: number; target?: number; batchIds?: string[]; prescribedBy?: string }> = [];
+  const checklist: Array<{ id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean; count?: number; target?: number; batchIds?: string[]; prescribedBy?: string; scheduledBy?: string }> = [];
   const plan = planResult.data?.plan_data as WeekPlan | null;
   const todayPlanDay = plan?.days.find((d) => d.date === today);
 
@@ -191,8 +190,7 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (item.isRestDay) {
         if (!seen.has(item.moduleType)) {
           seen.add(item.moduleType);
-          const pb = moduleMap[item.moduleType]?.prescribedBy;
-          checklist.push({ id: item.moduleType, emoji: item.emoji, label: item.label, sub: item.sub, done: true, ...(pb ? { prescribedBy: pb } : {}) });
+          checklist.push({ id: item.moduleType, emoji: item.emoji, label: item.label, sub: item.sub, done: true });
         }
         continue;
       }
@@ -219,13 +217,12 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
             byTime.get(t)!.push({ med, isDone: taken[`${med.id as string}_${t}`] === true });
           }
         }
-        const medPb = moduleMap["medications"]?.prescribedBy;
         for (const [time, doses] of [...byTime.entries()].sort(([a], [b]) => a.localeCompare(b))) {
           const allDone = doses.every(d => d.isDone);
           const batchIds = doses.map(d => `med_${d.med.id as string}_${time}`);
           const label = doses.length === 1 ? `Take ${doses[0].med.name as string}` : `Take ${doses.length} medications`;
           const sub = doses.map(d => (d.med.name as string) + (d.med.dosage ? ` — ${d.med.dosage as string}` : "")).join(", ");
-          checklist.push({ id: `medications_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds, ...(medPb ? { prescribedBy: medPb } : {}) });
+          checklist.push({ id: `medications_${time}`, emoji: "💊", label, sub, time, done: allDone, batchIds });
         }
         continue;
       }
@@ -234,14 +231,13 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (item.moduleType === "hygiene") {
         interface HygieneItem { id: string; name: string; emoji: string; lastReplaced: string; intervalDays: number }
         const items = ((settings.items as HygieneItem[]) ?? []);
-        const hygienePb = moduleMap["hygiene"]?.prescribedBy;
         for (const hi of items) {
           const age = Math.floor((Date.now() - new Date(hi.lastReplaced + "T12:00:00").getTime()) / 86400000);
           if (age < hi.intervalDays) continue; // only on/after the due date
           const replacedToday = hi.lastReplaced === today;
           const daysOverdue = age - hi.intervalDays;
           const sub = daysOverdue > 0 && !replacedToday ? `${daysOverdue}d overdue` : "Due today";
-          checklist.push({ id: `hygiene_${hi.id}`, emoji: hi.emoji, label: `Replace ${hi.name}`, sub, done: replacedToday, ...(hygienePb ? { prescribedBy: hygienePb } : {}) });
+          checklist.push({ id: `hygiene_${hi.id}`, emoji: hi.emoji, label: `Replace ${hi.name}`, sub, done: replacedToday });
         }
         continue;
       }
@@ -250,13 +246,12 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       if (item.moduleType === "vaccines") {
         interface Vaccine { id: string; name: string; nextDueDate?: string }
         const todayMs = new Date(today + "T12:00:00").getTime();
-        const vaccinesPb = moduleMap["vaccines"]?.prescribedBy;
         for (const v of ((settings.vaccines as Vaccine[]) ?? [])) {
           if (!v.nextDueDate) continue;
           const daysUntil = Math.ceil((new Date(v.nextDueDate + "T12:00:00").getTime() - todayMs) / 86400000);
           if (daysUntil > 0) continue;
           const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
-          checklist.push({ id: `vaccine_${v.id}`, emoji: "💉", label: `${v.name} vaccine`, sub, done: false, ...(vaccinesPb ? { prescribedBy: vaccinesPb } : {}) });
+          checklist.push({ id: `vaccine_${v.id}`, emoji: "💉", label: `${v.name} vaccine`, sub, done: false });
         }
         continue;
       }
@@ -266,13 +261,12 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         interface Checkup { id: string; type: string; lastDate: string; intervalMonths: number }
         const CHECKUP_EMOJIS: Record<string, string> = { "Dental": "🦷", "Eye / Vision": "👁️", "GP / General": "🩺", "Blood Test": "🩸", "Blood Pressure": "💗", "Cancer Screening": "🔬", "Skin Check": "🧴" };
         const todayMs = new Date(today + "T12:00:00").getTime();
-        const checkupsPb = moduleMap["checkups"]?.prescribedBy;
         for (const c of ((settings.checkups as Checkup[]) ?? [])) {
           const due = new Date(c.lastDate); due.setMonth(due.getMonth() + c.intervalMonths);
           const daysUntil = Math.ceil((due.getTime() - todayMs) / 86400000);
           if (daysUntil > 0) continue;
           const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
-          checklist.push({ id: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, done: false, ...(checkupsPb ? { prescribedBy: checkupsPb } : {}) });
+          checklist.push({ id: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, done: false });
         }
         continue;
       }
@@ -447,6 +441,72 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
         if (daysUntil > 0) continue;
         const sub = daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : "Due today";
         checklist.push({ id: `checkup_${c.id}`, emoji: CHECKUP_EMOJIS[c.type] ?? "📋", label: `${c.type} checkup`, sub, done: false, ...(cPb ? { prescribedBy: cPb } : {}) });
+      }
+    }
+  }
+
+  // ── Hospital visits today (return visits + care plan scheduled dates) ──────────
+  const { data: hvConnections } = await supabase
+    .from("patient_hospital_connections")
+    .select("patient_record_id, hospitals(name, hospital_code)")
+    .eq("account_id", account.id);
+
+  if (hvConnections?.length) {
+    const { data: hvLog } = await supabase
+      .from("wellness_logs")
+      .select("data")
+      .eq("account_id", account.id)
+      .eq("module_type", "hospital_visit")
+      .eq("log_date", today)
+      .maybeSingle();
+    const hvDone = (hvLog?.data as Record<string, boolean>) ?? {};
+
+    const patientIds = hvConnections.map(c => c.patient_record_id as number);
+
+    // Return visits scheduled for today
+    const { data: todayRVs } = await supabase
+      .from("patient_return_visits")
+      .select("id, reason, visit_time, hospitals(name)")
+      .in("patient_id", patientIds)
+      .eq("status", "scheduled")
+      .eq("visit_date", today);
+
+    for (const v of todayRVs ?? []) {
+      const id = `rv_${v.id as number}`;
+      const hName = ((v as Record<string, unknown>).hospitals as Record<string, unknown> | null)?.name as string | null;
+      checklist.push({ id, emoji: "🏥", label: "Go to hospital", sub: v.reason as string, done: hvDone[id] === true, scheduledBy: hName ?? undefined });
+    }
+
+    // Care plan scheduled visit dates for today
+    for (const conn of hvConnections) {
+      const hosp = (conn as Record<string, unknown>).hospitals as Record<string, unknown> | null;
+      const hName = hosp?.name as string | null;
+      const hCode = hosp?.hospital_code as string | null;
+      if (!hCode) continue;
+      const { data: plans } = await supabase
+        .from("care_plans")
+        .select("id, department, template_data")
+        .eq("patient_id", conn.patient_record_id as number)
+        .eq("hospital_id", hCode)
+        .eq("status", "active");
+      for (const plan of plans ?? []) {
+        const dept = plan.department as string;
+        const td = (plan.template_data ?? {}) as Record<string, unknown>;
+        let hasVisitToday = false;
+        if (dept === "Antenatal / Maternity") {
+          hasVisitToday = ((td.ancSchedule as Array<{ date?: string }>) ?? []).some(r => r.date === today);
+        } else if (dept === "Paediatrics") {
+          hasVisitToday = ((td.vaccinationSchedule as Array<{ date?: string }>) ?? []).some(r => r.date === today);
+        } else if (["Surgery / Post-Op", "Dental", "Eye", "Fertility / IVF", "ENT (Ear, Nose and Throat)"].includes(dept)) {
+          hasVisitToday = ((td.inCareSchedule as Array<{ date?: string }>) ?? []).some(r => r.date === today)
+            || (dept === "Surgery / Post-Op" && td.procedureDate === today);
+        } else if (dept === "General Outpatient") {
+          hasVisitToday = ((td as { hospitalTiming?: string[] }).hospitalTiming ?? []).length > 0;
+        }
+        if (hasVisitToday) {
+          const id = `cp_${plan.id as number}_${today}`;
+          checklist.push({ id, emoji: "🏥", label: "Go to hospital", sub: dept, done: hvDone[id] === true, scheduledBy: hName ?? undefined });
+        }
       }
     }
   }
@@ -945,6 +1005,93 @@ router.get("/patient-app/wellness/upcoming-events", async (req, res): Promise<vo
   events.sort((a, b) => a.daysUntil - b.daysUntil);
 
   res.json({ events });
+});
+
+// ── Plan split by source — all active modules grouped as Hospital Plan vs My Plan ──
+router.get("/api/patient-app/plan-by-source", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: modules } = await supabase
+    .from("wellness_modules")
+    .select("module_type, enabled, source, prescribed_by_hospital_name, settings")
+    .eq("account_id", account.id)
+    .eq("enabled", true);
+
+  const hospitalModules: { moduleType: string; label: string; emoji: string; hospitalName: string }[] = [];
+  const myModules: { moduleType: string; label: string; emoji: string }[] = [];
+
+  for (const m of modules ?? []) {
+    const meta = MODULE_META[m.module_type as string];
+    const label = meta?.label ?? String(m.module_type);
+    const emoji = meta?.emoji ?? "⚡";
+
+    if (m.source === "hospital" && m.prescribed_by_hospital_name) {
+      hospitalModules.push({ moduleType: m.module_type as string, label, emoji, hospitalName: m.prescribed_by_hospital_name as string });
+    } else {
+      myModules.push({ moduleType: m.module_type as string, label, emoji });
+    }
+  }
+
+  // Care plans from connected hospitals
+  const { data: connections } = await supabase
+    .from("patient_hospital_connections")
+    .select("patient_record_id, hospital_id, hospitals(name, hospital_code)")
+    .eq("account_id", account.id);
+
+  const carePlans: { id: number; department: string; summary: string; hospitalName: string | null; startedAt: string }[] = [];
+
+  for (const conn of connections ?? []) {
+    const hosp = (conn as Record<string, unknown>).hospitals as Record<string, unknown> | null;
+    const hospitalName = (hosp?.name as string | null) ?? null;
+    const hospitalCode = (hosp?.hospital_code as string | null) ?? null;
+    if (!hospitalCode) continue;
+
+    const { data: plans } = await supabase
+      .from("care_plans")
+      .select("id, department, summary, created_at")
+      .eq("patient_id", conn.patient_record_id as number)
+      .eq("hospital_id", hospitalCode)
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
+
+    for (const p of plans ?? []) {
+      carePlans.push({
+        id: p.id as number,
+        department: p.department as string,
+        summary: p.summary as string,
+        hospitalName,
+        startedAt: p.created_at as string,
+      });
+    }
+  }
+
+  // Return visits (upcoming)
+  const patientRecordIds = (connections ?? []).map(c => c.patient_record_id as number);
+  const today = new Date().toISOString().split("T")[0];
+  const returnVisits: { id: number; visitDate: string; visitTime: string | null; reason: string; hospitalName: string | null }[] = [];
+
+  if (patientRecordIds.length > 0) {
+    const { data: visits } = await supabase
+      .from("patient_return_visits")
+      .select("id, visit_date, visit_time, reason, hospitals(name)")
+      .in("patient_id", patientRecordIds)
+      .eq("status", "scheduled")
+      .gte("visit_date", today)
+      .order("visit_date", { ascending: true });
+
+    for (const v of visits ?? []) {
+      returnVisits.push({
+        id: v.id as number,
+        visitDate: v.visit_date as string,
+        visitTime: (v.visit_time as string | null) ?? null,
+        reason: v.reason as string,
+        hospitalName: ((v as Record<string, unknown>).hospitals as Record<string, unknown> | null)?.name as string | null ?? null,
+      });
+    }
+  }
+
+  res.json({ hospitalModules, myModules, carePlans, returnVisits });
 });
 
 export default router;

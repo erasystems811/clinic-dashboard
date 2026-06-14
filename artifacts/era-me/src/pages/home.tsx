@@ -12,7 +12,7 @@ import type { HospitalConnection } from "@/lib/hospitals-api";
 
 interface ChecklistItem {
   id: string; emoji: string; label: string; sub?: string; time?: string; done: boolean;
-  count?: number; target?: number; batchIds?: string[]; prescribedBy?: string;
+  count?: number; target?: number; batchIds?: string[]; prescribedBy?: string; scheduledBy?: string;
 }
 interface ModuleEntry {
   enabled: boolean; settings: Record<string, unknown>; log: Record<string, unknown> | null;
@@ -84,6 +84,7 @@ function getQuickLogEntry(item: ChecklistItem, data: Record<string, QuickLogEntr
   if (item.id === "eyebreak") return { moduleType: "eyebreak", data: { count: (item.count ?? 0) + 1 } };
   if (item.id.startsWith("sunscreen_")) return { moduleType: "sunscreen", data: { count: parseInt(item.id.split("_")[1] ?? "0") + 1 } };
   if (item.batchIds?.length) return { moduleType: "medications", data: { taken: Object.fromEntries(item.batchIds.map(bid => [bid.replace(/^med_/, ""), true])) } };
+  if (item.id.startsWith("rv_") || item.id.startsWith("cp_")) return { moduleType: "hospital_visit", data: { [item.id]: true } };
   return data[item.id];
 }
 
@@ -367,8 +368,13 @@ function UpcomingEventsCard({ events, navigate }: {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", lineHeight: 1.3 }}>{e.label}</p>
                 <p style={{ fontSize: 11, color: isOverdue ? "#f87171" : "var(--text-sub)", marginTop: 2 }}>
-                  {dateLabel}{e.time ? ` · ${e.time}` : ""}{e.hospitalName ? ` · ${e.hospitalName}` : ""}
+                  {dateLabel}{e.time ? ` · ${e.time}` : ""}
                 </p>
+                {e.hospitalName && !e.isPersonal && (
+                  <p style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600, marginTop: 2 }}>
+                    Scheduled by {e.hospitalName}
+                  </p>
+                )}
               </div>
               {isToday && !e.isPersonal && (
                 <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: "var(--btn-gradient)", padding: "2px 8px", borderRadius: 6, flexShrink: 0, letterSpacing: 0.5 }}>TODAY</span>
@@ -477,7 +483,10 @@ function CarePlanSection({ items, mods, quickLog, navigate, hospitalName, todayR
 
               {/* Content */}
               <button
-                onClick={() => navigate(moduleHref(item.id))}
+                onClick={() => {
+                  if (item.id.startsWith("rv_") || item.id.startsWith("cp_")) navigate("/hospitals");
+                  else navigate(moduleHref(item.id));
+                }}
                 className="flex-1 flex items-center gap-3 py-3 pr-3 text-left active:opacity-70 transition"
                 style={{ background: "transparent", border: "none", borderLeft: "1px solid var(--glass-border)" }}>
                 <span style={{ fontSize: 18, flexShrink: 0 }}>{item.emoji}</span>
@@ -502,6 +511,11 @@ function CarePlanSection({ items, mods, quickLog, navigate, hospitalName, todayR
                       Prescribed by {item.prescribedBy}
                     </p>
                   )}
+                  {item.scheduledBy && (
+                    <p style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600, marginTop: 3 }}>
+                      Scheduled by {item.scheduledBy}
+                    </p>
+                  )}
                 </div>
                 <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)", flexShrink: 0, opacity: 0.4 }} />
               </button>
@@ -510,20 +524,6 @@ function CarePlanSection({ items, mods, quickLog, navigate, hospitalName, todayR
         })}
       </div>
 
-      {/* Today's hospital return visits */}
-      {(todayReturnVisits ?? []).length > 0 && (
-        <div className="mt-3 rounded-2xl overflow-hidden" style={{ background: "rgba(var(--glow-rgb),0.06)", border: "1px solid rgba(var(--glow-rgb),0.15)" }}>
-          {(todayReturnVisits ?? []).map((v, i) => (
-            <div key={v.id} style={{ borderTop: i > 0 ? "1px solid rgba(var(--glow-rgb),0.12)" : "none", padding: "12px 16px" }}>
-              <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1.2, marginBottom: 4 }}>HOSPITAL VISIT TODAY</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{v.reason}</p>
-              <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>
-                {v.hospitalName}{v.visitTime ? ` · ${v.visitTime}` : ""}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
     </section>
   );
 }

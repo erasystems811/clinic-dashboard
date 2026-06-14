@@ -36,3 +36,23 @@ export function useReturnVisits() {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+export interface CareScheduleEvent {
+  date: string;
+  time: string | null;
+  label: string;
+  hospitalName: string | null;
+  type: string;
+}
+
+export function useCareSchedule() {
+  return useQuery<{ events: CareScheduleEvent[] }>({
+    queryKey: ["patient-care-schedule"],
+    queryFn: async () => {
+      const res = await fetch("/api/patient-app/care-schedule", { headers: headers() });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<{ events: CareScheduleEvent[] }>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}

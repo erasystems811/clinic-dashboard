@@ -557,11 +557,18 @@ export async function pushEraPlanIntegration(opts: {
       const existingMeds = ((existingMod?.settings as Record<string, unknown>)?.medications as Record<string, unknown>[]) ?? [];
       const selfMeds = existingMeds.filter((m) => !String(m.id ?? "").startsWith("plan_"));
 
+      // Fetch hospital name for attribution
+      const { data: hospRow } = await supabase.from("hospitals").select("name").eq("id", opts.hospitalIntId).maybeSingle();
+      const hospitalName = (hospRow?.name as string | null) ?? "Your hospital";
+
       await supabase.from("wellness_modules").upsert({
         account_id: accountId,
         module_type: "medications",
         enabled: true,
         settings: { medications: [...selfMeds, ...medEntries] },
+        source: "hospital",
+        prescribed_by_hospital_id: opts.hospitalIntId,
+        prescribed_by_hospital_name: hospitalName,
         updated_at: new Date().toISOString(),
       }, { onConflict: "account_id,module_type" });
     }
@@ -586,6 +593,9 @@ export async function pushEraPlanIntegration(opts: {
         module_type: "vitals",
         enabled: true,
         settings: { notes: "Log the vitals recorded at your hospital visit" },
+        source: "hospital",
+        prescribed_by_hospital_id: opts.hospitalIntId,
+        prescribed_by_hospital_name: (await supabase.from("hospitals").select("name").eq("id", opts.hospitalIntId).maybeSingle()).data?.name ?? "Your hospital",
         updated_at: new Date().toISOString(),
       }, { onConflict: "account_id,module_type" });
       void vitalTime; // used in plan generator via module settings

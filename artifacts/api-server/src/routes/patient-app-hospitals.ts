@@ -757,6 +757,74 @@ router.post("/patient-app/notifications/:id/action", async (req, res): Promise<v
   res.json({ ok: true });
 });
 
+// ── Patient-facing care plan schedule — upcoming visit dates from active care plans ──
+router.get("/api/patient-app/care-schedule", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: connections } = await supabase
+    .from("patient_hospital_connections")
+    .select("patient_record_id, hospital_id, hospitals(name, hospital_code)")
+    .eq("account_id", account.id);
+
+  if (!connections?.length) { res.json({ events: [] }); return; }
+
+  const today = new Date().toISOString().split("T")[0];
+  const in30days = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+  const events: { date: string; time: string | null; label: string; hospitalName: string | null; type: string }[] = [];
+
+  for (const conn of connections) {
+    const hosp = (conn as Record<string, unknown>).hospitals as Record<string, unknown> | null;
+    const hospitalName = (hosp?.name as string | null) ?? null;
+    const hospitalCode = (hosp?.hospital_code as string | null) ?? null;
+    if (!hospitalCode) continue;
+
+    const { data: plans } = await supabase
+      .from("care_plans")
+      .select("department, template_data, summary")
+      .eq("patient_id", conn.patient_record_id as number)
+      .eq("hospital_id", hospitalCode)
+      .eq("status", "active");
+
+    for (const plan of plans ?? []) {
+      const dept = plan.department as string;
+      const td = (plan.template_data ?? {}) as Record<string, unknown>;
+
+      const visitEntries: { date: string; time?: string }[] = [];
+
+      if (dept === "Antenatal / Maternity") {
+        const rows = (td.ancSchedule as Array<{ date?: string; time?: string; whatHappens?: string }>) ?? [];
+        for (const r of rows) if (r.date && r.date >= today && r.date <= in30days) visitEntries.push({ date: r.date, time: r.time });
+      } else if (dept === "Paediatrics") {
+        const rows = (td.vaccinationSchedule as Array<{ date?: string; time?: string }>) ?? [];
+        for (const r of rows) if (r.date && r.date >= today && r.date <= in30days) visitEntries.push({ date: r.date, time: r.time });
+      } else if (["Surgery / Post-Op", "Dental", "Eye", "Fertility / IVF", "ENT (Ear, Nose and Throat)"].includes(dept)) {
+        const rows = (td.inCareSchedule as Array<{ date?: string; time?: string }>) ?? [];
+        for (const r of rows) if (r.date && r.date >= today && r.date <= in30days) visitEntries.push({ date: r.date, time: r.time });
+        if (dept === "Surgery / Post-Op") {
+          const pd = td.procedureDate as string | undefined;
+          const pt = td.procedureTime as string | undefined;
+          if (pd && pd >= today && pd <= in30days) visitEntries.push({ date: pd, time: pt });
+        }
+      } else if (dept === "General Outpatient") {
+        const tdGP = td as { hospitalTiming?: string[]; hospitalTimingTimes?: Record<string, string>; durationDays?: number };
+        if ((tdGP.hospitalTiming ?? []).length > 0) {
+          // Daily hospital visit plan — just surface it as "ongoing treatment"
+          events.push({ date: today, time: null, label: `${dept} treatment visit`, hospitalName, type: "care_plan" });
+        }
+      }
+
+      for (const entry of visitEntries) {
+        events.push({ date: entry.date, time: entry.time ?? null, label: `${dept} visit`, hospitalName, type: "care_plan" });
+      }
+    }
+  }
+
+  // Sort by date ascending
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  res.json({ events });
+});
+
 // ── Patient-facing return visits — all upcoming visits across connected hospitals ──
 router.get("/api/patient-app/return-visits", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);

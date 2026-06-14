@@ -141,18 +141,20 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
   const weekStart = getWeekStart();
 
   const [modulesResult, logsResult, planResult] = await Promise.all([
-    supabase.from("wellness_modules").select("module_type, settings, enabled, source").eq("account_id", account.id),
+    supabase.from("wellness_modules").select("module_type, settings, enabled, source, prescribed_by_hospital_name").eq("account_id", account.id),
     supabase.from("wellness_logs").select("module_type, data").eq("account_id", account.id).eq("log_date", today),
     supabase.from("weekly_plans").select("plan_data").eq("account_id", account.id).eq("week_start", weekStart).maybeSingle(),
   ]);
 
-  const moduleMap: Record<string, { settings: Record<string, unknown>; enabled: boolean; source: string }> = {};
+  const moduleMap: Record<string, { settings: Record<string, unknown>; enabled: boolean; source: string; prescribedBy?: string }> = {};
   for (const m of modulesResult.data ?? []) {
     const src = (m.source as string | null) ?? "self";
+    const pb = (m.prescribed_by_hospital_name as string | null) ?? undefined;
     moduleMap[m.module_type as string] = {
       settings: (m.settings as Record<string, unknown>) ?? {},
       enabled: m.enabled as boolean,
       source: src,
+      ...(pb ? { prescribedBy: pb } : {}),
     };
   }
   const logMap: Record<string, Record<string, unknown>> = {};

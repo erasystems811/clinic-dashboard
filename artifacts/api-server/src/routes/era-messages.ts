@@ -70,6 +70,27 @@ router.get("/era-messages/unread-count", async (req, res): Promise<void> => {
   res.json({ count: count ?? 0 });
 });
 
+// ── GET /era-messages/departments ─────────────────────────────────────────────
+// Returns unique specialties of active doctors at this hospital
+router.get("/era-messages/departments", async (req, res): Promise<void> => {
+  const hospitalId = auth(req);
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data } = await supabase
+    .from("hospital_doctors")
+    .select("specialty")
+    .eq("hospital_id", hospitalId)
+    .eq("active", true);
+
+  const depts = [
+    ...new Set(
+      (data ?? []).map(d => d.specialty as string | null).filter((s): s is string => !!s)
+    ),
+  ].sort();
+
+  res.json(depts);
+});
+
 // ── GET /era-messages/doctors ─────────────────────────────────────────────────
 router.get("/era-messages/doctors", async (req, res): Promise<void> => {
   const hospitalId = auth(req);
@@ -90,7 +111,7 @@ router.get("/era-messages/doctors", async (req, res): Promise<void> => {
 });
 
 // ── GET /era-messages/doctor ──────────────────────────────────────────────────
-// Doctor: conversations routed to this doctor (not resolved)
+// Doctor view: unclaimed convos in their specialty + convos they own
 router.get("/era-messages/doctor", async (req, res): Promise<void> => {
   const ctx = authDoctor(req);
   if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -98,24 +119,43 @@ router.get("/era-messages/doctor", async (req, res): Promise<void> => {
 
   const { data: doc } = await supabase
     .from("hospital_doctors")
-    .select("id")
+    .select("id, specialty")
     .eq("id", doctorId)
     .eq("hospital_id", hospitalId)
     .eq("active", true)
     .maybeSingle();
   if (!doc) { res.status(403).json({ error: "Forbidden" }); return; }
 
-  const { data: connections } = await supabase
-    .from("patient_hospital_connections")
-    .select("id, patient_record_id")
-    .eq("hospital_id", hospitalId)
-    .eq("routed_to_doctor_id", doctorId)
-    .neq("era_status", "resolved");
+  const specialty = (doc.specialty as string | null) ?? null;
 
-  if (!connections || connections.length === 0) { res.json([]); return; }
+  const [{ data: owned }, deptResult] = await Promise.all([
+    supabase
+      .from("patient_hospital_connections")
+      .select("id, patient_record_id, routed_to_doctor_id, era_status, conversation_department")
+      .eq("hospital_id", hospitalId)
+      .eq("routed_to_doctor_id", doctorId)
+      .neq("era_status", "resolved"),
+    specialty
+      ? supabase
+          .from("patient_hospital_connections")
+          .select("id, patient_record_id, routed_to_doctor_id, era_status, conversation_department")
+          .eq("hospital_id", hospitalId)
+          .eq("era_status", "open")
+          .eq("conversation_department", specialty)
+      : Promise.resolve({ data: [] as unknown[] }),
+  ]);
 
-  const connIds = connections.map(c => c.id as number);
-  const patientIds = connections.map(c => c.patient_record_id as number);
+  const ownedIds = new Set((owned ?? []).map(c => (c as { id: number }).id));
+  type ConnRow = { id: number; patient_record_id: number; routed_to_doctor_id: number | null; era_status: string; conversation_department: string | null };
+  const allConnections: ConnRow[] = [
+    ...(owned ?? []) as ConnRow[],
+    ...((deptResult.data ?? []) as ConnRow[]).filter(c => !ownedIds.has(c.id)),
+  ];
+
+  if (allConnections.length === 0) { res.json([]); return; }
+
+  const connIds = allConnections.map(c => c.id);
+  const patientIds = allConnections.map(c => c.patient_record_id);
 
   const [{ data: messages }, { data: patients }, { data: unreadRows }] = await Promise.all([
     supabase.from("patient_hospital_messages").select("id, connection_id, sender, content, created_at").in("connection_id", connIds).order("created_at", { ascending: false }),
@@ -135,19 +175,23 @@ router.get("/era-messages/doctor", async (req, res): Promise<void> => {
     if (!latestMsg.has(cid)) latestMsg.set(cid, { content: m.content as string, sender: m.sender as string, createdAt: m.created_at as string });
   }
 
-  const convos = connections
-    .filter(c => latestMsg.has(c.id as number))
+  const convos = allConnections
+    .filter(c => latestMsg.has(c.id))
     .map(c => {
-      const patient = patientMap.get(c.patient_record_id as number);
-      const latest = latestMsg.get(c.id as number)!;
+      const patient = patientMap.get(c.patient_record_id);
+      const latest = latestMsg.get(c.id)!;
       return {
-        connectionId: c.id as number,
-        patientId: c.patient_record_id as number,
+        connectionId: c.id,
+        patientId: c.patient_record_id,
         patientName: patient ? `${patient.first_name} ${patient.last_name}` : "Unknown",
         lastMessage: latest.content,
         lastMessageSender: latest.sender,
         lastMessageAt: latest.createdAt,
-        unread: unreadCount.get(c.id as number) ?? 0,
+        unread: unreadCount.get(c.id) ?? 0,
+        eraStatus: c.era_status,
+        routedToDoctorId: c.routed_to_doctor_id,
+        conversationDepartment: c.conversation_department,
+        isOwned: ownedIds.has(c.id),
       };
     })
     .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
@@ -164,14 +208,27 @@ router.get("/era-messages/doctor/:connectionId", async (req, res): Promise<void>
   const connectionId = parseInt(req.params.connectionId, 10);
   if (isNaN(connectionId)) { res.status(400).json({ error: "Invalid connection ID" }); return; }
 
+  const { data: doc } = await supabase
+    .from("hospital_doctors")
+    .select("id, specialty")
+    .eq("id", doctorId)
+    .eq("hospital_id", hospitalId)
+    .eq("active", true)
+    .maybeSingle();
+  if (!doc) { res.status(403).json({ error: "Forbidden" }); return; }
+
   const { data: conn } = await supabase
     .from("patient_hospital_connections")
-    .select("id, patient_record_id, era_status")
+    .select("id, patient_record_id, era_status, routed_to_doctor_id, conversation_department")
     .eq("id", connectionId)
     .eq("hospital_id", hospitalId)
-    .eq("routed_to_doctor_id", doctorId)
     .maybeSingle();
   if (!conn) { res.status(404).json({ error: "Not found" }); return; }
+
+  const ownedByMe = (conn.routed_to_doctor_id as number | null) === doctorId;
+  const specialty = (doc.specialty as string | null) ?? null;
+  const unclaimedInMyDept = (conn.era_status as string) === "open" && !!specialty && (conn.conversation_department as string | null) === specialty;
+  if (!ownedByMe && !unclaimedInMyDept) { res.status(403).json({ error: "Not assigned to you" }); return; }
 
   const [{ data: messages }, { data: patient }] = await Promise.all([
     supabase.from("patient_hospital_messages").select("id, sender, message_type, content, metadata, created_at").eq("connection_id", connectionId).order("created_at", { ascending: true }).limit(200),
@@ -185,6 +242,9 @@ router.get("/era-messages/doctor/:connectionId", async (req, res): Promise<void>
     patientId: conn.patient_record_id,
     patientName: patient ? `${patient.first_name} ${patient.last_name}` : "Unknown",
     eraStatus: conn.era_status as string,
+    routedToDoctorId: (conn.routed_to_doctor_id as number | null) ?? null,
+    conversationDepartment: (conn.conversation_department as string | null) ?? null,
+    isOwned: ownedByMe,
     messages: (messages ?? []).map(m => camelize(m)),
   });
 });
@@ -196,7 +256,7 @@ router.get("/era-messages", async (req, res): Promise<void> => {
 
   const { data: connections } = await supabase
     .from("patient_hospital_connections")
-    .select("id, patient_record_id, routed_to_doctor_id, era_status")
+    .select("id, patient_record_id, routed_to_doctor_id, era_status, conversation_department")
     .eq("hospital_id", hospitalId);
 
   if (!connections || connections.length === 0) { res.json([]); return; }
@@ -242,6 +302,7 @@ router.get("/era-messages", async (req, res): Promise<void> => {
         eraStatus: (c.era_status as string) ?? "open",
         routedToDoctorId: routedDoctorId,
         routedToDoctorName: routedDoctorId ? (doctorMap.get(routedDoctorId) ?? null) : null,
+        conversationDepartment: (c.conversation_department as string | null) ?? null,
       };
     })
     .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
@@ -259,7 +320,7 @@ router.get("/era-messages/:connectionId", async (req, res): Promise<void> => {
 
   const { data: conn } = await supabase
     .from("patient_hospital_connections")
-    .select("id, patient_record_id, routed_to_doctor_id, era_status")
+    .select("id, patient_record_id, routed_to_doctor_id, era_status, conversation_department")
     .eq("id", connectionId)
     .eq("hospital_id", hospitalId)
     .maybeSingle();
@@ -280,6 +341,7 @@ router.get("/era-messages/:connectionId", async (req, res): Promise<void> => {
     eraStatus: (conn.era_status as string) ?? "open",
     routedToDoctorId: routedDoctorId,
     routedToDoctorName: doctor ? (doctor.full_name as string) : null,
+    conversationDepartment: (conn.conversation_department as string | null) ?? null,
     messages: (messages ?? []).map(m => camelize(m)),
   });
 });
@@ -299,23 +361,24 @@ router.post("/era-messages/:connectionId/read", async (req, res): Promise<void> 
   res.json({ ok: true });
 });
 
-// ── POST /era-messages/:connectionId/route ───────────────────────────────────
-router.post("/era-messages/:connectionId/route", async (req, res): Promise<void> => {
-  const hospitalId = auth(req);
-  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+// ── POST /era-messages/:connectionId/claim ───────────────────────────────────
+// Doctor self-claims an unclaimed conversation in their department
+router.post("/era-messages/:connectionId/claim", async (req, res): Promise<void> => {
+  const ctx = authDoctor(req);
+  if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const { hospitalId, doctorId } = ctx;
 
   const connectionId = parseInt(req.params.connectionId, 10);
   if (isNaN(connectionId)) { res.status(400).json({ error: "Invalid connection ID" }); return; }
 
-  const { doctorId } = req.body as { doctorId?: number };
-  if (!doctorId) { res.status(400).json({ error: "doctorId required" }); return; }
-
   const [{ data: doc }, { data: conn }] = await Promise.all([
-    supabase.from("hospital_doctors").select("id, full_name").eq("id", doctorId).eq("hospital_id", hospitalId).eq("active", true).maybeSingle(),
-    supabase.from("patient_hospital_connections").select("id, patient_record_id").eq("id", connectionId).eq("hospital_id", hospitalId).maybeSingle(),
+    supabase.from("hospital_doctors").select("id, full_name, specialty").eq("id", doctorId).eq("hospital_id", hospitalId).eq("active", true).maybeSingle(),
+    supabase.from("patient_hospital_connections").select("id, patient_record_id, era_status, routed_to_doctor_id").eq("id", connectionId).eq("hospital_id", hospitalId).maybeSingle(),
   ]);
-  if (!doc) { res.status(404).json({ error: "Doctor not found" }); return; }
+  if (!doc) { res.status(403).json({ error: "Forbidden" }); return; }
   if (!conn) { res.status(404).json({ error: "Conversation not found" }); return; }
+  if ((conn.era_status as string) === "resolved") { res.status(400).json({ error: "Conversation is already resolved" }); return; }
+  if (conn.routed_to_doctor_id) { res.status(409).json({ error: "Conversation already claimed by another doctor" }); return; }
 
   const doctorName = doc.full_name as string;
   const patientId = conn.patient_record_id as number;
@@ -325,91 +388,41 @@ router.post("/era-messages/:connectionId/route", async (req, res): Promise<void>
 
   await supabase.from("patient_hospital_connections").update({ routed_to_doctor_id: doctorId, era_status: "routed", doctor_replied: false }).eq("id", connectionId);
 
-  const performedBy = (req.headers["x-performed-by"] as string | undefined) ?? "Admin";
   await Promise.all([
-    insertSystemMessage(connectionId, `Chat routed to Dr. ${doctorName}`),
-    logActivity({
-      type: "era_message_routed",
-      description: `Admin routed ERA message from ${patientName} to Dr. ${doctorName}`,
-      patientId,
-      patientName,
-      hospitalId,
-      performedBy,
-    }),
+    insertSystemMessage(connectionId, `Dr. ${doctorName} claimed this conversation`),
+    logActivity({ type: "era_message_claimed", description: `Dr. ${doctorName} claimed ERA conversation with ${patientName}`, patientId, patientName, hospitalId, performedBy: `Dr. ${doctorName}` }),
   ]);
 
   res.json({ ok: true, routedToDoctorId: doctorId, routedToDoctorName: doctorName });
 });
 
-// ── POST /era-messages/route-bulk ────────────────────────────────────────────
-router.post("/era-messages/route-bulk", async (req, res): Promise<void> => {
-  const hospitalId = auth(req);
-  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  const { connectionIds, doctorId } = req.body as { connectionIds?: number[]; doctorId?: number };
-  if (!doctorId) { res.status(400).json({ error: "doctorId required" }); return; }
-  if (!Array.isArray(connectionIds) || connectionIds.length === 0) { res.status(400).json({ error: "connectionIds required" }); return; }
-
-  const { data: doc } = await supabase.from("hospital_doctors").select("id, full_name").eq("id", doctorId).eq("hospital_id", hospitalId).eq("active", true).maybeSingle();
-  if (!doc) { res.status(404).json({ error: "Doctor not found" }); return; }
-
-  const doctorName = doc.full_name as string;
-
-  // Get patient info for all connections
-  const { data: connections } = await supabase.from("patient_hospital_connections").select("id, patient_record_id").in("id", connectionIds).eq("hospital_id", hospitalId);
-  if (!connections || connections.length === 0) { res.status(404).json({ error: "No valid connections" }); return; }
-
-  const patientIds = connections.map(c => c.patient_record_id as number);
-  const { data: patients } = await supabase.from("patients").select("id, first_name, last_name").in("id", patientIds);
-  const patientMap = new Map((patients ?? []).map(p => [p.id as number, `${p.first_name} ${p.last_name}`]));
-
-  await supabase.from("patient_hospital_connections").update({ routed_to_doctor_id: doctorId, era_status: "routed", doctor_replied: false }).in("id", connectionIds).eq("hospital_id", hospitalId);
-
-  const performedBy = (req.headers["x-performed-by"] as string | undefined) ?? "Admin";
-  const systemMsgPromises = connections.map(c =>
-    insertSystemMessage(c.id as number, `Chat routed to Dr. ${doctorName}`)
-  );
-  const activityPromises = connections.map(c => {
-    const patientName = patientMap.get(c.patient_record_id as number) ?? "Unknown";
-    return logActivity({
-      type: "era_message_routed",
-      description: `Admin routed ERA message from ${patientName} to Dr. ${doctorName}`,
-      patientId: c.patient_record_id as number,
-      patientName,
-      hospitalId,
-      performedBy,
-    });
-  });
-
-  await Promise.all([...systemMsgPromises, ...activityPromises]);
-
-  res.json({ ok: true, routed: connections.length, routedToDoctorName: doctorName });
-});
-
-// ── POST /era-messages/doctor/:connectionId/transfer ─────────────────────────
-// Doctor transfers conversation to another doctor
-router.post("/era-messages/doctor/:connectionId/transfer", async (req, res): Promise<void> => {
-  const ctx = authDoctor(req);
-  if (!ctx) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const { hospitalId, doctorId } = ctx;
-
+// ── POST /era-messages/:connectionId/assign ───────────────────────────────────
+// Assign a conversation to a specific doctor (owning doctor or admin)
+router.post("/era-messages/:connectionId/assign", async (req, res): Promise<void> => {
   const connectionId = parseInt(req.params.connectionId, 10);
   if (isNaN(connectionId)) { res.status(400).json({ error: "Invalid connection ID" }); return; }
 
+  const doctorCtx = authDoctor(req);
+  const hospitalId = doctorCtx ? doctorCtx.hospitalId : auth(req);
+  if (!hospitalId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const { targetDoctorId } = req.body as { targetDoctorId?: number };
   if (!targetDoctorId) { res.status(400).json({ error: "targetDoctorId required" }); return; }
-  if (targetDoctorId === doctorId) { res.status(400).json({ error: "Cannot transfer to yourself" }); return; }
 
-  const [{ data: conn }, { data: targetDoc }, { data: fromDoc }] = await Promise.all([
-    supabase.from("patient_hospital_connections").select("id, patient_record_id").eq("id", connectionId).eq("hospital_id", hospitalId).eq("routed_to_doctor_id", doctorId).maybeSingle(),
-    supabase.from("hospital_doctors").select("id, full_name").eq("id", targetDoctorId).eq("hospital_id", hospitalId).eq("active", true).maybeSingle(),
-    supabase.from("hospital_doctors").select("full_name").eq("id", doctorId).maybeSingle(),
-  ]);
+  // Doctors can only reassign conversations they own; admins can assign any
+  let q = supabase.from("patient_hospital_connections").select("id, patient_record_id").eq("id", connectionId).eq("hospital_id", hospitalId);
+  if (doctorCtx) q = q.eq("routed_to_doctor_id", doctorCtx.doctorId);
+  const { data: conn } = await q.maybeSingle();
   if (!conn) { res.status(404).json({ error: "Conversation not found or not assigned to you" }); return; }
+
+  const [{ data: targetDoc }, { data: fromDoc }] = await Promise.all([
+    supabase.from("hospital_doctors").select("id, full_name").eq("id", targetDoctorId).eq("hospital_id", hospitalId).eq("active", true).maybeSingle(),
+    doctorCtx ? supabase.from("hospital_doctors").select("full_name").eq("id", doctorCtx.doctorId).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
   if (!targetDoc) { res.status(404).json({ error: "Target doctor not found" }); return; }
 
   const toName = targetDoc.full_name as string;
-  const fromName = fromDoc ? (fromDoc.full_name as string) : "Doctor";
+  const fromName = fromDoc ? `Dr. ${fromDoc.full_name as string}` : "Admin";
   const patientId = conn.patient_record_id as number;
 
   const { data: patient } = await supabase.from("patients").select("first_name, last_name").eq("id", patientId).maybeSingle();
@@ -418,15 +431,8 @@ router.post("/era-messages/doctor/:connectionId/transfer", async (req, res): Pro
   await supabase.from("patient_hospital_connections").update({ routed_to_doctor_id: targetDoctorId, era_status: "routed", doctor_replied: false }).eq("id", connectionId);
 
   await Promise.all([
-    insertSystemMessage(connectionId, `Conversation transferred to Dr. ${toName}`),
-    logActivity({
-      type: "era_message_transferred",
-      description: `Dr. ${fromName} transferred ERA conversation with ${patientName} to Dr. ${toName}`,
-      patientId,
-      patientName,
-      hospitalId,
-      performedBy: `Dr. ${fromName}`,
-    }),
+    insertSystemMessage(connectionId, `Conversation assigned to Dr. ${toName}`),
+    logActivity({ type: "era_message_assigned", description: `${fromName} assigned ERA conversation with ${patientName} to Dr. ${toName}`, patientId, patientName, hospitalId, performedBy: fromName }),
   ]);
 
   res.json({ ok: true, routedToDoctorId: targetDoctorId, routedToDoctorName: toName });
@@ -462,14 +468,7 @@ router.post("/era-messages/:connectionId/resolve", async (req, res): Promise<voi
 
   await Promise.all([
     insertSystemMessage(connectionId, `${resolvedBy} has resolved this conversation`),
-    logActivity({
-      type: "era_message_resolved",
-      description: `${resolvedBy} marked ERA conversation with ${patientName} as resolved`,
-      patientId,
-      patientName,
-      hospitalId,
-      performedBy: resolvedBy,
-    }),
+    logActivity({ type: "era_message_resolved", description: `${resolvedBy} marked ERA conversation with ${patientName} as resolved`, patientId, patientName, hospitalId, performedBy: resolvedBy }),
   ]);
 
   res.json({ ok: true });
@@ -492,7 +491,6 @@ router.post("/era-messages/:connectionId/send", async (req, res): Promise<void> 
   const { data: conn } = await q.maybeSingle();
   if (!conn) { res.status(404).json({ error: "Not found" }); return; }
 
-  // If doctor sends their first message in this conversation, insert a "started" system message
   if (doctorCtx && !(conn.doctor_replied as boolean)) {
     const { data: doc } = await supabase.from("hospital_doctors").select("full_name").eq("id", doctorCtx.doctorId).maybeSingle();
     const doctorName = doc ? (doc.full_name as string) : "Doctor";

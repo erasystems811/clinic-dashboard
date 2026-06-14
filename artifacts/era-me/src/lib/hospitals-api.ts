@@ -155,17 +155,26 @@ export function useHospitalMessages(connectionId: number) {
   });
 }
 
+export function useHospitalDepartments(connectionId: number) {
+  return useQuery<string[]>({
+    queryKey: ["hospital-departments", connectionId],
+    queryFn: () => get(`${BASE}/${connectionId}/departments`),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useSendMessage(connectionId: number) {
   const qc = useQueryClient();
   return useMutation<
     HospitalMessage,
     Error,
-    { content: string; messageType?: "text" | "consultation_request"; metadata?: Record<string, unknown> }
+    { content: string; messageType?: "text" | "consultation_request"; metadata?: Record<string, unknown>; department?: string }
   >({
     mutationFn: (body) => post(`${BASE}/${connectionId}/messages`, {
       content: body.content,
       messageType: body.messageType ?? "text",
       metadata: body.metadata ?? {},
+      ...(body.department ? { department: body.department } : {}),
     }),
     onSuccess: () => {
       void qc.refetchQueries({ queryKey: ["hospital-messages", connectionId] });

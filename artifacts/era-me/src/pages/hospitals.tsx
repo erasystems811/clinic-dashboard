@@ -9,6 +9,7 @@ import {
   useRemoveConnection,
   useHospitalMessages,
   useSendMessage,
+  useHospitalDepartments,
   useUnreadCounts,
   useBookingSlots,
   useCreateBooking,
@@ -472,10 +473,15 @@ function BookingPage({ connection, onBack }: { connection: HospitalConnection; o
 // ── Hospital chat page ─────────────────────────────────────────────────────────
 function HospitalChatPage({ connection, onBack }: { connection: HospitalConnection; onBack: () => void }) {
   const [message, setMessage] = useState("");
+  const [selectedDept, setSelectedDept] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data: messages = [], isLoading } = useHospitalMessages(connection.connectionId);
+  const { data: departments = [] } = useHospitalDepartments(connection.connectionId);
   const sendMessage = useSendMessage(connection.connectionId);
+
+  const isFirstMessage = !isLoading && messages.length === 0;
+  const needsDeptPick = isFirstMessage && departments.length > 0 && !selectedDept;
 
   function scrollToBottom() {
     if (scrollRef.current) {
@@ -503,7 +509,11 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
     const text = message.trim();
     if (!text || sendMessage.isPending) return;
     setMessage("");
-    sendMessage.mutate({ content: text, messageType: "text" });
+    sendMessage.mutate({
+      content: text,
+      messageType: "text",
+      ...(isFirstMessage && selectedDept ? { department: selectedDept } : {}),
+    });
   }
 
   return (
@@ -523,7 +533,9 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-bold text-white text-sm truncate">{connection.hospitalName}</p>
-          <p className="text-[11px]" style={{ color: "var(--text-sub)" }}>Hospital messaging</p>
+          <p className="text-[11px]" style={{ color: "var(--text-sub)" }}>
+            {selectedDept ? selectedDept : "Hospital messaging"}
+          </p>
         </div>
       </div>
 
@@ -532,11 +544,43 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
           <div className="flex justify-center py-10">
             <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: "#60a5fa", borderTopColor: "transparent" }} />
           </div>
-        ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-16">
+        ) : isFirstMessage ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-10 px-2">
             <p style={{ fontSize: 44, marginBottom: 12 }}>💬</p>
-            <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 15, marginBottom: 6 }}>No messages yet</p>
-            <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5 }}>Send a message to {connection.hospitalName}.</p>
+            <p style={{ fontWeight: 700, color: "var(--text-main)", fontSize: 15, marginBottom: 6 }}>Start a conversation</p>
+            <p style={{ fontSize: 13, color: "var(--text-sub)", lineHeight: 1.5, marginBottom: departments.length > 0 ? 20 : 0 }}>
+              Send a message to {connection.hospitalName}.
+            </p>
+            {departments.length > 0 && (
+              <div className="w-full max-w-xs">
+                <p className="text-xs font-semibold mb-2 uppercase tracking-wide text-left" style={{ color: "var(--text-dim)" }}>
+                  Select a department
+                </p>
+                <div className="space-y-2">
+                  {departments.map(dept => (
+                    <button
+                      key={dept}
+                      onClick={() => setSelectedDept(dept)}
+                      className="w-full text-left px-4 py-3 rounded-2xl transition active:scale-[0.98]"
+                      style={{
+                        background: selectedDept === dept ? "rgba(96,165,250,0.15)" : "rgba(255,255,255,0.05)",
+                        border: selectedDept === dept ? "1px solid rgba(96,165,250,0.5)" : "1px solid var(--glass-border)",
+                        color: selectedDept === dept ? "#60a5fa" : "var(--text-main)",
+                        fontWeight: selectedDept === dept ? 600 : 400,
+                        fontSize: 14,
+                      }}
+                    >
+                      {dept}
+                    </button>
+                  ))}
+                </div>
+                {selectedDept && (
+                  <p className="text-xs mt-3" style={{ color: "var(--text-dim)" }}>
+                    Your message will go to the {selectedDept} team.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           (() => {
@@ -562,12 +606,13 @@ function HospitalChatPage({ connection, onBack }: { connection: HospitalConnecti
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            placeholder={`Message ${connection.hospitalName}…`}
+            placeholder={needsDeptPick ? "Select a department above first…" : `Message ${connection.hospitalName}…`}
+            disabled={needsDeptPick}
             rows={1}
             className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none resize-none"
-            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)", caretColor: "#14b8a6", maxHeight: "40vh", lineHeight: 1.5 }}
+            style={{ background: "var(--input-bg)", border: "1px solid var(--input-border)", color: "var(--text-main)", caretColor: "#14b8a6", maxHeight: "40vh", lineHeight: 1.5, opacity: needsDeptPick ? 0.5 : 1 }}
           />
-          <button onClick={handleSend} disabled={!message.trim() || sendMessage.isPending}
+          <button onClick={handleSend} disabled={!message.trim() || sendMessage.isPending || needsDeptPick}
             className="w-11 h-11 rounded-2xl flex items-center justify-center active:scale-90 transition disabled:opacity-40 shrink-0"
             style={{ background: "linear-gradient(135deg,#1e3a5f,#1e40af)", boxShadow: "0 4px 12px rgba(30,64,175,0.4)" }}>
             <Send className="w-4 h-4 text-white" />

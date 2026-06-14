@@ -366,6 +366,31 @@ router.delete("/patient-app/hospitals/:connectionId", async (req, res): Promise<
   res.json({ ok: true });
 });
 
+// ── GET /api/patient-app/hospitals/:connectionId/departments ──────────────────
+// Returns available departments (doctor specialties) for this hospital
+router.get("/patient-app/hospitals/:connectionId/departments", async (req, res): Promise<void> => {
+  const account = await getPatientFromRequest(req);
+  if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const connectionId = parseInt(req.params.connectionId, 10);
+  const conn = await resolveConnection(connectionId, (account as { id: number }).id);
+  if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
+
+  const { data } = await supabase
+    .from("hospital_doctors")
+    .select("specialty")
+    .eq("hospital_id", conn.hospital_id)
+    .eq("active", true);
+
+  const depts = [
+    ...new Set(
+      (data ?? []).map(d => d.specialty as string | null).filter((s): s is string => !!s)
+    ),
+  ].sort();
+
+  res.json(depts);
+});
+
 // ── GET /api/patient-app/hospitals/:connectionId/messages ─────────────────────
 router.get("/patient-app/hospitals/:connectionId/messages", async (req, res): Promise<void> => {
   const account = await getPatientFromRequest(req);
@@ -406,7 +431,7 @@ router.post("/patient-app/hospitals/:connectionId/messages", async (req, res): P
   if (!account) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const connectionId = parseInt(req.params.connectionId, 10);
-  const { content, messageType = "text", metadata = {} } = req.body ?? {};
+  const { content, messageType = "text", metadata = {}, department } = req.body ?? {};
 
   if (!content || typeof content !== "string" || content.trim().length === 0) {
     res.status(400).json({ error: "content is required" }); return;
@@ -415,12 +440,27 @@ router.post("/patient-app/hospitals/:connectionId/messages", async (req, res): P
   // Verify ownership
   const { data: conn } = await supabase
     .from("patient_hospital_connections")
-    .select("id")
+    .select("id, conversation_department")
     .eq("id", connectionId)
     .eq("account_id", account.id)
     .maybeSingle();
 
   if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
+
+  // Save department on the connection if this is the first message and a department is provided
+  if (department && typeof department === "string" && department.trim() && !(conn.conversation_department as string | null)) {
+    const { count } = await supabase
+      .from("patient_hospital_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("connection_id", connectionId)
+      .eq("sender", "patient");
+    if (!count || count === 0) {
+      await supabase
+        .from("patient_hospital_connections")
+        .update({ conversation_department: department.trim() })
+        .eq("id", connectionId);
+    }
+  }
 
   const { data: message, error } = await supabase
     .from("patient_hospital_messages")

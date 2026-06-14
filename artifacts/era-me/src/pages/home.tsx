@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Bell, CheckCircle2, Circle, ChevronRight, MessageSquare, CalendarPlus } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate } from "@/lib/utils";
-import { useWellnessToday, useWeekSummary, useQuickLog, useWellnessStreak } from "@/lib/wellness-api";
+import { useWellnessToday, useWeekSummary, useQuickLog, useWellnessStreak, useLogToday } from "@/lib/wellness-api";
 import { useMyHospitals, useUnreadCounts, useUnreadNotifCount } from "@/lib/hospitals-api";
 import { useReturnVisits, useCareSchedule, useWellnessUpcomingEvents } from "@/lib/return-visits-api";
 import { decodeGesture, useCompanionSettings } from "@/lib/companion-api";
@@ -406,6 +406,7 @@ function ProgressWidgets({ mods, checklist, navigate }: {
 
   const { data: smokingStreak } = useWellnessStreak("smoking", { enabled: smokingEnabled });
   const { data: alcoholStreak } = useWellnessStreak("alcohol", { enabled: alcoholEnabled });
+  const logWater = useLogToday("water");
 
   if (!waterEnabled && !smokingEnabled && !alcoholEnabled) return null;
 
@@ -424,14 +425,30 @@ function ProgressWidgets({ mods, checklist, navigate }: {
   return (
     <div style={{ display: "flex", gap: 8 }}>
       {waterEnabled && (
-        <button onClick={() => navigate("/wellness/water")} className="active:scale-95 transition" style={{ flex: 1, background: "var(--glass-bg)", border: "1px solid var(--glass-border)", borderRadius: 16, padding: "10px 12px", textAlign: "left" }}>
-          <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>💧 Water</p>
-          <p style={{ fontSize: 18, fontWeight: 900, color: "#38bdf8", lineHeight: 1 }}>{cups}<span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>/{target}</span></p>
-          <p style={{ fontSize: 9, color: "var(--text-dim)", marginBottom: 5 }}>cups today</p>
-          <div style={{ height: 4, borderRadius: 2, background: "var(--glass-track)" }}>
+        <div style={{ flex: 1, background: "var(--glass-bg)", border: "1px solid var(--glass-border)", borderRadius: 16, padding: "10px 12px" }}>
+          <p onClick={() => navigate("/wellness/water")} style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 8, cursor: "pointer" }}>💧 Water</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <button
+              onClick={() => logWater.mutate({ cups: Math.max(0, cups - 1) })}
+              disabled={cups === 0 || logWater.isPending}
+              style={{ width: 30, height: 30, borderRadius: 8, background: "var(--glass-border)", border: "none", fontSize: 18, lineHeight: 1, cursor: cups === 0 ? "default" : "pointer", color: "var(--text-sub)", opacity: cups === 0 ? 0.3 : 1 }}>
+              −
+            </button>
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 22, fontWeight: 900, color: "#38bdf8", lineHeight: 1, margin: 0 }}>{cups}<span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>/{target}</span></p>
+              <p style={{ fontSize: 9, color: "var(--text-dim)", margin: "2px 0 0" }}>cups today</p>
+            </div>
+            <button
+              onClick={() => logWater.mutate({ cups: cups + 1 })}
+              disabled={logWater.isPending}
+              style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(56,189,248,0.15)", border: "none", fontSize: 18, lineHeight: 1, cursor: "pointer", color: "#38bdf8", fontWeight: 700 }}>
+              +
+            </button>
+          </div>
+          <div style={{ height: 4, borderRadius: 2, background: "var(--glass-border)" }}>
             <div style={{ height: 4, borderRadius: 2, width: `${waterPct}%`, background: "#38bdf8", transition: "width 0.3s" }} />
           </div>
-        </button>
+        </div>
       )}
 
       {smokingEnabled && (

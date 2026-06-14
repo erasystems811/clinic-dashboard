@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import { Home, Heart, CalendarDays, Building2, User, Bell } from "lucide-react";
 import { useUnreadNotifCount } from "@/lib/hospitals-api";
+import { FeedbackNudge } from "@/components/feedback-nudge";
 
 const NAV = [
   { href: "/",          label: "Home",      Icon: Home },
@@ -49,6 +50,9 @@ export default function Layout({ children }: { children: ReactNode }) {
         <main className="flex-1 min-h-0 overflow-y-auto pb-20" style={{ background: "var(--bg-base)", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
           {children}
         </main>
+
+        {/* ── Periodic feedback nudge ── */}
+        <FeedbackNudge />
 
         {/* ── Floating notification bell ── */}
         {!hideFloatingBell && (

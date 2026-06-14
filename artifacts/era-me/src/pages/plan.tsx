@@ -6,7 +6,7 @@ import { useCurrentPlan, useRegeneratePlan } from "@/lib/plan-api";
 import type { PlanItem, WeekPlan } from "@/lib/plan-api";
 import { useWellnessToday, useWeekSummary, useQuickLog } from "@/lib/wellness-api";
 import { useAuth } from "@/contexts/auth-context";
-import { useReturnVisits, type ReturnVisit } from "@/lib/return-visits-api";
+import { usePlanBySource } from "@/lib/return-visits-api";
 
 const MODULE_ACCENT: Record<string, string> = {
   water: "#38bdf8", medications: "#14b8a6", workout: "#f97316",
@@ -69,7 +69,7 @@ export default function PlanPage() {
   const { data: summary } = useWeekSummary();
   const regenerate = useRegeneratePlan();
   const quickLog = useQuickLog();
-  const { data: returnVisitsData } = useReturnVisits();
+  const { data: planBySource } = usePlanBySource();
 
   const plan = planData?.plan;
   const today = todayStr();
@@ -303,11 +303,7 @@ export default function PlanPage() {
 
       {view === "source" ? (
         <div className="px-4">
-          <SourceSplitView
-            checklist={todayRaw?.checklist ?? []}
-            returnVisits={returnVisitsData?.visits ?? []}
-            navigate={navigate}
-          />
+          <SourceSplitView data={planBySource} navigate={navigate} />
         </div>
       ) : view === "timetable" ? (
         <div className="px-4">
@@ -672,46 +668,28 @@ function WeekTableView({ plan, today, onPrint }: { plan: WeekPlan; today: string
   );
 }
 
-// ── Source split view: Hospital Plan vs My Plan ───────────────────────────────
+// ── Source split view: Hospital Plan vs My Plan (full, not just today) ───────
 
-function SourceSplitView({ checklist, returnVisits, navigate }: {
-  checklist: ChecklistItem[];
-  returnVisits: ReturnVisit[];
+function SourceSplitView({ data, navigate }: {
+  data: import("@/lib/return-visits-api").PlanBySource | undefined;
   navigate: (path: string) => void;
 }) {
-  const hospitalItems = checklist.filter(c => !!c.prescribedBy);
-  const selfItems     = checklist.filter(c => !c.prescribedBy);
   const today = todayStr();
-  const upcomingVisits = returnVisits.filter(v => v.visitDate >= today);
+  const carePlans   = data?.carePlans    ?? [];
+  const returnVisits = data?.returnVisits ?? [];
+  const hospitalMods = data?.hospitalModules ?? [];
+  const myMods       = data?.myModules ?? [];
 
-  const renderItem = (item: ChecklistItem) => {
-    const base = item.id.startsWith("med_") ? "medications"
-      : item.id.startsWith("hygiene_") ? "hygiene"
-      : item.id.startsWith("vaccine_") ? "vaccines"
-      : item.id.startsWith("checkup_") ? "checkups"
-      : item.id.startsWith("sunscreen_") ? "sunscreen"
-      : item.id;
-    const href = base === "mood_check" ? "/wellness/mood" : `/wellness/${base}`;
-    const accent = MODULE_ACCENT[base] ?? "var(--accent)";
+  const hasHospital = carePlans.length > 0 || returnVisits.length > 0 || hospitalMods.length > 0;
+  const hasMy       = myMods.length > 0;
+
+  const renderModule = (m: { moduleType: string; label: string; emoji: string }, i: number, isFirst: boolean) => {
+    const href = m.moduleType === "mood_check" ? "/wellness/mood" : `/wellness/${m.moduleType}`;
     return (
-      <button key={item.id} onClick={() => navigate(href)} className="w-full text-left">
-        <div className="flex items-center gap-3 px-4 py-3.5 active:scale-[0.98] transition"
-          style={{ borderTop: "1px solid var(--glass-border)", background: item.done ? "rgba(74,222,128,0.04)" : "transparent" }}>
-          <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: item.done ? "#4ade80" : "var(--glass-track)", border: item.done ? "none" : `2px solid ${accent}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {item.done && <span style={{ fontSize: 12, color: "#fff", fontWeight: 900 }}>✓</span>}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: item.done ? "var(--text-dim)" : "var(--text-main)", textDecoration: item.done ? "line-through" : "none" }}>
-              {item.id.startsWith("sunscreen_") ? "Apply sunscreen"
-                : item.id.startsWith("hygiene_") ? (item.sub?.startsWith("Replace") ? item.sub.split(" – ")[0] : "Replace item")
-                : item.id.startsWith("vaccine_") ? "Vaccine"
-                : item.id.startsWith("checkup_") ? "Checkup"
-                : item.id.startsWith("medications_") ? "Take medications"
-                : item.id === "mood_check" ? "Daily check-in"
-                : item.id.charAt(0).toUpperCase() + item.id.slice(1).replace(/_/g, " ")}
-            </p>
-            {item.sub && <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>{item.sub}</p>}
-          </div>
+      <button key={m.moduleType} onClick={() => navigate(href)} className="w-full text-left active:scale-[0.98] transition">
+        <div className="flex items-center gap-3 px-4 py-3.5" style={{ borderTop: (i > 0 || !isFirst) ? "1px solid var(--glass-border)" : "none" }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>{m.emoji}</span>
+          <p style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--text-main)" }}>{m.label}</p>
           <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)", opacity: 0.4, flexShrink: 0 }} />
         </div>
       </button>
@@ -719,84 +697,86 @@ function SourceSplitView({ checklist, returnVisits, navigate }: {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Hospital Plan */}
+    <div className="space-y-5">
+
+      {/* ── HOSPITAL PLAN ── */}
       <div>
         <div className="flex items-center gap-2 mb-2">
           <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.2, color: "var(--accent)", whiteSpace: "nowrap" }}>HOSPITAL PLAN</span>
           <div className="flex-1 h-px" style={{ background: "var(--accent-tint-border)" }} />
-          {hospitalItems.length > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--accent)", background: "var(--accent-tint-bg)", padding: "2px 8px", borderRadius: 8, whiteSpace: "nowrap" }}>
-              {hospitalItems.filter(c => c.done).length}/{hospitalItems.length}
-            </span>
-          )}
         </div>
-        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-          {/* Return visits */}
-          {upcomingVisits.map((v, i) => {
-            const isToday = v.visitDate === today;
-            const dateLabel = isToday ? "Today"
-              : new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-            return (
-              <div key={`rv_${v.id}`} style={{ borderTop: i > 0 || hospitalItems.length > 0 ? "1px solid var(--glass-border)" : "none", padding: "12px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(var(--glow-rgb),0.1)", border: "1px solid rgba(var(--glow-rgb),0.2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <span style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 0.5, lineHeight: 1 }}>{new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}</span>
-                  <span style={{ fontSize: 15, fontWeight: 900, color: "var(--text-main)", lineHeight: 1.1 }}>{new Date(v.visitDate + "T12:00:00").getDate()}</span>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1, marginBottom: 2 }}>RETURN VISIT</p>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{v.reason}</p>
-                  <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>
-                    {dateLabel}{v.visitTime ? ` · ${v.visitTime}` : ""}{v.hospitalName ? ` · ${v.hospitalName}` : ""}
+
+        {!hasHospital ? (
+          <div className="rounded-2xl py-8 text-center" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+            <p style={{ fontSize: 22, marginBottom: 8 }}>🏥</p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 4 }}>No hospital plan yet</p>
+            <p style={{ fontSize: 11, color: "var(--text-sub)", lineHeight: 1.5 }}>
+              Connect your hospital to see your care plans and return visits here.
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+
+            {/* Active care plans */}
+            {carePlans.map((plan, i) => (
+              <div key={plan.id} style={{ borderTop: i > 0 ? "1px solid var(--glass-border)" : "none", padding: "14px 16px" }}>
+                <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1, marginBottom: 4 }}>TREATMENT PLAN · {plan.department.toUpperCase()}</p>
+                <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)", lineHeight: 1.4 }}>{plan.summary}</p>
+                {plan.hospitalName && (
+                  <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 4 }}>
+                    {plan.hospitalName} · started {new Date(plan.startedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                   </p>
-                </div>
+                )}
               </div>
-            );
-          })}
-          {/* Prescribed daily tasks */}
-          {hospitalItems.length === 0 && upcomingVisits.length === 0 ? (
-            <div className="py-8 text-center">
-              <p style={{ fontSize: 22, marginBottom: 8 }}>🏥</p>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 4 }}>No hospital plan items</p>
-              <p style={{ fontSize: 11, color: "var(--text-sub)", lineHeight: 1.5 }}>
-                Return visits and hospital-assigned tasks will appear here.
-              </p>
-            </div>
-          ) : (
-            hospitalItems.map(renderItem)
-          )}
-        </div>
-        {hospitalItems.length > 0 && (
-          <p style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 6, textAlign: "center" }}>
-            Prescribed by {hospitalItems[0].prescribedBy}
-          </p>
+            ))}
+
+            {/* Return visits */}
+            {returnVisits.map((v, i) => {
+              const isToday = v.visitDate === today;
+              const dateLabel = isToday ? "Today"
+                : new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+              return (
+                <div key={`rv_${v.id}`} style={{ borderTop: "1px solid var(--glass-border)", padding: "12px 16px", display: "flex", gap: 12, alignItems: "center" }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(var(--glow-rgb),0.1)", border: "1px solid rgba(var(--glow-rgb),0.2)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: "var(--accent)", letterSpacing: 0.5, lineHeight: 1 }}>{new Date(v.visitDate + "T12:00:00").toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}</span>
+                    <span style={{ fontSize: 14, fontWeight: 900, color: "var(--text-main)", lineHeight: 1.1 }}>{new Date(v.visitDate + "T12:00:00").getDate()}</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 10, fontWeight: 800, color: "var(--accent)", letterSpacing: 1, marginBottom: 2 }}>RETURN VISIT</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: "var(--text-main)" }}>{v.reason}</p>
+                    <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 1 }}>
+                      {dateLabel}{v.visitTime ? ` · ${v.visitTime}` : ""}{v.hospitalName ? ` · ${v.hospitalName}` : ""}
+                    </p>
+                  </div>
+                  {isToday && <span style={{ fontSize: 9, fontWeight: 800, color: "#fff", background: "var(--btn-gradient)", padding: "2px 8px", borderRadius: 6, flexShrink: 0 }}>TODAY</span>}
+                </div>
+              );
+            })}
+
+            {/* Hospital-prescribed daily modules */}
+            {hospitalMods.map((m, i) => renderModule(m, i, carePlans.length === 0 && returnVisits.length === 0))}
+          </div>
         )}
       </div>
 
-      {/* My Plan */}
+      {/* ── MY PLAN ── */}
       <div>
         <div className="flex items-center gap-2 mb-2">
           <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.2, color: "var(--text-sub)", whiteSpace: "nowrap" }}>MY PLAN</span>
           <div className="flex-1 h-px" style={{ background: "var(--glass-border)" }} />
-          {selfItems.length > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-sub)", background: "var(--glass-track)", padding: "2px 8px", borderRadius: 8, whiteSpace: "nowrap" }}>
-              {selfItems.filter(c => c.done).length}/{selfItems.length}
-            </span>
-          )}
         </div>
+
         <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
-          {selfItems.length === 0 ? (
+          {!hasMy ? (
             <div className="py-8 text-center">
               <p style={{ fontSize: 22, marginBottom: 8 }}>✨</p>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 4 }}>No personal tasks yet</p>
-              <button onClick={() => navigate("/programs")}
-                className="text-sm font-bold active:scale-95 transition"
-                style={{ color: "var(--accent)" }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text-main)", marginBottom: 6 }}>No personal programs yet</p>
+              <button onClick={() => navigate("/programs")} className="text-sm font-bold active:scale-95 transition" style={{ color: "var(--accent)" }}>
                 Browse Programs →
               </button>
             </div>
           ) : (
-            selfItems.map(renderItem)
+            myMods.map((m, i) => renderModule(m, i, true))
           )}
         </div>
       </div>

@@ -56,3 +56,43 @@ export function useCareSchedule() {
     staleTime: 10 * 60 * 1000,
   });
 }
+
+export interface PlanBySource {
+  hospitalModules: { moduleType: string; label: string; emoji: string; hospitalName: string }[];
+  myModules: { moduleType: string; label: string; emoji: string }[];
+  carePlans: { id: number; department: string; summary: string; hospitalName: string | null; startedAt: string }[];
+  returnVisits: { id: number; visitDate: string; visitTime: string | null; reason: string; hospitalName: string | null }[];
+}
+
+export interface WellnessUpcomingEvent {
+  id: string;
+  module: string;
+  emoji: string;
+  label: string;
+  dueDate: string;
+  daysUntil: number;
+}
+
+export function useWellnessUpcomingEvents() {
+  return useQuery<{ events: WellnessUpcomingEvent[] }>({
+    queryKey: ["wellness-upcoming-events"],
+    queryFn: async () => {
+      const res = await fetch("/api/patient-app/wellness/upcoming-events", { headers: headers() });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<{ events: WellnessUpcomingEvent[] }>;
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function usePlanBySource() {
+  return useQuery<PlanBySource>({
+    queryKey: ["patient-plan-by-source"],
+    queryFn: async () => {
+      const res = await fetch("/api/patient-app/plan-by-source", { headers: headers() });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json() as Promise<PlanBySource>;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}

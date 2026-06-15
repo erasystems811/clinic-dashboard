@@ -152,7 +152,7 @@ export function useHospitalMessages(connectionId: number) {
     queryKey: ["hospital-messages", connectionId],
     queryFn: () => get(`${BASE}/${connectionId}/messages`),
     staleTime: 0,
-    refetchInterval: 15 * 1000,
+    refetchInterval: 5 * 1000,
   });
 }
 

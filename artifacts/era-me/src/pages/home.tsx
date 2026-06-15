@@ -686,21 +686,20 @@ function CycleMiniCard({ data, navigate }: { data: NonNullable<ReturnType<typeof
   const daysToNext     = data.cycleInfo?.daysUntilNextPeriod ?? null;
   const hasLog         = !!(data.todayLog?.flow || (data.todayLog?.symptoms?.length ?? 0) > 0);
   const col            = phase ? PHASE_HEX[phase] : "#f43f5e";
+  const phaseName      = phase ? PHASE_META[phase].label : "";
 
   return (
     <button onClick={() => navigate("/womens-health")} className="active:scale-95 transition"
       style={{ flex: 1, background: "var(--glass-bg)", border: "1px solid var(--glass-border)", borderRadius: 16, padding: "10px 12px", textAlign: "left" }}>
       <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>🌸 Cycle</p>
-      {cycleDay ? (
+      {cycleDay && daysToNext !== null ? (
         <>
           <p style={{ fontSize: 18, fontWeight: 900, color: col, lineHeight: 1 }}>
-            {daysToNext !== null ? daysToNext : cycleDay}
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>
-              {daysToNext !== null ? "d" : ""}
-            </span>
+            {daysToNext}<span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>d</span>
           </p>
-          <p style={{ fontSize: 9, color: hasLog ? "#4ade80" : "var(--text-dim)", marginTop: 2, fontWeight: hasLog ? 700 : 400 }}>
-            {hasLog ? "logged today" : daysToNext !== null ? "days to period" : PHASE_META[phase!]?.label}
+          <p style={{ fontSize: 10, color: "var(--text-sub)", marginTop: 1 }}>to next period</p>
+          <p style={{ fontSize: 9, color: hasLog ? "#4ade80" : "var(--text-dim)", marginTop: 1, fontWeight: hasLog ? 700 : 400 }}>
+            {hasLog ? "✓ logged today" : phaseName}
           </p>
         </>
       ) : (

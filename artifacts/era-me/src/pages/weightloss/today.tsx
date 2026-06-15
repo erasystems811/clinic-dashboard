@@ -122,10 +122,10 @@ function TodayContent() {
             strokeDashoffset={circ * (1 - pct)}
             transform="rotate(-90 46 46)"
             style={{ transition: "stroke-dashoffset 0.5s" }} />
-          <text x={46} y={43} textAnchor="middle" fontSize="16" fontWeight="900" fill="white" fontFamily="inherit">
+          <text x={46} y={43} textAnchor="middle" fontSize="16" fontWeight="900" fill="var(--text-main)" fontFamily="inherit">
             {caloriesConsumed}
           </text>
-          <text x={46} y={57} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.4)" fontFamily="inherit">kcal</text>
+          <text x={46} y={57} textAnchor="middle" fontSize="9" fill="var(--text-dim)" fontFamily="inherit">kcal</text>
         </svg>
         <div className="flex-1 min-w-0">
           <p className="text-2xl font-black" style={{ color: caloriesRemaining < 0 ? "#f87171" : "var(--accent)" }}>

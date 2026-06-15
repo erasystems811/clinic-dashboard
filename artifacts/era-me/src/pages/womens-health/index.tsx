@@ -456,7 +456,7 @@ function CycleDashboard({ data, showLog, onShowLog }: {
   function getDayInfo(date: string): { phase: Phase | null; cycleDay: number | null } {
     const api = dayMap.get(date);
     if (api?.phase) return { phase: api.phase, cycleDay: api.cycleDay };
-    if (!settings.lastPeriodStart || !settings.cycleLength) return { phase: null, cycleDay: null };
+    if (!settings.lastPeriodStart || !settings.cycleLength || !cycleInfo) return { phase: null, cycleDay: null };
     const cd = calcCycleDayFromLMP(date, settings.lastPeriodStart, settings.cycleLength);
     return {
       phase: phaseFromCycleDay(cd, settings.periodLength ?? 5, cycleInfo.fertileStartCycleDay, cycleInfo.fertileEndCycleDay),
@@ -987,7 +987,7 @@ function CycleRingInline({
 
   return (
     <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ overflow: "visible" }}>
-      <circle cx={cx} cy={cy} r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={SW} />
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--glass-track)" strokeWidth={SW} />
 
       {phases.map(({ phase, start, end }) => {
         const sd = dayToDeg(start) + GAP / 2;
@@ -1001,13 +1001,13 @@ function CycleRingInline({
       })}
 
       <circle cx={dot.x} cy={dot.y} r={13} fill={col} opacity={0.25} />
-      <circle cx={dot.x} cy={dot.y} r={9} fill="white" style={{ filter: `drop-shadow(0 0 5px ${col})` }} />
+      <circle cx={dot.x} cy={dot.y} r={9} fill="var(--bg-base)" style={{ filter: `drop-shadow(0 0 5px ${col})` }} />
       <circle cx={dot.x} cy={dot.y} r={5.5} fill={col} />
 
       <text x={cx} y={cy - 14} textAnchor="middle" fontSize="38" fontWeight="900"
-        fill="white" fontFamily="inherit">{dayN}</text>
+        fill="var(--text-main)" fontFamily="inherit">{dayN}</text>
       <text x={cx} y={cy + 8} textAnchor="middle" fontSize="13"
-        fill="rgba(255,255,255,0.5)" fontFamily="inherit">{monN}</text>
+        fill="var(--text-sub)" fontFamily="inherit">{monN}</text>
       {selectedPhase && (
         <text x={cx} y={cy + 27} textAnchor="middle" fontSize="12" fontWeight="700"
           fill={col} fontFamily="inherit">
@@ -1016,7 +1016,7 @@ function CycleRingInline({
       )}
       {selectedCycleDay && (
         <text x={cx} y={cy + 44} textAnchor="middle" fontSize="10"
-          fill="rgba(255,255,255,0.35)" fontFamily="inherit">
+          fill="var(--text-dim)" fontFamily="inherit">
           Day {selectedCycleDay} of {cycleLength}
         </text>
       )}

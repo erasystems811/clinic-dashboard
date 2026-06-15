@@ -110,7 +110,7 @@ function HospitalCard({ conn, unreadCount, removing, onChat, onBook, onRemove }:
           }
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-white text-sm truncate">{conn.hospitalName}</p>
+          <p className="font-bold text-sm truncate" style={{ color: "var(--text-main)" }}>{conn.hospitalName}</p>
           <p className="text-xs truncate mt-0.5" style={{ color: "var(--text-sub)" }}>{conn.patientName}</p>
           <div className="flex gap-2 mt-1.5">
             {conn.stage && (
@@ -121,7 +121,7 @@ function HospitalCard({ conn, unreadCount, removing, onChat, onBook, onRemove }:
             )}
             {conn.department && (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)" }}>
+                style={{ background: "var(--glass-track)", color: "var(--text-dim)" }}>
                 {conn.department}
               </span>
             )}

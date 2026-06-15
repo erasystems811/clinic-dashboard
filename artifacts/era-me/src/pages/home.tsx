@@ -681,11 +681,11 @@ function PregMiniCard({ data, navigate }: { data: NonNullable<ReturnType<typeof 
 }
 
 function CycleMiniCard({ data, navigate }: { data: NonNullable<ReturnType<typeof useWomensHealthToday>["data"]>; navigate: (p: string) => void }) {
-  const phase    = data.cycleInfo?.phase ?? null;
-  const cycleDay = data.cycleInfo?.cycleDay ?? null;
-  const hasLog   = !!(data.todayLog?.flow || (data.todayLog?.symptoms?.length ?? 0) > 0);
-  const col      = phase ? PHASE_HEX[phase] : "#f43f5e";
-  const emoji    = phase === "menstruation" ? "🩸" : phase === "follicular" ? "🌸" : phase === "fertile" ? "✨" : "🌙";
+  const phase          = data.cycleInfo?.phase ?? null;
+  const cycleDay       = data.cycleInfo?.cycleDay ?? null;
+  const daysToNext     = data.cycleInfo?.daysUntilNextPeriod ?? null;
+  const hasLog         = !!(data.todayLog?.flow || (data.todayLog?.symptoms?.length ?? 0) > 0);
+  const col            = phase ? PHASE_HEX[phase] : "#f43f5e";
 
   return (
     <button onClick={() => navigate("/womens-health")} className="active:scale-95 transition"
@@ -693,14 +693,19 @@ function CycleMiniCard({ data, navigate }: { data: NonNullable<ReturnType<typeof
       <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>🌸 Cycle</p>
       {cycleDay ? (
         <>
-          <p style={{ fontSize: 18, fontWeight: 900, color: col, lineHeight: 1 }}>Day {cycleDay}</p>
+          <p style={{ fontSize: 18, fontWeight: 900, color: col, lineHeight: 1 }}>
+            {daysToNext !== null ? daysToNext : cycleDay}
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>
+              {daysToNext !== null ? "d" : ""}
+            </span>
+          </p>
           <p style={{ fontSize: 9, color: hasLog ? "#4ade80" : "var(--text-dim)", marginTop: 2, fontWeight: hasLog ? 700 : 400 }}>
-            {hasLog ? "logged today" : (PHASE_META[phase!]?.label ?? "tap to log")}
+            {hasLog ? "logged today" : daysToNext !== null ? "days to period" : PHASE_META[phase!]?.label}
           </p>
         </>
       ) : (
         <>
-          <p style={{ fontSize: 18, fontWeight: 900, color: col, lineHeight: 1 }}>{emoji}</p>
+          <p style={{ fontSize: 18, fontWeight: 900, color: col, lineHeight: 1 }}>🌸</p>
           <p style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 2 }}>tap to view</p>
         </>
       )}

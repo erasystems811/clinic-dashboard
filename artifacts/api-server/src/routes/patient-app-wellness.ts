@@ -514,6 +514,8 @@ router.get("/patient-app/wellness/today", async (req, res): Promise<void> => {
       medications:{ enabled: moduleMap["medications"]?.enabled ?? false, settings: moduleMap["medications"]?.settings ?? {}, log: logMap["medications"] ?? null },
       workout:    { enabled: moduleMap["workout"]?.enabled ?? false,     settings: moduleMap["workout"]?.settings ?? {},    log: logMap["workout"] ?? null, todayPlan: todayWorkout?.enabled ? todayWorkout : null },
       fruit:      { enabled: moduleMap["fruit"]?.enabled ?? false,       settings: moduleMap["fruit"]?.settings ?? {},      log: logMap["fruit"] ?? null },
+      smoking:    { enabled: moduleMap["smoking"]?.enabled ?? false,     settings: moduleMap["smoking"]?.settings ?? {},    log: logMap["smoking"] ?? null },
+      alcohol:    { enabled: moduleMap["alcohol"]?.enabled ?? false,     settings: moduleMap["alcohol"]?.settings ?? {},    log: logMap["alcohol"] ?? null },
     },
   });
 });

@@ -323,12 +323,10 @@ function PregnancySetupScreen({ onBack }: { onBack: () => void }) {
   const [dueDate, setDueDate] = useState("");
 
   function handleSubmit() {
-    if (useWeeks) {
-      const lmpDate = new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-      setup.mutate({ lmpDate });
-    } else {
-      setup.mutate({ dueDate });
-    }
+    const vars = useWeeks
+      ? { lmpDate: new Date(Date.now() - weeks * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0] }
+      : { dueDate };
+    setup.mutate(vars, { onSuccess: onBack });
   }
 
   return (
@@ -369,6 +367,12 @@ function PregnancySetupScreen({ onBack }: { onBack: () => void }) {
         className="w-full text-center text-sm text-purple-500 font-semibold mb-6 py-2 active:opacity-70 transition">
         {useWeeks ? "I know my due date instead →" : "← I know how many weeks instead"}
       </button>
+
+      {setup.isError && (
+        <p className="text-xs font-semibold text-red-500 text-center mb-3">
+          Something went wrong — please check your connection and try again.
+        </p>
+      )}
 
       <button onClick={handleSubmit} disabled={(!useWeeks && !dueDate) || setup.isPending}
         className="w-full py-4 bg-purple-500 text-white rounded-2xl font-bold text-base transition active:scale-95 disabled:opacity-60">

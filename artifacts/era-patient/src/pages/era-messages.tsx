@@ -3,6 +3,7 @@ import { MessageSquare, Send, ChevronLeft, Loader2, UserCheck, CheckCheck, Tag }
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
 import { format, isToday, isYesterday } from "date-fns";
+import { Layout } from "@/components/layout";
 
 interface Doctor {
   id: number;
@@ -191,13 +192,16 @@ export default function EraMessagesPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
+      <Layout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      </Layout>
     );
   }
 
   return (
+    <Layout>
     <div className="flex h-full overflow-hidden">
 
       {/* Conversation list */}
@@ -409,5 +413,6 @@ export default function EraMessagesPage() {
         </div>
       )}
     </div>
+    </Layout>
   );
 }

@@ -43,7 +43,7 @@ router.post("/patient-app/feedback", async (req, res) => {
       message:  z.string().min(1).max(2000),
     }).parse(req.body);
 
-    await supabase.from("era_patient_feedback").insert({
+    const { error } = await supabase.from("era_patient_feedback").insert({
       patient_id: patient.id,
       username:   patient.username,
       rating:     body.rating ?? null,
@@ -51,8 +51,15 @@ router.post("/patient-app/feedback", async (req, res) => {
       message:    body.message,
     });
 
+    if (error) {
+      console.error("[feedback:submit]", error.code, error.message);
+      res.status(500).json({ error: "Failed to save feedback" });
+      return;
+    }
+
     res.json({ ok: true });
   } catch (e) {
+    console.error("[feedback:submit]", e instanceof Error ? e.message : e);
     res.status(400).json({ error: e instanceof Error ? e.message : "Error" });
   }
 });

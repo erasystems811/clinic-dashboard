@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { greeting, formatDate } from "@/lib/utils";
 import { useWellnessToday, useWeekSummary, useQuickLog, useWellnessStreak, useLogToday } from "@/lib/wellness-api";
 import { useMyHospitals, useUnreadCounts, useUnreadNotifCount } from "@/lib/hospitals-api";
+import { useWomensHealthToday, usePregnancyToday, PHASE_META } from "@/lib/womens-health-api";
 import { useReturnVisits, useCareSchedule, useWellnessUpcomingEvents } from "@/lib/return-visits-api";
 import { decodeGesture, useCompanionSettings } from "@/lib/companion-api";
 import type { GestureConfig } from "@/lib/companion-api";
@@ -90,6 +91,8 @@ export default function HomePage() {
 
   const { data: todayData, isLoading: todayLoading } = useWellnessToday() as { data: TodayData | undefined; isLoading: boolean };
   const { data: summary } = useWeekSummary();
+  const { data: cycleData } = useWomensHealthToday();
+  const { data: pregData } = usePregnancyToday();
   const quickLog = useQuickLog();
   const { data: hospitals } = useMyHospitals();
   const { data: unreadCounts } = useUnreadCounts();
@@ -210,6 +213,9 @@ export default function HomePage() {
         {primaryHospital && (
           <UpcomingEventsCard events={allUpcoming} navigate={navigate} />
         )}
+
+        {/* ── Women's Health tracker card ─────────────────────────────── */}
+        <WomensHealthCard cycleData={cycleData} pregData={pregData} navigate={navigate} />
 
         {/* ── Progress widgets: water, smoking, alcohol ──────────────── */}
         <ProgressWidgets mods={mods} checklist={checklist} navigate={navigate} />
@@ -621,5 +627,145 @@ function CarePlanSection({ items, mods, quickLog, navigate, hospitalName, todayR
       </div>
 
     </section>
+  );
+}
+
+// ── Women's Health home card ─────────────────────────────────────────────────
+
+const PHASE_HEX: Record<string, string> = {
+  menstruation: "#f43f5e",
+  follicular:   "#a855f7",
+  fertile:      "#14b8a6",
+  luteal:       "#f59e0b",
+};
+
+function WomensHealthCard({
+  cycleData,
+  pregData,
+  navigate,
+}: {
+  cycleData: ReturnType<typeof useWomensHealthToday>["data"];
+  pregData: ReturnType<typeof usePregnancyToday>["data"];
+  navigate: (path: string) => void;
+}) {
+  if (!cycleData?.isSetUp && !pregData?.isSetUp) return null;
+
+  // Pregnancy card
+  if (pregData?.isSetUp) {
+    const week = pregData.weeksPregnant ?? 0;
+    const days = pregData.daysIntoWeek ?? 0;
+    const daysUntilDue = pregData.daysUntilDue ?? 0;
+    const trimester = pregData.trimester ?? 1;
+    const isPostpartum = pregData.isPostpartum;
+    const hasLog = !!(pregData.todayLog?.mood || (pregData.todayLog?.symptoms?.length ?? 0) > 0 || pregData.todayLog?.weightKg);
+    const pct = Math.min(100, Math.round((week / 40) * 100));
+
+    return (
+      <button
+        onClick={() => navigate("/womens-health")}
+        className="w-full text-left active:scale-[0.98] transition rounded-2xl"
+        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
+      >
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p style={{ fontSize: 10, fontWeight: 800, color: "#a855f7", letterSpacing: 1.5 }}>PREGNANCY</p>
+            <div className="flex items-center gap-2">
+              {hasLog && <span style={{ fontSize: 9, fontWeight: 700, color: "#4ade80", background: "rgba(74,222,128,0.12)", padding: "2px 7px", borderRadius: 5 }}>LOGGED</span>}
+              <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)" }} />
+            </div>
+          </div>
+
+          {isPostpartum ? (
+            <div className="flex items-center gap-3">
+              <span style={{ fontSize: 28 }}>👶</span>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)", lineHeight: 1.2 }}>Postpartum period</p>
+                <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>Congratulations on your new baby!</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p style={{ fontSize: 22, fontWeight: 900, color: "#a855f7", lineHeight: 1 }}>
+                    Week {week}
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-sub)" }}> + {days}d</span>
+                  </p>
+                  <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>
+                    {trimester === 1 ? "First" : trimester === 2 ? "Second" : "Third"} trimester
+                  </p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ fontSize: 22, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>
+                    {daysUntilDue}
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>d</span>
+                  </p>
+                  <p style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>until due</p>
+                </div>
+              </div>
+              <div style={{ height: 4, borderRadius: 2, background: "var(--glass-track)" }}>
+                <div style={{ height: 4, borderRadius: 2, width: `${pct}%`, background: "#a855f7", transition: "width 0.3s" }} />
+              </div>
+              <div className="flex justify-between mt-1">
+                <p style={{ fontSize: 9, color: "var(--text-dim)" }}>Week 1</p>
+                <p style={{ fontSize: 9, color: "var(--text-dim)" }}>Week 40</p>
+              </div>
+            </>
+          )}
+        </div>
+      </button>
+    );
+  }
+
+  // Cycle card
+  const phase = cycleData?.cycleInfo?.phase ?? null;
+  const cycleDay = cycleData?.cycleInfo?.cycleDay ?? null;
+  const cycleLen = cycleData?.settings?.cycleLength ?? 28;
+  const hasLog = !!(cycleData?.todayLog?.flow || (cycleData?.todayLog?.symptoms?.length ?? 0) > 0);
+  const col = phase ? PHASE_HEX[phase] : "var(--accent)";
+  const meta = phase ? PHASE_META[phase] : null;
+
+  return (
+    <button
+      onClick={() => navigate("/womens-health")}
+      className="w-full text-left active:scale-[0.98] transition rounded-2xl"
+      style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
+    >
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p style={{ fontSize: 10, fontWeight: 800, color: col, letterSpacing: 1.5 }}>CYCLE TRACKER</p>
+          <div className="flex items-center gap-2">
+            {hasLog && <span style={{ fontSize: 9, fontWeight: 700, color: "#4ade80", background: "rgba(74,222,128,0.12)", padding: "2px 7px", borderRadius: 5 }}>LOGGED</span>}
+            <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)" }} />
+          </div>
+        </div>
+
+        {!cycleData?.cycleInfo ? (
+          <p style={{ fontSize: 13, color: "var(--text-sub)" }}>Log your period to start predictions</p>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <p style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: col }}>
+                  Day {cycleDay}
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-sub)" }}> of {cycleLen}</span>
+                </p>
+                {meta && <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>{meta.label}</p>}
+              </div>
+              {phase && (
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${col}20`, border: `1px solid ${col}40`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ fontSize: 18 }}>
+                    {phase === "menstruation" ? "🩸" : phase === "follicular" ? "🌸" : phase === "fertile" ? "✨" : "🌙"}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div style={{ height: 4, borderRadius: 2, background: "var(--glass-track)" }}>
+              <div style={{ height: 4, borderRadius: 2, width: `${Math.round(((cycleDay ?? 1) / cycleLen) * 100)}%`, background: col, transition: "width 0.3s" }} />
+            </div>
+          </>
+        )}
+      </div>
+    </button>
   );
 }

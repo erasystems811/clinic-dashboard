@@ -441,19 +441,29 @@ router.post("/patient-app/hospitals/:connectionId/messages", async (req, res): P
   // Verify ownership
   const { data: conn } = await supabase
     .from("patient_hospital_connections")
-    .select("id, conversation_department")
+    .select("id, conversation_department, era_status")
     .eq("id", connectionId)
     .eq("account_id", account.id)
     .maybeSingle();
 
   if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
 
+  const updateFields: Record<string, unknown> = {};
+
   // Save department on the connection if not already set
   if (department && typeof department === "string" && department.trim() && !(conn.conversation_department as string | null)) {
-    await supabase
-      .from("patient_hospital_connections")
-      .update({ conversation_department: department.trim() })
-      .eq("id", connectionId);
+    updateFields.conversation_department = department.trim();
+  }
+
+  // Re-open resolved conversations when patient sends a new message
+  if ((conn.era_status as string) === "resolved") {
+    updateFields.era_status = "open";
+    updateFields.routed_to_doctor_id = null;
+    updateFields.doctor_replied = false;
+  }
+
+  if (Object.keys(updateFields).length > 0) {
+    await supabase.from("patient_hospital_connections").update(updateFields).eq("id", connectionId);
   }
 
   const { data: message, error } = await supabase

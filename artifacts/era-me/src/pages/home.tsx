@@ -648,124 +648,55 @@ function WomensHealthCard({
   pregData: ReturnType<typeof usePregnancyToday>["data"];
   navigate: (path: string) => void;
 }) {
-  if (!cycleData?.isSetUp && !pregData?.isSetUp) return null;
+  const showPreg  = !!pregData?.isSetUp;
+  const showCycle = !!cycleData?.isSetUp && !!cycleData?.cycleInfo;
 
-  // Pregnancy card
-  if (pregData?.isSetUp) {
-    const week = pregData.weeksPregnant ?? 0;
-    const days = pregData.daysIntoWeek ?? 0;
-    const daysUntilDue = pregData.daysUntilDue ?? 0;
-    const trimester = pregData.trimester ?? 1;
-    const isPostpartum = pregData.isPostpartum;
-    const hasLog = !!(pregData.todayLog?.mood || (pregData.todayLog?.symptoms?.length ?? 0) > 0 || pregData.todayLog?.weightKg);
-    const pct = Math.min(100, Math.round((week / 40) * 100));
-
-    return (
-      <button
-        onClick={() => navigate("/womens-health")}
-        className="w-full text-left active:scale-[0.98] transition rounded-2xl"
-        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
-      >
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p style={{ fontSize: 10, fontWeight: 800, color: "#a855f7", letterSpacing: 1.5 }}>PREGNANCY</p>
-            <div className="flex items-center gap-2">
-              {hasLog && <span style={{ fontSize: 9, fontWeight: 700, color: "#4ade80", background: "rgba(74,222,128,0.12)", padding: "2px 7px", borderRadius: 5 }}>LOGGED</span>}
-              <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)" }} />
-            </div>
-          </div>
-
-          {isPostpartum ? (
-            <div className="flex items-center gap-3">
-              <span style={{ fontSize: 28 }}>👶</span>
-              <div>
-                <p style={{ fontSize: 15, fontWeight: 800, color: "var(--text-main)", lineHeight: 1.2 }}>Postpartum period</p>
-                <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>Congratulations on your new baby!</p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p style={{ fontSize: 22, fontWeight: 900, color: "#a855f7", lineHeight: 1 }}>
-                    Week {week}
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-sub)" }}> + {days}d</span>
-                  </p>
-                  <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>
-                    {trimester === 1 ? "First" : trimester === 2 ? "Second" : "Third"} trimester
-                  </p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <p style={{ fontSize: 22, fontWeight: 900, color: "var(--text-main)", lineHeight: 1 }}>
-                    {daysUntilDue}
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-sub)" }}>d</span>
-                  </p>
-                  <p style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>until due</p>
-                </div>
-              </div>
-              <div style={{ height: 4, borderRadius: 2, background: "var(--glass-track)" }}>
-                <div style={{ height: 4, borderRadius: 2, width: `${pct}%`, background: "#a855f7", transition: "width 0.3s" }} />
-              </div>
-              <div className="flex justify-between mt-1">
-                <p style={{ fontSize: 9, color: "var(--text-dim)" }}>Week 1</p>
-                <p style={{ fontSize: 9, color: "var(--text-dim)" }}>Week 40</p>
-              </div>
-            </>
-          )}
-        </div>
-      </button>
-    );
-  }
-
-  // Cycle card
-  const phase = cycleData?.cycleInfo?.phase ?? null;
-  const cycleDay = cycleData?.cycleInfo?.cycleDay ?? null;
-  const cycleLen = cycleData?.settings?.cycleLength ?? 28;
-  const hasLog = !!(cycleData?.todayLog?.flow || (cycleData?.todayLog?.symptoms?.length ?? 0) > 0);
-  const col = phase ? PHASE_HEX[phase] : "var(--accent)";
-  const meta = phase ? PHASE_META[phase] : null;
+  if (!showPreg && !showCycle) return null;
 
   return (
-    <button
-      onClick={() => navigate("/womens-health")}
-      className="w-full text-left active:scale-[0.98] transition rounded-2xl"
-      style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}
-    >
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <p style={{ fontSize: 10, fontWeight: 800, color: col, letterSpacing: 1.5 }}>CYCLE TRACKER</p>
-          <div className="flex items-center gap-2">
-            {hasLog && <span style={{ fontSize: 9, fontWeight: 700, color: "#4ade80", background: "rgba(74,222,128,0.12)", padding: "2px 7px", borderRadius: 5 }}>LOGGED</span>}
-            <ChevronRight style={{ width: 14, height: 14, color: "var(--text-dim)" }} />
-          </div>
-        </div>
+    <div style={{ display: "flex", gap: 8 }}>
+      {showPreg  && <PregMiniCard  data={pregData!}  navigate={navigate} />}
+      {showCycle && <CycleMiniCard data={cycleData!} navigate={navigate} />}
+    </div>
+  );
+}
 
-        {!cycleData?.cycleInfo ? (
-          <p style={{ fontSize: 13, color: "var(--text-sub)" }}>Log your period to start predictions</p>
-        ) : (
-          <>
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <p style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, color: col }}>
-                  Day {cycleDay}
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-sub)" }}> of {cycleLen}</span>
-                </p>
-                {meta && <p style={{ fontSize: 11, color: "var(--text-sub)", marginTop: 2 }}>{meta.label}</p>}
-              </div>
-              {phase && (
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${col}20`, border: `1px solid ${col}40`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ fontSize: 18 }}>
-                    {phase === "menstruation" ? "🩸" : phase === "follicular" ? "🌸" : phase === "fertile" ? "✨" : "🌙"}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div style={{ height: 4, borderRadius: 2, background: "var(--glass-track)" }}>
-              <div style={{ height: 4, borderRadius: 2, width: `${Math.round(((cycleDay ?? 1) / cycleLen) * 100)}%`, background: col, transition: "width 0.3s" }} />
-            </div>
-          </>
-        )}
-      </div>
+function PregMiniCard({ data, navigate }: { data: NonNullable<ReturnType<typeof usePregnancyToday>["data"]>; navigate: (p: string) => void }) {
+  const week = data.weeksPregnant ?? 0;
+  const daysUntilDue = data.daysUntilDue ?? 0;
+  const hasLog = !!(data.todayLog?.mood || (data.todayLog?.symptoms?.length ?? 0) > 0 || data.todayLog?.weightKg);
+
+  return (
+    <button onClick={() => navigate("/womens-health")} className="active:scale-95 transition"
+      style={{ flex: 1, background: "var(--glass-bg)", border: "1px solid var(--glass-border)", borderRadius: 16, padding: "10px 12px", textAlign: "left" }}>
+      <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>🤰 Pregnancy</p>
+      <p style={{ fontSize: 18, fontWeight: 900, color: "#a855f7", lineHeight: 1 }}>
+        Wk {week}
+      </p>
+      <p style={{ fontSize: 9, color: hasLog ? "#4ade80" : "var(--text-dim)", marginTop: 2, fontWeight: hasLog ? 700 : 400 }}>
+        {hasLog ? "logged today" : `${daysUntilDue}d to due`}
+      </p>
+    </button>
+  );
+}
+
+function CycleMiniCard({ data, navigate }: { data: NonNullable<ReturnType<typeof useWomensHealthToday>["data"]>; navigate: (p: string) => void }) {
+  const phase    = data.cycleInfo?.phase ?? null;
+  const cycleDay = data.cycleInfo?.cycleDay ?? null;
+  const hasLog   = !!(data.todayLog?.flow || (data.todayLog?.symptoms?.length ?? 0) > 0);
+  const col      = phase ? PHASE_HEX[phase] : "var(--accent)";
+  const emoji    = phase === "menstruation" ? "🩸" : phase === "follicular" ? "🌸" : phase === "fertile" ? "✨" : "🌙";
+
+  return (
+    <button onClick={() => navigate("/womens-health")} className="active:scale-95 transition"
+      style={{ flex: 1, background: "var(--glass-bg)", border: "1px solid var(--glass-border)", borderRadius: 16, padding: "10px 12px", textAlign: "left" }}>
+      <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>{emoji} Cycle</p>
+      <p style={{ fontSize: 18, fontWeight: 900, color: col, lineHeight: 1 }}>
+        Day {cycleDay}
+      </p>
+      <p style={{ fontSize: 9, color: hasLog ? "#4ade80" : "var(--text-dim)", marginTop: 2, fontWeight: hasLog ? 700 : 400 }}>
+        {hasLog ? "logged today" : (PHASE_META[phase!]?.label ?? "tap to log")}
+      </p>
     </button>
   );
 }

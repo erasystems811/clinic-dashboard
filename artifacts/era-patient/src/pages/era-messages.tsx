@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef } from "react";
-import { MessageSquare, Send, ChevronLeft, Loader2, UserCheck, CheckCheck, Tag } from "lucide-react";
+import { MessageSquare, Send, ChevronLeft, Loader2, UserCheck, CheckCheck, Tag, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { apiUrl } from "@/lib/api";
 import { format, isToday, isYesterday } from "date-fns";
@@ -61,7 +61,7 @@ function initials(name: string): string {
 }
 
 export default function EraMessagesPage() {
-  const { hospital, user } = useAuth();
+  const { hospital, user, logout } = useAuth();
   const token = hospital?.token ?? "";
   const isDoctor = !!(user?.doctorId);
   const doctorId = user?.doctorId ?? null;
@@ -207,10 +207,18 @@ export default function EraMessagesPage() {
       {/* Conversation list */}
       <div className={`flex flex-col border-r border-border bg-background shrink-0 ${selected ? "hidden md:flex w-80" : "flex w-full md:w-80"}`}>
         <div className="px-4 py-4 border-b border-border">
-          <h1 className="text-lg font-bold flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-primary" />
-            ERA App Messages
-          </h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-lg font-bold flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-primary" />
+              ERA App Messages
+            </h1>
+            {isDoctor && (
+              <button onClick={logout} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition">
+                <LogOut className="w-3.5 h-3.5" />
+                Sign out
+              </button>
+            )}
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {isDoctor ? "Your department queue and conversations" : "Messages from patients on the ERA app"}
           </p>

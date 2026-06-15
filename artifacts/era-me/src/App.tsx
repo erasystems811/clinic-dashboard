@@ -1,7 +1,7 @@
 import { Component, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { applyEmeraldVars, applyCrimsonVars } from "@/lib/section-theme";
+import { applyEmeraldVars } from "@/lib/section-theme";
 import { apiUrl } from "@/lib/api";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -42,7 +42,6 @@ import FruitPage from "@/pages/wellness/fruit";
 import VitalsPage from "@/pages/wellness/vitals";
 import SmokingPage from "@/pages/wellness/smoking";
 import AlcoholPage from "@/pages/wellness/alcohol";
-import IntimacyPage from "@/pages/intimacy/index";
 import EyeBreakPage from "@/pages/wellness/eyebreak";
 import SunscreenPage from "@/pages/wellness/sunscreen";
 import OutdoorsPage from "@/pages/wellness/outdoors";
@@ -122,8 +121,6 @@ function SectionThemeManager() {
   useEffect(() => {
     if (location.startsWith("/weightloss")) {
       applyEmeraldVars(dark);
-    } else if (location.startsWith("/intimacy")) {
-      applyCrimsonVars();
     } else if (!location.startsWith("/companion")) {
       restoreAppTheme();
     }
@@ -200,8 +197,6 @@ function AppRoutes() {
       <Route path="/social"><SP><SocialPage /></SP></Route>
       <Route path="/social/partner/:id"><SP><PartnerPage /></SP></Route>
       <Route path="/social/group/:id"><SP><GroupPage /></SP></Route>
-      <Route path="/intimacy"><SP><IntimacyPage /></SP></Route>
-      <Route path="/wellness/intimacy"><Redirect to="/intimacy" /></Route>
       <Route path="/companion" component={CompanionGate} />
       <Route path="/companion/journal/new" component={NewJournalPage} />
       <Route path="/companion/journal/:id" component={JournalViewPage} />
@@ -227,7 +222,6 @@ function AppRoutes() {
             <Route path="/wellness/vitals" component={VitalsPage} />
             <Route path="/wellness/smoking" component={SmokingPage} />
             <Route path="/wellness/alcohol" component={AlcoholPage} />
-            <Route path="/wellness/intimacy" component={IntimacyPage} />
             <Route path="/wellness/eyebreak" component={EyeBreakPage} />
             <Route path="/wellness/sunscreen" component={SunscreenPage} />
             <Route path="/wellness/outdoors" component={OutdoorsPage} />

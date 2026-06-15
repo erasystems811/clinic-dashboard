@@ -29,7 +29,7 @@ const MODULE_ACCENT: Record<string, string> = {
   fruit: "#22c55e", vitals: "#ef4444",
   smoking: "#64748b", alcohol: "#fbbf24", eyebreak: "#6366f1",
   sunscreen: "#eab308", outdoors: "#16a34a", hygiene: "#93c5fd",
-  intimacy: "#fda4af", vaccines: "#a78bfa", checkups: "#22d3ee",
+  vaccines: "#a78bfa", checkups: "#22d3ee",
 };
 
 function baseModule(id: string): string {
@@ -59,13 +59,11 @@ const WIDGET_MODULES   = new Set(["water"]);
 
 function buildQuickLogData(mods: Record<string, ModuleEntry | undefined>): Record<string, QuickLogEntry> {
   const outdoorsTarget = (mods.outdoors?.settings?.targetMinutes as number | undefined) ?? 30;
-  const intimacyMode = (mods.intimacy?.settings as { mode?: string } | undefined)?.mode;
   const entries: Record<string, QuickLogEntry> = {
     fruit:    { moduleType: "fruit",    data: { done: true } },
     workout:  { moduleType: "workout",  data: { completed: true } },
     outdoors: { moduleType: "outdoors", data: { minutes: outdoorsTarget } },
   };
-  if (intimacyMode === "celibacy") entries.intimacy = { moduleType: "intimacy", data: { active: false } };
   type Med = { id: string; times?: string[] };
   const meds = (mods.medications?.settings?.medications as Med[]) ?? [];
   for (const med of meds) {
@@ -402,8 +400,8 @@ function ProgressWidgets({ mods, checklist, navigate }: {
   navigate: (path: string) => void;
 }) {
   const waterEnabled   = mods.water?.enabled ?? false;
-  const smokingEnabled = checklist.some(c => c.id === "smoking");
-  const alcoholEnabled = checklist.some(c => c.id === "alcohol");
+  const smokingEnabled = mods.smoking?.enabled ?? false;
+  const alcoholEnabled = mods.alcohol?.enabled ?? false;
 
   const { data: smokingStreak } = useWellnessStreak("smoking", { enabled: smokingEnabled });
   const { data: alcoholStreak } = useWellnessStreak("alcohol", { enabled: alcoholEnabled });

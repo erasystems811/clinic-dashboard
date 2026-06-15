@@ -354,6 +354,23 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Accountability Partner */}
+      <div className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--text-dim)" }}>Social</p>
+        <div className="rounded-2xl overflow-hidden" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+          <button onClick={() => navigate("/social")}
+            className="w-full flex items-center gap-3 px-5 py-4 transition active:opacity-70">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0"
+              style={{ background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.2)" }}>👥</div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-medium" style={{ color: "var(--text-main)" }}>Accountability Partner</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--text-sub)" }}>Partners, groups & shared goals</p>
+            </div>
+            <ChevronRight className="w-4 h-4 shrink-0" style={{ color: "var(--text-dim)" }} />
+          </button>
+        </div>
+      </div>
+
       {/* Logout */}
       <button onClick={logout}
         className="w-full flex items-center justify-center gap-2 py-4 mt-2 rounded-2xl font-semibold text-sm transition active:scale-95"

@@ -27,18 +27,6 @@ const WELLNESS_PROGRAMS: WellnessProgram[] = [
     borderColor: "rgba(236,72,153,0.28)", accent: "#f472b6",
   },
   {
-    href: "/social", emoji: "👥", label: "Social Health",
-    description: "Partner, groups & community wellness",
-    bg: "linear-gradient(160deg, #030712 0%, #1e3a8a 45%, #1d4ed8 100%)",
-    borderColor: "rgba(59,130,246,0.28)", accent: "#60a5fa",
-  },
-  {
-    href: "/intimacy", emoji: "🌹", label: "Sex Life",
-    description: "Intimacy, drive & connection",
-    bg: "linear-gradient(160deg, #130008 0%, #4c0519 45%, #7f1d1d 100%)",
-    borderColor: "rgba(251,113,133,0.28)", accent: "#fca5a5",
-  },
-  {
     href: "/companion", emoji: "📓", label: "My Diary",
     description: "Private journal & personal companion",
     bg: "linear-gradient(160deg, #06020f 0%, #1e0845 50%, #2a0d5e 100%)",

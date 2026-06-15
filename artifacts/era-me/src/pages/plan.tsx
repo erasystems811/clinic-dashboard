@@ -12,7 +12,7 @@ const MODULE_ACCENT: Record<string, string> = {
   water: "#38bdf8", medications: "#14b8a6", workout: "#f97316",
   fruit: "#22c55e", vitals: "#ef4444", smoking: "#64748b", alcohol: "#fbbf24",
   eyebreak: "#6366f1", sunscreen: "#eab308", outdoors: "#16a34a",
-  hygiene: "#93c5fd", intimacy: "#fda4af",
+  hygiene: "#93c5fd",
 };
 
 const SHORT_DAY = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

@@ -649,7 +649,7 @@ function WomensHealthCard({
   navigate: (path: string) => void;
 }) {
   const showPreg  = !!pregData?.isSetUp;
-  const showCycle = !!cycleData?.isSetUp && !!cycleData?.cycleInfo;
+  const showCycle = !!cycleData?.isSetUp;
 
   if (!showPreg && !showCycle) return null;
 
@@ -684,19 +684,26 @@ function CycleMiniCard({ data, navigate }: { data: NonNullable<ReturnType<typeof
   const phase    = data.cycleInfo?.phase ?? null;
   const cycleDay = data.cycleInfo?.cycleDay ?? null;
   const hasLog   = !!(data.todayLog?.flow || (data.todayLog?.symptoms?.length ?? 0) > 0);
-  const col      = phase ? PHASE_HEX[phase] : "var(--accent)";
+  const col      = phase ? PHASE_HEX[phase] : "#f43f5e";
   const emoji    = phase === "menstruation" ? "🩸" : phase === "follicular" ? "🌸" : phase === "fertile" ? "✨" : "🌙";
 
   return (
     <button onClick={() => navigate("/womens-health")} className="active:scale-95 transition"
       style={{ flex: 1, background: "var(--glass-bg)", border: "1px solid var(--glass-border)", borderRadius: 16, padding: "10px 12px", textAlign: "left" }}>
-      <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>{emoji} Cycle</p>
-      <p style={{ fontSize: 18, fontWeight: 900, color: col, lineHeight: 1 }}>
-        Day {cycleDay}
-      </p>
-      <p style={{ fontSize: 9, color: hasLog ? "#4ade80" : "var(--text-dim)", marginTop: 2, fontWeight: hasLog ? 700 : 400 }}>
-        {hasLog ? "logged today" : (PHASE_META[phase!]?.label ?? "tap to log")}
-      </p>
+      <p style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginBottom: 4 }}>🌸 Cycle</p>
+      {cycleDay ? (
+        <>
+          <p style={{ fontSize: 18, fontWeight: 900, color: col, lineHeight: 1 }}>Day {cycleDay}</p>
+          <p style={{ fontSize: 9, color: hasLog ? "#4ade80" : "var(--text-dim)", marginTop: 2, fontWeight: hasLog ? 700 : 400 }}>
+            {hasLog ? "logged today" : (PHASE_META[phase!]?.label ?? "tap to log")}
+          </p>
+        </>
+      ) : (
+        <>
+          <p style={{ fontSize: 18, fontWeight: 900, color: col, lineHeight: 1 }}>{emoji}</p>
+          <p style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 2 }}>tap to view</p>
+        </>
+      )}
     </button>
   );
 }

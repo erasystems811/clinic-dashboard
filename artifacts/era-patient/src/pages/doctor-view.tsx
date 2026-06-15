@@ -21,6 +21,10 @@ interface DoctorMsgConvo {
   lastMessageSender: string;
   lastMessageAt: string;
   unread: number;
+  eraStatus: "open" | "routed" | "resolved";
+  routedToDoctorId: number | null;
+  conversationDepartment: string | null;
+  isOwned: boolean;
 }
 
 interface DoctorMsgMessage {
@@ -35,6 +39,9 @@ interface DoctorMsgThread {
   connectionId: number;
   patientName: string;
   eraStatus: string;
+  routedToDoctorId: number | null;
+  conversationDepartment: string | null;
+  isOwned: boolean;
   messages: DoctorMsgMessage[];
 }
 
@@ -341,8 +348,9 @@ export default function DoctorView() {
   const [msgReply, setMsgReply] = useState("");
   const [msgSending, setMsgSending] = useState(false);
   const [msgResolving, setMsgResolving] = useState(false);
-  const [msgTransferDoctorId, setMsgTransferDoctorId] = useState("");
-  const [msgTransferring, setMsgTransferring] = useState(false);
+  const [msgClaiming, setMsgClaiming] = useState(false);
+  const [msgAssignDoctorId, setMsgAssignDoctorId] = useState("");
+  const [msgAssigning, setMsgAssigning] = useState(false);
   const [msgUnread, setMsgUnread] = useState(0);
   const msgBottomRef = useRef<HTMLDivElement>(null);
 
@@ -464,22 +472,42 @@ export default function DoctorView() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, doctorId, msgSelected, msgResolving]);
 
-  const transferConvo = useCallback(async () => {
-    if (!msgSelected || !msgTransferDoctorId || msgTransferring || !msgHeaders) return;
-    setMsgTransferring(true);
-    const r = await fetch(apiUrl(`/api/era-messages/doctor/${msgSelected.connectionId}/transfer`), {
+  const claimConvo = useCallback(async () => {
+    if (!msgSelected || msgClaiming || !msgHeaders) return;
+    setMsgClaiming(true);
+    const r = await fetch(apiUrl(`/api/era-messages/${msgSelected.connectionId}/claim`), {
       method: "POST",
       headers: { ...msgHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ targetDoctorId: parseInt(msgTransferDoctorId) }),
+      body: JSON.stringify({}),
+    });
+    if (r.ok) {
+      const tr = await fetch(apiUrl(`/api/era-messages/doctor/${msgSelected.connectionId}`), { headers: msgHeaders });
+      if (tr.ok) {
+        const data = await tr.json() as DoctorMsgThread;
+        setMsgSelected(data);
+        setMsgConvos(prev => prev.map(c => c.connectionId === msgSelected.connectionId ? { ...c, eraStatus: "routed", routedToDoctorId: doctorId ?? null, isOwned: true } : c));
+      }
+    }
+    setMsgClaiming(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, doctorId, msgSelected, msgClaiming]);
+
+  const assignConvo = useCallback(async () => {
+    if (!msgSelected || !msgAssignDoctorId || msgAssigning || !msgHeaders) return;
+    setMsgAssigning(true);
+    const r = await fetch(apiUrl(`/api/era-messages/${msgSelected.connectionId}/assign`), {
+      method: "POST",
+      headers: { ...msgHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ targetDoctorId: parseInt(msgAssignDoctorId) }),
     });
     if (r.ok) {
       setMsgConvos(prev => prev.filter(c => c.connectionId !== msgSelected.connectionId));
       setMsgSelected(null);
-      setMsgTransferDoctorId("");
+      setMsgAssignDoctorId("");
     }
-    setMsgTransferring(false);
+    setMsgAssigning(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, doctorId, msgSelected, msgTransferDoctorId, msgTransferring]);
+  }, [token, doctorId, msgSelected, msgAssignDoctorId, msgAssigning]);
 
   useEffect(() => {
     if (selectedFollowUpPatient) fetchFollowUpCarePlans(selectedFollowUpPatient.id);
@@ -751,7 +779,7 @@ export default function DoctorView() {
             {/* Conversation list */}
             <div className={`flex flex-col border border-border rounded-lg bg-card shrink-0 ${msgSelected ? "hidden md:flex w-64" : "flex w-full md:w-64"}`}>
               <div className="px-3 py-2.5 border-b border-border flex items-center justify-between">
-                <p className="text-sm font-semibold">Assigned to me</p>
+                <p className="text-sm font-semibold">ERA Messages</p>
                 <button onClick={fetchMsgConvos} className="text-muted-foreground hover:text-foreground"><RefreshCw className="w-3.5 h-3.5" /></button>
               </div>
               <div className="flex-1 overflow-y-auto">
@@ -775,7 +803,12 @@ export default function DoctorView() {
                             <p className={`text-xs truncate ${c.unread > 0 ? "font-bold" : "font-medium"}`}>{c.patientName}</p>
                             {c.unread > 0 && <span className="min-w-[16px] h-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center px-1 shrink-0">{c.unread}</span>}
                           </div>
-                          <p className="text-[11px] text-muted-foreground truncate">{c.lastMessage}</p>
+                          <p className="text-[11px] text-muted-foreground truncate mb-1">{c.lastMessage}</p>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {c.conversationDepartment && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-medium">{c.conversationDepartment}</span>}
+                            {c.eraStatus === "open" && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 font-medium">Unclaimed</span>}
+                            {c.isOwned && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Mine</span>}
+                          </div>
                         </div>
                       </div>
                     </button>
@@ -796,24 +829,33 @@ export default function DoctorView() {
                     {msgSelected.patientName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                   </div>
                   <p className="text-sm font-semibold flex-1 min-w-0 truncate">{msgSelected.patientName}</p>
-                  {/* Transfer to another doctor */}
-                  {msgSelected.eraStatus !== "resolved" && allDoctors.filter(d => d.id !== doctorId).length > 0 && (
+                  {/* Claim button for unclaimed convos */}
+                  {msgSelected.eraStatus === "open" && !msgSelected.routedToDoctorId && (
+                    <button onClick={claimConvo} disabled={msgClaiming}
+                      className="flex items-center gap-1 px-2.5 h-7 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition disabled:opacity-40 shrink-0">
+                      {msgClaiming ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRightLeft className="w-3 h-3" />}
+                      Claim
+                    </button>
+                  )}
+                  {/* Assign to another doctor (only if I own it) */}
+                  {msgSelected.eraStatus !== "resolved" && msgSelected.isOwned && allDoctors.filter(d => d.id !== doctorId).length > 0 && (
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <select value={msgTransferDoctorId} onChange={e => setMsgTransferDoctorId(e.target.value)}
+                      <select value={msgAssignDoctorId} onChange={e => setMsgAssignDoctorId(e.target.value)}
                         className="h-7 rounded-md border border-border bg-background px-2 text-xs max-w-[130px]">
-                        <option value="">Transfer to…</option>
-                        {allDoctors.filter(d => d.id !== doctorId && !d.unavailable).map(d => (
+                        <option value="">Assign to…</option>
+                        {allDoctors.filter(d => d.id !== doctorId).map(d => (
                           <option key={d.id} value={d.id}>Dr. {d.fullName}</option>
                         ))}
                       </select>
-                      <button onClick={transferConvo} disabled={!msgTransferDoctorId || msgTransferring}
+                      <button onClick={assignConvo} disabled={!msgAssignDoctorId || msgAssigning}
                         className="flex items-center gap-1 px-2 h-7 rounded-md border border-border text-xs font-medium hover:bg-muted transition disabled:opacity-40">
-                        {msgTransferring ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRightLeft className="w-3 h-3" />}
-                        Transfer
+                        {msgAssigning ? <Loader2 className="w-3 h-3 animate-spin" /> : <ArrowRightLeft className="w-3 h-3" />}
+                        Assign
                       </button>
                     </div>
                   )}
-                  {msgSelected.eraStatus !== "resolved" && (
+                  {/* Resolve (only if I own it) */}
+                  {msgSelected.eraStatus !== "resolved" && msgSelected.isOwned && (
                     <button onClick={resolveConvo} disabled={msgResolving}
                       className="flex items-center gap-1 px-2.5 h-7 rounded-md bg-green-500/10 text-green-600 text-xs font-medium hover:bg-green-500/20 transition disabled:opacity-40 shrink-0 border border-green-500/20">
                       {msgResolving ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCheck className="w-3 h-3" />}
@@ -850,6 +892,10 @@ export default function DoctorView() {
                 {msgSelected.eraStatus === "resolved" ? (
                   <div className="px-4 py-2.5 border-t border-border text-center text-xs text-muted-foreground flex items-center justify-center gap-1.5 shrink-0">
                     <CheckCheck className="w-3.5 h-3.5 text-green-500" /> Conversation resolved
+                  </div>
+                ) : !msgSelected.isOwned ? (
+                  <div className="px-4 py-2.5 border-t border-border text-center text-xs text-muted-foreground shrink-0">
+                    Claim this conversation to reply
                   </div>
                 ) : (
                   <div className="px-3 py-2.5 border-t border-border flex gap-2 shrink-0">

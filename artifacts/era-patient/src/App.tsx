@@ -70,7 +70,7 @@ function PatientRedirect() {
 function defaultPathForRole(role: Role): string {
   if (role === "receptionist") return "/queue";
   if (role === "nurse") return "/nurse-station";
-  if (role === "doctor") return "/era-messages";
+  if (role === "doctor") return "/doctor-view";
   return "/";
 }
 
@@ -134,7 +134,7 @@ function ProtectedRouter() {
       {role === "admin" && <Route path="/settings" component={Settings} />}
       {role === "admin" && <Route path="/call-tasks" component={CallTasks} />}
       {role === "admin" && <Route path="/import" component={PatientImport} />}
-      {(role === "admin" || role === "doctor") && <Route path="/era-messages" component={EraMessages} />}
+      {role === "admin" && <Route path="/era-messages" component={EraMessages} />}
       {role === "admin" && <Route path="/help" component={HelpPage} />}
 
       {/* Receptionist routes */}

@@ -370,7 +370,7 @@ function PregnancySetupScreen({ onBack }: { onBack: () => void }) {
 
       {setup.isError && (
         <p className="text-xs font-semibold text-red-500 text-center mb-3">
-          Something went wrong — please check your connection and try again.
+          {setup.error?.message ?? "Something went wrong — please try again."}
         </p>
       )}
 

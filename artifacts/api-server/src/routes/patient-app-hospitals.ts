@@ -448,19 +448,12 @@ router.post("/patient-app/hospitals/:connectionId/messages", async (req, res): P
 
   if (!conn) { res.status(403).json({ error: "Connection not found" }); return; }
 
-  // Save department on the connection if this is the first message and a department is provided
+  // Save department on the connection if not already set
   if (department && typeof department === "string" && department.trim() && !(conn.conversation_department as string | null)) {
-    const { count } = await supabase
-      .from("patient_hospital_messages")
-      .select("id", { count: "exact", head: true })
-      .eq("connection_id", connectionId)
-      .eq("sender", "patient");
-    if (!count || count === 0) {
-      await supabase
-        .from("patient_hospital_connections")
-        .update({ conversation_department: department.trim() })
-        .eq("id", connectionId);
-    }
+    await supabase
+      .from("patient_hospital_connections")
+      .update({ conversation_department: department.trim() })
+      .eq("id", connectionId);
   }
 
   const { data: message, error } = await supabase

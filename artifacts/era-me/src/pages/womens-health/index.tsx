@@ -658,6 +658,7 @@ function PregnancyDashboard({ data }: { data: ReturnType<typeof usePregnancyToda
   const [kicks, setKicks] = useState(data?.todayLog?.kicksCount ?? 0);
   const [bp, setBp] = useState(data?.todayLog?.bloodPressure ?? "");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!data?.isSetUp) return null;
 
@@ -670,14 +671,21 @@ function PregnancyDashboard({ data }: { data: ReturnType<typeof usePregnancyToda
 
   async function saveLog() {
     setSaving(true);
-    await logPregnancy.mutateAsync({
-      symptoms: selSymptoms,
-      mood: selMood || null,
-      weightKg: weight ? parseFloat(weight) : null,
-      kicksCount: kicks || null,
-      bloodPressure: bp || null,
-    });
-    setSaving(false);
+    setSaveError(null);
+    try {
+      await logPregnancy.mutateAsync({
+        symptoms: selSymptoms,
+        mood: selMood || null,
+        weightKg: weight ? parseFloat(weight) : null,
+        kicksCount: kicks || null,
+        bloodPressure: bp || null,
+      });
+      setPregTab("home");
+    } catch (err) {
+      setSaveError((err as Error).message ?? "Something went wrong — please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -807,6 +815,10 @@ function PregnancyDashboard({ data }: { data: ReturnType<typeof usePregnancyToda
             <input type="text" placeholder="120/80" value={bp} onChange={(e) => setBp(e.target.value)}
               className="w-full bg-muted rounded-xl px-4 py-3 text-sm text-foreground outline-none" />
           </div>
+
+          {saveError && (
+            <p className="text-xs font-semibold text-red-500 text-center">{saveError}</p>
+          )}
 
           <button onClick={() => { void saveLog(); }} disabled={saving}
             className="w-full py-3 rounded-xl text-sm font-bold bg-purple-500 text-white transition active:scale-95 disabled:opacity-60">

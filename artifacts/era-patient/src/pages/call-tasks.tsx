@@ -39,7 +39,7 @@ const ACTION_TYPES = [
     badge: "bg-primary/10 text-primary border-primary/20",
   },
   {
-    value: "manual_email",
+    value: "manual_text",
     label: "Email",
     icon: Mail,
     description: "Send email to patient",

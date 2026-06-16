@@ -187,17 +187,19 @@ async function runPostTreatmentCheckins() {
           if (daysSinceStart < day) continue;
           if (daysSinceStart > day + 30) continue; // 30-day catch-up window
 
-          // Dedup key per patient — one sequence per Post Treatment entry
+          // Dedup key per patient — one sequence per Post Treatment entry.
+          // Use limit(1) instead of maybeSingle() so multiple records (race condition / retry)
+          // don't cause the check to return null and trigger a re-send.
           const automationType = `post_treatment_patient${patient.id}_day${day}`;
-          const { data: alreadySent } = await supabase
+          const { data: alreadySentRows } = await supabase
             .from("automation_log")
             .select("id")
             .eq("patient_id", patient.id)
             .eq("automation_type", automationType)
             .eq("status", "sent")
-            .maybeSingle();
+            .limit(1);
 
-          if (alreadySent) continue;
+          if (alreadySentRows && alreadySentRows.length > 0) continue;
 
           await sendPostTreatmentCheckinEmail(h.id, patient.id as number, patientName, patient.email as string, day);
           log(`Post-treatment Day ${day} email → patient ${patient.id} (${daysSinceStart}d since Post Treatment start)`);

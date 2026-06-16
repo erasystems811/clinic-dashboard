@@ -444,8 +444,12 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
 
     // ── When treatment completes, clear the active plan so a new plan can be started fresh ──
     if (parsed.data.stage === "Post Treatment") {
+      // Only set post_treatment_started_at when ENTERING Post Treatment for the first time
+      // (or re-entering from a different stage). Don't reset it if already in Post Treatment —
+      // that would restart the Day 1/4/7 email clock and cause duplicate follow-up emails.
+      const alreadyInPostTreatment = before.stage === "Post Treatment";
       await supabase.from("patients").update({
-        post_treatment_started_at: new Date().toISOString(),
+        ...(alreadyInPostTreatment ? {} : { post_treatment_started_at: new Date().toISOString() }),
         treatment_plan: null,
         treatment_type: null,
         medication_timing: null,

@@ -1251,7 +1251,7 @@ async function runCarePlanRemindersHourly() {
             const dedupeKey = `med_${plan.id}_${slot}_${time}_${today}`;
             if (await checkSentLog(h.id, dedupeKey)) continue;
             const message = `Reminder: Time to take your ${names.join(", ")}. Please take your medication as prescribed.`;
-            await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, message, slot as InCareTimeSlot, "General Outpatient");
+            await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, message, slot as InCareTimeSlot, dept);
             await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: dedupeKey, status: "sent", channel: "email", message_preview: `Medication reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
             log(`Medication reminder → patient ${patient.id} slot=${slot} time=${time}`);
           }
@@ -1267,7 +1267,7 @@ async function runCarePlanRemindersHourly() {
               const dedupeKey = `proc_${plan.id}_${proc.id ?? slot}_${slot}_${today}`;
               if (await checkSentLog(h.id, dedupeKey)) continue;
               const message = `Reminder: You are scheduled for ${proc.name || "a procedure"} at ${timeStr} today. Please arrive on time.`;
-              await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, message, slot as InCareTimeSlot, "General Outpatient");
+              await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, message, slot as InCareTimeSlot, dept);
               await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: dedupeKey, status: "sent", channel: "email", message_preview: `Procedure reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
               log(`Procedure reminder → patient ${patient.id} ${proc.name} slot=${slot}`);
             }

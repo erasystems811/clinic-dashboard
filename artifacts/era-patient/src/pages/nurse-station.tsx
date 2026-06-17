@@ -130,6 +130,7 @@ export default function NurseStation() {
   const [savingPlan, setSavingPlan] = useState(false);
   const [closingPlan, setClosingPlan] = useState(false);
   const [openingPlan, setOpeningPlan] = useState(false);
+  const [templatePlanId, setTemplatePlanId] = useState<number | null>(null);
 
   // Flag section
   const [flagSearch, setFlagSearch] = useState("");
@@ -662,7 +663,7 @@ export default function NurseStation() {
                               className="text-xs shrink-0 h-7 px-2.5"
                               title="Start a new care plan using this as a template"
                               onClick={async () => {
-                                setOpeningPlan(true);
+                                setTemplatePlanId(plan.id);
                                 try {
                                   const res = await fetch(apiUrl(`/api/patients/${selectedPatient.id}/care-plans`), {
                                     method: "POST",
@@ -687,11 +688,11 @@ export default function NurseStation() {
                                 } catch {
                                   toast({ title: "Failed to open treatment plan", variant: "destructive" });
                                 } finally {
-                                  setOpeningPlan(false);
+                                  setTemplatePlanId(null);
                                 }
                               }}
                             >
-                              {openingPlan ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use as Template"}
+                              {templatePlanId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use as Template"}
                             </Button>
                           </div>
                         </div>

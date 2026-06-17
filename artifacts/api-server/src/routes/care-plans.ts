@@ -212,17 +212,20 @@ router.patch("/care-plans/:id", async (req, res): Promise<void> => {
       }
 
       // Regenerate messages if this is an old-format GenOut plan
-      const td = (updated.template_data ?? {}) as Record<string, unknown>;
-      if (updated.department === "General Outpatient" && td.treatmentType) {
+      const updatedTd = (updated.template_data ?? {}) as Record<string, unknown>;
+      if (updated.department === "General Outpatient" && updatedTd.treatmentType) {
         const { data: patientRow } = await supabase.from("patients").select("first_name, last_name").eq("id", patientId).maybeSingle();
         const patientName = patientRow ? `${patientRow.first_name} ${patientRow.last_name}` : "Patient";
-        generateCarePlanMessages(id, hospitalIntId, patientName, updated.summary as string, td).catch(() => {});
+        generateCarePlanMessages(id, hospitalIntId, patientName, updated.summary as string, updatedTd).catch(() => {});
       }
 
-      // Re-sync ERA wellness modules
-      const durationDays = (updated.department === "General Outpatient")
-        ? (((updated.template_data as Record<string, unknown>)?.durationDays as number) ?? 7)
-        : 30;
+      // Re-sync ERA wellness modules — derive duration from new-format meds/procs or fallback to GenOut field
+      const updatedMeds = (updatedTd.medications as Array<{ durationDays?: number }> | undefined) ?? [];
+      const updatedProcs = (updatedTd.procedures as Array<{ durationDays?: number }> | undefined) ?? [];
+      const allDurs = [...updatedMeds, ...updatedProcs].map(i => i.durationDays ?? 0).filter(d => d > 0);
+      const durationDays = allDurs.length > 0
+        ? Math.max(...allDurs)
+        : ((updatedTd.durationDays as number | undefined) ?? 7);
       const { data: patientRow } = await supabase.from("patients").select("first_name, last_name").eq("id", patientId).maybeSingle();
       const patientName = patientRow ? `${patientRow.first_name} ${patientRow.last_name}` : "Patient";
       void pushEraPlanIntegration({
@@ -231,7 +234,7 @@ router.patch("/care-plans/:id", async (req, res): Promise<void> => {
         hospitalIntId,
         summary: updated.summary as string,
         department: (updated.department as string | null) ?? "General Outpatient",
-        templateData: td,
+        templateData: updatedTd,
         durationDays,
         startDate: new Date().toISOString().split("T")[0],
       });
@@ -255,11 +258,27 @@ router.post("/care-plans/:id/close", async (req, res): Promise<void> => {
   if (!existing) { res.status(404).json({ error: "Care plan not found" }); return; }
   if (existing.status !== "open") { res.status(409).json({ error: "Plan is not in draft state" }); return; }
 
-  const { summary: bodySummary } = (req.body ?? {}) as { summary?: string };
+  const bodyRaw = (req.body ?? {}) as {
+    summary?: string;
+    templateData?: Record<string, unknown>;
+    beneficiaryName?: string;
+    beneficiaryEmail?: string;
+    beneficiaryRelationship?: string;
+  };
   const now = new Date();
-  const td = (existing.template_data ?? {}) as Record<string, unknown>;
 
-  const finalSummary = bodySummary?.trim() || (existing.summary as string) || "";
+  // Merge incoming form data with whatever was last saved — incoming wins.
+  // This ensures "Close & Activate" captures the current form state even if the
+  // nurse never clicked "Save Draft" first.
+  const td = {
+    ...(existing.template_data ?? {}) as Record<string, unknown>,
+    ...(bodyRaw.templateData ?? {}),
+  };
+
+  const finalSummary = bodyRaw.summary?.trim() || (existing.summary as string) || "";
+  const finalBeneficiaryName = bodyRaw.beneficiaryName?.trim() ?? (existing.beneficiary_name as string | null) ?? null;
+  const finalBeneficiaryEmail = bodyRaw.beneficiaryEmail?.trim() ?? (existing.beneficiary_email as string | null) ?? null;
+  const finalBeneficiaryRelationship = bodyRaw.beneficiaryRelationship?.trim() ?? (existing.beneficiary_relationship as string | null) ?? null;
 
   // Derive department from template data
   const categories = (td.categories as Array<{ type: string }> | undefined) ?? [];
@@ -291,6 +310,10 @@ router.post("/care-plans/:id/close", async (req, res): Promise<void> => {
     status: "active",
     summary: finalSummary,
     department,
+    template_data: td,
+    beneficiary_name: finalBeneficiaryName,
+    beneficiary_email: finalBeneficiaryEmail,
+    beneficiary_relationship: finalBeneficiaryRelationship,
     updated_at: now.toISOString(),
   }).eq("id", id).select().single();
 

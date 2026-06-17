@@ -336,12 +336,12 @@ async function runDormantDetection() {
         .eq("hospital_id", hospital.hospital_code);
       const currentlyQueuedIds = new Set((queuedRows ?? []).map(r => r.patient_id as number));
 
-      // In Care — has an active care plan (non-GenOut keeps stage="Active" in DB)
+      // In Care — has an active or open (draft) care plan
       const { data: activePlanRows } = await supabase
         .from("care_plans")
         .select("patient_id")
         .eq("hospital_id", hospital.hospital_code)
-        .eq("status", "active");
+        .neq("status", "ended");
       const activePlanIds = new Set((activePlanRows ?? []).map(r => r.patient_id as number));
 
       // Booked — has an upcoming appointment
@@ -1101,6 +1101,7 @@ async function runCarePlanEmailDelay() {
     const { data: plans } = await supabase
       .from("care_plans")
       .select("id, patient_id, hospital_id, department, summary, template_data, created_at")
+      .eq("status", "active")
       .gte("created_at", minAge.toISOString())
       .lte("created_at", maxAge.toISOString());
 
@@ -1224,6 +1225,55 @@ async function runCarePlanRemindersHourly() {
         if (!patient?.email) continue;
 
         const patientName = `${patient.first_name} ${patient.last_name}`;
+
+        // ── New-format plans: medications[] and/or procedures[] arrays ────────
+        const newMeds = (td.medications as Array<{ id?: string; name?: string; timing?: Record<string, string> }> | undefined) ?? [];
+        const newProcs = (td.procedures as Array<{ id?: string; name?: string; timing?: Record<string, string> }> | undefined) ?? [];
+        if (newMeds.length > 0 || newProcs.length > 0) {
+          const storedEnd = patient.treatment_end_date as string | undefined;
+          if (storedEnd && today > storedEnd) continue;
+
+          // Medications: fire reminder at exact timing time
+          // Group by slot+time so one email covers multiple drugs taken at the same hour
+          const medsBySlotTime = new Map<string, { slot: string; time: string; names: string[] }>();
+          for (const med of newMeds) {
+            for (const [slot, timeStr] of Object.entries(med.timing ?? {})) {
+              if (!timeStr) continue;
+              const key = `${slot}_${timeStr}`;
+              if (!medsBySlotTime.has(key)) medsBySlotTime.set(key, { slot, time: timeStr, names: [] });
+              medsBySlotTime.get(key)!.names.push(med.name || "medication");
+            }
+          }
+          for (const { slot, time, names } of medsBySlotTime.values()) {
+            const [hh, mm] = time.split(":").map(Number);
+            const fireAt = watToUTC(hh, mm);
+            if (Math.abs(fireAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+            const dedupeKey = `med_${plan.id}_${slot}_${time}_${today}`;
+            if (await checkSentLog(h.id, dedupeKey)) continue;
+            const message = `Reminder: Time to take your ${names.join(", ")}. Please take your medication as prescribed.`;
+            await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, message, slot as InCareTimeSlot, "General Outpatient");
+            await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: dedupeKey, status: "sent", channel: "email", message_preview: `Medication reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
+            log(`Medication reminder → patient ${patient.id} slot=${slot} time=${time}`);
+          }
+
+          // Procedures: fire reminder 3h before timing time
+          for (const proc of newProcs) {
+            for (const [slot, timeStr] of Object.entries(proc.timing ?? {})) {
+              if (!timeStr) continue;
+              const [hh, mm] = timeStr.split(":").map(Number);
+              const visitAt = watToUTC(hh, mm);
+              const fireAt = new Date(visitAt.getTime() - 3 * 60 * 60 * 1000);
+              if (Math.abs(fireAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+              const dedupeKey = `proc_${plan.id}_${proc.id ?? slot}_${slot}_${today}`;
+              if (await checkSentLog(h.id, dedupeKey)) continue;
+              const message = `Reminder: You are scheduled for ${proc.name || "a procedure"} at ${timeStr} today. Please arrive on time.`;
+              await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, message, slot as InCareTimeSlot, "General Outpatient");
+              await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: dedupeKey, status: "sent", channel: "email", message_preview: `Procedure reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
+              log(`Procedure reminder → patient ${patient.id} ${proc.name} slot=${slot}`);
+            }
+          }
+          continue;
+        }
 
         if (dept === "General Outpatient") {
           // Compute effective end date — use patient.treatment_end_date if set, otherwise

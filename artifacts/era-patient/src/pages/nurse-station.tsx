@@ -17,12 +17,61 @@ import { getPatientStages } from "@/lib/utils";
 import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
   Search, Stethoscope, Flag, Loader2, Plus,
-  Pencil, MessageSquare, PhoneCall, ChevronDown,
-  ChevronUp, X, Calendar, CheckCircle2,
+  Pencil, ChevronDown, ChevronUp, X, Calendar,
+  CheckCircle2, Pill, Activity, Layers,
 } from "lucide-react";
 
-const STANDARD_DEPARTMENTS = [
-  "General Outpatient",
+// ── Types ────────────────────────────────────────────────────────────────────
+
+interface CarePlan {
+  id: number;
+  patientId: number;
+  hospitalId: string;
+  department: string | null;
+  summary: string;
+  templateData: Record<string, unknown>;
+  status: "open" | "active" | "ended";
+  createdAt: string;
+  updatedAt: string;
+  endedAt?: string | null;
+  beneficiaryName?: string | null;
+  beneficiaryEmail?: string | null;
+  beneficiaryRelationship?: string | null;
+}
+
+interface MedicationRow {
+  id: string;
+  name: string;
+  dosage: string;
+  durationDays: number | "";
+  timing: Record<string, string>; // slot → "HH:MM"
+}
+
+interface ProcedureRow {
+  id: string;
+  name: string;
+  durationDays: number | "";
+  timing: Record<string, string>;
+}
+
+interface CategoryEntry {
+  type: string;
+  data: Record<string, unknown>;
+}
+
+interface ScheduleRow { date: string; [key: string]: string; }
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const TIMING_SLOTS = [
+  { value: "morning",   label: "Morning" },
+  { value: "afternoon", label: "Afternoon" },
+  { value: "evening",   label: "Evening" },
+  { value: "night",     label: "Night" },
+];
+
+// Specialist categories (not General Outpatient — that's replaced by Medications/Procedures)
+const SPECIALIST_CATEGORIES = [
   "Antenatal / Maternity",
   "Paediatrics",
   "Surgery / Post-Op",
@@ -32,70 +81,30 @@ const STANDARD_DEPARTMENTS = [
   "ENT (Ear, Nose and Throat)",
 ];
 
-// ── Types ───────────────────────────────────────────────────────────────────────
-
-interface CarePlan {
-  id: number;
-  patientId: number;
-  hospitalId: string;
-  department: string;
-  summary: string;
-  templateData: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
+function emptyMed(): MedicationRow {
+  return { id: crypto.randomUUID(), name: "", dosage: "", durationDays: "", timing: {} };
 }
-
-interface ScheduleRow { date: string; [key: string]: string; }
-
-// ── Constants ───────────────────────────────────────────────────────────────────
-
-
-const TREATMENT_TYPES = [
-  { value: "medication_only", label: "Medication Only", sub: "Patient self-administers at home" },
-  { value: "come_to_hospital", label: "Come to Hospital", sub: "Clinic or ward visits required" },
-  { value: "combination", label: "Combination", sub: "Medication + clinic visits" },
-];
-const TIMING_OPTIONS = [
-  { value: "morning", label: "Morning" },
-  { value: "afternoon", label: "Afternoon" },
-  { value: "evening", label: "Evening" },
-  { value: "night", label: "Night" },
-];
-
-const DEPT_LABELS: Record<string, string> = {
-  "General Outpatient": "General Outpatient",
-  "Antenatal / Maternity": "Antenatal / Maternity",
-  "Paediatrics": "Paediatrics",
-  "Surgery / Post-Op": "Surgery / Post-Op",
-  "Dental": "Dental",
-  "Eye": "Eye",
-  "Fertility / IVF": "Fertility / IVF",
-  "ENT (Ear, Nose and Throat)": "ENT (Ear, Nose and Throat)",
-};
-
-function emptyTemplateData(dept: string): Record<string, unknown> {
-  if (dept === "General Outpatient") return { treatmentType: "", medicationTiming: [], medicationTimingTimes: {}, hospitalTiming: [], hospitalTimingTimes: {}, durationDays: 1 };
-  if (dept === "Antenatal / Maternity") return { currentWeek: "", ancSchedule: [{ weekNumber: "", whatHappens: "", date: "", time: "" }] };
-  if (dept === "Paediatrics") return { childAge: "", vaccinationSchedule: [{ ageAtVaccination: "", vaccinationName: "", date: "", time: "" }] };
-  if (dept === "Surgery / Post-Op") return { procedureDate: "", procedureTime: "", procedureType: "", inCareSchedule: [{ date: "", time: "", whatHappens: "" }] };
-  if (dept === "Dental") return { inCareSchedule: [{ date: "", time: "", treatmentType: "" }] };
-  if (dept === "Eye") return { inCareSchedule: [{ date: "", time: "", action: "" }] };
-  if (dept === "Fertility / IVF") return { inCareSchedule: [{ date: "", time: "", whatHappens: "" }] };
-  if (dept === "ENT (Ear, Nose and Throat)") return { inCareSchedule: [{ date: "", time: "", treatmentType: "" }] };
+function emptyProc(): ProcedureRow {
+  return { id: crypto.randomUUID(), name: "", durationDays: "", timing: {} };
+}
+function emptyCategoryData(type: string): Record<string, unknown> {
+  if (type === "Antenatal / Maternity") return { currentWeek: "", ancSchedule: [{ weekNumber: "", whatHappens: "", date: "", time: "" }] };
+  if (type === "Paediatrics") return { childAge: "", vaccinationSchedule: [{ ageAtVaccination: "", vaccinationName: "", date: "", time: "" }] };
+  if (type === "Surgery / Post-Op") return { procedureDate: "", procedureTime: "", procedureType: "", inCareSchedule: [{ date: "", time: "", whatHappens: "" }] };
+  if (type === "Dental") return { inCareSchedule: [{ date: "", time: "", treatmentType: "" }] };
+  if (type === "Eye") return { inCareSchedule: [{ date: "", time: "", action: "" }] };
+  if (type === "Fertility / IVF") return { inCareSchedule: [{ date: "", time: "", whatHappens: "" }] };
+  if (type === "ENT (Ear, Nose and Throat)") return { inCareSchedule: [{ date: "", time: "", treatmentType: "" }] };
   return {};
 }
 
-// ── Main Component ──────────────────────────────────────────────────────────────
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export default function NurseStation() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { hospital, hospitalConfig } = useAuth();
-  // Show all departments configured for this hospital in the super admin.
-  // Fall back to all 7 standard departments only when the hospital has nothing configured yet.
-  const configDepts = hospitalConfig?.departments ?? [];
   const apptEnabled = hospitalConfig?.modules?.appointmentsEnabled ?? true;
-  const departments = configDepts.length > 0 ? configDepts : STANDARD_DEPARTMENTS;
 
   // Patient search
   const [search, setSearch] = useState("");
@@ -104,20 +113,23 @@ export default function NurseStation() {
   // Care plans
   const [carePlans, setCarePlans] = useState<CarePlan[]>([]);
   const [carePlansLoading, setCarePlansLoading] = useState(false);
-  const [planMode, setPlanMode] = useState<"list" | "new" | "edit">("list");
+  const [planMode, setPlanMode] = useState<"list" | "fill" | "edit">("list");
   const [editingPlan, setEditingPlan] = useState<CarePlan | null>(null);
-  const [savingPlan, setSavingPlan] = useState(false);
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
   const [confirmEndPlanId, setConfirmEndPlanId] = useState<number | null>(null);
   const [endingPlanId, setEndingPlanId] = useState<number | null>(null);
 
-  // Care plan form
-  const [planDepartment, setPlanDepartment] = useState("");
+  // Treatment plan form state
   const [planSummary, setPlanSummary] = useState("");
-  const [planTemplateData, setPlanTemplateData] = useState<Record<string, unknown>>({});
+  const [medications, setMedications] = useState<MedicationRow[]>([]);
+  const [procedures, setProcedures] = useState<ProcedureRow[]>([]);
+  const [categories, setCategories] = useState<CategoryEntry[]>([]);
   const [planBeneficiaryName, setPlanBeneficiaryName] = useState("");
   const [planBeneficiaryEmail, setPlanBeneficiaryEmail] = useState("");
   const [planBeneficiaryRelationship, setPlanBeneficiaryRelationship] = useState("");
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [closingPlan, setClosingPlan] = useState(false);
+  const [openingPlan, setOpeningPlan] = useState(false);
 
   // Flag section
   const [flagSearch, setFlagSearch] = useState("");
@@ -137,7 +149,6 @@ export default function NurseStation() {
   const [savingRv, setSavingRv] = useState(false);
   const [deletingRvId, setDeletingRvId] = useState<number | null>(null);
 
-
   const { data: searchResults = [], isFetching: searching } = useListPatients(
     { search },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -154,19 +165,14 @@ export default function NurseStation() {
     { query: { enabled: rvSearch.trim().length >= 2 } as any }
   );
 
-
   const authHeader = () => ({ "x-hospital-token": hospital?.token ?? "" });
 
   const fetchCarePlans = useCallback(async (patientId: number) => {
     setCarePlansLoading(true);
     try {
-      const res = await fetch(apiUrl(`/api/patients/${patientId}/care-plans`), {
-        headers: authHeader(),
-      });
+      const res = await fetch(apiUrl(`/api/patients/${patientId}/care-plans`), { headers: authHeader() });
       if (!res.ok) throw new Error("Failed to load care plans");
-      const data = await res.json() as CarePlan[];
-      setCarePlans(data);
-
+      setCarePlans(await res.json() as CarePlan[]);
     } catch {
       setCarePlans([]);
     } finally {
@@ -185,25 +191,26 @@ export default function NurseStation() {
     }
   }, [selectedPatient, fetchCarePlans]);
 
-  const openNewPlan = () => {
-    const defaultDept = departments[0] ?? "";
-    setPlanDepartment(defaultDept);
-    setPlanSummary("");
-    setPlanTemplateData(emptyTemplateData(defaultDept));
-    setPlanBeneficiaryName("");
-    setPlanBeneficiaryEmail("");
-    setPlanBeneficiaryRelationship("");
-    setEditingPlan(null);
-    setPlanMode("new");
+  // Populate form from an existing plan's templateData
+  const loadPlanIntoForm = (plan: CarePlan) => {
+    const td = plan.templateData ?? {};
+    setPlanSummary(plan.summary ?? "");
+    setMedications((td.medications as MedicationRow[] | undefined) ?? []);
+    setProcedures((td.procedures as ProcedureRow[] | undefined) ?? []);
+    setCategories((td.categories as CategoryEntry[] | undefined) ?? []);
+    setPlanBeneficiaryName(plan.beneficiaryName ?? "");
+    setPlanBeneficiaryEmail(plan.beneficiaryEmail ?? "");
+    setPlanBeneficiaryRelationship(plan.beneficiaryRelationship ?? "");
   };
 
-  const openEditPlan = (plan: CarePlan) => {
-    setPlanDepartment(plan.department);
-    setPlanSummary(plan.summary);
-    setPlanTemplateData({ ...plan.templateData });
-    setPlanBeneficiaryName((plan as Record<string, unknown>).beneficiaryName as string ?? "");
-    setPlanBeneficiaryEmail((plan as Record<string, unknown>).beneficiaryEmail as string ?? "");
-    setPlanBeneficiaryRelationship((plan as Record<string, unknown>).beneficiaryRelationship as string ?? "");
+  const openFillForm = (plan: CarePlan) => {
+    loadPlanIntoForm(plan);
+    setEditingPlan(plan);
+    setPlanMode("fill");
+  };
+
+  const openEditForm = (plan: CarePlan) => {
+    loadPlanIntoForm(plan);
     setEditingPlan(plan);
     setPlanMode("edit");
   };
@@ -211,6 +218,153 @@ export default function NurseStation() {
   const cancelPlanForm = () => {
     setPlanMode("list");
     setEditingPlan(null);
+  };
+
+  const resetForm = () => {
+    setPlanSummary("");
+    setMedications([]);
+    setProcedures([]);
+    setCategories([]);
+    setPlanBeneficiaryName("");
+    setPlanBeneficiaryEmail("");
+    setPlanBeneficiaryRelationship("");
+  };
+
+  // Open a new treatment plan (creates a draft immediately)
+  const handleOpenNewPlan = async () => {
+    if (!selectedPatient) return;
+    setOpeningPlan(true);
+    try {
+      const res = await fetch(apiUrl(`/api/patients/${selectedPatient.id}/care-plans`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const plan = await res.json() as CarePlan;
+      resetForm();
+      setEditingPlan(plan);
+      setPlanMode("fill");
+      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
+    } catch {
+      toast({ title: "Failed to open treatment plan", variant: "destructive" });
+    } finally {
+      setOpeningPlan(false);
+    }
+  };
+
+  const buildTemplateData = () => ({
+    medications,
+    procedures,
+    categories,
+  });
+
+  // Save draft (plan stays "open", no automations)
+  const handleSaveDraft = async () => {
+    if (!editingPlan) return;
+    setSavingPlan(true);
+    try {
+      const res = await fetch(apiUrl(`/api/care-plans/${editingPlan.id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({
+          summary: planSummary,
+          templateData: buildTemplateData(),
+          beneficiaryName: planBeneficiaryName.trim() || undefined,
+          beneficiaryEmail: planBeneficiaryEmail.trim() || undefined,
+          beneficiaryRelationship: planBeneficiaryRelationship.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      toast({ title: "Draft saved" });
+      await fetchCarePlans(editingPlan.patientId);
+      cancelPlanForm();
+    } catch {
+      toast({ title: "Failed to save draft", variant: "destructive" });
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
+  // Save changes to an already-active plan (sends update notification to patient)
+  const handleSaveEdit = async () => {
+    if (!editingPlan) return;
+    setSavingPlan(true);
+    try {
+      const res = await fetch(apiUrl(`/api/care-plans/${editingPlan.id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({
+          summary: planSummary,
+          templateData: buildTemplateData(),
+          beneficiaryName: planBeneficiaryName.trim() || undefined,
+          beneficiaryEmail: planBeneficiaryEmail.trim() || undefined,
+          beneficiaryRelationship: planBeneficiaryRelationship.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      toast({ title: "Treatment plan updated", description: "Patient will be notified of the changes." });
+      await fetchCarePlans(editingPlan.patientId);
+      cancelPlanForm();
+    } catch {
+      toast({ title: "Failed to update plan", variant: "destructive" });
+    } finally {
+      setSavingPlan(false);
+    }
+  };
+
+  // Close the treatment plan — fires all automations and sends patient communications
+  const handleClosePlan = async () => {
+    if (!editingPlan || !selectedPatient) return;
+    setClosingPlan(true);
+    try {
+      const res = await fetch(apiUrl(`/api/care-plans/${editingPlan.id}/close`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({
+          summary: planSummary,
+          templateData: buildTemplateData(),
+          beneficiaryName: planBeneficiaryName.trim() || undefined,
+          beneficiaryEmail: planBeneficiaryEmail.trim() || undefined,
+          beneficiaryRelationship: planBeneficiaryRelationship.trim() || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({
+        title: "Treatment plan activated",
+        description: `${selectedPatient.firstName} ${selectedPatient.lastName} has been notified with their care plan.`,
+      });
+      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
+      await fetchCarePlans(selectedPatient.id);
+      cancelPlanForm();
+    } catch {
+      toast({ title: "Failed to close treatment plan", variant: "destructive" });
+    } finally {
+      setClosingPlan(false);
+    }
+  };
+
+  const handleEndPlanEarly = async (planId: number) => {
+    if (!selectedPatient) return;
+    setEndingPlanId(planId);
+    try {
+      const res = await fetch(apiUrl(`/api/care-plans/${planId}`), {
+        method: "DELETE",
+        headers: authHeader(),
+      });
+      if (!res.ok) throw new Error("End failed");
+      toast({ title: "Care plan ended", description: "The treatment plan has been closed." });
+      await fetchCarePlans(selectedPatient.id);
+      setConfirmEndPlanId(null);
+      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
+    } catch {
+      toast({ title: "Failed to end care plan", variant: "destructive" });
+    } finally {
+      setEndingPlanId(null);
+    }
   };
 
   const fetchRvVisits = async (patientId: number) => {
@@ -266,92 +420,27 @@ export default function NurseStation() {
     }
   };
 
-
-  const handleDeptChange = (dept: string) => {
-    setPlanDepartment(dept);
-    setPlanTemplateData(emptyTemplateData(dept));
-  };
-
-  const handleSavePlan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPatient) return;
-    setSavingPlan(true);
-    try {
-      const body = {
-        department: planDepartment,
-        summary: planSummary,
-        templateData: planTemplateData,
-        beneficiaryName: planBeneficiaryName.trim() || undefined,
-        beneficiaryEmail: planBeneficiaryEmail.trim() || undefined,
-        beneficiaryRelationship: planBeneficiaryRelationship.trim() || undefined,
-      };
-      const url = planMode === "edit" && editingPlan
-        ? apiUrl(`/api/care-plans/${editingPlan.id}`)
-        : apiUrl(`/api/patients/${selectedPatient.id}/care-plans`);
-      const method = planMode === "edit" ? "PATCH" : "POST";
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json", ...authHeader() },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error("Save failed");
-      toast({
-        title: planMode === "edit" ? "Care plan updated" : "Care plan saved",
-        description: planMode === "new" ? `${selectedPatient.firstName} ${selectedPatient.lastName} moved to In Care.` : undefined,
-      });
-      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
-      setPlanMode("list");
-      setEditingPlan(null);
-      setSelectedPatient(null);
-    } catch {
-      toast({ title: "Failed to save care plan", variant: "destructive" });
-    } finally {
-      setSavingPlan(false);
-    }
-  };
-
-
-  const handleEndPlanEarly = async (planId: number) => {
-    if (!selectedPatient) return;
-    setEndingPlanId(planId);
-    try {
-      const res = await fetch(apiUrl(`/api/care-plans/${planId}`), {
-        method: "DELETE",
-        headers: authHeader(),
-      });
-      if (!res.ok) throw new Error("End failed");
-      toast({ title: "Care plan ended", description: "The treatment plan has been closed early." });
-      await fetchCarePlans(selectedPatient.id);
-      setConfirmEndPlanId(null);
-      queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
-      queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
-    } catch {
-      toast({ title: "Failed to end care plan", variant: "destructive" });
-    } finally {
-      setEndingPlanId(null);
-    }
-  };
-
   const flagResults = flagSearchResults.filter(p => !getPatientStages(p as never, { apptEnabled }).every(s => s === "Dormant"));
+  const draftPlans = carePlans.filter(p => p.status === "open");
+  const activePlans = carePlans.filter(p => p.status === "active");
+  const endedPlans = carePlans.filter(p => p.status === "ended");
 
   return (
     <Layout>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Medication View</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Log care plans for patients and flag anyone needing follow-up.</p>
+          <p className="text-muted-foreground text-sm mt-0.5">Manage treatment plans and schedule patient return visits.</p>
         </div>
 
         {/* ── CARE PLANS ── */}
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border bg-muted/10">
             <Stethoscope className="w-4 h-4 text-primary" />
-            <span className="font-semibold text-sm">Care Plans</span>
+            <span className="font-semibold text-sm">Treatment Plans</span>
           </div>
           <div className="p-5">
             {!selectedPatient ? (
-              /* ── Patient search ── */
               <div className="space-y-3">
                 <div className="relative">
                   <Input
@@ -393,7 +482,6 @@ export default function NurseStation() {
                 )}
               </div>
             ) : planMode === "list" ? (
-              /* ── Care plan list ── */
               <div className="space-y-4">
                 {/* Patient bar */}
                 <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
@@ -410,18 +498,67 @@ export default function NurseStation() {
                   <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedPatient(null)}>Change</Button>
                 </div>
 
-                {/* Existing plans */}
                 {carePlansLoading ? (
                   <div className="flex items-center justify-center py-6">
                     <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                   </div>
-                ) : carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status !== "ended").length === 0 && carePlans.length === 0 ? (
-                  <div className="text-center py-6 space-y-2">
-                    <p className="text-sm text-muted-foreground">No care plans on file for this patient.</p>
-                  </div>
                 ) : (
                   <div className="space-y-2">
-                    {carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status !== "ended").map(plan => (
+                    {/* Draft (open) plans */}
+                    {draftPlans.map(plan => (
+                      <div key={plan.id} className="rounded-lg border border-amber-500/40 bg-amber-500/5 overflow-hidden">
+                        <div className="flex items-center gap-3 px-4 py-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">Draft</span>
+                              <span className="text-xs text-muted-foreground">
+                                · {new Date(plan.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                              </span>
+                            </div>
+                            <p className="text-sm text-foreground/70 mt-0.5 line-clamp-1">
+                              {plan.summary || "No summary yet — click Fill In to complete"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="text-xs h-7 bg-amber-600 hover:bg-amber-600/90 text-white border-0"
+                              onClick={() => openFillForm(plan)}
+                            >
+                              Fill In
+                            </Button>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+                              title="Discard draft"
+                              onClick={() => setConfirmEndPlanId(plan.id)}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        {confirmEndPlanId === plan.id && (
+                          <div className="px-4 py-3 bg-amber-500/5 border-t border-amber-500/20 space-y-2">
+                            <p className="text-xs text-amber-300">Discard this draft treatment plan? This cannot be undone.</p>
+                            <div className="flex gap-2">
+                              <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setConfirmEndPlanId(null)}>Keep</Button>
+                              <Button
+                                type="button" size="sm"
+                                className="flex-1 text-xs bg-destructive hover:bg-destructive/90 text-white border-0"
+                                onClick={() => handleEndPlanEarly(plan.id)}
+                                disabled={endingPlanId === plan.id}
+                              >
+                                {endingPlanId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Discard"}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Active plans */}
+                    {activePlans.map(plan => (
                       <div key={plan.id} className="rounded-lg border border-border overflow-hidden">
                         <div
                           className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/30 transition"
@@ -429,10 +566,9 @@ export default function NurseStation() {
                         >
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-primary uppercase tracking-wide">{plan.department}</span>
-                              <span className="text-xs text-muted-foreground">·</span>
+                              <span className="text-xs font-semibold text-primary uppercase tracking-wide">{plan.department ?? "Treatment"}</span>
                               <span className="text-xs text-muted-foreground">
-                                {new Date(plan.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                                · {new Date(plan.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
                               </span>
                             </div>
                             <p className="text-sm text-foreground mt-0.5 line-clamp-1">{plan.summary}</p>
@@ -441,7 +577,7 @@ export default function NurseStation() {
                             <button
                               type="button"
                               className="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition"
-                              onClick={e => { e.stopPropagation(); openEditPlan(plan); }}
+                              onClick={e => { e.stopPropagation(); openEditForm(plan); }}
                               title="Edit"
                             >
                               <Pencil className="w-3.5 h-3.5" />
@@ -452,13 +588,11 @@ export default function NurseStation() {
                           </div>
                         </div>
 
-
-                        {/* Confirm end treatment early */}
                         {confirmEndPlanId === plan.id && (
                           <div className="px-4 py-3 bg-amber-500/5 border-t border-amber-500/20 space-y-2">
                             <div className="flex items-start gap-2">
                               <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                              <p className="text-xs text-amber-300">End this {plan.department} care plan early? This will close the plan. This cannot be undone.</p>
+                              <p className="text-xs text-amber-300">End this care plan early? This will close the plan and cannot be undone.</p>
                             </div>
                             <div className="flex gap-2">
                               <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setConfirmEndPlanId(null)}>Cancel</Button>
@@ -474,12 +608,10 @@ export default function NurseStation() {
                           </div>
                         )}
 
-                        {/* Expanded details */}
                         {expandedPlanId === plan.id && confirmEndPlanId !== plan.id && (
                           <div className="px-4 py-3 bg-muted/20 border-t border-border space-y-3">
                             <p className="text-sm text-foreground">{plan.summary}</p>
-                            <PlanTemplateDetails dept={plan.department} data={plan.templateData} />
-
+                            <PlanDetails plan={plan} />
                             <Button
                               type="button"
                               size="sm"
@@ -494,56 +626,76 @@ export default function NurseStation() {
                         )}
                       </div>
                     ))}
+
+                    {draftPlans.length === 0 && activePlans.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">No active treatment plans for this patient.</p>
+                    )}
                   </div>
                 )}
 
                 {/* Past / ended care plans */}
-                {carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status === "ended").length > 0 && (
+                {endedPlans.length > 0 && (
                   <details className="group">
                     <summary className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-muted-foreground uppercase tracking-wide py-1 select-none list-none">
                       <ChevronDown className="w-3.5 h-3.5 group-open:rotate-180 transition-transform" />
-                      Past Care Plans ({carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status === "ended").length})
+                      Past Plans ({endedPlans.length})
                     </summary>
                     <div className="space-y-2 mt-2">
-                      {carePlans.filter((p: CarePlan) => (p as unknown as Record<string,unknown>).status === "ended").map(plan => {
-                        const endedAt = (plan as unknown as Record<string,unknown>).endedAt as string | null;
-                        return (
-                          <div key={plan.id} className="rounded-lg border border-border/50 bg-muted/10 overflow-hidden opacity-80">
-                            <div className="flex items-center gap-3 px-4 py-2.5">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{plan.department}</span>
-                                  {endedAt && (
-                                    <span className="text-xs text-muted-foreground/70">
-                                      · ended {new Date(endedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{plan.summary}</p>
+                      {endedPlans.map(plan => (
+                        <div key={plan.id} className="rounded-lg border border-border/50 bg-muted/10 overflow-hidden opacity-80">
+                          <div className="flex items-center gap-3 px-4 py-2.5">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{plan.department ?? "Treatment"}</span>
+                                {plan.endedAt && (
+                                  <span className="text-xs text-muted-foreground/70">
+                                    · ended {new Date(plan.endedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                                  </span>
+                                )}
                               </div>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="text-xs shrink-0 h-7 px-2.5"
-                                title="Start a new care plan using this as a template"
-                                onClick={() => {
-                                  setPlanDepartment(plan.department);
-                                  setPlanSummary(plan.summary);
-                                  setPlanTemplateData({ ...plan.templateData });
-                                  setPlanBeneficiaryName((plan as unknown as Record<string,unknown>).beneficiaryName as string ?? "");
-                                  setPlanBeneficiaryEmail((plan as unknown as Record<string,unknown>).beneficiaryEmail as string ?? "");
-                                  setPlanBeneficiaryRelationship((plan as unknown as Record<string,unknown>).beneficiaryRelationship as string ?? "");
-                                  setEditingPlan(null);
-                                  setPlanMode("new");
-                                }}
-                              >
-                                Use as Template
-                              </Button>
+                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{plan.summary}</p>
                             </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="text-xs shrink-0 h-7 px-2.5"
+                              title="Start a new care plan using this as a template"
+                              onClick={async () => {
+                                setOpeningPlan(true);
+                                try {
+                                  const res = await fetch(apiUrl(`/api/patients/${selectedPatient.id}/care-plans`), {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json", ...authHeader() },
+                                    body: JSON.stringify({ summary: plan.summary }),
+                                  });
+                                  if (!res.ok) throw new Error("Failed");
+                                  const newPlan = await res.json() as CarePlan;
+                                  // Pre-populate form with the old plan's content
+                                  const td = plan.templateData ?? {};
+                                  setMedications((td.medications as MedicationRow[] | undefined) ?? []);
+                                  setProcedures((td.procedures as ProcedureRow[] | undefined) ?? []);
+                                  setCategories((td.categories as CategoryEntry[] | undefined) ?? []);
+                                  setPlanSummary(plan.summary ?? "");
+                                  setPlanBeneficiaryName(plan.beneficiaryName ?? "");
+                                  setPlanBeneficiaryEmail(plan.beneficiaryEmail ?? "");
+                                  setPlanBeneficiaryRelationship(plan.beneficiaryRelationship ?? "");
+                                  setEditingPlan(newPlan);
+                                  setPlanMode("fill");
+                                  queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
+                                  queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
+                                } catch {
+                                  toast({ title: "Failed to open treatment plan", variant: "destructive" });
+                                } finally {
+                                  setOpeningPlan(false);
+                                }
+                              }}
+                            >
+                              {openingPlan ? <Loader2 className="w-3 h-3 animate-spin" /> : "Use as Template"}
+                            </Button>
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
                   </details>
                 )}
@@ -552,15 +704,20 @@ export default function NurseStation() {
                   <Button type="button" variant="outline" className="flex-1" onClick={() => setSelectedPatient(null)}>
                     Done
                   </Button>
-                  <Button type="button" className="flex-1 gap-2" onClick={openNewPlan}>
-                    <Plus className="w-4 h-4" />
-                    Add Care Plan
+                  <Button
+                    type="button"
+                    className="flex-1 gap-2"
+                    onClick={handleOpenNewPlan}
+                    disabled={openingPlan}
+                  >
+                    {openingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    Open Treatment Plan
                   </Button>
                 </div>
               </div>
             ) : (
-              /* ── Care plan form (new / edit) ── */
-              <form onSubmit={handleSavePlan} className="space-y-5">
+              /* ── Treatment plan form (fill draft or edit active) ── */
+              <div className="space-y-5">
                 {/* Patient bar */}
                 <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
                   <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center shrink-0">
@@ -568,62 +725,127 @@ export default function NurseStation() {
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-sm">{selectedPatient.firstName} {selectedPatient.lastName}</p>
-                    <p className="text-xs text-muted-foreground">Stage: {getPatientStages(selectedPatient as never, { apptEnabled }).join(" · ")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {planMode === "fill" ? "Filling draft treatment plan" : "Editing active treatment plan"}
+                    </p>
                   </div>
                   <button type="button" className="p-1 rounded hover:bg-muted transition" onClick={cancelPlanForm}>
                     <X className="w-4 h-4 text-muted-foreground" />
                   </button>
                 </div>
 
-                {/* Department picker */}
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Department *</label>
-                  <select
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                    value={planDepartment}
-                    onChange={e => handleDeptChange(e.target.value)}
-                    required
+                {/* ── Medications section ── */}
+                <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Pill className="w-4 h-4 text-primary" />
+                    <p className="text-sm font-semibold">Medications</p>
+                    <span className="text-xs text-muted-foreground ml-1">(pharmacist)</span>
+                  </div>
+                  {medications.map((med, i) => (
+                    <MedicationCard
+                      key={med.id}
+                      med={med}
+                      onChange={updated => setMedications(prev => prev.map((m, j) => j === i ? updated : m))}
+                      onRemove={() => setMedications(prev => prev.filter((_, j) => j !== i))}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setMedications(prev => [...prev, emptyMed()])}
+                    className="flex items-center gap-1.5 text-xs text-primary hover:underline"
                   >
-                    <option value="">Select department...</option>
-                    {departments.map(d => (
-                      <option key={d} value={d}>{DEPT_LABELS[d] ?? d}</option>
+                    <Plus className="w-3.5 h-3.5" /> Add Medication
+                  </button>
+                </div>
+
+                {/* ── Procedures section ── */}
+                <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-primary" />
+                    <p className="text-sm font-semibold">Procedures / Treatments</p>
+                    <span className="text-xs text-muted-foreground ml-1">(nurse)</span>
+                  </div>
+                  {procedures.map((proc, i) => (
+                    <ProcedureCard
+                      key={proc.id}
+                      proc={proc}
+                      onChange={updated => setProcedures(prev => prev.map((p, j) => j === i ? updated : p))}
+                      onRemove={() => setProcedures(prev => prev.filter((_, j) => j !== i))}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setProcedures(prev => [...prev, emptyProc()])}
+                    className="flex items-center gap-1.5 text-xs text-primary hover:underline"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Procedure
+                  </button>
+                </div>
+
+                {/* ── Specialist categories section ── */}
+                <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-primary" />
+                    <p className="text-sm font-semibold">Specialist Categories</p>
+                    <span className="text-xs text-muted-foreground ml-1">(optional)</span>
+                  </div>
+                  {categories.map((cat, i) => (
+                    <div key={`${cat.type}-${i}`} className="space-y-2 p-3 rounded-lg border border-border bg-background">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-primary uppercase tracking-wide">{cat.type}</p>
+                        <button
+                          type="button"
+                          onClick={() => setCategories(prev => prev.filter((_, j) => j !== i))}
+                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <CategoryTemplate
+                        type={cat.type}
+                        data={cat.data}
+                        onChange={data => setCategories(prev => prev.map((c, j) => j === i ? { ...c, data } : c))}
+                      />
+                    </div>
+                  ))}
+                  {/* Picker for adding a new category */}
+                  <select
+                    className="w-full h-8 rounded-md border border-input bg-background px-3 text-xs text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    value=""
+                    onChange={e => {
+                      const type = e.target.value;
+                      if (!type) return;
+                      if (categories.some(c => c.type === type)) return;
+                      setCategories(prev => [...prev, { type, data: emptyCategoryData(type) }]);
+                    }}
+                  >
+                    <option value="">+ Add specialist category…</option>
+                    {SPECIALIST_CATEGORIES.filter(c => !categories.some(cat => cat.type === c)).map(c => (
+                      <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Department-specific template — shapeshifts when department changes */}
-                {planDepartment && (
-                  <div key={planDepartment} style={{ animation: "deptShift 0.22s ease-out both" }}>
-                    <style>{`@keyframes deptShift{from{opacity:0;transform:translateY(-8px) scale(0.98)}to{opacity:1;transform:translateY(0) scale(1)}}`}</style>
-                    <DepartmentTemplate
-                      department={planDepartment}
-                      templateData={planTemplateData}
-                      onChange={setPlanTemplateData}
-                    />
-                  </div>
-                )}
-
-                {/* Summary notes */}
+                {/* ── Summary / Plan Notes ── */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium">Plan Notes / Summary *</label>
+                  <label className="text-sm font-medium">Plan Summary / Notes</label>
                   <textarea
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[90px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="Describe the care plan in detail…"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Describe the overall treatment plan, diagnosis, and any important instructions…"
                     value={planSummary}
                     onChange={e => setPlanSummary(e.target.value)}
-                    required
                   />
                 </div>
 
-                {/* Beneficiary (accountability contact) — optional */}
+                {/* ── Accountability contact ── */}
                 <div className="space-y-2 rounded-lg border border-dashed border-border p-3">
                   <div>
                     <p className="text-sm font-medium">Accountability Contact <span className="text-muted-foreground font-normal">(optional)</span></p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Someone who will receive reminders to check on the patient and ensure they follow their treatment.</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Someone who will receive reminders to check on the patient.</p>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Beneficiary Name</label>
+                      <label className="text-xs font-medium text-muted-foreground">Name</label>
                       <input
                         type="text"
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -633,7 +855,7 @@ export default function NurseStation() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">Beneficiary Email</label>
+                      <label className="text-xs font-medium text-muted-foreground">Email</label>
                       <input
                         type="email"
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -644,9 +866,7 @@ export default function NurseStation() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Relationship to patient <span className="font-normal">(optional)</span>
-                    </label>
+                    <label className="text-xs font-medium text-muted-foreground">Relationship to patient</label>
                     <select
                       className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                       value={planBeneficiaryRelationship}
@@ -660,13 +880,43 @@ export default function NurseStation() {
                   </div>
                 </div>
 
-                <div className="flex gap-2 justify-end pt-1">
-                  <Button type="button" variant="outline" onClick={cancelPlanForm}>Cancel</Button>
-                  <Button type="submit" disabled={savingPlan || !planDepartment}>
-                    {savingPlan ? <><Loader2 className="w-4 h-4 animate-spin mr-1.5" />Saving…</> : (planMode === "edit" ? "Save Changes" : "Save")}
-                  </Button>
-                </div>
-              </form>
+                {/* ── Action buttons ── */}
+                {planMode === "fill" ? (
+                  <div className="flex flex-col gap-2 pt-1">
+                    <Button
+                      type="button"
+                      onClick={handleClosePlan}
+                      disabled={closingPlan || savingPlan}
+                      className="w-full gap-2"
+                    >
+                      {closingPlan ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      {closingPlan ? "Activating…" : "Close & Activate Treatment Plan"}
+                    </Button>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" className="flex-1" onClick={cancelPlanForm}>
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={handleSaveDraft}
+                        disabled={savingPlan || closingPlan}
+                      >
+                        {savingPlan ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
+                        Save Draft
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 justify-end pt-1">
+                    <Button type="button" variant="outline" onClick={cancelPlanForm}>Cancel</Button>
+                    <Button type="button" onClick={handleSaveEdit} disabled={savingPlan}>
+                      {savingPlan ? <><Loader2 className="w-4 h-4 animate-spin mr-1.5" />Saving…</> : "Save Changes"}
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -678,8 +928,7 @@ export default function NurseStation() {
             <span className="font-semibold text-sm">Schedule Return Visit</span>
           </div>
           <div className="p-5 space-y-3">
-            <p className="text-xs text-muted-foreground">Book a patient to come back on a specific date. They will receive a reminder 24 hours and 3 hours before the visit. Distinct from outreach — this is for the patient to physically return.</p>
-            {/* Patient search */}
+            <p className="text-xs text-muted-foreground">Book a patient to come back on a specific date. They will receive a reminder 24 hours and 3 hours before the visit.</p>
             {!selectedRvPatient ? (
               <div className="space-y-2">
                 <div className="relative">
@@ -718,7 +967,6 @@ export default function NurseStation() {
               </div>
             ) : (
               <div className="space-y-3">
-                {/* Selected patient bar */}
                 <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
                   <div className="w-8 h-8 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center shrink-0">
                     {selectedRvPatient.firstName[0]}{selectedRvPatient.lastName[0]}
@@ -727,7 +975,6 @@ export default function NurseStation() {
                   <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => { setSelectedRvPatient(null); setRvVisits([]); setShowRvForm(false); }}>Change</Button>
                 </div>
 
-                {/* Existing visits */}
                 {rvLoading ? (
                   <div className="flex items-center justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
                 ) : rvVisits.filter(v => v.status === "scheduled").length > 0 && (
@@ -750,7 +997,6 @@ export default function NurseStation() {
                   </div>
                 )}
 
-                {/* Schedule form toggle */}
                 {!showRvForm ? (
                   <Button type="button" variant="outline" size="sm" className="w-full gap-1.5 text-xs" onClick={() => setShowRvForm(true)}>
                     <Plus className="w-3.5 h-3.5" />
@@ -853,7 +1099,6 @@ export default function NurseStation() {
           </div>
         </div>
 
-        {/* Flag modal */}
         {showFlagModal && selectedFlagPatient && (
           <FollowUpFlagModal
             patientId={selectedFlagPatient.id}
@@ -866,182 +1111,185 @@ export default function NurseStation() {
   );
 }
 
-// ── Department Template UI ───────────────────────────────────────────────────────
+// ── Medication Card ──────────────────────────────────────────────────────────
 
-function DepartmentTemplate({
-  department,
-  templateData,
-  onChange,
-}: {
-  department: string;
-  templateData: Record<string, unknown>;
-  onChange: (data: Record<string, unknown>) => void;
+function MedicationCard({ med, onChange, onRemove }: {
+  med: MedicationRow;
+  onChange: (m: MedicationRow) => void;
+  onRemove: () => void;
 }) {
-  const set = (key: string, value: unknown) => onChange({ ...templateData, [key]: value });
+  const inputCls = "w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+  const set = (key: keyof MedicationRow, val: unknown) => onChange({ ...med, [key]: val });
+  const setTiming = (slot: string, time: string) => {
+    const t = { ...med.timing };
+    if (time) t[slot] = time; else delete t[slot];
+    onChange({ ...med, timing: t });
+  };
 
+  return (
+    <div className="p-3 rounded-lg border border-border bg-background space-y-2">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 grid grid-cols-2 gap-2">
+          <input
+            type="text"
+            placeholder="Drug name *"
+            value={med.name}
+            onChange={e => set("name", e.target.value)}
+            className={inputCls}
+          />
+          <input
+            type="text"
+            placeholder="Dosage (e.g. 500mg)"
+            value={med.dosage}
+            onChange={e => set("dosage", e.target.value)}
+            className={inputCls}
+          />
+        </div>
+        <button type="button" onClick={onRemove} className="p-1.5 mt-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition shrink-0">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-xs text-muted-foreground shrink-0">Duration:</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          placeholder="Days"
+          value={med.durationDays}
+          onChange={e => { const v = e.target.value.replace(/\D/g, ""); set("durationDays", v ? parseInt(v) : ""); }}
+          className={inputCls + " w-20"}
+        />
+        <span className="text-xs text-muted-foreground">days</span>
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground">Dose times (reminder fires at this exact time):</p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+          {TIMING_SLOTS.map(slot => (
+            <div key={slot.value} className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-16 shrink-0">{slot.label}</span>
+              <input
+                type="time"
+                value={med.timing[slot.value] ?? ""}
+                onChange={e => setTiming(slot.value, e.target.value)}
+                className={inputCls + " flex-1"}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Procedure Card ────────────────────────────────────────────────────────────
+
+function ProcedureCard({ proc, onChange, onRemove }: {
+  proc: ProcedureRow;
+  onChange: (p: ProcedureRow) => void;
+  onRemove: () => void;
+}) {
+  const inputCls = "w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+  const set = (key: keyof ProcedureRow, val: unknown) => onChange({ ...proc, [key]: val });
+  const setTiming = (slot: string, time: string) => {
+    const t = { ...proc.timing };
+    if (time) t[slot] = time; else delete t[slot];
+    onChange({ ...proc, timing: t });
+  };
+
+  return (
+    <div className="p-3 rounded-lg border border-border bg-background space-y-2">
+      <div className="flex items-start gap-2">
+        <input
+          type="text"
+          placeholder="Procedure name *"
+          value={proc.name}
+          onChange={e => set("name", e.target.value)}
+          className={inputCls + " flex-1"}
+        />
+        <button type="button" onClick={onRemove} className="p-1.5 mt-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition shrink-0">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-xs text-muted-foreground shrink-0">Duration:</label>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          placeholder="Days"
+          value={proc.durationDays}
+          onChange={e => { const v = e.target.value.replace(/\D/g, ""); set("durationDays", v ? parseInt(v) : ""); }}
+          className={inputCls + " w-20"}
+        />
+        <span className="text-xs text-muted-foreground">days</span>
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground">Visit times (reminder fires 3h before):</p>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+          {TIMING_SLOTS.map(slot => (
+            <div key={slot.value} className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-16 shrink-0">{slot.label}</span>
+              <input
+                type="time"
+                value={proc.timing[slot.value] ?? ""}
+                onChange={e => setTiming(slot.value, e.target.value)}
+                className={inputCls + " flex-1"}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Category Template (specialist departments) ─────────────────────────────
+
+function CategoryTemplate({
+  type, data, onChange,
+}: {
+  type: string;
+  data: Record<string, unknown>;
+  onChange: (d: Record<string, unknown>) => void;
+}) {
+  const set = (key: string, value: unknown) => onChange({ ...data, [key]: value });
   const addRow = (key: string, emptyRow: Record<string, string>) => {
-    const arr = (templateData[key] as ScheduleRow[]) ?? [];
-    onChange({ ...templateData, [key]: [...arr, emptyRow] });
+    onChange({ ...data, [key]: [...((data[key] as ScheduleRow[]) ?? []), emptyRow] });
   };
   const removeRow = (key: string, idx: number) => {
-    const arr = (templateData[key] as ScheduleRow[]) ?? [];
-    onChange({ ...templateData, [key]: arr.filter((_, i) => i !== idx) });
+    onChange({ ...data, [key]: ((data[key] as ScheduleRow[]) ?? []).filter((_, i) => i !== idx) });
   };
   const updateRow = (key: string, idx: number, field: string, val: string) => {
-    const arr = [...((templateData[key] as ScheduleRow[]) ?? [])];
+    const arr = [...((data[key] as ScheduleRow[]) ?? [])];
     arr[idx] = { ...arr[idx], [field]: val };
-    onChange({ ...templateData, [key]: arr });
+    onChange({ ...data, [key]: arr });
   };
 
   const inputCls = "w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
-  if (department === "General Outpatient") {
-    const td = templateData as {
-      treatmentType?: string;
-      medicationTiming?: string[];
-      medicationTimingTimes?: Record<string, string>;
-      hospitalTiming?: string[];
-      hospitalTimingTimes?: Record<string, string>;
-      durationDays?: number;
-    };
-    const toggleArr = (key: "medicationTiming" | "hospitalTiming", val: string) => {
-      const arr = td[key] ?? [];
-      set(key, arr.includes(val) ? arr.filter(v => v !== val) : [...arr, val]);
-    };
-    const setTimingTime = (timesKey: "medicationTimingTimes" | "hospitalTimingTimes", slot: string, time: string) => {
-      const times = { ...(td[timesKey] ?? {}) };
-      times[slot] = time;
-      set(timesKey, times);
-    };
+  if (type === "Antenatal / Maternity") {
+    const rows = (data.ancSchedule as ScheduleRow[]) ?? [];
     return (
-      <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">General Outpatient Details</p>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Treatment Type *</label>
-          <div className="grid grid-cols-3 gap-2">
-            {TREATMENT_TYPES.map(t => (
-              <button
-                key={t.value} type="button"
-                onClick={() => set("treatmentType", t.value)}
-                className={`flex flex-col gap-1 p-3 rounded-lg border text-center text-xs transition-colors ${
-                  td.treatmentType === t.value ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-border/60 text-muted-foreground"
-                }`}
-              >
-                <span className="font-semibold text-sm">{t.label}</span>
-                <span className="leading-snug opacity-80">{t.sub}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        {td.treatmentType === "medication_only" && (
-          <div className="space-y-2 p-3 rounded-lg border border-border bg-background">
-            <p className="text-sm font-medium">Medication Timing</p>
-            <p className="text-xs text-muted-foreground">Enter the time for each dose — reminder fires at the exact time.</p>
-            <div className="space-y-2">
-              {TIMING_OPTIONS.map(t => {
-                const checked = (td.medicationTiming ?? []).includes(t.value);
-                return (
-                  <div key={t.value} className="flex items-center gap-3">
-                    <span className="text-sm w-28 shrink-0 text-muted-foreground">{t.label}</span>
-                    <input type="time"
-                      value={(td.medicationTimingTimes ?? {})[t.value] ?? ""}
-                      onChange={e => {
-                        setTimingTime("medicationTimingTimes", t.value, e.target.value);
-                        const arr = (td.medicationTiming ?? []) as string[];
-                        if (e.target.value && !arr.includes(t.value)) set("medicationTiming", [...arr, t.value]);
-                        if (!e.target.value && arr.includes(t.value)) set("medicationTiming", arr.filter(v => v !== t.value));
-                      }}
-                      className={inputCls + " w-32"} />
-                    {checked && <span className="text-xs text-green-500">✓</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {td.treatmentType === "come_to_hospital" && (
-          <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
-            <p className="text-sm font-medium">Hospital Visit Timing</p>
-            <p className="text-xs text-muted-foreground">Enter the visit time for each slot — reminder fires 3 hours before.</p>
-            <div className="space-y-2">
-              {TIMING_OPTIONS.map(t => {
-                const checked = (td.hospitalTiming ?? []).includes(t.value);
-                return (
-                  <div key={t.value} className="flex items-center gap-3">
-                    <span className="text-sm w-28 shrink-0 text-muted-foreground">{t.label}</span>
-                    <input type="time"
-                      value={(td.hospitalTimingTimes ?? {})[t.value] ?? ""}
-                      onChange={e => {
-                        setTimingTime("hospitalTimingTimes", t.value, e.target.value);
-                        const arr = (td.hospitalTiming ?? []) as string[];
-                        if (e.target.value && !arr.includes(t.value)) set("hospitalTiming", [...arr, t.value]);
-                        if (!e.target.value && arr.includes(t.value)) set("hospitalTiming", arr.filter(v => v !== t.value));
-                      }}
-                      className={inputCls + " w-32"} />
-                    {checked && <span className="text-xs text-green-500">✓</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {td.treatmentType === "combination" && (
-          <div className="space-y-2 p-3 rounded-lg border border-primary/20 bg-primary/5">
-            <p className="text-sm font-medium">Visit & Medication Timing</p>
-            <p className="text-xs text-muted-foreground">Enter the appointment time for each slot — reminder fires 2 hours before.</p>
-            <div className="space-y-2">
-              {TIMING_OPTIONS.map(t => {
-                const checked = (td.medicationTiming ?? []).includes(t.value);
-                return (
-                  <div key={t.value} className="flex items-center gap-3">
-                    <span className="text-sm w-28 shrink-0 text-muted-foreground">{t.label}</span>
-                    <input type="time"
-                      value={(td.medicationTimingTimes ?? {})[t.value] ?? ""}
-                      onChange={e => {
-                        setTimingTime("medicationTimingTimes", t.value, e.target.value);
-                        const arr = (td.medicationTiming ?? []) as string[];
-                        if (e.target.value && !arr.includes(t.value)) set("medicationTiming", [...arr, t.value]);
-                        if (!e.target.value && arr.includes(t.value)) set("medicationTiming", arr.filter(v => v !== t.value));
-                      }}
-                      className={inputCls + " w-32"} />
-                    {checked && <span className="text-xs text-green-500">✓</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+      <div className="space-y-3">
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">Duration (days) *</label>
-          <input type="text" inputMode="numeric" pattern="[0-9]*" value={td.durationDays ?? ""} onChange={e => { const v = e.target.value.replace(/\D/g, ""); set("durationDays", v ? parseInt(v) : ""); }} className={inputCls} placeholder="e.g. 14" required />
-        </div>
-      </div>
-    );
-  }
-
-  if (department === "Antenatal / Maternity") {
-    const rows = (templateData.ancSchedule as ScheduleRow[]) ?? [];
-    return (
-      <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Antenatal / Maternity Details</p>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Current Week of Pregnancy</label>
-          <input type="text" value={(templateData.currentWeek as string) ?? ""} onChange={e => set("currentWeek", e.target.value)} className={inputCls} placeholder="e.g. 24" />
+          <label className="text-xs font-medium text-muted-foreground">Current Week of Pregnancy</label>
+          <input type="text" value={(data.currentWeek as string) ?? ""} onChange={e => set("currentWeek", e.target.value)} className={inputCls} placeholder="e.g. 24" />
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">ANC Schedule</p>
+            <p className="text-xs font-medium text-muted-foreground">ANC Schedule</p>
             <button type="button" onClick={() => addRow("ancSchedule", { weekNumber: "", whatHappens: "", date: "", time: "" })} className="flex items-center gap-1 text-xs text-primary hover:underline">
-              <Plus className="w-3 h-3" />Add visit
+              <Plus className="w-3 h-3" />Add
             </button>
           </div>
           {rows.map((row, i) => (
-            <div key={i} className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-2 items-start">
+            <div key={i} className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-1.5 items-start">
               <input type="text" value={row.whatHappens} onChange={e => updateRow("ancSchedule", i, "whatHappens", e.target.value)} className={inputCls} placeholder="What happens" />
               <input type="text" value={row.weekNumber} onChange={e => updateRow("ancSchedule", i, "weekNumber", e.target.value)} className={inputCls} placeholder="Week #" />
               <input type="date" value={row.date} onChange={e => updateRow("ancSchedule", i, "date", e.target.value)} className={inputCls} />
-              <input type="time" value={row.time ?? ""} onChange={e => updateRow("ancSchedule", i, "time", e.target.value)} className={inputCls + " w-28"} />
-              {rows.length > 1 && <button type="button" onClick={() => removeRow("ancSchedule", i)} className="mt-1.5 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition"><X className="w-3.5 h-3.5" /></button>}
+              <input type="time" value={row.time ?? ""} onChange={e => updateRow("ancSchedule", i, "time", e.target.value)} className={inputCls + " w-24"} />
+              {rows.length > 1 && <button type="button" onClick={() => removeRow("ancSchedule", i)} className="mt-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>}
             </div>
           ))}
         </div>
@@ -1049,29 +1297,28 @@ function DepartmentTemplate({
     );
   }
 
-  if (department === "Paediatrics") {
-    const rows = (templateData.vaccinationSchedule as ScheduleRow[]) ?? [];
+  if (type === "Paediatrics") {
+    const rows = (data.vaccinationSchedule as ScheduleRow[]) ?? [];
     return (
-      <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Paediatrics Details</p>
+      <div className="space-y-3">
         <div className="space-y-1.5">
-          <label className="text-sm font-medium">Child's Age</label>
-          <input type="text" value={(templateData.childAge as string) ?? ""} onChange={e => set("childAge", e.target.value)} className={inputCls} placeholder="e.g. 3 months" />
+          <label className="text-xs font-medium text-muted-foreground">Child's Age</label>
+          <input type="text" value={(data.childAge as string) ?? ""} onChange={e => set("childAge", e.target.value)} className={inputCls} placeholder="e.g. 3 months" />
         </div>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Vaccination Schedule</p>
+            <p className="text-xs font-medium text-muted-foreground">Vaccination Schedule</p>
             <button type="button" onClick={() => addRow("vaccinationSchedule", { ageAtVaccination: "", vaccinationName: "", date: "", time: "" })} className="flex items-center gap-1 text-xs text-primary hover:underline">
-              <Plus className="w-3 h-3" />Add vaccine
+              <Plus className="w-3 h-3" />Add
             </button>
           </div>
           {rows.map((row, i) => (
-            <div key={i} className="grid grid-cols-[1fr_2fr_auto_auto_auto] gap-2 items-start">
+            <div key={i} className="grid grid-cols-[1fr_2fr_auto_auto_auto] gap-1.5 items-start">
               <input type="text" value={row.ageAtVaccination} onChange={e => updateRow("vaccinationSchedule", i, "ageAtVaccination", e.target.value)} className={inputCls} placeholder="Age" />
               <input type="text" value={row.vaccinationName} onChange={e => updateRow("vaccinationSchedule", i, "vaccinationName", e.target.value)} className={inputCls} placeholder="Vaccine name" />
               <input type="date" value={row.date} onChange={e => updateRow("vaccinationSchedule", i, "date", e.target.value)} className={inputCls} />
-              <input type="time" value={row.time ?? ""} onChange={e => updateRow("vaccinationSchedule", i, "time", e.target.value)} className={inputCls + " w-28"} />
-              {rows.length > 1 && <button type="button" onClick={() => removeRow("vaccinationSchedule", i)} className="mt-1.5 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition"><X className="w-3.5 h-3.5" /></button>}
+              <input type="time" value={row.time ?? ""} onChange={e => updateRow("vaccinationSchedule", i, "time", e.target.value)} className={inputCls + " w-24"} />
+              {rows.length > 1 && <button type="button" onClick={() => removeRow("vaccinationSchedule", i)} className="mt-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>}
             </div>
           ))}
         </div>
@@ -1079,83 +1326,54 @@ function DepartmentTemplate({
     );
   }
 
-  if (department === "Surgery / Post-Op") {
-    const rows = (templateData.inCareSchedule as ScheduleRow[]) ?? [];
+  if (type === "Surgery / Post-Op") {
+    const rows = (data.inCareSchedule as ScheduleRow[]) ?? [];
     return (
-      <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Surgery / Post-Op Details</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Procedure Date</label>
-            <input type="date" value={(templateData.procedureDate as string) ?? ""} onChange={e => set("procedureDate", e.target.value)} className={inputCls} />
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Procedure Date</label>
+            <input type="date" value={(data.procedureDate as string) ?? ""} onChange={e => set("procedureDate", e.target.value)} className={inputCls} />
           </div>
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Procedure Time</label>
-            <input type="time" value={(templateData.procedureTime as string) ?? ""} onChange={e => set("procedureTime", e.target.value)} className={inputCls} />
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Procedure Time</label>
+            <input type="time" value={(data.procedureTime as string) ?? ""} onChange={e => set("procedureTime", e.target.value)} className={inputCls} />
           </div>
         </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">Procedure Type</label>
-          <select value={(templateData.procedureType as string) ?? ""} onChange={e => set("procedureType", e.target.value)} className={inputCls}>
-            <option value="">Select type…</option>
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-muted-foreground">Procedure Type</label>
+          <select value={(data.procedureType as string) ?? ""} onChange={e => set("procedureType", e.target.value)} className={inputCls}>
+            <option value="">Select…</option>
             <option value="Minor">Minor</option>
             <option value="Major">Major</option>
           </select>
         </div>
-        <InCareScheduleRows dept={department} rows={rows} rowKey="inCareSchedule" col2Key="whatHappens" col2Label="What happens" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />
+        <InCareRows rows={rows} rowKey="inCareSchedule" col2Key="whatHappens" col2Label="What happens" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />
       </div>
     );
   }
 
-  if (department === "Dental") {
-    const rows = (templateData.inCareSchedule as ScheduleRow[]) ?? [];
-    return (
-      <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Dental Details</p>
-        <InCareScheduleRows dept={department} rows={rows} rowKey="inCareSchedule" col2Key="treatmentType" col2Label="Treatment" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />
-      </div>
-    );
-  }
+  const simpleScheduleMap: Record<string, { col2Key: string; col2Label: string }> = {
+    "Dental": { col2Key: "treatmentType", col2Label: "Treatment" },
+    "Eye": { col2Key: "action", col2Label: "Action / Notes" },
+    "Fertility / IVF": { col2Key: "whatHappens", col2Label: "What happens" },
+    "ENT (Ear, Nose and Throat)": { col2Key: "treatmentType", col2Label: "Treatment / Action" },
+  };
 
-  if (department === "Eye") {
-    const rows = (templateData.inCareSchedule as ScheduleRow[]) ?? [];
-    return (
-      <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Eye Clinic Details</p>
-        <InCareScheduleRows dept={department} rows={rows} rowKey="inCareSchedule" col2Key="action" col2Label="Action / Notes" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />
-      </div>
-    );
-  }
-
-  if (department === "Fertility / IVF") {
-    const rows = (templateData.inCareSchedule as ScheduleRow[]) ?? [];
-    return (
-      <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Fertility / IVF Details</p>
-        <InCareScheduleRows dept={department} rows={rows} rowKey="inCareSchedule" col2Key="whatHappens" col2Label="What happens" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />
-      </div>
-    );
-  }
-
-  if (department === "ENT (Ear, Nose and Throat)") {
-    const rows = (templateData.inCareSchedule as ScheduleRow[]) ?? [];
-    return (
-      <div className="space-y-4 p-4 rounded-lg border border-border bg-muted/20">
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">ENT — Ear, Nose and Throat Details</p>
-        <InCareScheduleRows dept={department} rows={rows} rowKey="inCareSchedule" col2Key="treatmentType" col2Label="Treatment / Action" addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />
-      </div>
-    );
+  if (simpleScheduleMap[type]) {
+    const rows = (data.inCareSchedule as ScheduleRow[]) ?? [];
+    const { col2Key, col2Label } = simpleScheduleMap[type];
+    return <InCareRows rows={rows} rowKey="inCareSchedule" col2Key={col2Key} col2Label={col2Label} addRow={addRow} removeRow={removeRow} updateRow={updateRow} inputCls={inputCls} />;
   }
 
   return null;
 }
 
-// ── Reusable In-Care Schedule Rows ───────────────────────────────────────────────
+// ── In-Care Schedule Rows (reusable) ─────────────────────────────────────────
 
-function InCareScheduleRows({
-  dept, rows, rowKey, col2Key, col2Label, addRow, removeRow, updateRow, inputCls,
+function InCareRows({
+  rows, rowKey, col2Key, col2Label, addRow, removeRow, updateRow, inputCls,
 }: {
-  dept: string;
   rows: ScheduleRow[];
   rowKey: string;
   col2Key: string;
@@ -1165,105 +1383,67 @@ function InCareScheduleRows({
   updateRow: (key: string, idx: number, field: string, val: string) => void;
   inputCls: string;
 }) {
-  const emptyRow = { date: "", time: "", [col2Key]: "" };
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">In-Care Schedule</p>
-        <button type="button" onClick={() => addRow(rowKey, emptyRow)} className="flex items-center gap-1 text-xs text-primary hover:underline">
+        <p className="text-xs font-medium text-muted-foreground">In-Care Schedule</p>
+        <button type="button" onClick={() => addRow(rowKey, { date: "", time: "", [col2Key]: "" })} className="flex items-center gap-1 text-xs text-primary hover:underline">
           <Plus className="w-3 h-3" />Add visit
         </button>
       </div>
       {rows.map((row, i) => (
-        <div key={i} className="grid grid-cols-[auto_auto_1fr_auto] gap-2 items-start">
+        <div key={i} className="grid grid-cols-[auto_auto_1fr_auto] gap-1.5 items-start">
           <input type="date" value={row.date} onChange={e => updateRow(rowKey, i, "date", e.target.value)} className={inputCls} />
-          <input type="time" value={row.time ?? ""} onChange={e => updateRow(rowKey, i, "time", e.target.value)} className={inputCls + " w-28"} />
+          <input type="time" value={row.time ?? ""} onChange={e => updateRow(rowKey, i, "time", e.target.value)} className={inputCls + " w-24"} />
           <input type="text" value={row[col2Key]} onChange={e => updateRow(rowKey, i, col2Key, e.target.value)} className={inputCls} placeholder={col2Label} />
-          {rows.length > 1 && <button type="button" onClick={() => removeRow(rowKey, i)} className="mt-1.5 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition"><X className="w-3.5 h-3.5" /></button>}
+          {rows.length > 1 && <button type="button" onClick={() => removeRow(rowKey, i)} className="mt-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>}
         </div>
       ))}
     </div>
   );
 }
 
-// ── Plan Details Read-Only Display ───────────────────────────────────────────────
+// ── Plan Details Read-Only Display ───────────────────────────────────────────
 
-function PlanTemplateDetails({ dept, data }: { dept: string; data: Record<string, unknown> }) {
-  if (dept === "General Outpatient") {
-    const d = data as {
-      treatmentType?: string;
-      medicationTiming?: string[];
-      medicationTimingTimes?: Record<string, string>;
-      hospitalTiming?: string[];
-      hospitalTimingTimes?: Record<string, string>;
-      durationDays?: number;
-    };
-    const fmtSlots = (slots: string[], times: Record<string, string>) =>
-      slots.map(s => times[s] ? `${s} @ ${times[s]}` : s).join(", ");
-    const medSlots = d.medicationTiming ?? [];
-    const hospSlots = d.hospitalTiming ?? [];
-    const medTimes = d.medicationTimingTimes ?? {};
-    const hospTimes = d.hospitalTimingTimes ?? {};
-    return (
-      <div className="text-xs text-muted-foreground space-y-1 mt-1">
-        {d.treatmentType && <p>Type: <span className="text-foreground capitalize">{d.treatmentType.replace(/_/g, " ")}</span></p>}
-        {d.durationDays && <p>Duration: <span className="text-foreground">{d.durationDays} day{d.durationDays !== 1 ? "s" : ""}</span></p>}
-        {d.treatmentType === "combination" && medSlots.length > 0 && (
-          <p>Appointment timing: <span className="text-foreground">{fmtSlots(medSlots, medTimes)}</span></p>
-        )}
-        {d.treatmentType === "medication_only" && medSlots.length > 0 && (
-          <p>Medication timing: <span className="text-foreground">{fmtSlots(medSlots, medTimes)}</span></p>
-        )}
-        {d.treatmentType === "come_to_hospital" && hospSlots.length > 0 && (
-          <p>Hospital visits: <span className="text-foreground">{fmtSlots(hospSlots, hospTimes)}</span></p>
-        )}
-      </div>
-    );
-  }
-  if (dept === "Antenatal / Maternity") {
-    const d = data as { currentWeek?: string; ancSchedule?: Array<{ weekNumber: string; whatHappens: string; date: string }> };
-    return (
-      <div className="text-xs text-muted-foreground space-y-1 mt-1">
-        {d.currentWeek && <p>Current week: <span className="text-foreground">{d.currentWeek}</span></p>}
-        {(d.ancSchedule ?? []).filter(r => r.weekNumber || r.whatHappens).map((r, i) => (
-          <p key={i}>Week {r.weekNumber}: <span className="text-foreground">{r.whatHappens}</span>{r.date ? ` — ${r.date}` : ""}</p>
-        ))}
-      </div>
-    );
-  }
-  if (dept === "Paediatrics") {
-    const d = data as { childAge?: string; vaccinationSchedule?: Array<{ ageAtVaccination: string; vaccinationName: string; date: string }> };
-    return (
-      <div className="text-xs text-muted-foreground space-y-1 mt-1">
-        {d.childAge && <p>Child age: <span className="text-foreground">{d.childAge}</span></p>}
-        {(d.vaccinationSchedule ?? []).filter(r => r.vaccinationName).map((r, i) => (
-          <p key={i}><span className="text-foreground">{r.vaccinationName}</span> at {r.ageAtVaccination}{r.date ? ` — ${r.date}` : ""}</p>
-        ))}
-      </div>
-    );
-  }
-  if (dept === "Surgery / Post-Op") {
-    const d = data as { procedureDate?: string; procedureType?: string; inCareSchedule?: Array<{ date: string; whatHappens: string }> };
-    return (
-      <div className="text-xs text-muted-foreground space-y-1 mt-1">
-        {d.procedureType && <p>Procedure: <span className="text-foreground">{d.procedureType}</span>{d.procedureDate ? ` on ${d.procedureDate}` : ""}</p>}
-        {(d.inCareSchedule ?? []).filter(r => r.whatHappens).map((r, i) => (
-          <p key={i}>{r.date}: <span className="text-foreground">{r.whatHappens}</span></p>
-        ))}
-      </div>
-    );
-  }
-  // Dental / Eye / Fertility / IVF
-  const schedule = data.inCareSchedule as Array<{ date: string; [k: string]: string }> | undefined;
-  if (schedule) {
-    return (
-      <div className="text-xs text-muted-foreground space-y-1 mt-1">
-        {schedule.filter(r => Object.values(r).some(v => v)).map((r, i) => {
-          const detail = Object.entries(r).filter(([k]) => k !== "date").map(([, v]) => v).filter(Boolean).join(" ");
-          return <p key={i}>{r.date}: <span className="text-foreground">{detail}</span></p>;
-        })}
-      </div>
-    );
-  }
-  return null;
+function PlanDetails({ plan }: { plan: CarePlan }) {
+  const td = plan.templateData ?? {};
+  const meds = (td.medications as MedicationRow[] | undefined) ?? [];
+  const procs = (td.procedures as ProcedureRow[] | undefined) ?? [];
+  const cats = (td.categories as CategoryEntry[] | undefined) ?? [];
+
+  const hasNewFormat = meds.length > 0 || procs.length > 0 || cats.length > 0;
+  if (!hasNewFormat) return null;
+
+  return (
+    <div className="text-xs text-muted-foreground space-y-2 mt-1">
+      {meds.length > 0 && (
+        <div>
+          <p className="font-medium text-foreground/80 mb-1">Medications</p>
+          {meds.map((m, i) => (
+            <p key={i}>
+              <span className="text-foreground">{m.name}</span>
+              {m.dosage ? ` ${m.dosage}` : ""}
+              {m.durationDays ? ` · ${m.durationDays} days` : ""}
+              {Object.keys(m.timing ?? {}).length > 0 ? ` · ${Object.entries(m.timing).map(([slot, time]) => `${slot} @ ${time}`).join(", ")}` : ""}
+            </p>
+          ))}
+        </div>
+      )}
+      {procs.length > 0 && (
+        <div>
+          <p className="font-medium text-foreground/80 mb-1">Procedures</p>
+          {procs.map((p, i) => (
+            <p key={i}>
+              <span className="text-foreground">{p.name}</span>
+              {p.durationDays ? ` · ${p.durationDays} days` : ""}
+              {Object.keys(p.timing ?? {}).length > 0 ? ` · visit @ ${Object.values(p.timing).join(", ")}` : ""}
+            </p>
+          ))}
+        </div>
+      )}
+      {cats.length > 0 && (
+        <p>Categories: <span className="text-foreground">{cats.map(c => c.type).join(", ")}</span></p>
+      )}
+    </div>
+  );
 }

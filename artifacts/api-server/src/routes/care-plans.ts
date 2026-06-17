@@ -14,9 +14,20 @@ async function resolveHospitalIntId(hospitalCode: string): Promise<number | null
   return data?.id ?? null;
 }
 
-const CarePlanBody = z.object({
-  summary: z.string().min(1),
-  department: z.string().min(1),
+// ── Schemas ────────────────────────────────────────────────────────────────────
+
+// Used for POST (create) — all fields optional; plan starts as "open"
+const CreatePlanBody = z.object({
+  summary: z.string().optional(),
+  beneficiaryName: z.string().optional(),
+  beneficiaryEmail: z.string().email().optional().or(z.literal("")),
+  beneficiaryRelationship: z.string().optional(),
+}).optional();
+
+// Used for PATCH (update) — all optional so partial updates are allowed
+const UpdatePlanBody = z.object({
+  summary: z.string().optional(),
+  department: z.string().optional(),
   templateData: z.any().optional(),
   beneficiaryName: z.string().optional(),
   beneficiaryEmail: z.string().email().optional().or(z.literal("")),
@@ -24,9 +35,8 @@ const CarePlanBody = z.object({
 });
 
 // ── List care plans for a patient ──────────────────────────────────────────────
-// Includes a lazy migration: if the patient has no care_plans rows but has a
-// treatment_plan written to the patients table (old data), a real care_plans row
-// is created from that legacy data so the "End Early" button and history display work.
+// Lazy migration: if no care_plans rows exist but patient has legacy treatment_plan
+// on the patients table, a care_plans row is created from that legacy data.
 router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const patientId = parseInt(req.params.id, 10);
   if (isNaN(patientId)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -45,9 +55,8 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
 
   // Lazy migration: old patients have treatment_plan on the patients row but no
   // care_plans rows yet. Create one now so the new UI works transparently.
-  // Only trigger if there are no ACTIVE plans (ended plans don't count).
-  const activePlans = (data ?? []).filter((p: Record<string, unknown>) => p.status !== "ended");
-  if (activePlans.length === 0 && (data ?? []).length === 0) {
+  const nonEndedPlans = (data ?? []).filter((p: Record<string, unknown>) => p.status !== "ended");
+  if (nonEndedPlans.length === 0 && (data ?? []).length === 0) {
     const { data: patient } = await supabase
       .from("patients")
       .select("treatment_plan, treatment_type, department, treatment_started_at, treatment_end_date, hospital_id, first_name, last_name")
@@ -60,7 +69,6 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
       const summary = patient.treatment_plan as string;
       const treatmentEndDate = patient.treatment_end_date as string | null;
       const today = new Date().toISOString().split("T")[0];
-      // If treatment_end_date exists and has already passed, the plan is ended
       const isEnded = !!treatmentEndDate && treatmentEndDate <= today;
 
       const { data: migrated, error: mErr } = await supabase.from("care_plans").insert({
@@ -86,7 +94,9 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
   res.json(camelizeArr(data ?? []));
 });
 
-// ── Create a care plan ─────────────────────────────────────────────────────────
+// ── Create a care plan (opens a draft) ────────────────────────────────────────
+// Plan starts as "open" — no automations fire until POST /care-plans/:id/close.
+// Doctor calls this from the queue to hand off to nurse/pharmacist for filling.
 router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const patientId = parseInt(req.params.id, 10);
   if (isNaN(patientId)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -94,120 +104,62 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const parsed = CarePlanBody.safeParse(req.body);
+  const parsed = CreatePlanBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { data: patient } = await supabase.from("patients").select("*").eq("id", patientId).eq("hospital_id", hospital.code).single();
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
 
   const now = new Date();
+  const body = parsed.data ?? {};
 
-  // Insert the care plan
   const { data: plan, error: planErr } = await supabase.from("care_plans").insert({
     patient_id: patientId,
     hospital_id: hospital.code,
-    summary: parsed.data.summary,
-    department: parsed.data.department,
-    template_data: parsed.data.templateData,
-    beneficiary_name: parsed.data.beneficiaryName || null,
-    beneficiary_email: parsed.data.beneficiaryEmail || null,
-    beneficiary_relationship: parsed.data.beneficiaryRelationship?.trim() || null,
-    status: "active",
+    summary: body.summary?.trim() || "",
+    department: null,
+    template_data: { medications: [], procedures: [], categories: [] },
+    beneficiary_name: body.beneficiaryName || null,
+    beneficiary_email: body.beneficiaryEmail || null,
+    beneficiary_relationship: body.beneficiaryRelationship?.trim() || null,
+    status: "open",
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
   }).select().single();
 
   if (planErr || !plan) { res.status(500).json({ error: planErr?.message ?? "Failed to create care plan" }); return; }
 
-  // If General Outpatient, compute treatment end date from templateData duration
-  const isGeneralOutpatient = parsed.data.department === "General Outpatient";
-  const durationDays = isGeneralOutpatient
-    ? (parsed.data.templateData?.durationDays as number | undefined) ?? 1
-    : 1;
-  const treatmentEndDate = new Date(now);
-  treatmentEndDate.setDate(treatmentEndDate.getDate() + durationDays);
-
-  // "In Care" is a derived badge (from hasCarePlan), never a stored stage value.
-  // Only transition stage when the patient is still "New" — move them to "Active"
-  // so they graduate out of the onboarding state. All other stages are preserved:
-  //   Active/Dormant → stays (In Care overlay will appear from hasCarePlan)
-  //   Post Treatment → stays (both Post Treatment + In Care badges will show)
-  //   In Care (legacy) → stays (already handled by getPatientStages)
+  // Move patient from New → Active so they graduate out of onboarding.
+  // Other stages (Active, Dormant, Post Treatment) are preserved.
   if (!patient.stage || patient.stage === "New") {
-    const { error: stageErr } = await supabase.from("patients")
+    await supabase.from("patients")
       .update({ stage: "Active", updated_at: now.toISOString() })
       .eq("id", patientId).eq("hospital_id", hospital.code);
-    if (stageErr) console.error("[care-plans] stage update failed:", stageErr);
   }
-
-  const { error: metaErr } = await supabase.from("patients").update({
-    treatment_plan: parsed.data.summary,
-    treatment_type: isGeneralOutpatient ? ((parsed.data.templateData?.treatmentType as string) ?? null) : parsed.data.department,
-    medication_timing: isGeneralOutpatient
-      ? buildTimingString(parsed.data.templateData as GeneralOutpatientData)
-      : null,
-    department: parsed.data.department,
-    treatment_started_at: now.toISOString(),
-    treatment_duration_days: durationDays,
-    // Only GenOut has meaningful treatment_end_date; other departments use null.
-    treatment_end_date: isGeneralOutpatient ? treatmentEndDate.toISOString().split("T")[0] : null,
-    pre_queue_stage: null,
-  }).eq("id", patientId).eq("hospital_id", hospital.code);
-  if (metaErr) console.error("[care-plans] metadata update failed:", metaErr);
 
   // Remove from queue (patient is now admitted to care)
   await supabase.from("queue").delete().eq("patient_id", patientId);
 
-  // Log activity
   const patientName = `${patient.first_name} ${patient.last_name}`;
   const createdBy = (req.headers["x-performed-by"] as string | undefined) || null;
   const hospitalIntId = await resolveHospitalIntId(hospital.code);
+
   await supabase.from("activity").insert({
     type: "care_plan_added",
-    description: `Care plan added for ${patientName} (${parsed.data.department})`,
+    description: `Treatment plan opened for ${patientName}`,
     patient_id: patientId,
     patient_name: patientName,
     hospital_id: hospitalIntId,
-    metadata: parsed.data.summary.slice(0, 200),
+    metadata: "draft",
     performed_by: createdBy,
   });
-
-  // Fire automations: WhatsApp notification fires immediately;
-  // care plan summary EMAIL is delayed 20 minutes via the scheduler
-  // (so minor adjustments can be made before the patient receives it)
-  if (hospitalIntId) {
-    const phone = (patient.whatsapp_number as string) || (patient.phone as string);
-    if (phone) {
-      sendCarePlanNotification(hospitalIntId, patientId, patientName, phone).catch(() => {});
-    }
-    // GP only: pre-generate reminder messages for all slots once — scheduler reads these instead of calling AI daily
-    if (isGeneralOutpatient) {
-      generateCarePlanMessages(
-        (plan as Record<string, unknown>).id as number,
-        hospitalIntId,
-        patientName,
-        parsed.data.summary,
-        (parsed.data.templateData as Record<string, unknown>) ?? {},
-      ).catch(() => {});
-    }
-
-    // ERA app: push care plan into patient's wellness modules + rebuild their planner
-    void pushEraPlanIntegration({
-      planId: (plan as Record<string, unknown>).id as number,
-      patientId: patientId,
-      hospitalIntId,
-      summary: parsed.data.summary,
-      department: parsed.data.department,
-      templateData: (parsed.data.templateData as Record<string, unknown>) ?? undefined,
-      durationDays: durationDays,
-      startDate: now.toISOString().split("T")[0],
-    });
-  }
 
   res.status(201).json(camelize(plan));
 });
 
-// ── Update a care plan ─────────────────────────────────────────────────────────
+// ── Update a care plan (save draft or edit active plan) ───────────────────────
+// "open" plans: save content, no notifications.
+// "active" plans: save content + push ERA update notification to patient.
 router.patch("/care-plans/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -215,69 +167,206 @@ router.patch("/care-plans/:id", async (req, res): Promise<void> => {
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  const parsed = CarePlanBody.safeParse(req.body);
+  const parsed = UpdatePlanBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const { data: existing } = await supabase.from("care_plans").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!existing) { res.status(404).json({ error: "Care plan not found" }); return; }
 
+  if (existing.status === "ended") {
+    res.status(409).json({ error: "Cannot edit an ended care plan" }); return;
+  }
+
   const { data: updated, error } = await supabase.from("care_plans").update({
-    summary: parsed.data.summary,
-    department: parsed.data.department,
-    template_data: parsed.data.templateData,
-    beneficiary_name: parsed.data.beneficiaryName ?? (existing.beneficiary_name as string | null),
-    beneficiary_email: parsed.data.beneficiaryEmail ?? (existing.beneficiary_email as string | null),
-    beneficiary_relationship: parsed.data.beneficiaryRelationship?.trim() ?? (existing.beneficiary_relationship as string | null),
+    ...(parsed.data.summary !== undefined && { summary: parsed.data.summary }),
+    ...(parsed.data.department !== undefined && { department: parsed.data.department }),
+    ...(parsed.data.templateData !== undefined && { template_data: parsed.data.templateData }),
+    ...(parsed.data.beneficiaryName !== undefined && { beneficiary_name: parsed.data.beneficiaryName ?? null }),
+    ...(parsed.data.beneficiaryEmail !== undefined && { beneficiary_email: parsed.data.beneficiaryEmail ?? null }),
+    ...(parsed.data.beneficiaryRelationship !== undefined && { beneficiary_relationship: parsed.data.beneficiaryRelationship?.trim() ?? null }),
     updated_at: new Date().toISOString(),
   }).eq("id", id).select().single();
 
   if (error || !updated) { res.status(500).json({ error: error?.message ?? "Update failed" }); return; }
 
-  // Also update patient's treatment_plan to the summary of the most-recently-updated plan
-  await supabase.from("patients").update({
-    treatment_plan: parsed.data.summary,
-    department: parsed.data.department,
-    updated_at: new Date().toISOString(),
-  }).eq("id", existing.patient_id as number);
+  // For already-active plans: push an ERA in-app update notification
+  if (existing.status === "active") {
+    const hospitalIntId = await resolveHospitalIntId(hospital.code);
+    if (hospitalIntId) {
+      const patientId = existing.patient_id as number;
+      const { data: conn } = await supabase
+        .from("patient_hospital_connections")
+        .select("account_id")
+        .eq("patient_record_id", patientId)
+        .eq("hospital_id", hospitalIntId)
+        .maybeSingle();
+      if (conn?.account_id) {
+        const { data: hosp } = await supabase.from("hospitals").select("name").eq("id", hospitalIntId).maybeSingle();
+        await supabase.from("patient_notifications").insert({
+          account_id: conn.account_id as number,
+          type: "plan_updated",
+          title: "Your treatment plan has been updated",
+          body: `${(hosp?.name as string | null) ?? "Your hospital"} has updated your care plan. Review the latest details in your ERA app.`,
+          metadata: { planId: id, hospitalId: hospitalIntId },
+        });
+      }
 
-  const hospitalIntIdForRegen = await resolveHospitalIntId(hospital.code);
-  if (hospitalIntIdForRegen) {
-    const { data: patientForRegen } = await supabase.from("patients").select("first_name, last_name").eq("id", existing.patient_id as number).maybeSingle();
-    const patientNameForRegen = patientForRegen ? `${patientForRegen.first_name} ${patientForRegen.last_name}` : "Patient";
+      // Regenerate messages if this is an old-format GenOut plan
+      const td = (updated.template_data ?? {}) as Record<string, unknown>;
+      if (updated.department === "General Outpatient" && td.treatmentType) {
+        const { data: patientRow } = await supabase.from("patients").select("first_name, last_name").eq("id", patientId).maybeSingle();
+        const patientName = patientRow ? `${patientRow.first_name} ${patientRow.last_name}` : "Patient";
+        generateCarePlanMessages(id, hospitalIntId, patientName, updated.summary as string, td).catch(() => {});
+      }
 
-    // GP only: regenerate pre-stored reminder messages to reflect the edited plan
-    if (parsed.data.department === "General Outpatient") {
-      generateCarePlanMessages(
-        id,
-        hospitalIntIdForRegen,
-        patientNameForRegen,
-        parsed.data.summary,
-        (parsed.data.templateData as Record<string, unknown>) ?? {},
-      ).catch(() => {});
+      // Re-sync ERA wellness modules
+      const durationDays = (updated.department === "General Outpatient")
+        ? (((updated.template_data as Record<string, unknown>)?.durationDays as number) ?? 7)
+        : 30;
+      const { data: patientRow } = await supabase.from("patients").select("first_name, last_name").eq("id", patientId).maybeSingle();
+      const patientName = patientRow ? `${patientRow.first_name} ${patientRow.last_name}` : "Patient";
+      void pushEraPlanIntegration({
+        planId: id,
+        patientId,
+        hospitalIntId,
+        summary: updated.summary as string,
+        department: (updated.department as string | null) ?? "General Outpatient",
+        templateData: td,
+        durationDays,
+        startDate: new Date().toISOString().split("T")[0],
+      });
     }
-
-    // ERA app: re-sync the updated plan into patient's wellness modules + planner
-    const durationDaysForUpdate = parsed.data.department === "General Outpatient"
-      ? ((parsed.data.templateData as GeneralOutpatientData)?.durationDays ?? 7)
-      : 30;
-    void pushEraPlanIntegration({
-      planId: id,
-      patientId: existing.patient_id as number,
-      hospitalIntId: hospitalIntIdForRegen,
-      summary: parsed.data.summary,
-      department: parsed.data.department,
-      templateData: (parsed.data.templateData as Record<string, unknown>) ?? undefined,
-      durationDays: durationDaysForUpdate,
-      startDate: new Date().toISOString().split("T")[0],
-    });
   }
 
   res.json(camelize(updated));
 });
 
+// ── Close a treatment plan — fires all automations ────────────────────────────
+// Call this when the plan is fully filled. Status moves from "open" → "active".
+// All patient notifications fire here — nothing fires on save-draft or create.
+router.post("/care-plans/:id/close", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const hospital = await getHospitalFromRequest(req);
+  if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const { data: existing } = await supabase.from("care_plans").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
+  if (!existing) { res.status(404).json({ error: "Care plan not found" }); return; }
+  if (existing.status !== "open") { res.status(409).json({ error: "Plan is not in draft state" }); return; }
+
+  const { summary: bodySummary } = (req.body ?? {}) as { summary?: string };
+  const now = new Date();
+  const td = (existing.template_data ?? {}) as Record<string, unknown>;
+
+  const finalSummary = bodySummary?.trim() || (existing.summary as string) || "";
+
+  // Derive department from template data
+  const categories = (td.categories as Array<{ type: string }> | undefined) ?? [];
+  const medications = (td.medications as Array<{ durationDays?: number; name?: string; timing?: Record<string, string> }> | undefined) ?? [];
+  const procedures = (td.procedures as Array<{ durationDays?: number; name?: string; timing?: Record<string, string> }> | undefined) ?? [];
+  const hasMeds = medications.length > 0;
+  const hasProcs = procedures.length > 0;
+
+  let department = existing.department as string | null;
+  if (!department) {
+    if (categories.length === 1) {
+      department = categories[0].type;
+    } else if (categories.length > 1) {
+      department = "Multiple";
+    } else {
+      department = "General Outpatient";
+    }
+  }
+
+  // Compute treatment duration: max of all medication/procedure durations
+  const allDurations = [...medications, ...procedures]
+    .map(i => i.durationDays ?? 0)
+    .filter(d => d > 0);
+  const durationDays = allDurations.length > 0 ? Math.max(...allDurations) : 1;
+  const treatmentEndDate = new Date(now);
+  treatmentEndDate.setDate(treatmentEndDate.getDate() + durationDays);
+
+  const { data: closed, error: closeErr } = await supabase.from("care_plans").update({
+    status: "active",
+    summary: finalSummary,
+    department,
+    updated_at: now.toISOString(),
+  }).eq("id", id).select().single();
+
+  if (closeErr || !closed) { res.status(500).json({ error: closeErr?.message ?? "Failed to close plan" }); return; }
+
+  const patientId = existing.patient_id as number;
+
+  // Update patient treatment metadata
+  const treatmentType = hasMeds && hasProcs ? "combination" : hasMeds ? "medication_only" : hasProcs ? "come_to_hospital" : null;
+  await supabase.from("patients").update({
+    treatment_plan: finalSummary,
+    treatment_type: treatmentType,
+    department,
+    treatment_started_at: now.toISOString(),
+    treatment_duration_days: durationDays,
+    treatment_end_date: (hasMeds || hasProcs) ? treatmentEndDate.toISOString().split("T")[0] : null,
+    pre_queue_stage: null,
+  }).eq("id", patientId).eq("hospital_id", hospital.code);
+
+  const { data: patient } = await supabase.from("patients").select("first_name, last_name, whatsapp_number, phone, email").eq("id", patientId).single();
+  const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Patient";
+  const createdBy = (req.headers["x-performed-by"] as string | undefined) || null;
+  const hospitalIntId = await resolveHospitalIntId(hospital.code);
+
+  await supabase.from("activity").insert({
+    type: "care_plan_added",
+    description: `Treatment plan closed for ${patientName} (${department})`,
+    patient_id: patientId,
+    patient_name: patientName,
+    hospital_id: hospitalIntId,
+    metadata: finalSummary.slice(0, 200),
+    performed_by: createdBy,
+  });
+
+  // Fire automations
+  if (hospitalIntId && patient) {
+    const phone = (patient.whatsapp_number as string) || (patient.phone as string);
+    if (phone) {
+      sendCarePlanNotification(hospitalIntId, patientId, patientName, phone).catch(() => {});
+    }
+
+    // Send care plan email immediately and mark dedup key so scheduler won't re-send
+    if (patient.email) {
+      sendCarePlanEmail(hospitalIntId, patientId, patientName, patient.email as string, department, finalSummary, durationDays).catch(() => {});
+      supabase.from("automation_log").insert({
+        hospital_id: hospitalIntId,
+        patient_id: patientId,
+        automation_type: `care_plan_email_${id}`,
+        status: "sent",
+        channel: "email",
+        message_preview: `Care plan email (on close) → ${patient.email as string}`,
+        created_at: now.toISOString(),
+      }).then(() => {}, () => {});
+    }
+
+    // For old-format GenOut plans (have treatmentType set), pre-generate reminder messages
+    if (department === "General Outpatient" && (td.treatmentType as string | undefined)) {
+      generateCarePlanMessages(id, hospitalIntId, patientName, finalSummary, td).catch(() => {});
+    }
+
+    void pushEraPlanIntegration({
+      planId: id,
+      patientId,
+      hospitalIntId,
+      summary: finalSummary,
+      department,
+      templateData: td,
+      durationDays,
+      startDate: now.toISOString().split("T")[0],
+    });
+  }
+
+  res.json(camelize(closed));
+});
+
 // ── End (archive) a care plan — never physically deleted ──────────────────────
-// Care plans are permanently kept as a historical record. "Ending" a plan marks
-// it status='ended' so nurses can review past treatment and reactivate if needed.
 router.delete("/care-plans/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -291,48 +380,55 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
   const now = new Date();
   const today = now.toISOString().split("T")[0];
 
-  // Archive the plan — never delete
   await supabase.from("care_plans").update({
     status: "ended",
     ended_at: now.toISOString(),
     updated_at: now.toISOString(),
   }).eq("id", id);
 
-  // Check if any ACTIVE plans remain for this patient
-  const { data: remainingActive } = await supabase
+  const { data: patient } = await supabase.from("patients").select("first_name, last_name").eq("id", existing.patient_id as number).single();
+  const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
+
+  // Only transition to Post Treatment if no remaining non-ended plans exist.
+  // "open" plans count — a draft plan means the patient is still being treated.
+  const { data: remainingPlans } = await supabase
     .from("care_plans")
     .select("id")
     .eq("patient_id", existing.patient_id as number)
     .eq("hospital_id", hospital.code)
-    .eq("status", "active");
+    .neq("status", "ended");
 
-  const { data: patient } = await supabase.from("patients").select("first_name, last_name").eq("id", existing.patient_id as number).single();
-  const patientName = patient ? `${patient.first_name} ${patient.last_name}` : "Unknown";
+  if (!remainingPlans || remainingPlans.length === 0) {
+    // Only move to Post Treatment if the plan being ended was active (not just a draft)
+    if (existing.status === "active") {
+      await supabase.from("patients").update({
+        stage: "Post Treatment",
+        post_treatment_started_at: now.toISOString(),
+        treatment_end_date: today,
+        treatment_plan: null,
+        treatment_type: null,
+        medication_timing: null,
+        updated_at: now.toISOString(),
+      }).eq("id", existing.patient_id as number);
 
-  if (!remainingActive || remainingActive.length === 0) {
-    // No active plans left — move patient to Post Treatment
-    await supabase.from("patients").update({
-      stage: "Post Treatment",
-      post_treatment_started_at: now.toISOString(),
-      treatment_end_date: today,
-      treatment_plan: null,
-      treatment_type: null,
-      medication_timing: null,
-      updated_at: now.toISOString(),
-    }).eq("id", existing.patient_id as number);
-
-    await supabase.from("activity").insert({
-      type: "stage_changed",
-      description: `${patientName} moved to Post Treatment (${existing.department as string} care plan ended)`,
-      patient_id: existing.patient_id as number,
-      patient_name: patientName,
-      metadata: "Post Treatment",
-    });
+      await supabase.from("activity").insert({
+        type: "stage_changed",
+        description: `${patientName} moved to Post Treatment (${(existing.department as string | null) ?? "treatment"} care plan ended)`,
+        patient_id: existing.patient_id as number,
+        patient_name: patientName,
+        metadata: "Post Treatment",
+      });
+    } else {
+      // Draft plan discarded — move patient back to Active if they're not in Post Treatment
+      await supabase.from("patients").update({
+        updated_at: now.toISOString(),
+      }).eq("id", existing.patient_id as number);
+    }
   }
 
   await supabase.from("activity").insert({
     type: "care_plan_ended",
-    description: `${existing.department as string} care plan ended for ${patientName}`,
+    description: `${(existing.department as string | null) ?? "Treatment"} plan ended for ${patientName}`,
     patient_id: existing.patient_id as number,
     patient_name: patientName,
   });
@@ -340,7 +436,7 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-// ── Return Visits — hospital schedules patient to come back on a specific date ──
+// ── Return Visits ──────────────────────────────────────────────────────────────
 
 const ReturnVisitBody = z.object({
   visitDate:         z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -412,7 +508,6 @@ router.post("/patients/:id/return-visits", async (req, res): Promise<void> => {
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
-  // Notify patient if connected to ERA
   const { data: conn } = await supabase
     .from("patient_hospital_connections")
     .select("account_id")
@@ -456,28 +551,8 @@ router.delete("/return-visits/:id", async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-interface GeneralOutpatientData {
-  treatmentType?: string;
-  medicationTiming?: string[];
-  medicationTimingTimes?: Record<string, string>;
-  hospitalTiming?: string[];
-  hospitalTimingTimes?: Record<string, string>;
-  durationDays?: number;
-}
-
-function buildTimingString(data: GeneralOutpatientData): string | null {
-  if (!data) return null;
-  const parts: string[] = [
-    ...(data.medicationTiming ?? []).map((t) => `med:${t}`),
-    ...(data.hospitalTiming ?? []).map((t) => `hosp:${t}`),
-  ];
-  return parts.length > 0 ? parts.join(",") : null;
-}
-
 // ── ERA app integration: push care plan into patient's wellness modules + planner ──
-// Fire-and-forget. Never throws. Called after plan create or update.
+// Fire-and-forget. Never throws. Handles both old GenOut format and new medications[] format.
 export async function pushEraPlanIntegration(opts: {
   planId: number;
   patientId: number;
@@ -489,46 +564,57 @@ export async function pushEraPlanIntegration(opts: {
   startDate: string;
 }): Promise<void> {
   try {
-    // 1. Find connected ERA account
     const { data: conn } = await supabase
       .from("patient_hospital_connections")
       .select("account_id")
       .eq("patient_record_id", opts.patientId)
       .eq("hospital_id", opts.hospitalIntId)
       .maybeSingle();
-    if (!conn?.account_id) return; // patient not on ERA app — nothing to do
+    if (!conn?.account_id) return;
 
     const accountId = conn.account_id as number;
-
-    // 2. Extract medication dose times from templateData (GP structured plans)
     const td = opts.templateData ?? {};
-    const medTimingTimes = (td.medicationTimingTimes as Record<string, string>) ?? {};
-    const medTimes: string[] = Object.values(medTimingTimes).filter(Boolean);
 
-    // 3. Use AI to extract medication names + dosages from the summary
+    // New format: medications array with per-drug timing
+    const newFormatMeds = (td.medications as Array<{ name?: string; dosage?: string; timing?: Record<string, string> }> | undefined) ?? [];
+
+    // Old format: medicationTimingTimes map
+    const medTimingTimes = (td.medicationTimingTimes as Record<string, string>) ?? {};
+    const oldFormatMedTimes: string[] = Object.values(medTimingTimes).filter(Boolean);
+
     interface MedEntry { name: string; dosage?: string }
     let extractedMeds: MedEntry[] = [];
-    try {
-      const raw = await generateOpenAIMessage(
-        "Extract medication names and dosages from a treatment plan summary. Return ONLY valid JSON: {\"meds\":[{\"name\":\"...\",\"dosage\":\"...\"}]}. If no medications, return {\"meds\":[]}. No extra text.",
-        opts.summary.slice(0, 600),
-        100,
-      );
-      const parsed = JSON.parse(raw.replace(/```json?|```/g, "").trim()) as { meds?: MedEntry[] };
-      extractedMeds = parsed.meds ?? [];
-    } catch {
-      extractedMeds = [];
-    }
+    let medTimes: string[] = [];
 
-    // 4. Build medication module entries
-    // Fall back to a generic entry if no meds extracted but plan has medication timing
-    const hasMedTiming = medTimes.length > 0 || (td.treatmentType === "medication_only" || td.treatmentType === "combination");
-    if (extractedMeds.length === 0 && hasMedTiming) {
-      extractedMeds = [{ name: "Prescribed medication", dosage: undefined }];
+    if (newFormatMeds.length > 0) {
+      // Use structured medication data directly — no AI needed
+      extractedMeds = newFormatMeds.filter(m => m.name).map(m => ({ name: m.name!, dosage: m.dosage }));
+      // Collect all unique timing values across all medications
+      const allTimes = newFormatMeds.flatMap(m => Object.values(m.timing ?? {})).filter(Boolean);
+      medTimes = [...new Set(allTimes)].sort();
+    } else {
+      // Old format: use AI to extract medication names from summary
+      medTimes = oldFormatMedTimes;
+      const hasMedTiming = medTimes.length > 0 || (td.treatmentType === "medication_only" || td.treatmentType === "combination");
+      if (hasMedTiming) {
+        try {
+          const raw = await generateOpenAIMessage(
+            "Extract medication names and dosages from a treatment plan summary. Return ONLY valid JSON: {\"meds\":[{\"name\":\"...\",\"dosage\":\"...\"}]}. If no medications, return {\"meds\":[]}. No extra text.",
+            opts.summary.slice(0, 600),
+            100,
+          );
+          const parsed = JSON.parse(raw.replace(/```json?|```/g, "").trim()) as { meds?: MedEntry[] };
+          extractedMeds = parsed.meds ?? [];
+        } catch {
+          extractedMeds = [];
+        }
+        if (extractedMeds.length === 0 && hasMedTiming) {
+          extractedMeds = [{ name: "Prescribed medication" }];
+        }
+      }
     }
 
     if (extractedMeds.length > 0) {
-      // Default times: morning/afternoon/evening if not specified by templateData
       const doseTimes = medTimes.length > 0
         ? medTimes
         : extractedMeds.length >= 3
@@ -546,7 +632,6 @@ export async function pushEraPlanIntegration(opts: {
         times: doseTimes,
       }));
 
-      // Get existing medications module — preserve self-entered meds, replace hospital ones
       const { data: existingMod } = await supabase
         .from("wellness_modules")
         .select("settings")
@@ -557,7 +642,6 @@ export async function pushEraPlanIntegration(opts: {
       const existingMeds = ((existingMod?.settings as Record<string, unknown>)?.medications as Record<string, unknown>[]) ?? [];
       const selfMeds = existingMeds.filter((m) => !String(m.id ?? "").startsWith("plan_"));
 
-      // Fetch hospital name for attribution
       const { data: hospRow } = await supabase.from("hospitals").select("name").eq("id", opts.hospitalIntId).maybeSingle();
       const hospitalName = (hospRow?.name as string | null) ?? "Your hospital";
 
@@ -573,10 +657,8 @@ export async function pushEraPlanIntegration(opts: {
       }, { onConflict: "account_id,module_type" });
     }
 
-    // 5. Regenerate the weekly plan with the new modules
     await fetchAndSavePlan(accountId);
 
-    // 7. Notify the patient
     const notifBody = extractedMeds.length > 0
       ? `Your ${opts.department} plan includes ${extractedMeds.map((m) => m.name).join(", ")}. Check your daily planner — reminders have been added to your routine.`
       : `Your ${opts.department} care plan has been added to your ERA planner.`;

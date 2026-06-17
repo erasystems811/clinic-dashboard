@@ -9,7 +9,7 @@ import type { Patient } from "@workspace/api-client-react";
 import { FollowUpFlagModal } from "@/components/flag-modals";
 import {
   Clock, Users, Calendar, PhoneCall, ArrowRightLeft, AlertTriangle, CheckCircle2,
-  Loader2, RefreshCw, X, ClipboardList, Search, CalendarPlus, Info,
+  Loader2, RefreshCw, X, ClipboardList, ClipboardPlus, Search, CalendarPlus, Info,
   MessageSquare, Send, CheckCheck,
 } from "lucide-react";
 
@@ -337,6 +337,7 @@ export default function DoctorView() {
   const [apptLoading, setApptLoading] = useState(true);
   const [toggleLoading, setToggleLoading] = useState(false);
   const [callingIn, setCallingIn] = useState<number | null>(null);
+  const [openingPlanForEntry, setOpeningPlanForEntry] = useState<number | null>(null);
   const [transferEntry, setTransferEntry] = useState<QueueEntry | null>(null);
   const [activeTab, setActiveTab] = useState<"queue" | "appointments" | "followups" | "messages">("queue");
 
@@ -563,6 +564,21 @@ export default function DoctorView() {
     } finally { setCallingIn(null); }
   };
 
+  const handleOpenTreatmentPlan = async (entry: QueueEntry) => {
+    setOpeningPlanForEntry(entry.id);
+    try {
+      const res = await fetch(apiUrl(`/api/patients/${entry.patientId}/care-plans`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-hospital-token": token },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) throw new Error("Failed");
+      toast({ title: "Treatment plan opened", description: `A draft plan is now open for ${entry.patientName}. Pharmacist or nurse can fill it in.` });
+    } catch {
+      toast({ title: "Failed to open treatment plan", variant: "destructive" });
+    } finally { setOpeningPlanForEntry(null); }
+  };
+
   const handleToggleAvailability = async () => {
     if (!doctorId) return;
     setToggleLoading(true);
@@ -710,6 +726,19 @@ export default function DoctorView() {
                       <div className="flex items-center gap-2 shrink-0">
                         <Button size="sm" variant="outline" className="gap-1.5 text-xs h-8" onClick={() => setTransferEntry(entry)}>
                           <ArrowRightLeft className="w-3 h-3" /> Reassign
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-xs h-8"
+                          disabled={openingPlanForEntry === entry.id}
+                          onClick={() => handleOpenTreatmentPlan(entry)}
+                          title="Open a draft treatment plan for this patient"
+                        >
+                          {openingPlanForEntry === entry.id
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <ClipboardPlus className="w-3 h-3" />}
+                          Open Plan
                         </Button>
                         <Button size="sm" className="gap-1.5 text-xs h-8"
                           disabled={callingIn === entry.id || !!entry.calledInAt} onClick={() => handleCallIn(entry)}>

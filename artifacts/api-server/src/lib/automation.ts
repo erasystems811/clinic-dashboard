@@ -1902,3 +1902,34 @@ export async function sendStoredCarePlanReminder(
   }
 }
 
+export async function sendWeeklyMedicationSummaryEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+  medications: string[],
+  department: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const deptLabel = department === "General Outpatient" ? "Outpatient" : department;
+  const ctx: AutomationContext = { hospitalId, patientId, patientName, automationType: "weekly_med_summary", channel: "email" };
+  if (await skipIfSuspended(hCtx, ctx)) return;
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const firstName = patientName.split(" ")[0];
+    const body = `Hi ${firstName},\n\nHere is your medication summary for this week:\n\n${medications.map(m => `• ${m}`).join("\n")}\n\nPlease continue taking your medications as prescribed. If you have any concerns about your treatment, please do not hesitate to contact us.\n\nWarm regards,\n${hCtx.hospitalName} Team`;
+    const html = wrapHtml(
+      `<p>Hi ${firstName},</p><p>Here is your medication summary for this week:</p><ul style="padding-left:20px;margin:12px 0;">${medications.map(m => `<li style="margin:4px 0;">${m}</li>`).join("")}</ul><p>Please continue taking your medications as prescribed. If you have any concerns about your treatment, please do not hesitate to contact us.</p>`,
+      hCtx.hospitalName,
+    );
+    await sendEmail({ to: patientEmail, from: hCtx.fromAddress, subject: `Your weekly medication summary — ${hCtx.hospitalName}`, html, text: body });
+    await updateAutomationLog(logId, "sent", `Weekly medication summary (${deptLabel}) → ${patientEmail}`);
+    try { await pushEraChatMessage(patientId, hospitalId, body); } catch { /* non-fatal */ }
+    try { await pushEraNotification(patientId, hospitalId, "care_reminder", `Weekly medication summary — ${hCtx.hospitalName}`, `Your medications this week: ${medications.join(", ")}.`); } catch { /* non-fatal */ }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendWeeklyMedicationSummaryEmail] failed:", msg, { hospitalId, patientId });
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}

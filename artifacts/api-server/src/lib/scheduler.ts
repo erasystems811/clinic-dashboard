@@ -18,6 +18,7 @@ import {
   sendBeneficiaryReminderEmail,
   sendDoctorAppointmentReminderEmail,
   sendReturnVisitReminderEmail,
+  sendWeeklyMedicationSummaryEmail,
   type InCareTimeSlot,
   type PregeneratedMessages,
 } from "./automation.js";
@@ -26,6 +27,14 @@ const APP_BASE_URL = (process.env.APP_BASE_URL ?? "https://app.erasystems.com.ng
 
 function log(msg: string) {
   console.log(`[scheduler] ${new Date().toISOString()} ${msg}`);
+}
+
+// Returns a string like "2025_W23" — used to dedup weekly medication summaries
+function isoWeekKey(d: Date): string {
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  const dayOfYear = Math.round((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 86400000);
+  const week = Math.ceil((dayOfYear + jan4.getDay()) / 7);
+  return `${d.getFullYear()}_W${week}`;
 }
 
 // ── Appointment Reminders — runs every 15 minutes ─────────────────────────────
@@ -1278,7 +1287,7 @@ async function runCarePlanRemindersHourly() {
           const storedEnd = patient.treatment_end_date as string | undefined;
           if (storedEnd && today > storedEnd) continue;
 
-          // Medications: fire reminder at exact timing time
+          // Medications: daily for first 5 days from first reminder, then weekly summary
           // Group by slot+time so one email covers multiple drugs taken at the same hour
           const medsBySlotTime = new Map<string, { slot: string; time: string; names: string[] }>();
           for (const med of newMeds) {
@@ -1289,16 +1298,60 @@ async function runCarePlanRemindersHourly() {
               medsBySlotTime.get(key)!.names.push(med.name || "medication");
             }
           }
-          for (const { slot, time, names } of medsBySlotTime.values()) {
-            const [hh, mm] = time.split(":").map(Number);
-            const fireAt = watToUTC(hh, mm);
-            if (Math.abs(fireAt.getTime() - now.getTime()) > WINDOW_MS) continue;
-            const dedupeKey = `med_${plan.id}_${slot}_${time}_${today}`;
-            if (await checkSentLog(h.id, dedupeKey)) continue;
-            const message = `Reminder: Time to take your ${names.join(", ")}. Please take your medication as prescribed.`;
-            await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, message, slot as InCareTimeSlot, dept);
-            await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: dedupeKey, status: "sent", channel: "email", message_preview: `Medication reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
-            log(`Medication reminder → patient ${patient.id} slot=${slot} time=${time}`);
+
+          if (newMeds.length > 0) {
+            // Check when first med reminder was sent for this plan
+            const { data: firstMedLog } = await supabase
+              .from("automation_log")
+              .select("created_at")
+              .eq("hospital_id", h.id)
+              .eq("patient_id", patient.id as number)
+              .like("automation_type", `med_${plan.id}_%`)
+              .order("created_at", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            const firstMedDate = firstMedLog?.created_at ? new Date(firstMedLog.created_at as string) : null;
+            const daysSinceFirst = firstMedDate
+              ? Math.floor((now.getTime() - firstMedDate.getTime()) / (1000 * 60 * 60 * 24))
+              : 0;
+            const inWeeklyMode = !!firstMedDate && daysSinceFirst >= 5;
+
+            if (inWeeklyMode) {
+              // Weekly summary mode — fire once per week on the same day of week as the first reminder
+              const summaryDayOfWeek = firstMedDate!.getDay();
+              if (now.getDay() === summaryDayOfWeek) {
+                // Fire at the earliest medication time on this day
+                const sortedSlots = [...medsBySlotTime.values()].sort((a, b) => a.time.localeCompare(b.time));
+                const firstSlot = sortedSlots[0];
+                if (firstSlot) {
+                  const [hh, mm] = firstSlot.time.split(":").map(Number);
+                  const fireAt = watToUTC(hh, mm);
+                  if (Math.abs(fireAt.getTime() - now.getTime()) <= WINDOW_MS) {
+                    const weeklyKey = `med_weekly_${plan.id}_${isoWeekKey(now)}`;
+                    if (!(await checkSentLog(h.id, weeklyKey))) {
+                      const allMedNames = newMeds.map(m => m.name || "medication");
+                      await sendWeeklyMedicationSummaryEmail(h.id, patient.id as number, patientName, patient.email as string, allMedNames, dept);
+                      await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: weeklyKey, status: "sent", channel: "email", message_preview: `Weekly medication summary → ${patient.email as string}`, created_at: new Date().toISOString() });
+                      log(`Weekly medication summary → patient ${patient.id}`);
+                    }
+                  }
+                }
+              }
+            } else {
+              // Daily mode — first 5 days
+              for (const { slot, time, names } of medsBySlotTime.values()) {
+                const [hh, mm] = time.split(":").map(Number);
+                const fireAt = watToUTC(hh, mm);
+                if (Math.abs(fireAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+                const dedupeKey = `med_${plan.id}_${slot}_${time}_${today}`;
+                if (await checkSentLog(h.id, dedupeKey)) continue;
+                const message = `Reminder: Time to take your ${names.join(", ")}. Please take your medication as prescribed.`;
+                await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, message, slot as InCareTimeSlot, dept);
+                await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: dedupeKey, status: "sent", channel: "email", message_preview: `Medication reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
+                log(`Medication reminder → patient ${patient.id} slot=${slot} time=${time}`);
+              }
+            }
           }
 
           // Procedures: fire reminder 3h before timing time

@@ -1,22 +1,17 @@
 /**
  * Mobile messaging delivery service.
  *
- * WhatsApp  → Termii (DND does not affect WhatsApp)
- * SMS       → Africa's Talking if configured (proper transactional route, bypasses DND)
- *             Falls back to Termii SMS if Africa's Talking is not configured.
+ * WhatsApp → Termii (DND does not affect WhatsApp)
+ * SMS      → Termii (DND route for transactional, generic for promotional)
  *
  * Environment variables:
- *   TERMII_API_KEY                — Termii key (WhatsApp + SMS fallback)
- *   TERMII_SENDER_ID              — Fallback Termii sender ID
- *   AFRICAS_TALKING_API_KEY       — Africa's Talking key (preferred for SMS)
- *   AFRICAS_TALKING_USERNAME      — Africa's Talking username (usually "sandbox" for test, your AT username for prod)
- *   AFRICAS_TALKING_SENDER_ID     — Africa's Talking sender ID / shortcode (optional)
+ *   TERMII_API_KEY   — Termii key (WhatsApp + SMS)
+ *   TERMII_SENDER_ID — Fallback Termii sender ID
  *
  * Per-hospital sender ID is stored in hospital_settings.termii_sender_id.
  */
 
-const TERMII_URL     = "https://api.ng.termii.com/api/sms/send";
-const AT_SMS_URL     = "https://api.africastalking.com/version1/messaging";
+const TERMII_URL = "https://api.ng.termii.com/api/sms/send";
 
 export interface MobileMessage {
   to: string;
@@ -38,74 +33,7 @@ function normalisePhone(raw: string): string {
   return digits;
 }
 
-// ── Africa's Talking SMS ──────────────────────────────────────────────────────
-// Proper transactional route — bypasses DND for healthcare/transactional messages.
-
-async function africasTalkingSend(
-  msg: MobileMessage,
-  opts: MessagingOptions = {},
-): Promise<{ ok: boolean; detail: string }> {
-  const apiKey   = process.env.AFRICAS_TALKING_API_KEY;
-  const username = process.env.AFRICAS_TALKING_USERNAME;
-  const from     = opts.senderId?.trim() || process.env.AFRICAS_TALKING_SENDER_ID;
-  const to       = "+" + normalisePhone(msg.to); // AT requires + prefix
-
-  if (!apiKey || !username) {
-    return { ok: false, detail: "[messaging] Africa's Talking not configured" };
-  }
-
-  const params = new URLSearchParams({
-    username,
-    to,
-    message: msg.body,
-  });
-  if (from) params.set("from", from);
-
-  console.log(`[messaging] Africa's Talking SMS → ${to} from "${from ?? "default"}"`);
-
-  try {
-    const response = await fetch(AT_SMS_URL, {
-      method: "POST",
-      headers: {
-        "apiKey":       apiKey,
-        "Accept":       "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params.toString(),
-    });
-
-    const responseText = await response.text();
-    console.log(`[messaging] Africa's Talking response: ${responseText}`);
-
-    if (!response.ok) {
-      const detail = `[messaging] Africa's Talking HTTP ${response.status}: ${responseText}`;
-      console.error(detail);
-      return { ok: false, detail };
-    }
-
-    let parsed: Record<string, unknown> = {};
-    try { parsed = JSON.parse(responseText); } catch { /* keep empty */ }
-
-    // AT response: { SMSMessageData: { Recipients: [{ status: "Success", ... }] } }
-    const smsData = parsed.SMSMessageData as Record<string, unknown> | undefined;
-    const recipients = (smsData?.Recipients as Array<Record<string, unknown>>) ?? [];
-    const anySuccess = recipients.some(r => String(r.status ?? "").toLowerCase() === "success");
-
-    if (!anySuccess && recipients.length > 0) {
-      const detail = `[messaging] Africa's Talking delivery failed: ${responseText}`;
-      console.error(detail);
-      return { ok: false, detail };
-    }
-
-    return { ok: true, detail: responseText };
-  } catch (err) {
-    const detail = `[messaging] Africa's Talking fetch error: ${err instanceof Error ? err.message : String(err)}`;
-    console.error(detail);
-    return { ok: false, detail };
-  }
-}
-
-// ── Termii (WhatsApp + SMS fallback) ─────────────────────────────────────────
+// ── Termii (WhatsApp + SMS) ───────────────────────────────────────────────────
 
 async function termiiSend(
   msg: MobileMessage,
@@ -203,14 +131,10 @@ export async function deliverWhatsApp(msg: MobileMessage, opts: MessagingOptions
 
 export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}): Promise<void> {
   if (opts.smsChannel === "dnd") {
-    // DND-approved transactional messages — branded with "Powered by Era Patient".
-    // Try AT (transactional, bypasses DND), then Termii DND with fixed N-Alert sender.
+    // DND-approved transactional route via Termii N-Alert sender.
     const branded = { ...msg, body: msg.body + "\n\nPowered by Era Patient" };
-    const atResult = await africasTalkingSend(branded, opts);
-    if (atResult.ok) return;
-    if (!atResult.detail.includes("not configured")) throw new Error(atResult.detail);
-    const dndResult = await termiiSend(branded, "dnd", { senderId: "N-Alert" });
-    if (!dndResult.ok) throw new Error(dndResult.detail);
+    const result = await termiiSend(branded, "dnd", { senderId: "N-Alert" });
+    if (!result.ok) throw new Error(result.detail);
     return;
   }
 
@@ -219,14 +143,8 @@ export async function deliverSms(msg: MobileMessage, opts: MessagingOptions = {}
     throw new Error(`TIME_RESTRICTED: ${PROMOTIONAL_SMS_RESTRICTED_MSG}`);
   }
 
-  // No extra branding. Try AT, then Termii generic.
-  const atResult = await africasTalkingSend(msg, opts);
-  if (atResult.ok) return;
-  if (!atResult.detail.includes("not configured")) throw new Error(atResult.detail);
-
-  console.log("[messaging] Africa's Talking not configured, falling back to Termii for SMS");
-  const termiiResult = await termiiSend(msg, "generic", opts);
-  if (!termiiResult.ok) throw new Error(termiiResult.detail); // detail already prefixed "DND_BLOCKED:" when applicable
+  const result = await termiiSend(msg, "generic", opts);
+  if (!result.ok) throw new Error(result.detail);
 }
 
 export async function deliverMobileMessage(
@@ -250,11 +168,6 @@ export async function testSmsDelivery(
   senderId?: string,
   channel: "generic" | "dnd" = "dnd",
 ): Promise<{ ok: boolean; detail: string }> {
-  // Test Africa's Talking first if configured
-  if (process.env.AFRICAS_TALKING_API_KEY) {
-    return africasTalkingSend({ to, body: "Era test message — SMS delivery is working." }, { senderId });
-  }
-  // Otherwise test Termii
   try {
     return await termiiSend(
       { to, body: "Era test message — SMS delivery is working." },

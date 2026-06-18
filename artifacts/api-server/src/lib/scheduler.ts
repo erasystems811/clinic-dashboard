@@ -1432,26 +1432,64 @@ async function runCarePlanRemindersHourly() {
           };
 
           if (treatmentType === "medication_only") {
-            // Medication only — fire AT the exact time (0h lead)
-            for (const slot of medTiming) {
-              const timeStr = medTimingTimes[slot];
-              if (!timeStr) continue;
-              const [hh, mm] = timeStr.split(":").map(Number);
-              const visitAt = watToUTC(hh, mm);
-              if (Math.abs(visitAt.getTime() - now.getTime()) > WINDOW_MS) continue;
-              const key = `genout_med_${plan.id}_${slot}_${today}`;
-              if (await checkSentLog(h.id, key)) continue;
-              const stored = getStoredMessage(slot);
-              if (stored) {
-                await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, stored, slot as InCareTimeSlot, dept);
-              } else {
-                await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"], dept);
+            // Check whether this plan is past the 5-day daily window
+            const { data: firstGenoutMedLog } = await supabase
+              .from("automation_log")
+              .select("created_at")
+              .eq("hospital_id", h.id)
+              .eq("patient_id", patient.id as number)
+              .like("automation_type", `genout_med_${plan.id}_%`)
+              .order("created_at", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            const firstGenoutDate = firstGenoutMedLog?.created_at ? new Date(firstGenoutMedLog.created_at as string) : null;
+            const genoutDaysSinceFirst = firstGenoutDate
+              ? Math.floor((now.getTime() - firstGenoutDate.getTime()) / (1000 * 60 * 60 * 24))
+              : 0;
+            const genoutWeeklyMode = !!firstGenoutDate && genoutDaysSinceFirst >= 5;
+
+            if (genoutWeeklyMode) {
+              // Weekly summary mode — fire once per week on same day of week as first reminder
+              const summaryDay = firstGenoutDate!.getDay();
+              if (now.getDay() === summaryDay) {
+                const firstSlot = medTiming[0];
+                const firstTime = firstSlot ? medTimingTimes[firstSlot] : null;
+                if (firstTime) {
+                  const [hh, mm] = firstTime.split(":").map(Number);
+                  const fireAt = watToUTC(hh, mm);
+                  if (Math.abs(fireAt.getTime() - now.getTime()) <= WINDOW_MS) {
+                    const weeklyKey = `genout_med_weekly_${plan.id}_${isoWeekKey(now)}`;
+                    if (!(await checkSentLog(h.id, weeklyKey))) {
+                      await sendWeeklyMedicationSummaryEmail(h.id, patient.id as number, patientName, patient.email as string, ["your prescribed medications"], dept);
+                      await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: weeklyKey, status: "sent", channel: "email", message_preview: `Weekly GenOut med summary → ${patient.email as string}`, created_at: new Date().toISOString() });
+                      log(`Weekly GenOut med summary → patient ${patient.id}`);
+                    }
+                  }
+                }
               }
-              await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: key, status: "sent", channel: "email", message_preview: `GenOut med reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
-              if (beneficiaryName && beneficiaryEmail) {
-                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication", beneficiaryRelationship);
+            } else {
+              // Daily mode — first 5 days, fire AT the exact time (0h lead)
+              for (const slot of medTiming) {
+                const timeStr = medTimingTimes[slot];
+                if (!timeStr) continue;
+                const [hh, mm] = timeStr.split(":").map(Number);
+                const visitAt = watToUTC(hh, mm);
+                if (Math.abs(visitAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+                const key = `genout_med_${plan.id}_${slot}_${today}`;
+                if (await checkSentLog(h.id, key)) continue;
+                const stored = getStoredMessage(slot);
+                if (stored) {
+                  await sendStoredCarePlanReminder(h.id, patient.id as number, patientName, patient.email as string, stored, slot as InCareTimeSlot, dept);
+                } else {
+                  await sendInCareAIReminder(h.id, patient.id as number, patientName, patient.email as string, plan.summary as string, slot as InCareTimeSlot, ["med"], dept);
+                }
+                await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: key, status: "sent", channel: "email", message_preview: `GenOut med reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
+                if (beneficiaryName && beneficiaryEmail) {
+                  await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, "take their medication", beneficiaryRelationship);
+                }
+                log(`General Outpatient med reminder (at ${timeStr}) → patient ${patient.id} slot=${slot} source=${stored ? "stored" : "live-ai"}`);
               }
-              log(`General Outpatient med reminder (at ${timeStr}) → patient ${patient.id} slot=${slot} source=${stored ? "stored" : "live-ai"}`);
             }
 
           } else if (treatmentType === "come_to_hospital") {

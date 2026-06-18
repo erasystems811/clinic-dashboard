@@ -173,6 +173,7 @@ function ScheduleReturnVisitModal({
   const [time, setTime] = useState("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
+  const [sendSms, setSendSms] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const handleSchedule = async () => {
@@ -188,13 +189,19 @@ function ScheduleReturnVisitModal({
           reason: reason.trim(),
           notes: notes.trim() || undefined,
           scheduledBy: "doctor",
+          sendSms,
         }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(d.error ?? "Failed to schedule");
       }
-      toast({ title: "Return visit scheduled", description: `${patient.firstName} ${patient.lastName} will be reminded 24h and 3h before.` });
+      const result = await res.json() as { smsSent?: boolean; smsError?: string | null };
+      let desc = `${patient.firstName} ${patient.lastName} will be reminded 24h and 3h before.`;
+      if (sendSms) {
+        desc += result.smsSent ? " SMS confirmation sent." : ` SMS failed: ${result.smsError ?? "unknown error"}.`;
+      }
+      toast({ title: "Return visit scheduled", description: desc });
       onScheduled();
       onClose();
     } catch (err: unknown) {
@@ -240,6 +247,11 @@ function ScheduleReturnVisitModal({
               placeholder="Additional instructions for the patient…"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none" />
           </div>
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <input type="checkbox" checked={sendSms} onChange={e => setSendSms(e.target.checked)}
+              className="w-4 h-4 rounded accent-primary" />
+            <span className="text-xs text-muted-foreground">Send SMS confirmation to patient</span>
+          </label>
           <div className="flex gap-2 justify-end">
             <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
             <Button size="sm" disabled={!date || !reason.trim() || saving} onClick={handleSchedule} className="gap-1.5">

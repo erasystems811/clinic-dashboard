@@ -147,6 +147,7 @@ export default function NurseStation() {
   const [rvTime, setRvTime] = useState("");
   const [rvReason, setRvReason] = useState("");
   const [rvNotes, setRvNotes] = useState("");
+  const [rvSendSms, setRvSendSms] = useState(false);
   const [savingRv, setSavingRv] = useState(false);
   const [deletingRvId, setDeletingRvId] = useState<number | null>(null);
 
@@ -394,11 +395,17 @@ export default function NurseStation() {
           reason: rvReason.trim(),
           notes: rvNotes.trim() || undefined,
           scheduledBy: "nurse",
+          sendSms: rvSendSms,
         }),
       });
       if (!res.ok) throw new Error("Failed");
-      toast({ title: "Return visit scheduled", description: "Patient will be reminded 24h and 3h before." });
-      setRvDate(""); setRvTime(""); setRvReason(""); setRvNotes(""); setShowRvForm(false);
+      const result = await res.json() as { smsSent?: boolean; smsError?: string | null };
+      let desc = "Patient will be reminded 24h and 3h before.";
+      if (rvSendSms) {
+        desc += result.smsSent ? " SMS confirmation sent." : ` SMS failed: ${result.smsError ?? "unknown error"}.`;
+      }
+      toast({ title: "Return visit scheduled", description: desc });
+      setRvDate(""); setRvTime(""); setRvReason(""); setRvNotes(""); setRvSendSms(false); setShowRvForm(false);
       await fetchRvVisits(selectedRvPatient.id);
     } catch {
       toast({ title: "Failed to schedule return visit", variant: "destructive" });
@@ -1033,8 +1040,13 @@ export default function NurseStation() {
                         className="text-sm"
                       />
                     </div>
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input type="checkbox" checked={rvSendSms} onChange={e => setRvSendSms(e.target.checked)}
+                        className="w-4 h-4 rounded accent-primary" />
+                      <span className="text-xs text-muted-foreground">Send SMS confirmation to patient</span>
+                    </label>
                     <div className="flex gap-2 justify-end">
-                      <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => { setShowRvForm(false); setRvDate(""); setRvTime(""); setRvReason(""); setRvNotes(""); }}>Cancel</Button>
+                      <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => { setShowRvForm(false); setRvDate(""); setRvTime(""); setRvReason(""); setRvNotes(""); setRvSendSms(false); }}>Cancel</Button>
                       <Button type="button" size="sm" className="text-xs gap-1.5" onClick={handleScheduleRv} disabled={savingRv || !rvDate || !rvReason.trim()}>
                         {savingRv ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                         {savingRv ? "Saving…" : "Schedule"}

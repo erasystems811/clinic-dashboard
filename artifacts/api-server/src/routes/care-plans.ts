@@ -3,9 +3,11 @@ import { supabase } from "../lib/supabase.js";
 import { camelize, camelizeArr } from "../lib/camel.js";
 import { z } from "zod/v4";
 import { getHospitalFromRequest } from "../lib/hospital-auth.js";
-import { sendCarePlanEmail, sendCarePlanNotification, generateCarePlanMessages } from "../lib/automation.js";
+import { sendCarePlanEmail, sendCarePlanNotification, generateCarePlanMessages, getHospitalContext, logAutomation, updateAutomationLog } from "../lib/automation.js";
 import { generateOpenAIMessage } from "../lib/ai.js";
 import { fetchAndSavePlan } from "./patient-app-plan.js";
+import { deliverMobileMessage } from "../lib/messaging.js";
+import { deductSmsFromWallet, hasSufficientSmsBalance } from "../lib/wallet.js";
 
 const router: IRouter = Router();
 
@@ -468,6 +470,7 @@ const ReturnVisitBody = z.object({
   notes:             z.string().optional(),
   scheduledBy:       z.enum(["doctor", "nurse", "staff"]).optional(),
   scheduledByName:   z.string().optional(),
+  sendSms:           z.boolean().optional(),
 });
 
 router.get("/patients/:id/return-visits", async (req, res): Promise<void> => {
@@ -515,7 +518,7 @@ router.post("/patients/:id/return-visits", async (req, res): Promise<void> => {
   const hospitalIntId = await resolveHospitalIntId(hospital.code);
   if (!hospitalIntId) { res.status(404).json({ error: "Hospital not found" }); return; }
 
-  const { visitDate, visitTime, reason, notes, scheduledBy, scheduledByName } = parsed.data;
+  const { visitDate, visitTime, reason, notes, scheduledBy, scheduledByName, sendSms } = parsed.data;
 
   const { data, error } = await supabase.from("patient_return_visits").insert({
     patient_id:        patientId,
@@ -551,7 +554,32 @@ router.post("/patients/:id/return-visits", async (req, res): Promise<void> => {
     });
   }
 
-  res.status(201).json({ id: (data as Record<string, unknown>).id });
+  // Optional immediate SMS confirmation
+  let smsSent = false;
+  let smsError: string | null = null;
+  if (sendSms) {
+    try {
+      const hCtx = await getHospitalContext(hospitalIntId);
+      const { data: patientRow } = await supabase.from("patients").select("first_name, last_name, phone").eq("id", patientId).maybeSingle();
+      const phone = patientRow?.phone as string | null;
+      if (!phone) throw new Error("Patient has no phone number");
+      const canAfford = await hasSufficientSmsBalance(hospitalIntId);
+      if (!canAfford) throw new Error("Insufficient SMS wallet balance");
+      const patientName = `${patientRow?.first_name ?? ""} ${patientRow?.last_name ?? ""}`.trim();
+      const formatted = new Date(visitDate).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+      const smsBody = `Hi ${patientName}, your return visit at ${hCtx.hospitalName} has been scheduled for ${formatted}${visitTime ? ` at ${visitTime}` : ""}. Reason: ${reason}.`;
+      const logId = await logAutomation({ hospitalId: hospitalIntId, patientId, patientName, automationType: "return_visit_sms", channel: "sms" }, "queued");
+      await deliverMobileMessage("sms", phone, smsBody, { senderId: hCtx.termiiSenderId });
+      await deductSmsFromWallet(hospitalIntId, `Return visit SMS — ${patientName}`);
+      await updateAutomationLog(logId, "sent", `Return visit SMS → ${phone}`);
+      smsSent = true;
+    } catch (smsErr) {
+      smsError = smsErr instanceof Error ? smsErr.message : String(smsErr);
+      console.error("[return-visits] SMS send failed:", smsError);
+    }
+  }
+
+  res.status(201).json({ id: (data as Record<string, unknown>).id, smsSent, smsError });
 });
 
 router.delete("/return-visits/:id", async (req, res): Promise<void> => {

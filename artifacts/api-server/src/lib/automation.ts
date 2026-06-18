@@ -506,7 +506,7 @@ export async function sendAppointmentConfirmationEmail(
   const smsFlipEnabled = (modules?.appointment_reminder_sms_enabled as boolean | null) ?? false;
   let useSms = false;
   if (smsFlipEnabled) {
-    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || (!!hCtx.termiiSenderId && hCtx.senderIdApproved);
+    const smsReady = !!hCtx.termiiSenderId && hCtx.senderIdApproved;
     if (smsReady) useSms = await hasSufficientSmsBalance(hospitalId);
   }
 
@@ -541,7 +541,8 @@ export async function sendAppointmentConfirmationEmail(
             await updateAutomationLog(logId, "failed", smsMsg);
             return { dndBlocked: true };
           }
-          // Non-DND SMS error — fall through to email
+          // Non-DND SMS error — update log channel before falling through to email
+          await supabase.from("automation_log").update({ channel: "email" }).eq("id", logId);
         }
       }
     }
@@ -579,7 +580,7 @@ export async function sendAppointmentRescheduleEmail(
   const smsFlipEnabled = (modules?.appointment_reminder_sms_enabled as boolean | null) ?? false;
   let useSms = false;
   if (smsFlipEnabled) {
-    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || (!!hCtx.termiiSenderId && hCtx.senderIdApproved);
+    const smsReady = !!hCtx.termiiSenderId && hCtx.senderIdApproved;
     if (smsReady) useSms = await hasSufficientSmsBalance(hospitalId);
   }
 
@@ -614,7 +615,8 @@ export async function sendAppointmentRescheduleEmail(
             await updateAutomationLog(logId, "failed", smsMsg);
             return { dndBlocked: true };
           }
-          // Non-DND SMS error — fall through to email
+          // Non-DND SMS error — update log channel before falling through to email
+          await supabase.from("automation_log").update({ channel: "email" }).eq("id", logId);
         }
       }
     }
@@ -656,9 +658,9 @@ export async function sendAppointmentReminderEmail(
 
   let useSms = false;
   if (smsFlipEnabled) {
-    const smsReady = !!process.env.AFRICAS_TALKING_API_KEY || (!!hCtx.termiiSenderId && hCtx.senderIdApproved);
+    const smsReady = !!hCtx.termiiSenderId && hCtx.senderIdApproved;
     if (!smsReady) {
-      console.log(`[sendAppointmentReminderEmail] No SMS provider configured (no AT or Termii sender ID) — falling back to email for hospital ${hospitalId}`);
+      console.log(`[sendAppointmentReminderEmail] No Termii sender ID configured — falling back to email for hospital ${hospitalId}`);
     } else {
       useSms = await hasSufficientSmsBalance(hospitalId);
       if (!useSms) console.log(`[sendAppointmentReminderEmail] Insufficient wallet — falling back to email for hospital ${hospitalId}`);
@@ -695,8 +697,9 @@ export async function sendAppointmentReminderEmail(
         const smsMsg = smsErr instanceof Error ? smsErr.message : String(smsErr);
         if (smsMsg.startsWith("DND_BLOCKED:")) {
           await setPatientDndBlocked(patientId, true);
+          // Update log channel before falling through to email
+          await supabase.from("automation_log").update({ channel: "email" }).eq("id", logId);
           console.log(`[sendAppointmentReminderEmail] DND blocked for ${phone} — falling back to email for hospital ${hospitalId}`);
-          // Fall through to email below
         } else {
           throw smsErr;
         }

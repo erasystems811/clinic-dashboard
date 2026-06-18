@@ -52,6 +52,7 @@ import PatientImport from "@/pages/patient-import";
 import HelpPage from "@/pages/help";
 import DoctorView from "@/pages/doctor-view";
 import BookingPage from "@/pages/book";
+import MessageLog from "@/pages/message-log";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -135,6 +136,7 @@ function ProtectedRouter() {
       {role === "admin" && <Route path="/call-tasks" component={CallTasks} />}
       {role === "admin" && <Route path="/import" component={PatientImport} />}
       {role === "admin" && <Route path="/era-messages" component={EraMessages} />}
+      {role === "admin" && <Route path="/message-log" component={MessageLog} />}
       {role === "admin" && <Route path="/help" component={HelpPage} />}
 
       {/* Receptionist routes */}

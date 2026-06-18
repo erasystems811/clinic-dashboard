@@ -151,6 +151,7 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
   if (modules?.wellnessNewsletterEnabled ?? true) items.push({ icon: Newspaper, label: "Wellness Newsletter", href: "/wellness" });
   items.push(
     { icon: MessageSquare, label: "ERA Messages", href: "/era-messages" },
+    { icon: Phone, label: "Message Log", href: "/message-log" },
     { icon: FileUp, label: "Import Patients", href: "/import" },
     { icon: GitBranch, label: "Pipeline", href: "/pipeline" },
     { icon: Activity, label: "Activity", href: "/activity" },

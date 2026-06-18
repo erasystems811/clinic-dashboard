@@ -436,6 +436,12 @@ export default function PatientHistory() {
                       {patient.department}
                     </span>
                   )}
+                  {(patient as Record<string, unknown>).dndBlocked && (
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full border border-destructive/40 bg-destructive/10 text-destructive flex items-center gap-1" title="This patient's phone number is registered on the DND list — SMS messages will not be delivered.">
+                      <Phone className="w-3 h-3" />
+                      DND Blocked
+                    </span>
+                  )}
                 </div>
                 {/* Queue management */}
                 {!editing && (

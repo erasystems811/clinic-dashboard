@@ -1285,12 +1285,12 @@ function CategoryTemplate({
             </button>
           </div>
           {rows.map((row, i) => (
-            <div key={i} className="grid grid-cols-[2fr_1fr_auto_auto_auto] gap-1.5 items-start">
+            <div key={i} className="relative rounded-md border border-border/40 p-2 space-y-1.5 sm:p-0 sm:border-0 sm:space-y-0 sm:grid sm:grid-cols-[2fr_1fr_auto_auto_auto] sm:gap-1.5 sm:items-start">
               <input type="text" value={row.whatHappens} onChange={e => updateRow("ancSchedule", i, "whatHappens", e.target.value)} className={inputCls} placeholder="What happens" />
               <input type="text" value={row.weekNumber} onChange={e => updateRow("ancSchedule", i, "weekNumber", e.target.value)} className={inputCls} placeholder="Week #" />
               <input type="date" value={row.date} onChange={e => updateRow("ancSchedule", i, "date", e.target.value)} className={inputCls} />
-              <input type="time" value={row.time ?? ""} onChange={e => updateRow("ancSchedule", i, "time", e.target.value)} className={inputCls + " w-24"} />
-              {rows.length > 1 && <button type="button" onClick={() => removeRow("ancSchedule", i)} className="mt-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>}
+              <input type="time" value={row.time ?? ""} onChange={e => updateRow("ancSchedule", i, "time", e.target.value)} className={inputCls + " sm:w-24"} />
+              {rows.length > 1 && <button type="button" onClick={() => removeRow("ancSchedule", i)} className="absolute top-1.5 right-1.5 sm:relative sm:top-auto sm:right-auto sm:mt-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>}
             </div>
           ))}
         </div>
@@ -1314,12 +1314,12 @@ function CategoryTemplate({
             </button>
           </div>
           {rows.map((row, i) => (
-            <div key={i} className="grid grid-cols-[1fr_2fr_auto_auto_auto] gap-1.5 items-start">
+            <div key={i} className="relative rounded-md border border-border/40 p-2 space-y-1.5 sm:p-0 sm:border-0 sm:space-y-0 sm:grid sm:grid-cols-[1fr_2fr_auto_auto_auto] sm:gap-1.5 sm:items-start">
               <input type="text" value={row.ageAtVaccination} onChange={e => updateRow("vaccinationSchedule", i, "ageAtVaccination", e.target.value)} className={inputCls} placeholder="Age" />
               <input type="text" value={row.vaccinationName} onChange={e => updateRow("vaccinationSchedule", i, "vaccinationName", e.target.value)} className={inputCls} placeholder="Vaccine name" />
               <input type="date" value={row.date} onChange={e => updateRow("vaccinationSchedule", i, "date", e.target.value)} className={inputCls} />
-              <input type="time" value={row.time ?? ""} onChange={e => updateRow("vaccinationSchedule", i, "time", e.target.value)} className={inputCls + " w-24"} />
-              {rows.length > 1 && <button type="button" onClick={() => removeRow("vaccinationSchedule", i)} className="mt-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>}
+              <input type="time" value={row.time ?? ""} onChange={e => updateRow("vaccinationSchedule", i, "time", e.target.value)} className={inputCls + " sm:w-24"} />
+              {rows.length > 1 && <button type="button" onClick={() => removeRow("vaccinationSchedule", i)} className="absolute top-1.5 right-1.5 sm:relative sm:top-auto sm:right-auto sm:mt-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>}
             </div>
           ))}
         </div>
@@ -1393,11 +1393,11 @@ function InCareRows({
         </button>
       </div>
       {rows.map((row, i) => (
-        <div key={i} className="grid grid-cols-[auto_auto_1fr_auto] gap-1.5 items-start">
+        <div key={i} className="relative rounded-md border border-border/40 p-2 space-y-1.5 sm:p-0 sm:border-0 sm:space-y-0 sm:grid sm:grid-cols-[auto_auto_1fr_auto] sm:gap-1.5 sm:items-start">
           <input type="date" value={row.date} onChange={e => updateRow(rowKey, i, "date", e.target.value)} className={inputCls} />
-          <input type="time" value={row.time ?? ""} onChange={e => updateRow(rowKey, i, "time", e.target.value)} className={inputCls + " w-24"} />
+          <input type="time" value={row.time ?? ""} onChange={e => updateRow(rowKey, i, "time", e.target.value)} className={inputCls + " sm:w-24"} />
           <input type="text" value={row[col2Key]} onChange={e => updateRow(rowKey, i, col2Key, e.target.value)} className={inputCls} placeholder={col2Label} />
-          {rows.length > 1 && <button type="button" onClick={() => removeRow(rowKey, i)} className="mt-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>}
+          {rows.length > 1 && <button type="button" onClick={() => removeRow(rowKey, i)} className="absolute top-1.5 right-1.5 sm:relative sm:top-auto sm:right-auto sm:mt-1 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="w-3.5 h-3.5" /></button>}
         </div>
       ))}
     </div>

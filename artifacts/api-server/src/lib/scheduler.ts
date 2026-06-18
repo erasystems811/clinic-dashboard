@@ -844,6 +844,51 @@ async function runCarePlanCompletionDetection() {
       for (const plan of plans ?? []) {
         const dept = plan.department as string;
         const td = (plan.template_data ?? {}) as Record<string, unknown>;
+
+        // ── New-format plans (medications[]/procedures[]) ──────────────────────
+        // These don't have inCareSchedule entries — they end when treatment_end_date passes.
+        const newMeds  = (td.medications as Array<unknown> | undefined) ?? [];
+        const newProcs = (td.procedures  as Array<unknown> | undefined) ?? [];
+        if (newMeds.length > 0 || newProcs.length > 0) {
+          const { data: patRec } = await supabase
+            .from("patients")
+            .select("treatment_end_date, first_name, last_name")
+            .eq("id", plan.patient_id as number)
+            .maybeSingle();
+          if (!patRec?.treatment_end_date || (patRec.treatment_end_date as string) >= todayWAT) continue;
+
+          const now = new Date().toISOString();
+          await supabase.from("care_plans").update({ status: "ended", ended_at: now, updated_at: now }).eq("id", plan.id);
+
+          const { data: remainingNewFormat } = await supabase
+            .from("care_plans").select("id")
+            .eq("patient_id", plan.patient_id as number)
+            .eq("hospital_id", h.hospital_code)
+            .eq("status", "active");
+
+          if (!remainingNewFormat || remainingNewFormat.length === 0) {
+            const patientName = `${patRec.first_name} ${patRec.last_name}`;
+            await supabase.from("patients").update({
+              stage: "Post Treatment",
+              post_treatment_started_at: now,
+              treatment_plan: null,
+              treatment_type: null,
+              medication_timing: null,
+              updated_at: now,
+            }).eq("id", plan.patient_id as number);
+            await supabase.from("activity").insert({
+              type: "stage_changed",
+              description: `${patientName} moved to Post Treatment (${dept} treatment duration complete)`,
+              patient_id: plan.patient_id as number,
+              patient_name: patientName,
+              metadata: "Post Treatment",
+            });
+            log(`Auto-ended new-format plan ${plan.id} for patient ${plan.patient_id as number} (treatment_end_date ${patRec.treatment_end_date as string} passed)`);
+          }
+          continue;
+        }
+
+        // ── Old specialist-format plans (inCareSchedule entries) ──────────────
         const entries = extractVisitEntries(dept, td, todayWAT);
         if (!entries.length) continue;
 

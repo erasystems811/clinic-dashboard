@@ -1272,6 +1272,27 @@ async function runCarePlanRemindersHourly() {
               log(`Procedure reminder → patient ${patient.id} ${proc.name} slot=${slot}`);
             }
           }
+
+          // Categories: specialist appointment reminders — 4h before each scheduled visit
+          const newCats = (td.categories as Array<{ type?: string; data?: Record<string, unknown> }> | undefined) ?? [];
+          for (const cat of newCats) {
+            if (!cat.type || !cat.data) continue;
+            const entries = extractVisitEntries(cat.type, cat.data, today);
+            for (const entry of entries) {
+              if (!entry.date || !entry.time) continue;
+              const visitAt = new Date(`${entry.date}T${entry.time}:00+01:00`);
+              const fireAt = new Date(visitAt.getTime() - 4 * 60 * 60 * 1000);
+              if (Math.abs(fireAt.getTime() - now.getTime()) > WINDOW_MS) continue;
+              const dedupeKey = `cat_visit_${plan.id}_${cat.type.replace(/\W+/g, "_")}_${entry.date}_${entry.time.replace(":", "")}`;
+              if (await checkSentLog(h.id, dedupeKey)) continue;
+              await sendCareVisitReminderEmail(h.id, patient.id as number, patientName, patient.email as string, cat.type, plan.summary as string, entry.date, plan.id as number, entry.time);
+              await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: dedupeKey, status: "sent", channel: "email", message_preview: `${cat.type} visit reminder → ${patient.email as string}`, created_at: new Date().toISOString() });
+              if (beneficiaryName && beneficiaryEmail) {
+                await sendBeneficiaryReminderEmail(h.id, patient.id as number, patientName, beneficiaryName, beneficiaryEmail, `attend their ${cat.type} visit`, beneficiaryRelationship);
+              }
+              log(`${cat.type} visit reminder (4h before ${entry.time}) → patient ${patient.id} on ${entry.date}`);
+            }
+          }
           continue;
         }
 

@@ -151,6 +151,7 @@ function ProtectedRouter() {
 
       {/* Doctor routes */}
       {role === "doctor" && <Route path="/doctor-view" component={DoctorView} />}
+      {role === "doctor" && <Route path="/nurse-station" component={NurseStation} />}
       {role === "doctor" && <Route path="/help" component={HelpPage} />}
 
       {/* Default redirect */}

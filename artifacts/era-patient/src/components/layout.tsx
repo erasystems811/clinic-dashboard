@@ -135,7 +135,9 @@ function getNavItems(role: Role, modules: HospitalConfig["modules"] | null): Nav
     ];
   }
   if (role === "doctor") {
-    return [];
+    return [
+      { icon: Stethoscope, label: "Medication View", href: "/nurse-station" },
+    ];
   }
   const items: NavItem[] = [
     { icon: Home, label: "Dashboard", href: "/" },

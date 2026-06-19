@@ -11,8 +11,6 @@ const FEATURES = [
   { icon: CheckCircle2, label: "Verified & Secure", desc: "Data is encrypted in transit and at rest. HIPAA-aligned standards with audit trail." },
 ];
 
-const EMRS = ["ClinicMaster", "StellarHealth", "AfyaEMR", "Reli™ Hospital", "Healthplex"];
-
 export default function S10_EMRCallout({ prospect, onNext }: Props) {
 
   return (
@@ -33,13 +31,12 @@ export default function S10_EMRCallout({ prospect, onNext }: Props) {
 
       {/* Flow diagram */}
       <div className="flex items-center gap-4 flex-wrap justify-center">
-        <div className="px-4 py-3 rounded-xl bg-card border border-border text-center">
-          <p className="text-xs text-muted-foreground font-medium mb-1">Your EMR</p>
-          <div className="flex flex-wrap gap-1.5 justify-center mt-1 max-w-[160px]">
-            {EMRS.map(emr => (
-              <span key={emr} className="text-[10px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">{emr}</span>
-            ))}
+        <div className="px-5 py-4 rounded-xl bg-card border border-border text-center min-w-[130px]">
+          <p className="text-xs text-muted-foreground font-medium mb-2">Your EMR</p>
+          <div className="w-8 h-8 rounded-lg bg-secondary border border-border mx-auto flex items-center justify-center">
+            <Database className="w-4 h-4 text-muted-foreground" />
           </div>
+          <p className="text-[10px] text-muted-foreground mt-2">Any EMR system</p>
         </div>
         <div className="flex flex-col items-center gap-1">
           <ArrowRight className="w-5 h-5 text-primary" />

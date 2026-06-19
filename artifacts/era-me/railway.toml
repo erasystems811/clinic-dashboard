@@ -1,0 +1,7 @@
+[build]
+buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @workspace/era-me run build"
+
+[deploy]
+startCommand = "node server.cjs"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

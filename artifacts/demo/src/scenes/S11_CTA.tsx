@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { CheckCircle2, ArrowRight, Phone, Calendar } from "lucide-react";
+import { CheckCircle2, ArrowRight, MessageSquare, FileText } from "lucide-react";
 import { Button } from "@/components/ui";
 import type { Prospect } from "@/types";
+import { apiUrl } from "@/lib/utils";
 
 interface Props { prospect: Prospect; }
 
@@ -9,14 +10,38 @@ const HIGHLIGHTS = [
   "Automated SMS/Email at every patient stage",
   "Live pipeline & queue management",
   "4 role views: Admin, Receptionist, Nurse, Doctor",
-  "In-app messaging between staff & patients",
+  "ERA Messages — in-app messaging between staff & patients",
   "Post-visit feedback collected automatically",
   "EMR integration — no double entry",
   "Full patient journey analytics",
 ];
 
 export default function S11_CTA({ prospect }: Props) {
-  const [clicked, setClicked] = useState<"call" | "trial" | null>(null);
+  const [clicked, setClicked] = useState<"conversation" | "proposal" | null>(null);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleCTA(type: "conversation" | "proposal") {
+    setClicked(type);
+    setError("");
+    try {
+      await fetch(apiUrl("/api/demo/cta"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: prospect.sessionId,
+          firstName: prospect.firstName,
+          lastName: prospect.lastName,
+          email: prospect.email,
+          phone: prospect.phone,
+          action: type,
+        }),
+      });
+    } catch {
+      // non-blocking — still show success state
+    }
+    setSent(true);
+  }
 
   return (
     <div className="relative min-h-full flex flex-col items-center justify-center px-4 py-12 text-center">
@@ -49,44 +74,43 @@ export default function S11_CTA({ prospect }: Props) {
       </div>
 
       {/* CTAs */}
-      {clicked === null ? (
+      {!sent ? (
         <div className="flex gap-4 flex-wrap justify-center">
           <Button
             size="lg"
             className="gap-2 px-6"
-            onClick={() => setClicked("call")}
+            onClick={() => handleCTA("conversation")}
           >
-            <Phone className="w-4 h-4" /> Book a call with us
+            <MessageSquare className="w-4 h-4" /> Start a conversation
           </Button>
           <Button
             size="lg"
             variant="outline"
             className="gap-2 px-6"
-            onClick={() => setClicked("trial")}
+            onClick={() => handleCTA("proposal")}
           >
-            <Calendar className="w-4 h-4" /> Start free trial
+            <FileText className="w-4 h-4" /> Get a proposal
             <ArrowRight className="w-4 h-4" />
           </Button>
-        </div>
-      ) : clicked === "call" ? (
-        <div className="space-y-3 scale-in text-center">
-          <CheckCircle2 className="w-10 h-10 text-primary mx-auto" />
-          <p className="font-semibold">We'll be in touch, {prospect.firstName}!</p>
-          <p className="text-sm text-muted-foreground">
-            Our team will call <span className="font-medium text-foreground">{prospect.phone}</span> within 24 hours to walk you through ERA for your clinic.
-          </p>
         </div>
       ) : (
         <div className="space-y-3 scale-in text-center">
           <CheckCircle2 className="w-10 h-10 text-primary mx-auto" />
-          <p className="font-semibold">Your trial is being set up, {prospect.firstName}!</p>
-          <p className="text-sm text-muted-foreground">
-            Check <span className="font-medium text-foreground">{prospect.phone}</span> — you'll receive a setup link from ERA Systems shortly.
+          <p className="font-semibold">
+            {clicked === "conversation"
+              ? `We'll be in touch, ${prospect.firstName}!`
+              : `Proposal request received, ${prospect.firstName}!`}
           </p>
+          <p className="text-sm text-muted-foreground">
+            {clicked === "conversation"
+              ? <>Our team will reach out to <span className="font-medium text-foreground">{prospect.email}</span> shortly to start the conversation.</>
+              : <>We'll put together a personalised proposal and send it to <span className="font-medium text-foreground">{prospect.email}</span>.</>}
+          </p>
+          {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
       )}
 
-      {/* Powered by footer */}
+      {/* Footer */}
       <div className="mt-16 flex flex-col items-center gap-2">
         <div className="flex items-center gap-2">
           <div className="w-5 h-5 rounded-md bg-primary/20 flex items-center justify-center">

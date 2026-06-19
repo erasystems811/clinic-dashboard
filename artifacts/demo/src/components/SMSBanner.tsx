@@ -37,8 +37,8 @@ export default function SMSBanner({ message, visible, onDismiss }: Props) {
           <MessageSquare className="w-3.5 h-3.5 text-primary" />
         </div>
         <div className="flex-1">
-          <p className="text-[10px] font-semibold text-foreground uppercase tracking-wide">SMS · ERA Hospital</p>
-          <p className="text-[10px] text-muted-foreground">Just now · Simulated</p>
+          <p className="text-xs font-semibold text-foreground uppercase tracking-wide">SMS · ERA Hospital</p>
+          <p className="text-xs text-muted-foreground">Just now</p>
         </div>
         <button
           onClick={onDismiss}
@@ -50,12 +50,12 @@ export default function SMSBanner({ message, visible, onDismiss }: Props) {
 
       {/* Message */}
       <div className="px-3.5 py-3">
-        <p className="text-xs text-foreground leading-relaxed">{message}</p>
+        <p className="text-sm text-foreground leading-relaxed">{message}</p>
       </div>
 
       {/* Footer */}
       <div className="px-3.5 pb-2.5">
-        <p className="text-[9px] text-muted-foreground/50">Powered by ERA Patient · Not a real SMS</p>
+        <p className="text-[10px] text-muted-foreground/50">Powered by ERA Patient</p>
       </div>
     </div>
   );

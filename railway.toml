@@ -1,0 +1,4 @@
+[deploy]
+startCommand = "node _start.cjs"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

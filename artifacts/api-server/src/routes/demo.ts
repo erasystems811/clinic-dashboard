@@ -29,13 +29,13 @@ router.post("/demo/register", async (req, res) => {
 
   console.log(`[demo] register: ${firstName} ${lastName} <${email}> ${phone} session=${sessionId}`);
 
-  const { error } = await supabase.from("demo_sessions").upsert({
+  const { error } = await supabase.from("demo_sessions").insert({
     session_id: sessionId,
     first_name: firstName,
     last_name: lastName,
     email,
     phone,
-  }, { onConflict: "session_id" });
+  });
 
   if (error) {
     console.error("[demo] register DB error:", error.code, error.message, error.hint ?? "");
@@ -138,13 +138,13 @@ router.post("/demo/cta", async (req, res) => {
 // GET /api/demo/ping — no auth, tests DB write access to demo_sessions
 router.get("/demo/ping", async (_req, res) => {
   const testId = `ping_${Date.now()}`;
-  const { error: writeErr } = await supabase.from("demo_sessions").upsert({
+  const { error: writeErr } = await supabase.from("demo_sessions").insert({
     session_id: testId,
     first_name: "Test",
     last_name: "Ping",
     email: "ping@test.com",
     phone: "0000000000",
-  }, { onConflict: "session_id" });
+  });
   if (writeErr) {
     console.error("[demo/ping] write failed:", writeErr.code, writeErr.message);
     return void res.status(500).json({ ok: false, error: writeErr.message, hint: writeErr.hint ?? "" });

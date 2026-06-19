@@ -55,7 +55,7 @@ function LandingPage({ onStart }: { onStart: (p: Prospect) => void }) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top bar */}
-      <div className="px-8 py-4 border-b border-border flex items-center gap-3">
+      <div className="px-4 sm:px-8 py-4 border-b border-border flex items-center gap-3">
         <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center">
           <div className="w-3.5 h-3.5 rounded-sm bg-primary" />
         </div>

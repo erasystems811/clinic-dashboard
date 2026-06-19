@@ -28,7 +28,7 @@ export default function DemoShell({ role, activePage, children, userName = "Admi
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top bar */}
-        <div className="h-12 border-b border-border flex items-center justify-between px-4 bg-card/50 shrink-0">
+        <div className="h-10 sm:h-12 border-b border-border flex items-center justify-between px-2 sm:px-4 bg-card/50 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">ERA Hospital</span>
             <span className="text-muted-foreground text-xs">/</span>
@@ -52,7 +52,7 @@ export default function DemoShell({ role, activePage, children, userName = "Admi
         </div>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6">
           {children}
         </div>
       </div>

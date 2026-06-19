@@ -17,8 +17,9 @@ import S07_MessageLog from "@/scenes/S07_MessageLog";
 import S08_Automations from "@/scenes/S08_Automations";
 import S08_DoctorView from "@/scenes/S08_DoctorView";
 import S09_Feedback from "@/scenes/S09_Feedback";
-import S10_EMRCallout from "@/scenes/S10_EMRCallout";
-import S11_CTA from "@/scenes/S11_CTA";
+import S10_SelfBooking from "@/scenes/S_SelfBooking";
+import S11_EMRCallout from "@/scenes/S10_EMRCallout";
+import S12_CTA from "@/scenes/S11_CTA";
 
 // ── Landing page ──────────────────────────────────────────────────────────────
 function LandingPage({ onStart }: { onStart: (p: Prospect) => void }) {
@@ -244,8 +245,9 @@ export default function App() {
     7:  <S08_Automations prospect={prospect} onNext={advanceScene} />,
     8:  <S08_DoctorView {...sceneProps} />,
     9:  <S09_Feedback {...sceneProps} />,
-    10: <S10_EMRCallout {...sceneProps} />,
-    11: <S11_CTA prospect={prospect} />,
+    10: <S10_SelfBooking prospect={prospect} onNext={advanceScene} />,
+    11: <S11_EMRCallout {...sceneProps} />,
+    12: <S12_CTA prospect={prospect} />,
   };
 
   return (

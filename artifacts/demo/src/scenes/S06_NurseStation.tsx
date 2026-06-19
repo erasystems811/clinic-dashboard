@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Plus, Loader2, CheckCircle2, Stethoscope } from "lucide-react";
-import { Button, Input, Card, CardHeader, CardTitle, CardContent, Badge } from "@/components/ui";
+import { Plus, Loader2, CheckCircle2, Stethoscope, Pill, Activity, X } from "lucide-react";
+import { Button, Input, Card, CardContent, Badge } from "@/components/ui";
 import NarrationBubble from "@/components/NarrationBubble";
 import type { Prospect } from "@/types";
 
@@ -10,9 +10,11 @@ interface Props {
   onSMSBanner: (msg: string) => void;
 }
 
-const SAMPLE_MEDICATIONS = [
-  { name: "Paracetamol 500mg", dosage: "1 tablet", frequency: "3x daily", duration: "5 days" },
-  { name: "Amoxicillin 250mg", dosage: "1 capsule", frequency: "2x daily", duration: "7 days" },
+const TIMING_SLOTS = ["Morning", "Afternoon", "Evening", "Night"];
+
+const SAMPLE_MEDS = [
+  { name: "Paracetamol 500mg", dosage: "1 tablet", durationDays: 5, times: { Morning: "08:00", Afternoon: "14:00", Evening: "20:00" } },
+  { name: "Amoxicillin 250mg", dosage: "1 capsule", durationDays: 7, times: { Morning: "07:00", Evening: "19:00" } },
 ];
 
 export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Props) {
@@ -29,121 +31,144 @@ export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Prop
   return (
     <div className="relative space-y-6 max-w-4xl">
       <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-violet-500/10 text-violet-400 flex items-center justify-center">
           <Stethoscope className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Nurse Station</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Create treatment plan for {prospect.firstName} {prospect.lastName}</p>
+          <h1 className="text-2xl font-bold tracking-tight">Medication View</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Manage treatment plans and schedule patient return visits.</p>
         </div>
       </div>
 
-      {step === "done" ? (
-        <Card className="border-green-500/30 bg-green-500/5">
-          <CardContent className="pt-6 text-center space-y-3">
-            <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto" />
-            <p className="font-semibold text-green-400">Care Plan Activated</p>
-            <p className="text-sm text-muted-foreground">{prospect.firstName}'s plan is live. They've been notified via SMS.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {/* Patient info */}
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="pt-4 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/20 text-primary font-bold flex items-center justify-center">
+      {/* Treatment Plans section */}
+      <div className="rounded-xl border border-border bg-card">
+        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border bg-muted/10">
+          <Stethoscope className="w-4 h-4 text-primary" />
+          <span className="font-semibold text-sm">Treatment Plans</span>
+        </div>
+        <div className="p-5">
+          {step === "done" ? (
+            <div className="text-center space-y-3 py-4">
+              <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto" />
+              <p className="font-semibold text-green-400">Treatment Plan Activated</p>
+              <p className="text-sm text-muted-foreground">{prospect.firstName}'s plan is live. They've been notified via SMS.</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Patient bar */}
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+                <div className="w-9 h-9 rounded-full bg-primary/20 text-primary font-bold text-sm flex items-center justify-center shrink-0">
                   {prospect.firstName[0]}{prospect.lastName[0]}
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="font-semibold text-sm">{prospect.firstName} {prospect.lastName}</p>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="text-xs font-mono text-muted-foreground">ERA-001</span>
-                    <Badge className="text-[10px] bg-blue-500/20 text-blue-400 border-blue-500/30">In Care</Badge>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-mono mr-2">ERA-001</span>
+                    <span>Filling draft treatment plan</span>
+                  </p>
+                </div>
+                <Badge className="text-[10px] bg-blue-500/20 text-blue-400 border-blue-500/30">In Care</Badge>
+              </div>
+
+              {/* Medications */}
+              <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Pill className="w-4 h-4 text-primary" />
+                    <p className="text-sm font-semibold">Medications</p>
+                    <span className="text-xs text-muted-foreground">(pharmacist)</span>
                   </div>
+                  <button type="button" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                    <Plus className="w-3.5 h-3.5" /> Add
+                  </button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Care Plan */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Care Plan</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Department</label>
-                  <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm">
-                    <option>General Outpatient</option>
-                    <option>Cardiology</option>
-                    <option>Physiotherapy</option>
-                    <option>Dental</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Summary</label>
-                  <Input defaultValue="Upper Respiratory Tract Infection" />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium">Procedures / Notes</label>
-                <textarea
-                  rows={2}
-                  defaultValue="Full physical examination performed. Throat and ears checked. No fever. Advised to rest and stay hydrated."
-                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Medications */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-sm">Medications</CardTitle>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <Plus className="w-3.5 h-3.5" /> Add
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {SAMPLE_MEDICATIONS.map((med, i) => (
-                  <div key={i} className="flex items-center gap-4 px-3 py-2.5 rounded-md bg-muted/30 border border-border">
-                    <div className="w-2 h-2 rounded-full bg-primary shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0 grid grid-cols-4 gap-2">
-                      <span className="text-sm font-medium col-span-2">{med.name}</span>
-                      <span className="text-xs text-muted-foreground">{med.frequency}</span>
-                      <span className="text-xs text-muted-foreground">{med.duration}</span>
+                {SAMPLE_MEDS.map((med, i) => (
+                  <div key={i} className="p-3 rounded-lg border border-border bg-background space-y-2">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 grid grid-cols-2 gap-2">
+                        <Input defaultValue={med.name} className="text-sm h-8" readOnly />
+                        <Input defaultValue={med.dosage} className="text-sm h-8" placeholder="Dosage" readOnly />
+                      </div>
+                      <button type="button" className="p-1.5 rounded text-muted-foreground hover:text-destructive transition shrink-0">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Duration:</span>
+                      <span className="text-xs font-medium">{med.durationDays} days</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      {TIMING_SLOTS.map(slot => (
+                        <div key={slot} className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-16 shrink-0">{slot}</span>
+                          <Input
+                            type="time"
+                            defaultValue={med.times[slot as keyof typeof med.times] ?? ""}
+                            className="text-xs h-7 flex-1"
+                            readOnly
+                          />
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Activate */}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline">Save Draft</Button>
-            <Button onClick={handleActivate} disabled={step === "activating"}>
-              {step === "activating" && <Loader2 className="w-4 h-4 animate-spin" />}
-              {step === "activating" ? "Activating…" : "Activate Care Plan"}
-            </Button>
-          </div>
-        </>
-      )}
+              {/* Procedures */}
+              <div className="rounded-lg border border-border bg-muted/10 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-primary" />
+                    <p className="text-sm font-semibold">Procedures / Treatments</p>
+                    <span className="text-xs text-muted-foreground">(nurse)</span>
+                  </div>
+                  <button type="button" className="flex items-center gap-1 text-xs text-primary hover:underline">
+                    <Plus className="w-3.5 h-3.5" /> Add
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">No procedures added</p>
+              </div>
+
+              {/* Plan Summary */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Plan Summary / Notes</label>
+                <textarea
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[72px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                  defaultValue="Upper Respiratory Tract Infection. Full physical exam performed. Throat and ears checked. No fever. Advised to rest and stay hydrated."
+                  readOnly
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex flex-col gap-2 pt-1">
+                <Button
+                  type="button"
+                  onClick={handleActivate}
+                  disabled={step === "activating"}
+                  className="w-full gap-2"
+                >
+                  {step === "activating" ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  {step === "activating" ? "Activating…" : "Close & Activate Treatment Plan"}
+                </Button>
+                <Button type="button" variant="outline" className="w-full" disabled={step === "activating"}>
+                  Save Draft
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       <NarrationBubble
         text={
           step === "form"
-            ? <>Medication instructions get lost on paper slips. <strong>ERA sends the full care plan to the patient the moment it's activated</strong> — and keeps it accessible in the app.</>
+            ? <>Medication instructions get lost on paper slips. ERA sends the <strong>full treatment plan</strong> — medications, dosage, timing — to the patient the moment it's activated.</>
             : step === "activating"
             ? <>Activating plan...</>
-            : <><strong>Care plan sent.</strong> {prospect.firstName} has their medications, dosage, and instructions — delivered automatically. No paper. No confusion.</>
+            : <><strong>Treatment plan sent.</strong> {prospect.firstName} has their medications, dosage, timing reminders, and instructions — delivered automatically. No paper. No confusion.</>
         }
         onNext={step === "form" ? handleActivate : step === "done" ? onNext : undefined}
-        nextLabel={step === "form" ? "Activate Care Plan →" : "Continue →"}
+        nextLabel={step === "form" ? "Close & Activate Treatment Plan →" : "Continue →"}
       />
     </div>
   );

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageSquare, Mail, Smartphone, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { Mail, Phone, CheckCircle2, XCircle, Clock, Filter } from "lucide-react";
 import { Card } from "@/components/ui";
 import NarrationBubble from "@/components/NarrationBubble";
 import type { Prospect } from "@/types";
@@ -8,11 +8,34 @@ interface Props { prospect: Prospect; onNext: () => void; }
 
 interface LogEntry {
   id: number;
-  channel: "sms" | "email" | "in-app";
-  event: string;
-  message: string;
-  status: "delivered" | "pending" | "failed";
+  channel: "sms" | "email";
+  type: string;
+  preview: string;
+  status: "sent" | "failed" | "queued";
   time: string;
+}
+
+function ChannelIcon({ channel }: { channel: string }) {
+  if (channel === "email") return <Mail className="w-3.5 h-3.5 text-blue-400" />;
+  return <Phone className="w-3.5 h-3.5 text-amber-400" />;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "sent") return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20">
+      <CheckCircle2 className="w-3 h-3" /> Sent
+    </span>
+  );
+  if (status === "failed") return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20">
+      <XCircle className="w-3 h-3" /> Failed
+    </span>
+  );
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">
+      <Clock className="w-3 h-3" /> Queued
+    </span>
+  );
 }
 
 export default function S07_MessageLog({ prospect, onNext }: Props) {
@@ -20,107 +43,96 @@ export default function S07_MessageLog({ prospect, onNext }: Props) {
 
   const entries: LogEntry[] = [
     {
-      id: 1, channel: "sms",    status: "delivered", time: "9:02 AM",
-      event: "Queue Added",
-      message: `Hello ${prospect.firstName}, you've been added to the queue at ERA Hospital. Your current position is #1.`,
+      id: 1, channel: "sms", status: "sent", time: "9:02 AM",
+      type: "Queue Position SMS",
+      preview: `Hello ${prospect.firstName}, you've been added to the queue at ERA Hospital. Your current position is #1.`,
     },
     {
-      id: 2, channel: "sms",    status: "delivered", time: "9:18 AM",
-      event: "Called In",
-      message: `It's your turn, ${prospect.firstName}! Please proceed to the consultation room.`,
+      id: 2, channel: "sms", status: "sent", time: "9:18 AM",
+      type: "Queue Position SMS",
+      preview: `It's your turn, ${prospect.firstName}! Please proceed to the consultation room.`,
     },
     {
-      id: 3, channel: "sms",    status: "delivered", time: "9:35 AM",
-      event: "Care Plan Activated",
-      message: `Hi ${prospect.firstName}, your care plan has been activated. View details in the ERA-me app.`,
+      id: 3, channel: "sms", status: "sent", time: "9:35 AM",
+      type: "Treatment Notification",
+      preview: `Hi ${prospect.firstName}, your care plan has been activated at ERA Hospital. You can view your full plan in the ERA-me app.`,
     },
     {
-      id: 4, channel: "in-app", status: "delivered", time: "9:36 AM",
-      event: "ERA Message",
-      message: `Hi ${prospect.firstName}, this is your nurse. Your medications are ready at the front desk. Any questions, feel free to message me here!`,
+      id: 4, channel: "email", status: "sent", time: "9:55 AM",
+      type: "Treatment Plan Email",
+      preview: `Hi ${prospect.firstName}, attached is your full care plan from ERA Hospital — medications, dosage, and timing for the next 7 days.`,
     },
     {
-      id: 5, channel: "email",  status: "delivered", time: "10:00 AM",
-      event: "Post-Visit Summary",
-      message: `Dear ${prospect.firstName}, thank you for visiting ERA Hospital. Attached is your visit summary and care plan.`,
+      id: 5, channel: "email", status: "sent", time: "Tomorrow, 8:01 AM",
+      type: "Feedback Request",
+      preview: `Hi ${prospect.firstName}, we hope you're feeling better! We'd love to hear about your experience at ERA Hospital. It only takes 30 seconds.`,
     },
     {
-      id: 6, channel: "sms",    status: "pending",   time: "2:00 PM",
-      event: "Medication Reminder",
-      message: `Reminder from ERA Hospital: Take your Paracetamol 500mg. Your health matters!`,
+      id: 6, channel: "sms", status: "queued", time: "Tomorrow, 8:00 AM",
+      type: "Medication Reminder",
+      preview: `Reminder from ERA Hospital: Take your Paracetamol 500mg — Morning dose. Your health matters!`,
     },
   ];
 
   useEffect(() => {
     if (visibleCount < entries.length) {
-      const t = setTimeout(() => setVisibleCount(c => c + 1), 700);
+      const t = setTimeout(() => setVisibleCount(c => c + 1), 500);
       return () => clearTimeout(t);
     }
   }, [visibleCount, entries.length]);
 
-  const CHANNEL_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
-    sms:    Smartphone,
-    email:  Mail,
-    "in-app": MessageSquare,
-  };
-
-  const STATUS_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
-    delivered: CheckCircle2,
-    pending:   Clock,
-    failed:    AlertCircle,
-  };
-
-  const STATUS_COLOR: Record<string, string> = {
-    delivered: "text-green-400",
-    pending:   "text-amber-400",
-    failed:    "text-red-400",
-  };
-
-  const CHANNEL_COLOR: Record<string, string> = {
-    sms:    "bg-primary/10 text-primary",
-    email:  "bg-blue-500/10 text-blue-400",
-    "in-app": "bg-violet-500/10 text-violet-400",
-  };
-
   return (
-    <div className="relative space-y-6">
+    <div className="relative max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Message Log</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Automated communications sent for {prospect.firstName} {prospect.lastName}</p>
+        <p className="text-muted-foreground text-sm mt-0.5">All automated messages sent to patients — SMS, WhatsApp, and email.</p>
       </div>
 
-      <Card>
+      {/* Filter bar (visual only) */}
+      <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Filter className="w-4 h-4" />
+          Filter
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <select className="h-9 rounded-md border border-input bg-background px-3 text-sm opacity-60" disabled>
+            <option>All statuses</option>
+          </select>
+          <select className="h-9 rounded-md border border-input bg-background px-3 text-sm opacity-60" disabled>
+            <option>All channels</option>
+          </select>
+          <input type="date" className="h-9 rounded-md border border-input bg-background px-3 text-sm opacity-60" disabled />
+          <input type="date" className="h-9 rounded-md border border-input bg-background px-3 text-sm opacity-60" disabled />
+        </div>
+      </div>
+
+      {/* Log list */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
         <div className="divide-y divide-border">
-          {entries.slice(0, visibleCount).map((entry) => {
-            const ChannelIcon = CHANNEL_ICON[entry.channel];
-            const StatusIcon  = STATUS_ICON[entry.status];
-            return (
-              <div key={entry.id} className="flex items-start gap-4 px-4 py-3.5 fade-in-up">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${CHANNEL_COLOR[entry.channel]}`}>
-                  <ChannelIcon className="w-4 h-4" />
+          {entries.slice(0, visibleCount).map(entry => (
+            <div key={entry.id} className="px-4 py-3 hover:bg-muted/30 transition-colors fade-in-up">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 shrink-0">
+                  <ChannelIcon channel={entry.channel} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{entry.channel.toUpperCase()}</span>
-                    <span className="text-xs font-medium">{entry.event}</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium">{prospect.firstName} {prospect.lastName}</span>
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <span className="text-xs text-muted-foreground">{entry.type}</span>
+                    <StatusBadge status={entry.status} />
                   </div>
-                  <p className="text-sm text-foreground/80 leading-snug">{entry.message}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xl">{entry.preview}</p>
                 </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className="text-xs text-muted-foreground">{entry.time}</span>
-                  <span className={`flex items-center gap-1 text-xs font-medium ${STATUS_COLOR[entry.status]}`}>
-                    <StatusIcon className="w-3 h-3" />
-                    {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
-                  </span>
-                </div>
+                <span className="text-xs text-muted-foreground shrink-0 mt-0.5">{entry.time}</span>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
-      </Card>
+      </div>
 
       <NarrationBubble
-        text={<>Every SMS, email, and in-app message ERA sent — <strong>logged automatically with delivery status</strong>. You always have a full record of what each patient received and when.</>}
+        text={<>Every SMS and email ERA sent — <strong>logged automatically with delivery status</strong>. You always have a full record of what each patient received and when. Filter by channel, status, or date range.</>}
         onNext={onNext}
         nextLabel="Continue →"
       />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Loader2, CheckCircle2, Stethoscope, Pill, Activity, X } from "lucide-react";
+import { Plus, Loader2, CheckCircle2, Stethoscope, Pill, Activity, X, Mail, Phone } from "lucide-react";
 import { Button, Input, Card, CardContent, Badge } from "@/components/ui";
 import NarrationBubble from "@/components/NarrationBubble";
 import type { Prospect } from "@/types";
@@ -48,10 +48,57 @@ export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Prop
         </div>
         <div className="p-5">
           {step === "done" ? (
-            <div className="text-center space-y-3 py-4">
-              <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto" />
-              <p className="font-semibold text-green-400">Treatment Plan Activated</p>
-              <p className="text-sm text-muted-foreground">{prospect.firstName}'s plan is live. They've been notified via SMS.</p>
+            /* ── Split screen: nurse side (left) + patient side (right) ── */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Nurse / admin view */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                  <Stethoscope className="w-3.5 h-3.5" /> Nurse view
+                </p>
+                <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-4 text-center space-y-2">
+                  <CheckCircle2 className="w-10 h-10 text-green-400 mx-auto" />
+                  <p className="font-semibold text-green-400 text-sm">Treatment Plan Activated</p>
+                  <p className="text-xs text-muted-foreground">{prospect.firstName}'s plan is live in the system.</p>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/10 p-3 space-y-1.5 text-xs">
+                  <p className="font-semibold text-foreground/80">Paracetamol 500mg</p>
+                  <p className="text-muted-foreground">Morning · Afternoon · Evening · 5 days</p>
+                  <p className="font-semibold text-foreground/80 mt-2">Amoxicillin 250mg</p>
+                  <p className="text-muted-foreground">Morning · Evening · 7 days</p>
+                </div>
+              </div>
+
+              {/* Patient view */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5" /> What {prospect.firstName} receives
+                </p>
+                {/* SMS notification */}
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="text-xs font-semibold text-amber-400">SMS — Just now</span>
+                  </div>
+                  <p className="text-xs text-foreground/80 leading-relaxed">
+                    Hi {prospect.firstName}, your care plan at ERA Hospital has been set up. Please check your email for your full care plan details. We are with you every step of the way.
+                  </p>
+                </div>
+                {/* Email */}
+                <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 text-blue-400" />
+                    <span className="text-xs font-semibold text-blue-400">Email — 20 mins later</span>
+                  </div>
+                  <p className="text-xs font-semibold text-foreground">Your care plan has started — ERA Hospital</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Hi {prospect.firstName}, thank you for choosing ERA Hospital. Your care plan is now active. Here are your medications and instructions for the next 7 days…
+                  </p>
+                  <div className="text-xs text-foreground/70 space-y-0.5 border-t border-blue-500/20 pt-1.5">
+                    <p>· Paracetamol 500mg — 3× daily, 5 days</p>
+                    <p>· Amoxicillin 250mg — 2× daily, 7 days</p>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-5">

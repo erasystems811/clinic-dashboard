@@ -198,7 +198,9 @@ export default function App() {
     const currentRole = SCENES[scene].role;
     const nextRole    = SCENES[nextIdx].role;
 
-    if (nextRole !== currentRole) {
+    // Only show the role-switch overlay when switching TO a real staff role.
+    // Transitions to/from null-role (full-screen) scenes advance directly.
+    if (nextRole !== null && nextRole !== currentRole) {
       setPendingScene(nextIdx);
       setRoleSwitchRole(nextRole);
     } else {

@@ -1,8 +1,0 @@
-[build]
-builder = "dockerfile"
-dockerfilePath = "artifacts/demo/Dockerfile"
-
-[deploy]
-startCommand = "node artifacts/demo/server.cjs"
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3

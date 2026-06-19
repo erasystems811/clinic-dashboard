@@ -55,11 +55,8 @@ export default function S07_MessageLog({ prospect, onNext }: Props) {
     if (visibleCount < entries.length) {
       const t = setTimeout(() => setVisibleCount(c => c + 1), 700);
       return () => clearTimeout(t);
-    } else {
-      const t = setTimeout(onNext, 2000);
-      return () => clearTimeout(t);
     }
-  }, [visibleCount, entries.length, onNext]);
+  }, [visibleCount, entries.length]);
 
   const CHANNEL_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
     sms:    Smartphone,

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Badge } from "@/components/ui";
 import NarrationBubble from "@/components/NarrationBubble";
 import { PIPELINE_STAGES } from "@/types";
@@ -17,10 +16,6 @@ const FAKE_PATIENTS: Record<string, string[]> = {
 };
 
 export default function S03_Pipeline({ prospect, onNext }: Props) {
-  useEffect(() => {
-    const t = setTimeout(onNext, 6000);
-    return () => clearTimeout(t);
-  }, [onNext]);
 
   return (
     <div className="relative flex flex-col h-full space-y-6">

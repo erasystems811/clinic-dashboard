@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Database, ArrowRight, CheckCircle2, Layers, Link2 } from "lucide-react";
 import NarrationBubble from "@/components/NarrationBubble";
 import type { Prospect } from "@/types";
@@ -15,10 +14,6 @@ const FEATURES = [
 const EMRS = ["ClinicMaster", "StellarHealth", "AfyaEMR", "Reli™ Hospital", "Healthplex"];
 
 export default function S10_EMRCallout({ prospect, onNext }: Props) {
-  useEffect(() => {
-    const t = setTimeout(onNext, 6000);
-    return () => clearTimeout(t);
-  }, [onNext]);
 
   return (
     <div className="relative min-h-full flex flex-col items-center justify-center px-4 py-12 text-center space-y-10">

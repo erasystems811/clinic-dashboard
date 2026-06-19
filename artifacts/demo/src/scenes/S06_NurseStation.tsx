@@ -23,7 +23,6 @@ export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Prop
     setTimeout(() => {
       setStep("done");
       onSMSBanner(`Hi ${prospect.firstName}, your care plan has been activated at ERA Hospital. Your nurse has prescribed your medications. You can view your full plan in the ERA-me app.`);
-      setTimeout(onNext, 5000);
     }, 1000);
   }
 
@@ -142,8 +141,8 @@ export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Prop
             ? <>Activating plan...</>
             : <><strong>Care plan activated.</strong> {prospect.firstName} gets an SMS with their plan summary. Their nurse can also chat with them via ERA Messages.</>
         }
-        onNext={step === "form" ? handleActivate : undefined}
-        nextLabel="Activate Care Plan →"
+        onNext={step === "form" ? handleActivate : step === "done" ? onNext : undefined}
+        nextLabel={step === "form" ? "Activate Care Plan →" : "Continue →"}
       />
     </div>
   );

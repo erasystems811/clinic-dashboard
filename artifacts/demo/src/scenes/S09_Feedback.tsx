@@ -16,10 +16,9 @@ export default function S09_Feedback({ prospect, onNext }: Props) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setShow(true), 600);
-    const t2 = setTimeout(onNext, 5000);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, [onNext]);
+    const t = setTimeout(() => setShow(true), 600);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="relative space-y-6">

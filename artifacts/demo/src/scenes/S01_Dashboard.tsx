@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { Users, Calendar, AlertCircle, Clock, UserX, Star, Send, Activity, Wallet, TrendingDown, Minus } from "lucide-react";
+import { Users, Calendar, AlertCircle, Clock, UserX, Star, Activity, Wallet, TrendingDown, Minus } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui";
 import NarrationBubble from "@/components/NarrationBubble";
 import { PIPELINE_STAGES } from "@/types";
@@ -10,10 +9,6 @@ interface Props { prospect: Prospect; onNext: () => void; }
 const TOTAL = 248;
 
 export default function S01_Dashboard({ prospect, onNext }: Props) {
-  useEffect(() => {
-    const t = setTimeout(onNext, 8000);
-    return () => clearTimeout(t);
-  }, [onNext]);
 
   return (
     <div className="relative space-y-8">

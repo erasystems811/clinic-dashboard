@@ -15,7 +15,6 @@ export default function S05_QueueCalledIn({ prospect, onNext, onSMSBanner }: Pro
   function handleCalledIn() {
     setCalled(true);
     onSMSBanner(`It's your turn, ${prospect.firstName}! Please proceed to the consultation room. — ERA Hospital`);
-    setTimeout(onNext, 5000);
   }
 
   return (
@@ -81,8 +80,8 @@ export default function S05_QueueCalledIn({ prospect, onNext, onSMSBanner }: Pro
             ? <><strong>The doctor is ready.</strong> Your receptionist ticks "Called in" — one click. The patient gets an SMS telling them to come through.</>
             : <><strong>Done.</strong> {prospect.firstName} received an SMS instantly. Their stage updates to "In Care" automatically.</>
         }
-        onNext={!called ? handleCalledIn : undefined}
-        nextLabel={!called ? "Call patient in →" : undefined}
+        onNext={!called ? handleCalledIn : onNext}
+        nextLabel={!called ? "Call patient in →" : "Continue →"}
       />
     </div>
   );

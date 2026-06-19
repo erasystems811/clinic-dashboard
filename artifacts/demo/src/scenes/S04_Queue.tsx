@@ -24,7 +24,6 @@ export default function S04_Queue({ prospect, onNext, onSMSBanner }: Props) {
       setIsAdding(false);
       setStep("added");
       onSMSBanner(`Hello ${prospect.firstName}, you've been added to the queue at ERA Hospital. Your current position is #1. We'll keep you updated.`);
-      setTimeout(onNext, 5000);
     }, 800);
   }
 
@@ -141,8 +140,8 @@ export default function S04_Queue({ prospect, onNext, onSMSBanner }: Props) {
             ? <>Patient found. Click <strong>"Add to Queue"</strong> to check them in. An SMS goes to them automatically.</>
             : <><strong>{prospect.firstName}</strong> is now in the queue. They received an SMS with their position number.</>
         }
-        onNext={step === "search" ? handleSearch : step === "found" ? handleAddToQueue : undefined}
-        nextLabel={step === "search" ? "Search" : step === "found" ? "Add to Queue →" : undefined}
+        onNext={step === "search" ? handleSearch : step === "found" ? handleAddToQueue : onNext}
+        nextLabel={step === "search" ? "Search" : step === "found" ? "Add to Queue →" : "Continue →"}
       />
     </div>
   );

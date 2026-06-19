@@ -41,8 +41,8 @@ export default function DemoSessionsPage() {
   const [search, setSearch] = useState("");
 
   const { data: sessions = [], isLoading, error } = useQuery<DemoSession[]>({
-    queryKey: ["/api/demo/sessions"],
-    queryFn: () => get<DemoSession[]>("/api/demo/sessions"),
+    queryKey: ["/demo/sessions"],
+    queryFn: () => get<DemoSession[]>("/demo/sessions"),
     refetchInterval: 30_000,
     retry: 1,
   });
@@ -69,8 +69,10 @@ export default function DemoSessionsPage() {
 
         {/* Error banner */}
         {error && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            <strong>Failed to load sessions:</strong> {(error as Error).message}
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive space-y-1">
+            <p><strong>Failed to load sessions.</strong></p>
+            <p className="font-mono text-xs break-all">{String((error as Error).message || error)}</p>
+            <p className="text-xs text-destructive/70">Check that API_URL is set on the super-admin Railway service.</p>
           </div>
         )}
 

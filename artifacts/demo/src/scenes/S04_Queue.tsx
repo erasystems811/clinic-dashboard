@@ -138,7 +138,7 @@ export default function S04_Queue({ prospect, onNext, onSMSBanner }: Props) {
             ? <>Patients who know their queue position <strong>don't leave and don't flood the front desk with questions</strong>. ERA handles it — search the patient to add them in.</>
             : step === "found"
             ? <>Patient found. Add them to the queue — <strong>ERA sends their position via SMS the moment they're checked in</strong>.</>
-            : <><strong>{prospect.firstName} just received an SMS</strong> with their queue position. They can wait anywhere — their phone keeps them informed.</>}
+            : <><strong>{prospect.firstName} just received an SMS</strong> with their queue position. They can wait anywhere — their phone keeps them informed.</>
         }
         onNext={step === "search" ? handleSearch : step === "found" ? handleAddToQueue : onNext}
         nextLabel={step === "search" ? "Search" : step === "found" ? "Add to Queue →" : "Continue →"}

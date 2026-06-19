@@ -453,6 +453,7 @@ app.listen(port, (err) => {
   migrateRagSearchFunction();
   migrateIntimacyTables();
   migrateEraAnalyticsTables();
+  migrateDemoSessionsTable();
 });
 
 async function migrateEraAnalyticsTables() {
@@ -550,5 +551,40 @@ async function migrateRagSearchFunction() {
     else logger.warn({ body: await resp.text() }, "[migration] rag_search migration failed");
   } catch (err) {
     logger.warn({ err }, "[migration] rag_search migration error");
+  }
+}
+
+async function migrateDemoSessionsTable() {
+  const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!projectRef || !token) return;
+  const sql = `
+    CREATE TABLE IF NOT EXISTS demo_sessions (
+      id           SERIAL PRIMARY KEY,
+      session_id   TEXT NOT NULL UNIQUE,
+      first_name   TEXT NOT NULL,
+      last_name    TEXT NOT NULL,
+      email        TEXT,
+      phone        TEXT NOT NULL,
+      stage_reached TEXT,
+      completed    BOOLEAN NOT NULL DEFAULT false,
+      cta_action   TEXT,
+      cta_at       TIMESTAMPTZ,
+      started_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS idx_demo_sessions_started ON demo_sessions(started_at DESC);
+    NOTIFY pgrst, 'reload schema';
+  `;
+  try {
+    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: sql }),
+    });
+    if (resp.ok) logger.info("[migration] demo_sessions table ready");
+    else logger.warn({ body: await resp.text() }, "[migration] demo_sessions migration failed (non-fatal)");
+  } catch (err) {
+    logger.warn({ err }, "[migration] demo_sessions migration error (non-fatal)");
   }
 }

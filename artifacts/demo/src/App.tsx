@@ -216,7 +216,7 @@ export default function App() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sessionId: prospect.sessionId,
-            stage: SCENES[scene].id,
+            stageReached: String(SCENES[scene].id),
             completed: scene === SCENES.length - 1,
           }),
         }).catch(() => {});

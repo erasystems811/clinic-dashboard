@@ -78,7 +78,7 @@ export default function S05_QueueCalledIn({ prospect, onNext, onSMSBanner }: Pro
         text={
           !called
             ? <>When it's a patient's turn, <strong>one tick is all it takes</strong>. ERA sends the SMS, updates the queue, and moves their stage — all automatically.</>
-            : <><strong>{prospect.firstName} has been notified.</strong> No shouting names across a waiting room. No missed calls. They walk in knowing it's their turn.</>}
+            : <><strong>{prospect.firstName} has been notified.</strong> No shouting names across a waiting room. No missed calls. They walk in knowing it's their turn.</>
         }
         onNext={!called ? handleCalledIn : onNext}
         nextLabel={!called ? "Call patient in →" : "Continue →"}

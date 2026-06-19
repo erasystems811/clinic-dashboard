@@ -40,10 +40,11 @@ function fmt(iso: string) {
 export default function DemoSessionsPage() {
   const [search, setSearch] = useState("");
 
-  const { data: sessions = [], isLoading } = useQuery<DemoSession[]>({
+  const { data: sessions = [], isLoading, error } = useQuery<DemoSession[]>({
     queryKey: ["/api/demo/sessions"],
     queryFn: () => get<DemoSession[]>("/api/demo/sessions"),
     refetchInterval: 30_000,
+    retry: 1,
   });
 
   const filtered = sessions.filter(s => {
@@ -65,6 +66,13 @@ export default function DemoSessionsPage() {
           <h1 className="text-2xl font-bold">Demo Sessions</h1>
           <p className="text-muted-foreground text-sm mt-1">Prospects who started the interactive ERA Patient demo</p>
         </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            <strong>Failed to load sessions:</strong> {(error as Error).message}
+          </div>
+        )}
 
         {/* Summary */}
         <div className="grid grid-cols-3 gap-4">

@@ -28,8 +28,8 @@ const AUTOMATIONS = [
     color: "text-blue-400 bg-blue-500/10 border-blue-500/20",
     trigger: "Appointment booked",
     title: "Appointment Reminders",
-    desc: "Confirmation email when booked. Another reminder 24 hours before. A final nudge 2 hours before.",
-    channel: "Email / SMS",
+    desc: "Confirmation email when booked. A reminder 24 hours before. A final nudge 2 hours before the appointment time.",
+    channel: "Email",
     timing: "24h + 2h before",
   },
   {
@@ -46,8 +46,8 @@ const AUTOMATIONS = [
     color: "text-violet-400 bg-violet-500/10 border-violet-500/20",
     trigger: "Care plan activated",
     title: "Care Plan Delivery",
-    desc: "Instant SMS notification, then a full personalised email with all medications and instructions — sent 20 minutes after activation.",
-    channel: "SMS + Email",
+    desc: "Instant SMS telling the patient to check their email, then a full personalised email with all medications and instructions sent automatically.",
+    channel: "SMS → Email",
     timing: "Instant + 20 min",
   },
   {

@@ -63,14 +63,14 @@ export default function S07_MessageLog({ prospect, onNext }: Props) {
       preview: `Hi ${prospect.firstName}, attached is your full care plan from ERA Hospital — medications, dosage, and timing for the next 7 days.`,
     },
     {
-      id: 5, channel: "email", status: "sent", time: "Tomorrow, 8:01 AM",
-      type: "Feedback Request",
-      preview: `Hi ${prospect.firstName}, we hope you're feeling better! We'd love to hear about your experience at ERA Hospital. It only takes 30 seconds.`,
+      id: 5, channel: "email", status: "sent", time: "Tomorrow, 8:00 AM",
+      type: "Medication Reminder",
+      preview: `Reminder: Time to take your Paracetamol 500mg, Amoxicillin 250mg. Please take your medication as prescribed.`,
     },
     {
-      id: 6, channel: "sms", status: "queued", time: "Tomorrow, 8:00 AM",
-      type: "Medication Reminder",
-      preview: `Reminder from ERA Hospital: Take your Paracetamol 500mg — Morning dose. Your health matters!`,
+      id: 6, channel: "email", status: "queued", time: "Tomorrow, 8:01 AM",
+      type: "Feedback Request",
+      preview: `Hi ${prospect.firstName}, we hope you're feeling better! We'd love to hear about your experience at ERA Hospital. It only takes 30 seconds.`,
     },
   ];
 

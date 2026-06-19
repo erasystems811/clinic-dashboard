@@ -24,7 +24,7 @@ export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Prop
     setStep("activating");
     setTimeout(() => {
       setStep("done");
-      onSMSBanner(`Hi ${prospect.firstName}, your care plan has been activated at ERA Hospital. Your nurse has prescribed your medications. You can view your full plan in the ERA-me app.`);
+      onSMSBanner(`Hi ${prospect.firstName}, your care plan at ERA Hospital has been set up. Please check your email for your full care plan details and follow up. We are with you every step of the way.`);
     }, 1000);
   }
 

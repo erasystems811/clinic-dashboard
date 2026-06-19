@@ -56,7 +56,7 @@ export default function S09_Feedback({ prospect, onNext }: Props) {
   const [formSubmitted, setFormSubmitted] = useState(false);
 
   function handleFormSubmit() {
-    if (overall === 0) return;
+    if (overall === 0) setOverall(5); // default to 5 stars so the demo never blocks
     setFormSubmitted(true);
     setTimeout(() => setStep("admin"), 1000);
   }
@@ -179,7 +179,6 @@ export default function S09_Feedback({ prospect, onNext }: Props) {
                   type="button"
                   className="w-full"
                   onClick={handleFormSubmit}
-                  disabled={overall === 0}
                 >
                   Submit Feedback
                 </Button>

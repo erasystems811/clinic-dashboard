@@ -1,6 +1,7 @@
 export interface Prospect {
   firstName: string;
   lastName: string;
+  email: string;
   phone: string;
   sessionId: string;
 }

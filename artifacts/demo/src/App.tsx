@@ -23,13 +23,14 @@ import S11_CTA from "@/scenes/S11_CTA";
 function LandingPage({ onStart }: { onStart: (p: Prospect) => void }) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName]   = useState("");
+  const [email, setEmail]         = useState("");
   const [phone, setPhone]         = useState("");
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!firstName.trim() || !lastName.trim() || !phone.trim()) {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
       setError("Please fill in all fields.");
       return;
     }
@@ -40,13 +41,13 @@ function LandingPage({ onStart }: { onStart: (p: Prospect) => void }) {
       await fetch(apiUrl("/api/demo/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() }),
+        body: JSON.stringify({ sessionId, firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), phone: phone.trim() }),
       });
     } catch {
       // non-blocking — demo still runs if API is unavailable
     }
     setLoading(false);
-    onStart({ firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim(), sessionId });
+    onStart({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), phone: phone.trim(), sessionId });
   }
 
   return (
@@ -95,6 +96,15 @@ function LandingPage({ onStart }: { onStart: (p: Prospect) => void }) {
                     value={lastName}
                     onChange={e => setLastName(e.target.value)}
                     placeholder="e.g. Okonkwo"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">Email Address</label>
+                  <Input
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="e.g. chike@gmail.com"
+                    type="email"
                   />
                 </div>
                 <div className="space-y-1.5">

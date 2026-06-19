@@ -9,6 +9,7 @@ const RegisterBody = z.object({
   sessionId: z.string().min(1),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
+  email: z.string().min(1),
   phone: z.string().min(1),
 });
 
@@ -23,12 +24,13 @@ router.post("/demo/register", async (req, res) => {
   const parsed = RegisterBody.safeParse(req.body);
   if (!parsed.success) return void res.status(400).json({ error: "Invalid request" });
 
-  const { sessionId, firstName, lastName, phone } = parsed.data;
+  const { sessionId, firstName, lastName, email, phone } = parsed.data;
 
   const { error } = await supabase.from("demo_sessions").upsert({
     session_id: sessionId,
     first_name: firstName,
     last_name: lastName,
+    email,
     phone,
   }, { onConflict: "session_id" });
 

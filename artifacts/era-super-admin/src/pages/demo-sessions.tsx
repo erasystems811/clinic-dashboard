@@ -9,6 +9,7 @@ interface DemoSession {
   session_id: string;
   first_name: string;
   last_name: string;
+  email: string | null;
   phone: string;
   stage_reached: string | null;
   completed: boolean;
@@ -99,6 +100,7 @@ export default function DemoSessionsPage() {
               <tr className="border-b border-border text-left text-xs text-muted-foreground font-medium uppercase tracking-wide">
                 <th className="px-4 py-3 w-8">#</th>
                 <th className="px-4 py-3">Prospect</th>
+                <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Phone</th>
                 <th className="px-4 py-3">Stage Reached</th>
                 <th className="px-4 py-3">Status</th>
@@ -108,11 +110,11 @@ export default function DemoSessionsPage() {
             <tbody className="divide-y divide-border">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground text-sm">Loading…</td>
+                  <td colSpan={7} className="py-12 text-center text-muted-foreground text-sm">Loading…</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground text-sm">
+                  <td colSpan={7} className="py-12 text-center text-muted-foreground text-sm">
                     {sessions.length === 0 ? "No demo sessions yet. Share the demo link to get started." : "No results match your search."}
                   </td>
                 </tr>
@@ -129,6 +131,9 @@ export default function DemoSessionsPage() {
                           <p className="font-medium">{s.first_name} {s.last_name}</p>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground text-xs">
+                      {s.email ?? <span className="text-muted-foreground/50">—</span>}
                     </td>
                     <td className="px-4 py-3">
                       <span className="flex items-center gap-1.5 text-muted-foreground">

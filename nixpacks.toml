@@ -5,8 +5,9 @@ cmds = ["corepack enable && corepack prepare pnpm@10.26.1 --activate && pnpm ins
 cmds = [
   "pnpm --filter @workspace/api-server run build",
   "pnpm --filter @workspace/era-patient run build",
-  "pnpm --filter @workspace/era-super-admin run build"
+  "pnpm --filter @workspace/era-super-admin run build",
+  "pnpm --filter @workspace/era-me run build"
 ]
 
 [start]
-cmd = "sh start.sh"
+cmd = "node _start.cjs"

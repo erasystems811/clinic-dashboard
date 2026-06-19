@@ -1,0 +1,495 @@
+ERA Patient API — Integration Reference
+========================================
+Generated from codebase: artifacts/api-server/src/routes/
+Date: 2026-06-16
+
+
+BASE URL
+--------
+All endpoints are mounted under:
+
+  https://<your-api-server-domain>/api
+
+During local development the server runs on port 8080, so the base URL is:
+
+  http://localhost:8080/api
+
+Your production domain is whatever Railway URL your API Server service is
+deployed at (configured in the APP_BASE_URL environment variable on the server).
+Example pattern: https://api.erasystems.com.ng
+
+
+════════════════════════════════════════════════════════════════════════════════
+AUTHENTICATION
+════════════════════════════════════════════════════════════════════════════════
+
+How it works
+------------
+Every request to every endpoint listed below MUST include a signed hospital
+token in a custom HTTP header:
+
+  x-hospital-token: <token>
+
+There is NO "Authorization: Bearer" header. The header name is exactly
+"x-hospital-token" (lowercase).
+
+The token is an HMAC-SHA256 signed, base64url-encoded string. It encodes the
+hospital's integer ID and has a 1-year expiry. It is scoped to one specific
+hospital — it cannot be used to access another hospital's data.
+
+How to get a token
+------------------
+Call the login endpoint. This is the same endpoint the era-patient web app
+uses when staff log in.
+
+  POST /api/auth/hospital-login
+  Content-Type: application/json
+
+  {
+    "username": "<hospital username or sub-admin username>",
+    "password": "<password>"
+  }
+
+Successful response (200):
+  {
+    "id": 42,
+    "name": "City General Hospital",
+    "username": "citygeneral",
+    "token": "aGV5dGhlcmVmcmllbmQ...",   ← use this in x-hospital-token
+    "feedbackSlug": "abc-123",
+    "slug": "city-general",
+    "adminName": "Dr. Amaka Obi"           (only present for sub-admin logins)
+  }
+
+Store the "token" value and include it in every subsequent API call.
+Tokens are valid for 365 days from issue.
+
+If the token is missing or invalid the API returns:
+  HTTP 401  { "error": "Unauthorized" }
+
+If the hospital account has been suspended the API also returns 401.
+
+
+════════════════════════════════════════════════════════════════════════════════
+1. CREATE A PATIENT
+════════════════════════════════════════════════════════════════════════════════
+
+Endpoint
+--------
+  POST /api/patients
+
+Headers
+-------
+  Content-Type: application/json
+  x-hospital-token: <token>
+
+  Optional — used to record who performed the action in the activity log:
+  x-performed-by: "Receptionist Jane"
+
+Request body (JSON)
+-------------------
+All field names are camelCase.
+
+  Field                  Type      Required   Notes
+  ─────────────────────────────────────────────────────────────────────────
+  patientId              string    YES        The hospital's own MRN / patient
+                                              number. Trimmed and uppercased
+                                              automatically. Must be unique
+                                              within the hospital.
+  firstName              string    YES
+  lastName               string    YES
+  email                  string    YES        Must be a valid email address.
+  phone                  string    YES        Primary phone number.
+  whatsappNumber         string    no         WhatsApp number if different from
+                                              phone. Used for care plan and
+                                              queue messages.
+  dateOfBirth            string    no         ISO date string, e.g. "1990-05-14"
+  age                    number    no         Integer (years).
+  gender                 string    no         Free text, e.g. "Male", "Female"
+  stage                  string    no         Starting stage. Defaults to
+                                              "Active" if omitted. Valid values:
+                                              Active, Dormant, Post Treatment
+  diagnosis              string    no         Free text.
+  department             string    no         Department name, e.g. "Cardiology"
+  nextAppointment        string    no         ISO date/datetime string.
+  notes                  string    no         Internal notes for staff.
+  hospitalId             string    no         Ignored — the hospital is set
+                                              automatically from the token.
+
+Example request body:
+  {
+    "patientId": "MRN-00123",
+    "firstName": "Chioma",
+    "lastName": "Adeyemi",
+    "email": "chioma.adeyemi@example.com",
+    "phone": "+2348012345678",
+    "whatsappNumber": "+2348012345678",
+    "dateOfBirth": "1985-03-22",
+    "gender": "Female",
+    "diagnosis": "Type 2 Diabetes",
+    "department": "Endocrinology"
+  }
+
+Success response (201 Created)
+-------------------------------
+Returns the newly created patient object (all fields, camelCase).
+
+  {
+    "id": 301,                          ← ERA's internal integer ID (use this
+                                            to reference the patient in all
+                                            subsequent API calls)
+    "patientId": "MRN-00123",           ← your hospital's own ID, uppercased
+    "firstName": "Chioma",
+    "lastName": "Adeyemi",
+    "email": "chioma.adeyemi@example.com",
+    "phone": "+2348012345678",
+    "stage": "Active",
+    "hospitalId": "uuid-of-hospital",
+    "createdAt": "2026-06-16T10:30:00.000Z",
+    ...
+  }
+
+Error responses
+---------------
+  400 Bad Request   — Missing or invalid fields (e.g. invalid email)
+  401 Unauthorized  — Missing or invalid x-hospital-token
+  409 Conflict      — patientId already registered in this hospital
+                      { "error": "A patient with ID \"MRN-00123\" is already registered." }
+  500               — Server or database error
+
+
+Duplicate prevention
+--------------------
+The system checks patientId against all existing patients in the hospital
+BEFORE inserting (case-insensitive). If the same MRN already exists it returns
+409 immediately, without creating a duplicate record.
+
+This means: to avoid duplicates, always pass the hospital's own patient ID
+(MRN) as "patientId". That field is the stable external identifier.
+
+To check if a patient already exists before calling POST, you can search:
+  GET /api/patients?search=MRN-00123
+  x-hospital-token: <token>
+This searches first_name, last_name, and patient_id. Or you can simply call
+POST and handle the 409 response.
+
+
+════════════════════════════════════════════════════════════════════════════════
+2. UPDATE A PATIENT
+════════════════════════════════════════════════════════════════════════════════
+
+Endpoint
+--------
+  PATCH /api/patients/:id
+
+  :id is ERA's internal integer ID (returned in the "id" field when you created
+  the patient or when you looked it up).
+
+Headers
+-------
+  Content-Type: application/json
+  x-hospital-token: <token>
+  x-performed-by: "Nurse Fatima"   (optional, for activity log)
+
+Request body (JSON) — all fields optional
+-----------------------------------------
+  Field                  Type      Notes
+  ─────────────────────────────────────────────────────────────────────────
+  patientId              string    Change the hospital MRN. Must be unique.
+                                   Will be trimmed and uppercased.
+  firstName              string
+  lastName               string
+  email                  string
+  phone                  string
+  whatsappNumber         string
+  dateOfBirth            string    ISO date string.
+  age                    number    Integer.
+  gender                 string
+  stage                  string    Valid: Active, Dormant, Post Treatment,
+                                   In Care (legacy — prefer care plans)
+  diagnosis              string
+  department             string
+  nextAppointment        string    ISO date/datetime.
+  notes                  string
+  treatmentPlan          string    Free-text treatment summary (legacy field —
+                                   prefer the care plan endpoint below).
+  treatmentType          string    E.g. "Medication only", "Combination"
+  medicationTiming       string    E.g. "Morning, Evening"
+  treatmentDurationDays  number    Integer (days).
+  treatmentEndDate       string    ISO date string.
+
+Example:
+  PATCH /api/patients/301
+  {
+    "phone": "+2348099999999",
+    "diagnosis": "Type 2 Diabetes — well controlled"
+  }
+
+Success response (200)
+----------------------
+Returns the full updated patient object.
+
+Error responses
+---------------
+  400  — Invalid :id or invalid field values
+  401  — Unauthorized
+  404  — Patient not found in this hospital
+  409  — patientId conflicts with another patient in this hospital
+  500  — Server error
+
+
+════════════════════════════════════════════════════════════════════════════════
+3. BULK IMPORT PATIENTS
+════════════════════════════════════════════════════════════════════════════════
+
+If you are migrating a list of patients rather than syncing one at a time,
+use the import endpoint. It accepts up to 5,000 rows per call.
+
+Endpoint
+--------
+  POST /api/patients/import
+
+Headers
+-------
+  Content-Type: application/json
+  x-hospital-token: <token>
+
+Request body (JSON)
+-------------------
+  {
+    "patients": [
+      {
+        "patientId":     "MRN-001",         (string, optional but recommended)
+        "firstName":     "Chioma",          (string, optional if fullName given)
+        "lastName":      "Adeyemi",         (string, optional if fullName given)
+        "fullName":      "Chioma Adeyemi",  (string, alternative to first+last)
+        "email":         "...",             (string, optional)
+        "phone":         "...",             (string, optional)
+        "dateOfBirth":   "1985-03-22",      (string, optional)
+        "age":           "38",              (string, optional — will be parsed)
+        "gender":        "Female",          (string, optional)
+        "lastVisitedAt": "2025-12-01",      (string, optional — auto-classifies
+                                             as Dormant if older than threshold)
+        "notes":         "..."              (string, optional)
+      },
+      ...
+    ]
+  }
+
+Notes:
+- If patientId is provided and already exists in the hospital, that row is
+  SKIPPED (not updated). No duplicates are created.
+- If fullName is provided without firstName/lastName it is split on the first
+  space automatically.
+- lastVisitedAt triggers auto-classification: if the date is older than the
+  hospital's dormant threshold (default 90 days) the patient is created as
+  Dormant, otherwise Active.
+
+Success response (200)
+----------------------
+  {
+    "imported": 47,
+    "skipped": 3,
+    "total": 50,
+    "errors": [
+      { "row": 12, "reason": "Patient ID \"MRN-005\" already exists in this hospital" },
+      ...
+    ]
+  }
+  (Errors array is capped at 100 entries.)
+
+
+════════════════════════════════════════════════════════════════════════════════
+4. CREATE A CARE PLAN FOR A PATIENT
+════════════════════════════════════════════════════════════════════════════════
+
+A care plan is the primary treatment record. Creating one:
+- Records the treatment summary and department
+- Sets the patient's stage to "Active" (if they were "New")
+- Removes them from the walk-in queue
+- Sends the patient a WhatsApp/SMS notification
+- Sends a detailed care plan email to the patient (20-minute delay)
+- If the patient is connected to the ERA mobile app, pushes their medication
+  schedule into the app planner
+
+Endpoint
+--------
+  POST /api/patients/:id/care-plans
+
+  :id is ERA's internal integer patient ID.
+
+Headers
+-------
+  Content-Type: application/json
+  x-hospital-token: <token>
+  x-performed-by: "Dr. Okonkwo"    (optional, for activity log)
+
+Request body (JSON)
+-------------------
+  Field                    Type    Required   Notes
+  ─────────────────────────────────────────────────────────────────────────
+  summary                  string  YES        Full treatment plan text.
+                                              This is the main content of the
+                                              care plan — medications, dosages,
+                                              instructions, etc.
+  department               string  YES        Department name, e.g.
+                                              "Cardiology", "General Outpatient",
+                                              "Oncology". Must match a department
+                                              configured for this hospital, or
+                                              any free-text string is accepted.
+  templateData             object  no         Structured data for the plan
+                                              (see sub-fields below). Used by
+                                              General Outpatient department to
+                                              drive automated reminders.
+  beneficiaryName          string  no         Name of a family member / next-of-
+                                              kin who should also receive
+                                              treatment reminders.
+  beneficiaryEmail         string  no         Email address for the beneficiary.
+                                              Must be a valid email if provided.
+  beneficiaryRelationship  string  no         E.g. "Spouse", "Parent", "Child"
+
+templateData sub-fields (used when department = "General Outpatient"):
+  Field                    Type      Notes
+  ─────────────────────────────────────────────────────────────────────────
+  treatmentType            string    "medication_only", "combination", or
+                                     "hospital_visit_only"
+  durationDays             number    Integer. How many days the plan lasts.
+  medicationTiming         string[]  When to take medication, e.g.
+                                     ["Morning", "Evening"]
+  medicationTimingTimes    object    Map of timing label → time string, e.g.
+                                     { "Morning": "07:30", "Evening": "20:00" }
+  hospitalTiming           string[]  When to attend hospital, e.g. ["Monday"]
+  hospitalTimingTimes      object    Map of timing label → time string
+
+Example request body (simple care plan):
+  {
+    "summary": "Patient to take Metformin 500mg twice daily with food. Monitor blood glucose weekly. Return in 30 days for review.",
+    "department": "Endocrinology",
+    "beneficiaryName": "Mr. Emeka Adeyemi",
+    "beneficiaryEmail": "emeka.adeyemi@example.com",
+    "beneficiaryRelationship": "Spouse"
+  }
+
+Example request body (General Outpatient with structured templateData):
+  {
+    "summary": "Amoxicillin 500mg three times daily for 7 days. Rest and increase fluid intake.",
+    "department": "General Outpatient",
+    "templateData": {
+      "treatmentType": "medication_only",
+      "durationDays": 7,
+      "medicationTiming": ["Morning", "Afternoon", "Evening"],
+      "medicationTimingTimes": {
+        "Morning": "07:30",
+        "Afternoon": "13:00",
+        "Evening": "20:00"
+      }
+    }
+  }
+
+Success response (201 Created)
+-------------------------------
+Returns the newly created care plan object (camelCase):
+  {
+    "id": 88,                          ← ERA's care plan integer ID
+    "patientId": 301,
+    "hospitalId": "uuid-of-hospital",
+    "summary": "Patient to take Metformin...",
+    "department": "Endocrinology",
+    "status": "active",
+    "beneficiaryName": "Mr. Emeka Adeyemi",
+    "beneficiaryEmail": "emeka.adeyemi@example.com",
+    "beneficiaryRelationship": "Spouse",
+    "templateData": null,
+    "createdAt": "2026-06-16T10:45:00.000Z",
+    "updatedAt": "2026-06-16T10:45:00.000Z"
+  }
+
+Error responses
+---------------
+  400  — Invalid :id or missing required fields (summary or department)
+  401  — Unauthorized
+  404  — Patient not found in this hospital
+  500  — Server error
+
+
+════════════════════════════════════════════════════════════════════════════════
+5. UPDATE A CARE PLAN
+════════════════════════════════════════════════════════════════════════════════
+
+Endpoint
+--------
+  PATCH /api/care-plans/:id
+
+  :id is the care plan's integer ID (from the "id" field in the create response).
+
+Headers
+-------
+  Content-Type: application/json
+  x-hospital-token: <token>
+
+Request body (JSON) — same fields as the create body, all optional:
+  summary, department, templateData,
+  beneficiaryName, beneficiaryEmail, beneficiaryRelationship
+
+Success response (200) — returns updated care plan object.
+Error responses: 400, 401, 404, 500
+
+
+════════════════════════════════════════════════════════════════════════════════
+HOW PATIENT IDENTITY WORKS — AVOIDING DUPLICATES
+════════════════════════════════════════════════════════════════════════════════
+
+ERA uses two different IDs for each patient:
+
+1. patientId  (string)
+   YOUR hospital's own patient number / MRN.
+   Set by you when creating the patient.
+   ERA uppercases and trims it, then enforces uniqueness per hospital.
+   Use this to identify a patient by your own system's reference.
+
+   To look up a patient by MRN:
+     GET /api/patients?search=MRN-00123
+     x-hospital-token: <token>
+   This searches first name, last name, AND patient_id — returns an array.
+
+2. id  (integer)
+   ERA's internal auto-generated integer primary key.
+   Returned in every patient and care plan response.
+   Use this in URL paths: /api/patients/:id  and  /api/patients/:id/care-plans
+
+Recommended integration pattern
+---------------------------------
+When your hospital system sends a patient to ERA:
+
+  Step 1 — Try to create:
+    POST /api/patients  with  "patientId": "<your MRN>"
+
+  Step 2 — If 201: patient created. Store the "id" field from the response
+           alongside the MRN in your system for future calls.
+
+  Step 3 — If 409: patient already exists. Look them up:
+    GET /api/patients?search=<MRN>
+    Find the matching record in the array and read its "id".
+
+  Step 4 — To create a care plan, call:
+    POST /api/patients/<era-id>/care-plans
+
+
+════════════════════════════════════════════════════════════════════════════════
+QUICK REFERENCE
+════════════════════════════════════════════════════════════════════════════════
+
+Action                        Method  Path
+──────────────────────────────────────────────────────────────────────────────
+Login / get token             POST    /api/auth/hospital-login
+Create a patient              POST    /api/patients
+Update a patient              PATCH   /api/patients/:id
+Bulk import patients          POST    /api/patients/import
+Look up patient by MRN/name   GET     /api/patients?search=<term>
+Get patient by ERA ID         GET     /api/patients/:id
+Create a care plan            POST    /api/patients/:id/care-plans
+Update a care plan            PATCH   /api/care-plans/:id
+List care plans for patient   GET     /api/patients/:id/care-plans
+End / archive a care plan     DELETE  /api/care-plans/:id
+
+All routes require:  x-hospital-token: <token>  (except the login route itself)

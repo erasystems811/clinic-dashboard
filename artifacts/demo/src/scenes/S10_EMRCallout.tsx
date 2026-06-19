@@ -20,8 +20,8 @@ export default function S10_EMRCallout({ prospect, onNext }: Props) {
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold">
           <Database className="w-3.5 h-3.5" /> EMR Integration
         </div>
-        <h2 className="text-3xl font-bold leading-snug max-w-lg">
-          Already using an EMR?<br />
+        <h2 className="text-2xl sm:text-3xl font-bold leading-snug max-w-lg">
+          Already using an EMR?{" "}
           <span className="text-primary">ERA connects to it.</span>
         </h2>
         <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">
@@ -53,7 +53,7 @@ export default function S10_EMRCallout({ prospect, onNext }: Props) {
       </div>
 
       {/* Feature grid */}
-      <div className="grid grid-cols-2 gap-4 w-full max-w-xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-xl">
         {FEATURES.map(f => (
           <div key={f.label} className="text-left px-4 py-3.5 rounded-xl bg-card border border-border space-y-1.5">
             <div className="flex items-center gap-2">

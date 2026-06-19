@@ -15,9 +15,9 @@ function StarRow({
 }) {
   const [hovered, setHovered] = useState(0);
   return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-sm font-medium w-44 shrink-0">{label}</span>
-      <div className="flex items-center gap-1.5">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-4">
+      <span className="text-sm font-medium sm:w-44 sm:shrink-0">{label}</span>
+      <div className="flex items-center gap-1 sm:gap-1.5">
         {[1, 2, 3, 4, 5].map(s => (
           <button
             key={s}
@@ -27,10 +27,10 @@ function StarRow({
             onMouseLeave={() => setHovered(0)}
             className="transition-transform hover:scale-110"
           >
-            <Star className={`w-7 h-7 transition-colors ${s <= (hovered || value) ? "text-amber-400 fill-amber-400" : "text-muted-foreground/40"}`} />
+            <Star className={`w-6 h-6 sm:w-7 sm:h-7 transition-colors ${s <= (hovered || value) ? "text-amber-400 fill-amber-400" : "text-muted-foreground/40"}`} />
           </button>
         ))}
-        <span className="text-xs text-amber-400 font-medium w-16 ml-1">
+        <span className="text-xs text-amber-400 font-medium w-14 sm:w-16 ml-1">
           {(hovered || value) > 0 ? LABELS[hovered || value] : ""}
         </span>
       </div>
@@ -209,26 +209,26 @@ export default function S09_Feedback({ prospect, onNext }: Props) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
-          <CardContent className="pt-5 pb-5 text-center">
-            <p className="text-3xl font-bold">4.7</p>
+          <CardContent className="pt-4 pb-4 sm:pt-5 sm:pb-5 text-center">
+            <p className="text-xl sm:text-3xl font-bold">4.7</p>
             <div className="flex justify-center gap-0.5 mt-1">
-              {[1,2,3,4,5].map(s => <Star key={s} className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />)}
+              {[1,2,3,4,5].map(s => <Star key={s} className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 fill-amber-400 text-amber-400" />)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Overall Rating</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Overall Rating</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-5 pb-5 text-center">
-            <p className="text-3xl font-bold">183</p>
-            <p className="text-xs text-muted-foreground mt-2">Total Responses</p>
+          <CardContent className="pt-4 pb-4 sm:pt-5 sm:pb-5 text-center">
+            <p className="text-xl sm:text-3xl font-bold">183</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-2">Total Responses</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-5 pb-5 text-center">
-            <p className="text-3xl font-bold text-primary">94%</p>
-            <p className="text-xs text-muted-foreground mt-2">Would Recommend</p>
+          <CardContent className="pt-4 pb-4 sm:pt-5 sm:pb-5 text-center">
+            <p className="text-xl sm:text-3xl font-bold text-primary">94%</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-2">Would Recommend</p>
           </CardContent>
         </Card>
       </div>

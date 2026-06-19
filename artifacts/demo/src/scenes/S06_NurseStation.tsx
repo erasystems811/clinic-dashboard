@@ -132,7 +132,7 @@ export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Prop
                 {SAMPLE_MEDS.map((med, i) => (
                   <div key={i} className="p-3 rounded-lg border border-border bg-background space-y-2">
                     <div className="flex items-start gap-2">
-                      <div className="flex-1 grid grid-cols-2 gap-2">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <Input defaultValue={med.name} className="text-sm h-8" readOnly />
                         <Input defaultValue={med.dosage} className="text-sm h-8" placeholder="Dosage" readOnly />
                       </div>

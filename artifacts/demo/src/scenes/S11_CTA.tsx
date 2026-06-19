@@ -55,8 +55,8 @@ export default function S11_CTA({ prospect }: Props) {
 
       {/* Headline */}
       <div className="space-y-3 mb-8 max-w-md">
-        <h2 className="text-3xl font-bold leading-tight">
-          That's ERA Patient,<br /> {prospect.firstName}.
+        <h2 className="text-2xl sm:text-3xl font-bold leading-tight">
+          That's ERA Patient, {prospect.firstName}.
         </h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
           Queue chaos, lost care plans, silent patients, zero feedback — you just saw ERA solve every one of them. Automatically. For every patient.

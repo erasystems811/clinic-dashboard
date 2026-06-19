@@ -31,7 +31,7 @@ export default function S02_NewPatient({ prospect, onNext }: Props) {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">New Patient</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">New Patient</h1>
           <p className="text-muted-foreground mt-0.5 text-sm">Register a new patient record.</p>
         </div>
       </div>
@@ -53,7 +53,7 @@ export default function S02_NewPatient({ prospect, onNext }: Props) {
               <CardTitle className="text-base font-semibold">Patient Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium">Patient ID / MRN *</label>
                   <Input defaultValue="ERA-DEMO-001" />
@@ -64,7 +64,7 @@ export default function S02_NewPatient({ prospect, onNext }: Props) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium">First Name *</label>
                   <Input defaultValue={prospect.firstName} className="border-primary/50 ring-1 ring-primary/20" />
@@ -80,7 +80,7 @@ export default function S02_NewPatient({ prospect, onNext }: Props) {
                 <Input type="email" defaultValue={`${prospect.firstName.toLowerCase()}.${prospect.lastName.toLowerCase()}@gmail.com`} />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium">Phone Number *</label>
                   <Input defaultValue={prospect.phone} className="border-primary/50 ring-1 ring-primary/20" />
@@ -91,7 +91,7 @@ export default function S02_NewPatient({ prospect, onNext }: Props) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium">Gender</label>
                   <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">

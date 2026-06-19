@@ -96,8 +96,8 @@ export default function S08_Automations({ prospect, onNext }: Props) {
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold">
           <Clock className="w-3.5 h-3.5" /> Automation Engine
         </div>
-        <h2 className="text-3xl font-bold leading-snug">
-          ERA runs <span className="text-primary">24/7 in the background.</span><br />
+        <h2 className="text-2xl sm:text-3xl font-bold leading-snug">
+          ERA runs <span className="text-primary">24/7 in the background.</span>{" "}
           Your team just shows up and works.
         </h2>
         <p className="text-muted-foreground text-sm max-w-lg mx-auto leading-relaxed">

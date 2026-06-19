@@ -22,23 +22,24 @@ export default function NarrationBubble({
   return (
     <div
       className={cn(
-        "absolute z-30 flex items-center gap-4 px-5 py-3.5 rounded-xl border border-primary/30 bg-card/95 backdrop-blur shadow-xl",
-        "max-w-lg w-auto",
-        position === "bottom" ? "bottom-6 left-1/2 -translate-x-1/2" : "top-6 left-1/2 -translate-x-1/2",
+        "absolute z-30 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-primary/30 bg-card/95 backdrop-blur shadow-xl",
+        "left-2 right-2 sm:left-1/2 sm:right-auto sm:w-auto sm:-translate-x-1/2 sm:max-w-lg",
+        position === "bottom" ? "bottom-4 sm:bottom-6" : "top-4 sm:top-6",
         "scale-in",
         className
       )}
     >
-      {/* Teal accent line */}
-      <div className="w-0.5 h-full min-h-[32px] rounded-full bg-primary shrink-0" />
-
-      <p className="text-sm text-foreground leading-snug flex-1">{text}</p>
+      <div className="flex items-start gap-3 sm:gap-4">
+        {/* Teal accent line */}
+        <div className="w-0.5 self-stretch min-h-[24px] rounded-full bg-primary shrink-0 mt-0.5" />
+        <p className="text-sm text-foreground leading-snug flex-1">{text}</p>
+      </div>
 
       {onNext && (
         <Button
           size="sm"
           onClick={onNext}
-          className="shrink-0 gap-1.5 text-xs"
+          className="w-full sm:w-auto shrink-0 gap-1.5 text-xs"
         >
           {nextLabel}
           <ChevronRight className="w-3.5 h-3.5" />

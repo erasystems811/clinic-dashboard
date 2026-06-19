@@ -154,19 +154,19 @@ export default function S08_DoctorView({ prospect, onNext }: Props) {
           </div>
           {/* Example selected patient */}
           <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-border">
               <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-bold text-sm flex items-center justify-center shrink-0">
                 {prospect.firstName[0]}{prospect.lastName[0]}
               </div>
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm">{prospect.firstName} {prospect.lastName}</p>
                 <p className="text-xs text-muted-foreground">{prospect.phone}</p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs flex-1 sm:flex-none">
                   <ClipboardList className="w-3.5 h-3.5" /> Flag for Outreach
                 </Button>
-                <Button size="sm" className="gap-1.5 h-8 text-xs">
+                <Button size="sm" className="gap-1.5 h-8 text-xs flex-1 sm:flex-none">
                   <CalendarPlus className="w-3.5 h-3.5" /> Schedule Return Visit
                 </Button>
               </div>

@@ -15,6 +15,7 @@ import CRMPage from "@/pages/crm";
 import PricingPage from "@/pages/pricing";
 import PatientAnalyticsPage from "@/pages/patient-analytics";
 import KnowledgeBasePage from "@/pages/knowledge-base";
+import DemoSessionsPage from "@/pages/demo-sessions";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ function AppRoutes() {
       <Route path="/knowledge-base" component={KnowledgeBasePage} />
       <Route path="/docs" component={DocsPage} />
       <Route path="/pricing" component={PricingPage} />
+      <Route path="/demo-sessions" component={DemoSessionsPage} />
       <Route>
         <div className="flex items-center justify-center min-h-screen text-muted-foreground text-sm">
           404 — Page not found

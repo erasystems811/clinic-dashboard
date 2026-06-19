@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/auth";
 import {
   LogOut, ChevronRight, ShieldCheck, CheckCircle2,
   Loader2, BarChart2, Building2, Settings, Rocket, AlertCircle,
-  PanelLeftClose, PanelLeftOpen, Menu, X, FlaskConical, TrendingUp, Headphones, BookOpen, Bell, Star, Kanban, Activity, Database,
+  PanelLeftClose, PanelLeftOpen, Menu, X, FlaskConical, TrendingUp, Headphones, BookOpen, Bell, Star, Kanban, Activity, Database, MonitorPlay,
 } from "lucide-react";
 import ChangePasswordModal from "@/components/change-password-modal";
 import { post } from "@/lib/api";
@@ -27,6 +27,7 @@ const NAV = [
   { icon: Kanban,        label: "CRM",                href: "/crm",              sub: "Sales pipeline & leads" },
   { icon: Activity,      label: "Patient Analytics",  href: "/patient-analytics",  sub: "ERA patient app metrics" },
   { icon: Database,      label: "Knowledge Base",     href: "/knowledge-base",     sub: "RAG docs for companion & coach" },
+  { icon: MonitorPlay,   label: "Demo Sessions",      href: "/demo-sessions",      sub: "Prospect demo activity" },
   { icon: BookOpen,      label: "Docs & Settings",    href: "/docs",               sub: "Manual, config & reference" },
 ];
 

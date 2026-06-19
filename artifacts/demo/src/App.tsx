@@ -14,6 +14,7 @@ import S04_Queue from "@/scenes/S04_Queue";
 import S05_QueueCalledIn from "@/scenes/S05_QueueCalledIn";
 import S06_NurseStation from "@/scenes/S06_NurseStation";
 import S07_MessageLog from "@/scenes/S07_MessageLog";
+import S08_Automations from "@/scenes/S08_Automations";
 import S08_DoctorView from "@/scenes/S08_DoctorView";
 import S09_Feedback from "@/scenes/S09_Feedback";
 import S10_EMRCallout from "@/scenes/S10_EMRCallout";
@@ -240,10 +241,11 @@ export default function App() {
     4:  <S05_QueueCalledIn {...sceneProps} />,
     5:  <S06_NurseStation {...sceneProps} />,
     6:  <S07_MessageLog {...sceneProps} />,
-    7:  <S08_DoctorView {...sceneProps} />,
-    8:  <S09_Feedback {...sceneProps} />,
-    9:  <S10_EMRCallout {...sceneProps} />,
-    10: <S11_CTA prospect={prospect} />,
+    7:  <S08_Automations prospect={prospect} onNext={advanceScene} />,
+    8:  <S08_DoctorView {...sceneProps} />,
+    9:  <S09_Feedback {...sceneProps} />,
+    10: <S10_EMRCallout {...sceneProps} />,
+    11: <S11_CTA prospect={prospect} />,
   };
 
   return (

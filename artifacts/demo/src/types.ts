@@ -27,10 +27,11 @@ export const SCENES: SceneMeta[] = [
      smsBanner: "It's your turn! Please head to the consultation room. — ERA Hospital" },
   { id: 6,  role: "nurse",        title: "Treatment Plan",       page: "/nurse-station",interactive: true  },
   { id: 7,  role: "admin",        title: "Message Log",          page: "/message-log",  interactive: false, duration: 6500 },
-  { id: 8,  role: "doctor",       title: "Doctor View",          page: "/doctor-view",  interactive: true  },
-  { id: 9,  role: "admin",        title: "Feedback",             page: "/feedback-admin",interactive: false, duration: 5000 },
-  { id: 10, role: null,           title: "EMR Integration",      page: "",              interactive: false, duration: 6000 },
-  { id: 11, role: null,           title: "Get Started",          page: "",              interactive: false },
+  { id: 8,  role: null,           title: "All Automations",      page: "",              interactive: false },
+  { id: 9,  role: "doctor",       title: "Doctor View",          page: "/doctor-view",  interactive: true  },
+  { id: 10, role: "admin",        title: "Feedback",             page: "/feedback-admin",interactive: false, duration: 5000 },
+  { id: 11, role: null,           title: "EMR Integration",      page: "",              interactive: false, duration: 6000 },
+  { id: 12, role: null,           title: "Get Started",          page: "",              interactive: false },
 ];
 
 export const ROLE_LABELS: Record<Role, string> = {

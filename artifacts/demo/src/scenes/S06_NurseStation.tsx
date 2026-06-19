@@ -74,16 +74,17 @@ export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Prop
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Diagnosis</label>
-                  <Input defaultValue="Upper Respiratory Tract Infection" />
+                  <label className="text-xs font-medium">Department</label>
+                  <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm">
+                    <option>General Outpatient</option>
+                    <option>Cardiology</option>
+                    <option>Physiotherapy</option>
+                    <option>Dental</option>
+                  </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium">Category</label>
-                  <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm">
-                    <option>General Consultation</option>
-                    <option>Follow-up Visit</option>
-                    <option>Emergency</option>
-                  </select>
+                  <label className="text-xs font-medium">Summary</label>
+                  <Input defaultValue="Upper Respiratory Tract Infection" />
                 </div>
               </div>
 

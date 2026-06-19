@@ -27,6 +27,8 @@ router.post("/demo/register", async (req, res) => {
 
   const { sessionId, firstName, lastName, email, phone } = parsed.data;
 
+  console.log(`[demo] register: ${firstName} ${lastName} <${email}> ${phone} session=${sessionId}`);
+
   const { error } = await supabase.from("demo_sessions").upsert({
     session_id: sessionId,
     first_name: firstName,
@@ -36,10 +38,11 @@ router.post("/demo/register", async (req, res) => {
   }, { onConflict: "session_id" });
 
   if (error) {
-    console.error("[demo] register error:", error.message);
-    return void res.status(500).json({ error: "Failed to save session" });
+    console.error("[demo] register DB error:", error.code, error.message, error.hint ?? "");
+    return void res.status(500).json({ error: "Failed to save session", detail: error.message });
   }
 
+  console.log(`[demo] register OK: session=${sessionId}`);
   res.json({ ok: true, sessionId });
 });
 

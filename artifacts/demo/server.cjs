@@ -21,7 +21,12 @@ const MIME = {
 };
 
 function proxyToApi(req, res) {
-  if (!API_URL) { res.writeHead(502); res.end('No API_URL'); return; }
+  if (!API_URL) {
+    console.error('[demo] API call attempted but API_URL is not set:', req.method, req.url);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'API_URL not configured on demo server' }));
+    return;
+  }
   const parsed = new url.URL(API_URL);
   const isHttps = parsed.protocol === 'https:';
   const options = {
@@ -35,7 +40,11 @@ function proxyToApi(req, res) {
     res.writeHead(pr.statusCode, pr.headers);
     pr.pipe(res);
   });
-  proxy.on('error', () => { res.writeHead(502); res.end('Proxy error'); });
+  proxy.on('error', (err) => {
+    console.error('[demo] proxy error for', req.url, err.message);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Proxy error: ' + err.message }));
+  });
   req.pipe(proxy);
 }
 
@@ -54,4 +63,11 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`[demo] listening on ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[demo] listening on ${PORT}`);
+  if (API_URL) {
+    console.log(`[demo] API proxy -> ${API_URL}`);
+  } else {
+    console.error('[demo] ERROR: API_URL env var is not set. Demo session tracking will NOT work. Set API_URL in Railway to the api-server URL.');
+  }
+});

@@ -40,13 +40,14 @@ function LandingPage({ onStart }: { onStart: (p: Prospect) => void }) {
     setError("");
     const sessionId = `demo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     try {
-      await fetch(apiUrl("/api/demo/register"), {
+      const resp = await fetch(apiUrl("/api/demo/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId, firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), phone: phone.trim() }),
       });
-    } catch {
-      // non-blocking — demo still runs if API is unavailable
+      if (!resp.ok) console.error("[demo] register failed:", resp.status, await resp.text().catch(() => ""));
+    } catch (err) {
+      console.error("[demo] register error:", err);
     }
     setLoading(false);
     onStart({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), phone: phone.trim(), sessionId });
@@ -210,17 +211,16 @@ export default function App() {
 
   useEffect(() => {
     if (prospect) {
-      try {
-        fetch(apiUrl("/api/demo/progress"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: prospect.sessionId,
-            stageReached: String(SCENES[scene].id),
-            completed: scene === SCENES.length - 1,
-          }),
-        }).catch(() => {});
-      } catch { /* ignore */ }
+      fetch(apiUrl("/api/demo/progress"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: prospect.sessionId,
+          stageReached: String(SCENES[scene].id),
+          completed: scene === SCENES.length - 1,
+        }),
+      }).then(r => { if (!r.ok) r.text().then(t => console.error("[demo] progress failed:", r.status, t)); })
+        .catch(err => console.error("[demo] progress error:", err));
     }
   }, [scene, prospect]);
 

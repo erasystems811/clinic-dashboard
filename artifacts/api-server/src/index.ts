@@ -555,9 +555,9 @@ async function migrateRagSearchFunction() {
 }
 
 async function migrateDemoSessionsTable() {
+  // First try via Supabase Management API (requires SUPABASE_ACCESS_TOKEN)
   const projectRef = (process.env.SUPABASE_URL ?? "").replace("https://", "").split(".")[0];
   const token = process.env.SUPABASE_ACCESS_TOKEN;
-  if (!projectRef || !token) return;
   const sql = `
     CREATE TABLE IF NOT EXISTS demo_sessions (
       id           SERIAL PRIMARY KEY,
@@ -576,15 +576,38 @@ async function migrateDemoSessionsTable() {
     CREATE INDEX IF NOT EXISTS idx_demo_sessions_started ON demo_sessions(started_at DESC);
     NOTIFY pgrst, 'reload schema';
   `;
-  try {
-    const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: sql }),
-    });
-    if (resp.ok) logger.info("[migration] demo_sessions table ready");
-    else logger.warn({ body: await resp.text() }, "[migration] demo_sessions migration failed (non-fatal)");
-  } catch (err) {
-    logger.warn({ err }, "[migration] demo_sessions migration error (non-fatal)");
+  if (projectRef && token) {
+    try {
+      const resp = await fetch(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ query: sql }),
+      });
+      if (resp.ok) {
+        logger.info("[migration] demo_sessions table ready");
+      } else {
+        logger.warn({ body: await resp.text() }, "[migration] demo_sessions migration via Management API failed");
+      }
+    } catch (err) {
+      logger.warn({ err }, "[migration] demo_sessions migration error");
+    }
+  } else {
+    logger.warn("[migration] SUPABASE_ACCESS_TOKEN not set — skipping demo_sessions Management API migration");
+  }
+
+  // Always verify the table is accessible via the Supabase client
+  const { error: checkErr } = await supabase.from("demo_sessions").select("id").limit(1);
+  if (checkErr) {
+    if (checkErr.message.includes("does not exist") || checkErr.code === "42P01") {
+      logger.error(
+        "[migration] demo_sessions table does NOT exist in Supabase. " +
+        "Please create it manually via the Supabase SQL editor or set SUPABASE_ACCESS_TOKEN on the api-server. " +
+        "Demo session tracking is BROKEN until this is resolved."
+      );
+    } else {
+      logger.warn({ err: checkErr }, "[migration] demo_sessions table check returned unexpected error");
+    }
+  } else {
+    logger.info("[migration] demo_sessions table verified and accessible ✓");
   }
 }

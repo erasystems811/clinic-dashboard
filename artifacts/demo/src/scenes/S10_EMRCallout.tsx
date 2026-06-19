@@ -27,7 +27,7 @@ export default function S10_EMRCallout({ prospect, onNext }: Props) {
           <span className="text-primary">ERA connects to it.</span>
         </h2>
         <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">
-          No double entry. No switching systems. ERA Patient reads from and writes to your existing EMR — so your staff works in one place, not two.
+          Entering the same patient data in two systems creates errors and wastes time. ERA connects to your existing EMR so <strong>every entry flows automatically</strong> — one record, always in sync.
         </p>
       </div>
 

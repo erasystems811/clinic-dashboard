@@ -116,7 +116,7 @@ export default function S09_Feedback({ prospect, onNext }: Props) {
       </div>
 
       <NarrationBubble
-        text={<>ERA collects feedback automatically after every visit. <strong>You see every star rating and comment in real time</strong> — no manual chasing, no paper forms.</>}
+        text={<>Feedback that isn't collected is feedback lost. <strong>ERA sends a rating request automatically after every visit</strong> — no staff intervention, no paper forms, no chasing.</>}
         onNext={onNext}
         nextLabel="Continue →"
       />

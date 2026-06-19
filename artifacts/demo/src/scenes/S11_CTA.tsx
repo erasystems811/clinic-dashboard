@@ -34,7 +34,7 @@ export default function S11_CTA({ prospect }: Props) {
           That's ERA Patient,<br /> {prospect.firstName}.
         </h2>
         <p className="text-muted-foreground text-sm leading-relaxed">
-          You just experienced your clinic's full patient journey — from registration to feedback — automated, organised, and running on its own.
+          Queue chaos, lost care plans, silent patients, zero feedback — you just saw ERA solve every one of them. Automatically. For every patient.
         </p>
       </div>
 

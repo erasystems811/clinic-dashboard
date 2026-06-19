@@ -141,7 +141,7 @@ export default function S01_Dashboard({ prospect, onNext }: Props) {
       </Card>
 
       <NarrationBubble
-        text={<>This is <strong>your clinic at a glance</strong>. Every morning, you know exactly what's happening — patients, wait times, automations, wallet — all in one place.</>}
+        text={<>Every metric that matters — patients, wait times, pipeline, SMS wallet — in one place. <strong>No guessing. No chasing staff for updates.</strong></>}
         onNext={onNext}
         nextLabel="Next →"
       />

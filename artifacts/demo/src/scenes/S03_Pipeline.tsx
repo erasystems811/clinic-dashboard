@@ -78,7 +78,7 @@ export default function S03_Pipeline({ prospect, onNext }: Props) {
       </div>
 
       <NarrationBubble
-        text={<><strong>{prospect.firstName} {prospect.lastName}</strong> is now live in the pipeline. Watch how they move through each stage as their journey progresses.</>}
+        text={<>Every patient has a stage. ERA shows you exactly <strong>who needs attention, who's due for follow-up, and who's gone dormant</strong> — automatically, without anyone manually tracking it.</>}
         onNext={onNext}
         nextLabel="Next →"
       />

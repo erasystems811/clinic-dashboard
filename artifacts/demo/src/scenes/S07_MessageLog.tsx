@@ -120,7 +120,7 @@ export default function S07_MessageLog({ prospect, onNext }: Props) {
       </Card>
 
       <NarrationBubble
-        text={<>Every message sent, every trigger, every channel — <strong>all logged here automatically</strong>. You always know what your patients received and when.</>}
+        text={<>Every SMS, email, and in-app message ERA sent — <strong>logged automatically with delivery status</strong>. You always have a full record of what each patient received and when.</>}
         onNext={onNext}
         nextLabel="Continue →"
       />

@@ -136,10 +136,10 @@ export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Prop
       <NarrationBubble
         text={
           step === "form"
-            ? <><strong>The nurse sets up {prospect.firstName}'s care plan</strong> — diagnosis, medications, procedures. Click to activate.</>
+            ? <>Medication instructions get lost on paper slips. <strong>ERA sends the full care plan to the patient the moment it's activated</strong> — and keeps it accessible in the app.</>
             : step === "activating"
             ? <>Activating plan...</>
-            : <><strong>Care plan activated.</strong> {prospect.firstName} gets an SMS with their plan summary. Their nurse can also chat with them via ERA Messages.</>
+            : <><strong>Care plan sent.</strong> {prospect.firstName} has their medications, dosage, and instructions — delivered automatically. No paper. No confusion.</>
         }
         onNext={step === "form" ? handleActivate : step === "done" ? onNext : undefined}
         nextLabel={step === "form" ? "Activate Care Plan →" : "Continue →"}

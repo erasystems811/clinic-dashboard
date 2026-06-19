@@ -64,18 +64,36 @@ function LandingPage({ onStart }: { onStart: (p: Prospect) => void }) {
       {/* Hero */}
       <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 text-center">
         <div className="max-w-xl w-full space-y-8">
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/30 text-primary text-xs font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               Live interactive demo
             </div>
             <h1 className="text-4xl sm:text-5xl font-bold leading-tight">
-              See ERA Patient<br />
-              <span className="text-primary">in action.</span>
+              The clinic management<br />
+              system that <span className="text-primary">works for you.</span>
             </h1>
-            <p className="text-muted-foreground text-lg max-w-md mx-auto leading-relaxed">
-              A guided walkthrough of your clinic's complete patient journey — from first registration to post-visit feedback. No login, no setup.
+            <p className="text-muted-foreground text-base max-w-sm mx-auto leading-relaxed">
+              ERA Patient handles your queue, care plans, automations, and patient communication — so your team focuses on care, not admin.
             </p>
+
+            {/* Problem bullets */}
+            <div className="grid grid-cols-1 gap-2 text-left max-w-sm mx-auto pt-2">
+              {[
+                "Patients leave because they don't know how long they'll wait",
+                "No-shows with no warning and no automatic follow-up",
+                "Medication instructions lost on paper slips",
+                "No visibility into which patients stopped coming back",
+                "Feedback that never gets collected",
+                "Double entry between your hospital systems",
+              ].map(p => (
+                <div key={p} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                  <span className="mt-1 w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
+                  {p}
+                </div>
+              ))}
+            </div>
+            <p className="text-sm font-semibold text-primary">ERA solves all of this. See how below.</p>
           </div>
 
           <Card className="max-w-sm mx-auto text-left">

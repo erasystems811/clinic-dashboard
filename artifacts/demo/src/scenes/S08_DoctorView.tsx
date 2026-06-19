@@ -153,10 +153,10 @@ export default function S08_DoctorView({ prospect, onNext }: Props) {
       <NarrationBubble
         text={
           tab === "queue" && !transferred
-            ? <><strong>The doctor sees their assigned patients.</strong> They can view the care plan, message the patient directly, or mark the consultation complete.</>
+            ? <>Doctors see only their assigned patients, with the full care plan ready. <strong>No digging through files. No asking the nurse what was prescribed.</strong></>
             : tab === "messages"
-            ? <><strong>ERA Messages</strong> lets doctors and nurses chat directly with patients — no WhatsApp, no phone tag. Secure, in-app messaging.</>
-            : <><strong>Consultation done.</strong> {prospect.firstName} moves to Post Treatment automatically. Watch the next step.</>
+            ? <>Patients have questions after a visit. <strong>ERA Messages gives them a direct line to their doctor or nurse</strong> — no personal numbers shared, everything on record.</>
+            : <><strong>Stage updated automatically.</strong> {prospect.firstName} moves to Post Treatment — ERA schedules their follow-up check-in without anyone having to remember.</>}
         }
         onNext={tab === "queue" ? (transferred ? onNext : handleTransfer) : handleSendMessage}
         nextLabel={tab === "queue" && !transferred ? "Complete Consultation →" : "Send →"}

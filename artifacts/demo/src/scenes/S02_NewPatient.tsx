@@ -130,7 +130,7 @@ export default function S02_NewPatient({ prospect, onNext }: Props) {
 
       {!submitted && (
         <NarrationBubble
-          text={<>A new patient walks in. <strong>Your staff registers them in seconds</strong> — name, phone, ID. That's all it takes to start the ERA journey.</>}
+          text={<>One registration. <strong>That single entry powers everything that follows</strong> — queue, care plan, SMS automations, pipeline, feedback. Nothing needs to be entered twice.</>}
           onNext={doRegister}
           nextLabel="Add Patient →"
         />

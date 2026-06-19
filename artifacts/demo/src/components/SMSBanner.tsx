@@ -14,7 +14,7 @@ export default function SMSBanner({ message, visible, onDismiss }: Props) {
     if (visible) {
       setShow(true);
     } else {
-      const t = setTimeout(() => setShow(false), 400);
+      const t = setTimeout(() => setShow(false), 350);
       return () => clearTimeout(t);
     }
   }, [visible]);
@@ -24,8 +24,8 @@ export default function SMSBanner({ message, visible, onDismiss }: Props) {
   return (
     <div
       style={{ zIndex: 9999 }}
-      className={`fixed top-4 right-4 w-80 rounded-xl border border-border bg-card shadow-2xl transition-all duration-400 ${
-        visible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-full"
+      className={`fixed top-2 left-2 right-2 sm:top-4 sm:left-auto sm:right-4 sm:w-80 rounded-xl border border-border bg-card shadow-2xl transition-opacity duration-300 ${
+        visible ? "opacity-100" : "opacity-0 pointer-events-none"
       }`}
     >
       {/* Green notification dot */}
@@ -33,16 +33,16 @@ export default function SMSBanner({ message, visible, onDismiss }: Props) {
 
       {/* Header bar */}
       <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-border">
-        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
           <MessageSquare className="w-3.5 h-3.5 text-primary" />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-foreground uppercase tracking-wide">SMS · ERA Hospital</p>
           <p className="text-xs text-muted-foreground">Just now</p>
         </div>
         <button
           onClick={onDismiss}
-          className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+          className="text-muted-foreground hover:text-foreground transition-colors p-0.5 shrink-0"
         >
           <X className="w-3.5 h-3.5" />
         </button>

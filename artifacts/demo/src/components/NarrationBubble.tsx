@@ -36,14 +36,18 @@ export default function NarrationBubble({
       </div>
 
       {onNext && (
-        <Button
-          size="sm"
-          onClick={onNext}
-          className="w-full sm:w-auto shrink-0 gap-1.5 text-xs"
-        >
-          {nextLabel}
-          <ChevronRight className="w-3.5 h-3.5" />
-        </Button>
+        <div className="relative w-full sm:w-auto shrink-0">
+          {/* Pulsing glow ring — draws attention to the Continue button */}
+          <span className="absolute -inset-1 rounded-lg bg-primary/35 animate-ping [animation-duration:2s] pointer-events-none" />
+          <Button
+            size="sm"
+            onClick={onNext}
+            className="relative w-full sm:w-auto gap-1.5 text-xs"
+          >
+            {nextLabel}
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       )}
     </div>
   );

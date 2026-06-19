@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type MouseEvent } from "react";
 import { Button, Input, Card, CardContent } from "@/components/ui";
 import DemoShell from "@/components/DemoShell";
 import RoleSwitchOverlay from "@/components/RoleSwitchOverlay";
@@ -186,6 +186,18 @@ export default function App() {
   const [pendingScene, setPendingScene]     = useState<number | null>(null);
   const [smsBanner, setSmsBanner] = useState<{ msg: string; visible: boolean }>({ msg: "", visible: false });
   const smsDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showHint, setShowHint] = useState(false);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDeadClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const isInteractive = !!target.closest("button, input, textarea, select, a, [role='button'], label");
+    if (!isInteractive) {
+      setShowHint(true);
+      if (hintTimer.current) clearTimeout(hintTimer.current);
+      hintTimer.current = setTimeout(() => setShowHint(false), 2500);
+    }
+  }, []);
 
   const showSMS = useCallback((msg: string) => {
     setSmsBanner({ msg, visible: true });
@@ -274,8 +286,15 @@ export default function App() {
         />
       )}
 
+      {/* Hint toast — appears when they tap a non-interactive area */}
+      {showHint && (
+        <div className="fixed bottom-24 sm:bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none px-4 py-2 rounded-full bg-foreground/90 text-background text-xs font-semibold shadow-xl fade-in-up whitespace-nowrap">
+          Tap the glowing button to continue
+        </div>
+      )}
+
       {/* Demo chrome — ERA Patient shell */}
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative flex-1 overflow-hidden" onClick={handleDeadClick}>
         <DemoProgress current={scene} total={SCENES.length} />
 
         <div className="h-full pt-8">

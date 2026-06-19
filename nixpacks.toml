@@ -6,7 +6,8 @@ cmds = [
   "pnpm --filter @workspace/api-server run build",
   "pnpm --filter @workspace/era-patient run build",
   "pnpm --filter @workspace/era-super-admin run build",
-  "pnpm --filter @workspace/era-me run build"
+  "pnpm --filter @workspace/era-me run build",
+  "pnpm --filter @workspace/era-demo run build"
 ]
 
 [start]

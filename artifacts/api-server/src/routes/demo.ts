@@ -135,6 +135,26 @@ router.post("/demo/cta", async (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/demo/ping — no auth, tests DB write access to demo_sessions
+router.get("/demo/ping", async (_req, res) => {
+  const testId = `ping_${Date.now()}`;
+  const { error: writeErr } = await supabase.from("demo_sessions").upsert({
+    session_id: testId,
+    first_name: "Test",
+    last_name: "Ping",
+    email: "ping@test.com",
+    phone: "0000000000",
+  }, { onConflict: "session_id" });
+  if (writeErr) {
+    console.error("[demo/ping] write failed:", writeErr.code, writeErr.message);
+    return void res.status(500).json({ ok: false, error: writeErr.message, hint: writeErr.hint ?? "" });
+  }
+  // Clean up test row
+  await supabase.from("demo_sessions").delete().eq("session_id", testId);
+  const { count, error: countErr } = await supabase.from("demo_sessions").select("*", { count: "exact", head: true });
+  res.json({ ok: true, tableWorking: true, totalSessions: count ?? 0, countError: countErr?.message ?? null });
+});
+
 // GET /api/demo/sessions — super-admin only, list all demo prospects
 router.get("/demo/sessions", requireSuperAdmin, async (_req, res) => {
   const { data, error } = await supabase

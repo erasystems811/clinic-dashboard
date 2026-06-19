@@ -79,7 +79,7 @@ router.post("/demo/cta", async (req, res) => {
 
   const { sessionId, firstName, lastName, email, phone, action } = parsed.data;
   const fromEmail = `ERA Systems <${process.env.PLATFORM_FROM_EMAIL ?? "onboarding@resend.dev"}>`;
-  const adminEmail = process.env.DEMO_ADMIN_EMAIL ?? "chideraumeh25@gmail.com";
+  const adminEmail = process.env.DEMO_ADMIN_EMAIL ?? "chidera@erasystems.com.ng";
   const actionLabel = action === "conversation" ? "Start a conversation" : "Get a proposal";
 
   // Update Supabase
@@ -87,20 +87,7 @@ router.post("/demo/cta", async (req, res) => {
     .update({ cta_action: action, cta_at: new Date().toISOString() })
     .eq("session_id", sessionId);
 
-  // Email the prospect
-  const prospectBody = `
-    <p style="font-size:16px;font-weight:600;color:#e6edf3;margin:0 0 12px">
-      ${action === "conversation" ? `We'll be in touch, ${firstName}!` : `Proposal request received, ${firstName}!`}
-    </p>
-    <p style="font-size:14px;color:#c9d1d9;line-height:1.7;margin:0 0 16px">
-      ${action === "conversation"
-        ? `Thank you for completing the ERA Patient demo. Our team will reach out to <strong style="color:#e6edf3">${email}</strong> shortly to start the conversation.`
-        : `Thank you for completing the ERA Patient demo. We'll put together a personalised proposal for your clinic and send it to <strong style="color:#e6edf3">${email}</strong>.`}
-    </p>
-    <p style="font-size:13px;color:#8b949e;margin:0">In the meantime, reply to this email if you have any questions.</p>
-  `;
-
-  // Email the admin (you)
+  // Email the admin only
   const adminBody = `
     <p style="font-size:16px;font-weight:600;color:#e6edf3;margin:0 0 12px">New demo lead — ${actionLabel}</p>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -112,22 +99,13 @@ router.post("/demo/cta", async (req, res) => {
   `;
 
   try {
-    await Promise.all([
-      sendEmail({
-        to: email,
-        from: fromEmail,
-        subject: action === "conversation" ? "We'll be in touch — ERA Patient" : "Your ERA Patient proposal is coming",
-        html: wrapHtml(prospectBody, "ERA Systems"),
-        text: `${action === "conversation" ? `Hi ${firstName}, we'll reach out to ${email} shortly.` : `Hi ${firstName}, your proposal is on its way to ${email}.`}`,
-      }),
-      sendEmail({
-        to: adminEmail,
-        from: fromEmail,
-        subject: `Demo lead: ${firstName} ${lastName} — ${actionLabel}`,
-        html: wrapHtml(adminBody, "ERA Systems"),
-        text: `New lead: ${firstName} ${lastName} | ${email} | ${phone} | ${actionLabel}`,
-      }),
-    ]);
+    await sendEmail({
+      to: adminEmail,
+      from: fromEmail,
+      subject: `Demo lead: ${firstName} ${lastName} — ${actionLabel}`,
+      html: wrapHtml(adminBody, "ERA Systems"),
+      text: `New lead: ${firstName} ${lastName} | ${email} | ${phone} | ${actionLabel}`,
+    });
   } catch (err) {
     console.error("[demo/cta] email error:", (err as Error).message);
   }

@@ -169,7 +169,7 @@ export default function App() {
   const showSMS = useCallback((msg: string) => {
     setSmsBanner({ msg, visible: true });
     if (smsDismissTimer.current) clearTimeout(smsDismissTimer.current);
-    smsDismissTimer.current = setTimeout(() => setSmsBanner(s => ({ ...s, visible: false })), 6000);
+    smsDismissTimer.current = setTimeout(() => setSmsBanner(s => ({ ...s, visible: false })), 9000);
   }, []);
 
   const advanceScene = useCallback(() => {

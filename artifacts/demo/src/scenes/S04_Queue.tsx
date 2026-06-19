@@ -24,7 +24,7 @@ export default function S04_Queue({ prospect, onNext, onSMSBanner }: Props) {
       setIsAdding(false);
       setStep("added");
       onSMSBanner(`Hello ${prospect.firstName}, you've been added to the queue at ERA Hospital. Your current position is #1. We'll keep you updated.`);
-      setTimeout(onNext, 3000);
+      setTimeout(onNext, 5000);
     }, 800);
   }
 

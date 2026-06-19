@@ -11,7 +11,7 @@ const TOTAL = 248;
 
 export default function S01_Dashboard({ prospect, onNext }: Props) {
   useEffect(() => {
-    const t = setTimeout(onNext, 5000);
+    const t = setTimeout(onNext, 8000);
     return () => clearTimeout(t);
   }, [onNext]);
 

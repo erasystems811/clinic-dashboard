@@ -15,7 +15,7 @@ export default function S05_QueueCalledIn({ prospect, onNext, onSMSBanner }: Pro
   function handleCalledIn() {
     setCalled(true);
     onSMSBanner(`It's your turn, ${prospect.firstName}! Please proceed to the consultation room. — ERA Hospital`);
-    setTimeout(onNext, 2500);
+    setTimeout(onNext, 5000);
   }
 
   return (

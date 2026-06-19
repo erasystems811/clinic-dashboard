@@ -23,7 +23,7 @@ export default function S06_NurseStation({ prospect, onNext, onSMSBanner }: Prop
     setTimeout(() => {
       setStep("done");
       onSMSBanner(`Hi ${prospect.firstName}, your care plan has been activated at ERA Hospital. Your nurse has prescribed your medications. You can view your full plan in the ERA-me app.`);
-      setTimeout(onNext, 2500);
+      setTimeout(onNext, 5000);
     }, 1000);
   }
 

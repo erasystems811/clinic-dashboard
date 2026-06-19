@@ -18,7 +18,7 @@ const FAKE_PATIENTS: Record<string, string[]> = {
 
 export default function S03_Pipeline({ prospect, onNext }: Props) {
   useEffect(() => {
-    const t = setTimeout(onNext, 3500);
+    const t = setTimeout(onNext, 6000);
     return () => clearTimeout(t);
   }, [onNext]);
 

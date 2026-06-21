@@ -1538,10 +1538,10 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
       .neq("patient_id", -1).limit(500000),
     // Patients — for totalPatients count and pid→hospital fallback for old activity rows
     supabase.from("patients").select("id, hospital_id").limit(500000),
-    // Activity log — every queue-in event: patient_created (new) + checkin (re-visit).
-    // One row per queue entry regardless of whether the patient is still in queue.
+    // Activity log — queue-in events only: checkin = patient added to queue.
+    // patient_created is registration (not queue entry) so excluded.
     supabase.from("activity").select("hospital_id, patient_id, created_at")
-      .in("type", ["checkin", "patient_created"]).limit(500000),
+      .eq("type", "checkin").limit(500000),
   ]);
 
   const hospitals = hospitalsRes.data ?? [];
@@ -1565,7 +1565,7 @@ router.get("/super-admin/usage-stats", requireSuperAdmin, async (_req, res) => {
   }
 
   // Build per-hospital event lists (sorted timestamps for efficient cumulative scan)
-  // patientTs: one entry per queue-in event from the activity log (total visits, not unique patients)
+  // patientTs: one entry per checkin (queue entry) from the activity log
   const patientTs = new Map<number, number[]>();
   const emailTs   = new Map<number, number[]>();
   const smsTs     = new Map<number, number[]>();

@@ -71,15 +71,8 @@
   * { @apply border-border; box-sizing: border-box; min-width: 0; }
   html, body {
     @apply font-sans antialiased bg-background text-foreground;
-    overflow: hidden;
-    /* Fix mobile browsers: lock to the actual visible viewport so the layout
-       doesn't jump when the address bar slides in/out */
-    height: 100%;
+    overflow-x: hidden;
     overscroll-behavior: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  #root {
-    height: 100%;
   }
 }
 

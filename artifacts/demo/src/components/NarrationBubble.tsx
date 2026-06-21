@@ -22,9 +22,11 @@ export default function NarrationBubble({
   return (
     <div
       className={cn(
-        "absolute z-30 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-primary/30 bg-card/95 backdrop-blur shadow-xl",
-        "left-2 right-2 sm:left-1/2 sm:right-auto sm:w-auto sm:-translate-x-1/2 sm:max-w-lg",
-        position === "bottom" ? "bottom-4 sm:bottom-6" : "top-4 sm:top-6",
+        // Mobile: in-flow (relative) so it sits below the content and is always reachable
+        // Desktop (sm+): absolute, floating at bottom/top of the scene area
+        "relative sm:absolute z-30 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl border border-primary/30 bg-card/95 backdrop-blur shadow-xl",
+        "sm:left-1/2 sm:right-auto sm:w-auto sm:-translate-x-1/2 sm:max-w-lg",
+        position === "bottom" ? "sm:bottom-6" : "sm:top-6",
         "scale-in",
         className
       )}

@@ -60,8 +60,8 @@ export default function DemoShell({ role, activePage, children }: Props) {
           </div>
         </div>
 
-        {/* Page content — tighter padding on mobile */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6">
+        {/* Page content — scrollable; touch-action ensures iOS respects inner scroll */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-6" style={{ WebkitOverflowScrolling: "touch" }}>
           {children}
         </div>
       </div>

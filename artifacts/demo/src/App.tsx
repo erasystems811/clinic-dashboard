@@ -300,14 +300,14 @@ export default function App() {
         <div className="h-full pt-8">
           {meta.role !== null ? (
             <DemoShell role={meta.role} activePage={meta.page} userName={prospect.firstName}>
-              <div key={scene} className="fade-in-up h-full">
+              <div key={scene} className="fade-in-up">
                 {SCENE_MAP[scene]}
               </div>
             </DemoShell>
           ) : (
             /* EMR callout + CTA are full-screen, no sidebar */
             <div className="h-full overflow-y-auto">
-              <div key={scene} className="fade-in-up">
+              <div key={scene} className="fade-in-up min-h-full">
                 {SCENE_MAP[scene]}
               </div>
             </div>

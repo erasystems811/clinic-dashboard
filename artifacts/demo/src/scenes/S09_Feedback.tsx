@@ -140,7 +140,10 @@ export default function S09_Feedback({ prospect, onNext }: Props) {
                 </div>
 
                 <div className="space-y-4">
-                  <StarRow label="Overall Experience *" value={overall} onChange={setOverall} />
+                  <div className={overall === 0 ? "ring-1 ring-primary/30 rounded-lg px-2 py-1 -mx-2" : ""}>
+                    <StarRow label="Overall Experience *" value={overall} onChange={setOverall} />
+                    {overall === 0 && <p className="text-[10px] text-primary/70 mt-1">← tap a star to rate</p>}
+                  </div>
                   <StarRow label="Wait Time" value={waitTime} onChange={setWaitTime} />
                   <StarRow label="Staff Friendliness" value={staffFriendliness} onChange={setStaffFriendliness} />
                   <StarRow label="Quality of Care" value={qualityOfCare} onChange={setQualityOfCare} />
@@ -191,7 +194,7 @@ export default function S09_Feedback({ prospect, onNext }: Props) {
           text={
             formSubmitted
               ? <><strong>Feedback submitted.</strong> It lands instantly in the admin's Feedback tab — no manual collection, no paper forms.</>
-              : <>This is the form {prospect.firstName} fills out. Rate any category and click Submit — it takes under 30 seconds.</>
+              : <>This is the form {prospect.firstName} sees. <strong>Tap the stars to rate</strong> — or just tap Submit below to auto-fill and send.</>
           }
           onNext={formSubmitted ? undefined : handleFormSubmit}
           nextLabel="Submit Feedback →"

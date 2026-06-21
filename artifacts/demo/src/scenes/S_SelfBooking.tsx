@@ -19,8 +19,9 @@ export default function S_SelfBooking({ prospect, onNext }: Props) {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [step, setStep] = useState<"pick" | "submitting" | "done">("pick");
 
-  function handleBook() {
-    if (!selectedSlot) return;
+  function handleBook(forceSlot?: string) {
+    const slot = forceSlot ?? selectedSlot ?? SLOTS[0].id;
+    setSelectedSlot(slot);
     setStep("submitting");
     setTimeout(() => setStep("done"), 1300);
   }
@@ -66,8 +67,11 @@ export default function S_SelfBooking({ prospect, onNext }: Props) {
               <div className="space-y-2">
                 <label className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
                   <Calendar className="w-3.5 h-3.5" /> Pick a time slot
+                  {!selectedSlot && step === "pick" && (
+                    <span className="ml-auto text-[10px] text-primary font-semibold animate-pulse">← tap one</span>
+                  )}
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className={`relative grid grid-cols-2 gap-2 ${!selectedSlot && step === "pick" ? "ring-2 ring-primary/40 rounded-lg p-1" : ""}`}>
                   {SLOTS.map(s => (
                     <button
                       key={s.id}
@@ -84,6 +88,7 @@ export default function S_SelfBooking({ prospect, onNext }: Props) {
                   ))}
                 </div>
               </div>
+
 
               {/* Patient details */}
               <div className="space-y-2">
@@ -116,12 +121,24 @@ export default function S_SelfBooking({ prospect, onNext }: Props) {
 
       <NarrationBubble
         text={
-          step !== "done"
-            ? <>Every hospital gets a <strong>public booking link</strong>. Patients pick a slot, enter their details, and submit — no phone tag, no receptionist needed. Select a slot and try it.</>
-            : <><strong>Booking request received.</strong> It lands instantly in the admin's appointments tab. They confirm — and ERA sends the patient an SMS confirmation. {prospect.firstName} booked without a single phone call.</>
+          step === "done"
+            ? <><strong>Booking request received.</strong> It lands instantly in the admin's appointments tab. They confirm — and ERA sends the patient an SMS confirmation. {prospect.firstName} booked without a single phone call.</>
+            : step === "submitting"
+            ? <>Sending request…</>
+            : selectedSlot
+            ? <>Slot selected. Hit <strong>Book Slot</strong> to send the request — or tap <strong>Request Appointment</strong> in the form.</>
+            : <>Every hospital gets a <strong>public booking link</strong>. Tap a time slot above to pick one, then book — no phone call, no receptionist needed.</>
         }
-        onNext={step === "done" ? onNext : undefined}
-        nextLabel="Continue →"
+        onNext={
+          step === "done" ? onNext
+          : step === "submitting" ? undefined
+          : () => handleBook(selectedSlot || SLOTS[0].id)
+        }
+        nextLabel={
+          step === "done" ? "Continue →"
+          : selectedSlot ? "Book Slot →"
+          : "Pick first slot →"
+        }
       />
     </div>
   );

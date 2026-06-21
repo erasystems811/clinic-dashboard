@@ -54,7 +54,7 @@ function LandingPage({ onStart }: { onStart: (p: Prospect) => void }) {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-dvh bg-background flex flex-col overflow-y-auto">
       {/* Top bar */}
       <div className="px-4 sm:px-8 py-4 border-b border-border flex items-center gap-3">
         <div className="w-7 h-7 rounded-lg bg-primary/20 flex items-center justify-center">
@@ -265,7 +265,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-background">
+    <div className="h-dvh w-screen overflow-hidden flex flex-col bg-background">
       {/* SMS notification banner (floats above everything) */}
       <SMSBanner
         message={smsBanner.msg}

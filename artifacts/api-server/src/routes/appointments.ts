@@ -262,6 +262,44 @@ router.patch("/appointments/:id", async (req, res): Promise<void> => {
     });
   }
 
+  // Doctor assignment/change notification via regular PATCH
+  if (parsed.data.doctorId != null) {
+    const { data: newDoc } = await supabase
+      .from("hospital_doctors")
+      .select("full_name, email")
+      .eq("id", parsed.data.doctorId)
+      .maybeSingle();
+    if (newDoc?.email) {
+      const { data: hosp } = await supabase.from("hospitals").select("name").eq("id", hospital.intId).maybeSingle();
+      const hospitalName = (hosp?.name as string) ?? "Your Hospital";
+      const previousDoctorName = appt.doctor_name as string | null;
+      if (previousDoctorName && (appt.doctor_id as number | null) !== parsed.data.doctorId) {
+        sendDoctorAppointmentReassignedEmail(
+          newDoc.email as string,
+          newDoc.full_name as string,
+          hospitalName,
+          appt.patient_name as string,
+          appt.title as string,
+          appt.scheduled_at as string,
+          (appt.duration_minutes as number | null) ?? null,
+          previousDoctorName,
+          null,
+        ).catch((err) => console.error("[doctor-appt-reassigned-email] unhandled error:", err));
+      } else if (!previousDoctorName || (appt.doctor_id as number | null) !== parsed.data.doctorId) {
+        sendDoctorAppointmentAssignedEmail(
+          newDoc.email as string,
+          newDoc.full_name as string,
+          hospitalName,
+          appt.patient_name as string,
+          appt.title as string,
+          appt.scheduled_at as string,
+          (appt.duration_minutes as number | null) ?? null,
+          (appt.notes as string | null) ?? null,
+        ).catch((err) => console.error("[doctor-appt-assigned-email] unhandled error:", err));
+      }
+    }
+  }
+
   res.json({ ...camelize(appt), duration: appt.duration ?? 30, status: appt.status ?? "scheduled", dndBlocked: false });
 });
 
@@ -304,20 +342,34 @@ router.patch("/appointments/:id/reassign", async (req, res): Promise<void> => {
   });
 
   // Notify the new doctor by email
-  if (newDoc.email && appt.doctor_name) {
+  if (newDoc.email) {
     const { data: hosp } = await supabase.from("hospitals").select("name").eq("id", hospital.intId).maybeSingle();
     const hospitalName = (hosp?.name as string) ?? "Your Hospital";
-    sendDoctorAppointmentReassignedEmail(
-      newDoc.email as string,
-      newDoc.full_name as string,
-      hospitalName,
-      appt.patient_name as string,
-      appt.title as string,
-      appt.scheduled_at as string,
-      (appt.duration_minutes as number | null) ?? null,
-      appt.doctor_name as string,
-      (note as string | null) ?? null,
-    ).catch((err) => console.error("[doctor-appt-reassigned-email] unhandled error:", err));
+    const prevDoctorName = appt.doctor_name as string | null;
+    if (prevDoctorName) {
+      sendDoctorAppointmentReassignedEmail(
+        newDoc.email as string,
+        newDoc.full_name as string,
+        hospitalName,
+        appt.patient_name as string,
+        appt.title as string,
+        appt.scheduled_at as string,
+        (appt.duration_minutes as number | null) ?? null,
+        prevDoctorName,
+        (note as string | null) ?? null,
+      ).catch((err) => console.error("[doctor-appt-reassigned-email] unhandled error:", err));
+    } else {
+      sendDoctorAppointmentAssignedEmail(
+        newDoc.email as string,
+        newDoc.full_name as string,
+        hospitalName,
+        appt.patient_name as string,
+        appt.title as string,
+        appt.scheduled_at as string,
+        (appt.duration_minutes as number | null) ?? null,
+        (appt.notes as string | null) ?? null,
+      ).catch((err) => console.error("[doctor-appt-assigned-email] unhandled error:", err));
+    }
   }
 
   res.json({ ok: true });

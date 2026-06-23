@@ -392,12 +392,16 @@ router.post("/care-plans/:id/close", async (req, res): Promise<void> => {
 });
 
 // ── End (archive) a care plan — never physically deleted ──────────────────────
+// ?cancelOnly=true  → end the plan without moving the patient to Post Treatment
+//                    (for cases where the patient was added to treatment by mistake)
 router.delete("/care-plans/:id", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const hospital = await getHospitalFromRequest(req);
   if (!hospital) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const cancelOnly = req.query.cancelOnly === "true";
 
   const { data: existing } = await supabase.from("care_plans").select("*").eq("id", id).eq("hospital_id", hospital.code).single();
   if (!existing) { res.status(404).json({ error: "Care plan not found" }); return; }
@@ -424,8 +428,17 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
     .neq("status", "ended");
 
   if (!remainingPlans || remainingPlans.length === 0) {
-    // Only move to Post Treatment if the plan being ended was active (not just a draft)
-    if (existing.status === "active") {
+    if (cancelOnly) {
+      // Cancelled by mistake — clear treatment fields but keep patient at their current stage
+      await supabase.from("patients").update({
+        treatment_plan: null,
+        treatment_type: null,
+        medication_timing: null,
+        treatment_end_date: today,
+        updated_at: now.toISOString(),
+      }).eq("id", existing.patient_id as number);
+    } else if (existing.status === "active") {
+      // Normal end: move to Post Treatment
       await supabase.from("patients").update({
         stage: "Post Treatment",
         post_treatment_started_at: now.toISOString(),
@@ -444,7 +457,7 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
         metadata: "Post Treatment",
       });
     } else {
-      // Draft plan discarded — move patient back to Active if they're not in Post Treatment
+      // Draft plan discarded — touch updated_at only
       await supabase.from("patients").update({
         updated_at: now.toISOString(),
       }).eq("id", existing.patient_id as number);
@@ -453,7 +466,9 @@ router.delete("/care-plans/:id", async (req, res): Promise<void> => {
 
   await supabase.from("activity").insert({
     type: "care_plan_ended",
-    description: `${(existing.department as string | null) ?? "Treatment"} plan ended for ${patientName}`,
+    description: cancelOnly
+      ? `${(existing.department as string | null) ?? "Treatment"} plan cancelled for ${patientName} (added by mistake)`
+      : `${(existing.department as string | null) ?? "Treatment"} plan ended for ${patientName}`,
     patient_id: existing.patient_id as number,
     patient_name: patientName,
   });

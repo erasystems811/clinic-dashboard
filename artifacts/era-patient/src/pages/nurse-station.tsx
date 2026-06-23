@@ -348,22 +348,27 @@ export default function NurseStation() {
     }
   };
 
-  const handleEndPlanEarly = async (planId: number) => {
+  const handleEndPlanEarly = async (planId: number, cancelOnly = false) => {
     if (!selectedPatient) return;
     setEndingPlanId(planId);
     try {
-      const res = await fetch(apiUrl(`/api/care-plans/${planId}`), {
-        method: "DELETE",
-        headers: authHeader(),
-      });
+      const url = cancelOnly
+        ? apiUrl(`/api/care-plans/${planId}?cancelOnly=true`)
+        : apiUrl(`/api/care-plans/${planId}`);
+      const res = await fetch(url, { method: "DELETE", headers: authHeader() });
       if (!res.ok) throw new Error("End failed");
-      toast({ title: "Care plan ended", description: "The treatment plan has been closed." });
+      toast({
+        title: cancelOnly ? "Treatment plan cancelled" : "Care plan ended",
+        description: cancelOnly
+          ? "The plan has been cancelled. The patient has not been moved to post treatment."
+          : "The treatment plan has been closed.",
+      });
       await fetchCarePlans(selectedPatient.id);
       setConfirmEndPlanId(null);
       queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
     } catch {
-      toast({ title: "Failed to end care plan", variant: "destructive" });
+      toast({ title: cancelOnly ? "Failed to cancel care plan" : "Failed to end care plan", variant: "destructive" });
     } finally {
       setEndingPlanId(null);
     }
@@ -597,22 +602,35 @@ export default function NurseStation() {
                         </div>
 
                         {confirmEndPlanId === plan.id && (
-                          <div className="px-4 py-3 bg-amber-500/5 border-t border-amber-500/20 space-y-2">
-                            <div className="flex items-start gap-2">
-                              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                              <p className="text-xs text-amber-300">End this care plan early? This will close the plan and cannot be undone.</p>
+                          <div className="px-4 py-3 bg-muted/20 border-t border-border space-y-3">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">End treatment plan — choose an action</p>
+                            <div className="grid grid-cols-1 gap-2">
+                              <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                                <p className="text-xs font-semibold text-amber-300">Move to Post Treatment</p>
+                                <p className="text-xs text-muted-foreground">End the plan and move the patient to the Post Treatment stage. Automated check-in emails will be sent.</p>
+                                <Button
+                                  type="button" size="sm"
+                                  className="w-full text-xs bg-amber-600 hover:bg-amber-600/90 text-white border-0"
+                                  onClick={() => handleEndPlanEarly(plan.id, false)}
+                                  disabled={endingPlanId === plan.id}
+                                >
+                                  {endingPlanId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "End & Move to Post Treatment"}
+                                </Button>
+                              </div>
+                              <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                                <p className="text-xs font-semibold text-destructive">Cancel Treatment Plan</p>
+                                <p className="text-xs text-muted-foreground">Cancel the plan without moving the patient to Post Treatment. Use this if the patient was added by mistake.</p>
+                                <Button
+                                  type="button" size="sm"
+                                  className="w-full text-xs bg-destructive hover:bg-destructive/90 text-white border-0"
+                                  onClick={() => handleEndPlanEarly(plan.id, true)}
+                                  disabled={endingPlanId === plan.id}
+                                >
+                                  {endingPlanId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancel Plan (No Post Treatment)"}
+                                </Button>
+                              </div>
                             </div>
-                            <div className="flex gap-2">
-                              <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setConfirmEndPlanId(null)}>Cancel</Button>
-                              <Button
-                                type="button" size="sm"
-                                className="flex-1 text-xs bg-amber-600 hover:bg-amber-600/90 text-white border-0"
-                                onClick={() => handleEndPlanEarly(plan.id)}
-                                disabled={endingPlanId === plan.id}
-                              >
-                                {endingPlanId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "End Treatment Early"}
-                              </Button>
-                            </div>
+                            <Button type="button" variant="outline" size="sm" className="w-full text-xs" onClick={() => setConfirmEndPlanId(null)}>Go Back</Button>
                           </div>
                         )}
 
@@ -628,7 +646,7 @@ export default function NurseStation() {
                               onClick={e => { e.stopPropagation(); setConfirmEndPlanId(plan.id); }}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                              End Treatment Early
+                              End Treatment Plan
                             </Button>
                           </div>
                         )}

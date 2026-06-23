@@ -578,7 +578,7 @@ export default function PatientHistory() {
         <Section icon={ClipboardList} title="Care Plans" count={carePlans.length}>
           {carePlans.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground text-sm">No care plans on record.</div>
-          ) : (() => {
+          ) : ((() => {
             const activePlans = [...carePlans].filter(p => p.status !== "ended").reverse();
             const endedPlans  = [...carePlans].filter(p => p.status === "ended").reverse();
 
@@ -679,8 +679,8 @@ export default function PatientHistory() {
                 )}
               </div>
             );
-          })()
-          )}
+          })())
+          }
         </Section>
 
         {/* ── RETURN VISITS ── */}

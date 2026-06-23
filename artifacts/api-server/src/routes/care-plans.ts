@@ -57,8 +57,12 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
 
   // Inline auto-end: end any active plans whose treatment duration has passed.
   // The daily scheduler does this overnight, but running it here too means the
-  // UI always reflects reality the moment someone opens the patient record —
-  // no waiting until the next scheduler tick.
+  // UI always reflects reality the moment someone opens the patient record.
+  //
+  // Two ways a plan can be expired:
+  // 1. patients.treatment_end_date is set and in the past (standard path)
+  // 2. treatment_end_date is null but the plan's own template_data has
+  //    medication/procedure durations — compute end date from updated_at + max duration
   const activePlans = (data ?? []).filter((p: Record<string, unknown>) => p.status === "active");
   if (activePlans.length > 0) {
     const { data: patientRow } = await supabase
@@ -68,22 +72,50 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
       .maybeSingle();
 
     const todayStr = new Date().toISOString().split("T")[0];
-    const endDate = patientRow?.treatment_end_date as string | null;
+    const patientEndDate = patientRow?.treatment_end_date as string | null;
 
-    if (endDate && endDate < todayStr) {
+    // Determine which plans have expired, checking both sources
+    const expiredPlans = activePlans.filter((p: Record<string, unknown>) => {
+      // Source 1: patient-level treatment_end_date (set by the close endpoint)
+      if (patientEndDate && patientEndDate < todayStr) return true;
+
+      // Source 2: compute from plan's own template_data durations + updated_at
+      const td = (p.template_data ?? {}) as Record<string, unknown>;
+      const meds = (td.medications as Array<{ durationDays?: number }> | undefined) ?? [];
+      const procs = (td.procedures as Array<{ durationDays?: number }> | undefined) ?? [];
+      const durations = [...meds, ...procs].map(i => i.durationDays ?? 0).filter(d => d > 0);
+      if (durations.length === 0) return false;
+
+      const maxDays = Math.max(...durations);
+      const updatedAt = p.updated_at as string | null;
+      if (!updatedAt) return false;
+      const computedEnd = new Date(updatedAt);
+      computedEnd.setDate(computedEnd.getDate() + maxDays);
+      return computedEnd.toISOString().split("T")[0] < todayStr;
+    });
+
+    if (expiredPlans.length > 0) {
       const now = new Date().toISOString();
       const patientName = patientRow ? `${patientRow.first_name} ${patientRow.last_name}` : "Unknown";
+      const expiredIds = new Set(expiredPlans.map((p: Record<string, unknown>) => p.id as number));
 
-      // End all active plans for this patient (fire-and-forget — don't block response)
+      // End expired plans and transition patient stage (fire-and-forget)
       Promise.all(
-        activePlans.map((p: Record<string, unknown>) =>
+        expiredPlans.map((p: Record<string, unknown>) =>
           supabase.from("care_plans")
             .update({ status: "ended", ended_at: now, updated_at: now })
             .eq("id", p.id as number)
         )
       ).then(async () => {
-        // Transition patient to Post Treatment if not already there
-        if (patientRow?.stage !== "Post Treatment") {
+        // Check if any active plans remain after ending the expired ones
+        const { data: remaining } = await supabase
+          .from("care_plans")
+          .select("id")
+          .eq("patient_id", patientId)
+          .eq("hospital_id", hospital.code)
+          .eq("status", "active");
+
+        if ((!remaining || remaining.length === 0) && patientRow?.stage !== "Post Treatment") {
           const hospitalIntId = await resolveHospitalIntId(hospital.code);
           await supabase.from("patients").update({
             stage: "Post Treatment",
@@ -105,9 +137,9 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
         }
       }).catch(() => {});
 
-      // Return the data with the plans marked as ended so the UI updates immediately
+      // Return immediately with expired plans already marked as ended
       const updatedData = (data ?? []).map((p: Record<string, unknown>) =>
-        p.status === "active" ? { ...p, status: "ended", ended_at: now } : p
+        expiredIds.has(p.id as number) ? { ...p, status: "ended", ended_at: now } : p
       );
       return void res.json(camelizeArr(updatedData));
     }

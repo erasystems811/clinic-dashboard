@@ -158,6 +158,9 @@ router.post("/super-admin/deploy", requireSuperAdmin, async (req, res): Promise<
       { env: gitEnv, timeout: 60000 },
     );
 
+    // Log deployment so AI auto-draft has fresh context next time
+    await supabase.from("platform_deployments").insert({ title: label, deployed_at: new Date().toISOString() }).catch(() => {});
+
     res.json({ ok: true, output: (stdout + stderr).trim() || "Pushed successfully" });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -1826,11 +1829,13 @@ Use "update" for new/changed features, "info" for general tips, "warning" for th
 
   if (!drafts.length) { res.status(200).json([]); return; }
 
-  // Fetch existing draft titles to avoid creating duplicates on repeated auto-draft calls
+  // Only block duplicates created in the last 7 days — old drafts shouldn't block fresh ones
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: existingDrafts } = await supabase
     .from("hospital_announcements")
     .select("title")
-    .eq("published", false);
+    .eq("published", false)
+    .gte("created_at", sevenDaysAgo);
   const existingTitles = new Set((existingDrafts ?? []).map(d => (d.title as string).toLowerCase().trim()));
 
   const toInsert = drafts

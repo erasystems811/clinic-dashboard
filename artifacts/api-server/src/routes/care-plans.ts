@@ -58,11 +58,6 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
   // Inline auto-end: end any active plans whose treatment duration has passed.
   // The daily scheduler does this overnight, but running it here too means the
   // UI always reflects reality the moment someone opens the patient record.
-  //
-  // Two ways a plan can be expired:
-  // 1. patients.treatment_end_date is set and in the past (standard path)
-  // 2. treatment_end_date is null but the plan's own template_data has
-  //    medication/procedure durations — compute end date from updated_at + max duration
   const activePlans = (data ?? []).filter((p: Record<string, unknown>) => p.status === "active");
   if (activePlans.length > 0) {
     const { data: patientRow } = await supabase
@@ -74,24 +69,42 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
     const todayStr = new Date().toISOString().split("T")[0];
     const patientEndDate = patientRow?.treatment_end_date as string | null;
 
-    // Determine which plans have expired, checking both sources
     const expiredPlans = activePlans.filter((p: Record<string, unknown>) => {
-      // Source 1: patient-level treatment_end_date (set by the close endpoint)
-      if (patientEndDate && patientEndDate < todayStr) return true;
-
-      // Source 2: compute from plan's own template_data durations + updated_at
       const td = (p.template_data ?? {}) as Record<string, unknown>;
+
+      // Source 1: patient-level treatment_end_date (new-format plans with meds/procs)
+      if (patientEndDate && patientEndDate <= todayStr) return true;
+
+      // Source 2: new-format plans — compute end date from updated_at + max medication/procedure duration
       const meds = (td.medications as Array<{ durationDays?: number }> | undefined) ?? [];
       const procs = (td.procedures as Array<{ durationDays?: number }> | undefined) ?? [];
-      const durations = [...meds, ...procs].map(i => i.durationDays ?? 0).filter(d => d > 0);
-      if (durations.length === 0) return false;
+      const durations = [...meds, ...procs].map(i => Number(i.durationDays ?? 0)).filter(d => d > 0);
+      if (durations.length > 0) {
+        const maxDays = Math.max(...durations);
+        const updatedAt = p.updated_at as string | null;
+        if (updatedAt) {
+          const computedEnd = new Date(updatedAt);
+          computedEnd.setDate(computedEnd.getDate() + maxDays);
+          if (computedEnd.toISOString().split("T")[0] <= todayStr) return true;
+        }
+      }
 
-      const maxDays = Math.max(...durations);
-      const updatedAt = p.updated_at as string | null;
-      if (!updatedAt) return false;
-      const computedEnd = new Date(updatedAt);
-      computedEnd.setDate(computedEnd.getDate() + maxDays);
-      return computedEnd.toISOString().split("T")[0] < todayStr;
+      // Source 3: old specialist-format plans — check last scheduled visit date
+      // (ancSchedule for Antenatal, vaccinationSchedule for Paediatrics,
+      //  inCareSchedule + procedureDate for Surgery/Dental/Eye/Fertility/ENT)
+      const scheduleDates: string[] = [];
+      for (const key of ["ancSchedule", "vaccinationSchedule", "inCareSchedule"]) {
+        const rows = (td[key] as Array<{ date?: string }> | undefined) ?? [];
+        for (const r of rows) { if (r.date) scheduleDates.push(r.date); }
+      }
+      const procedureDate = td.procedureDate as string | undefined;
+      if (procedureDate) scheduleDates.push(procedureDate);
+      if (scheduleDates.length > 0) {
+        const lastDate = scheduleDates.sort().pop()!;
+        if (lastDate < todayStr) return true;
+      }
+
+      return false;
     });
 
     if (expiredPlans.length > 0) {

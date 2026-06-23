@@ -897,14 +897,21 @@ async function runCarePlanCompletionDetection() {
           continue;
         }
 
-        // ── Old specialist-format plans (inCareSchedule entries) ──────────────
-        const entries = extractVisitEntries(dept, td, todayWAT);
-        if (!entries.length) continue;
+        // ── Old specialist-format plans (inCareSchedule / ancSchedule / etc.) ──
+        // extractVisitEntries filters to future dates only, so we can't use it here.
+        // Instead, collect ALL scheduled dates (past and future) and check if the
+        // last one has already passed — that means treatment is complete.
+        const allScheduledDates: string[] = [];
+        for (const key of ["ancSchedule", "vaccinationSchedule", "inCareSchedule"]) {
+          const rows = (td[key] as Array<{ date?: string }> | undefined) ?? [];
+          for (const r of rows) { if (r.date) allScheduledDates.push(r.date); }
+        }
+        const procedureDate = td.procedureDate as string | undefined;
+        if (procedureDate) allScheduledDates.push(procedureDate);
+        if (!allScheduledDates.length) continue;
 
-        // Find the last scheduled date across all entries
-        const allDates = entries.map(e => e.date).filter(Boolean).sort();
-        const lastDate = allDates[allDates.length - 1];
-        if (!lastDate || lastDate >= todayWAT) continue; // last date hasn't passed yet
+        const lastDate = allScheduledDates.sort().pop()!;
+        if (lastDate >= todayWAT) continue; // last visit hasn't passed yet
 
         // Archive the plan
         const now = new Date().toISOString();

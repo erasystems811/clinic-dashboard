@@ -259,21 +259,26 @@ export default function PatientHistory() {
   };
 
 
-  const handleEndPlanEarly = async (planId: number) => {
+  const handleEndPlanEarly = async (planId: number, cancelOnly = false) => {
     if (!hospital?.token) return;
     setEndingPlanId(planId);
     try {
-      const res = await fetch(apiUrl(`/api/care-plans/${planId}`), {
-        method: "DELETE",
-        headers: { "x-hospital-token": hospital.token },
-      });
+      const url = cancelOnly
+        ? apiUrl(`/api/care-plans/${planId}?cancelOnly=true`)
+        : apiUrl(`/api/care-plans/${planId}`);
+      const res = await fetch(url, { method: "DELETE", headers: { "x-hospital-token": hospital.token } });
       if (!res.ok) throw new Error("Failed");
-      toast({ title: "Care plan ended", description: "The treatment plan has been closed early." });
+      toast({
+        title: cancelOnly ? "Treatment plan cancelled" : "Care plan ended",
+        description: cancelOnly
+          ? "The plan has been cancelled. The patient has not been moved to post treatment."
+          : "The treatment plan has been closed.",
+      });
       setConfirmEndPlanId(null);
       refetch();
       queryClient.invalidateQueries();
     } catch {
-      toast({ title: "Failed to end care plan", variant: "destructive" });
+      toast({ title: cancelOnly ? "Failed to cancel care plan" : "Failed to end care plan", variant: "destructive" });
     } finally {
       setEndingPlanId(null);
     }
@@ -610,7 +615,7 @@ export default function PatientHistory() {
                           onClick={() => setConfirmEndPlanId(planId)}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                          End Early
+                          End Treatment Plan
                         </Button>
                       )}
                     </div>
@@ -618,19 +623,35 @@ export default function PatientHistory() {
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">{summary}</p>
                     </div>
                     {isAdmin && !isEnded && confirmEndPlanId === planId && (
-                      <div className="px-4 py-3 bg-amber-500/5 border border-amber-500/20 rounded-lg space-y-2">
-                        <p className="text-xs text-amber-300">End this {department} care plan early? This cannot be undone.</p>
-                        <div className="flex gap-2">
-                          <Button type="button" variant="outline" size="sm" className="flex-1 text-xs" onClick={() => setConfirmEndPlanId(null)}>Cancel</Button>
-                          <Button
-                            type="button" size="sm"
-                            className="flex-1 text-xs bg-amber-600 hover:bg-amber-600/90 text-white border-0"
-                            onClick={() => handleEndPlanEarly(planId)}
-                            disabled={endingPlanId === planId}
-                          >
-                            {endingPlanId === planId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Yes, End Early"}
-                          </Button>
+                      <div className="p-3 border border-border rounded-lg space-y-3">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">End treatment plan — choose an action</p>
+                        <div className="grid grid-cols-1 gap-2">
+                          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                            <p className="text-xs font-semibold text-amber-300">Move to Post Treatment</p>
+                            <p className="text-xs text-muted-foreground">End the plan and move the patient to the Post Treatment stage. Automated check-in emails will be sent.</p>
+                            <Button
+                              type="button" size="sm"
+                              className="w-full text-xs bg-amber-600 hover:bg-amber-600/90 text-white border-0"
+                              onClick={() => handleEndPlanEarly(planId, false)}
+                              disabled={endingPlanId === planId}
+                            >
+                              {endingPlanId === planId ? <Loader2 className="w-3 h-3 animate-spin" /> : "End & Move to Post Treatment"}
+                            </Button>
+                          </div>
+                          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                            <p className="text-xs font-semibold text-destructive">Cancel Treatment Plan</p>
+                            <p className="text-xs text-muted-foreground">Cancel the plan without moving the patient to Post Treatment. Use this if the patient was added by mistake.</p>
+                            <Button
+                              type="button" size="sm"
+                              className="w-full text-xs bg-destructive hover:bg-destructive/90 text-white border-0"
+                              onClick={() => handleEndPlanEarly(planId, true)}
+                              disabled={endingPlanId === planId}
+                            >
+                              {endingPlanId === planId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancel Plan (No Post Treatment)"}
+                            </Button>
+                          </div>
                         </div>
+                        <Button type="button" variant="outline" size="sm" className="w-full text-xs" onClick={() => setConfirmEndPlanId(null)}>Go Back</Button>
                       </div>
                     )}
                   </div>

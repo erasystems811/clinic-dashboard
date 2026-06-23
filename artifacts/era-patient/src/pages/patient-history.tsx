@@ -680,7 +680,6 @@ export default function PatientHistory() {
               </div>
             );
           })()
-            </div>
           )}
         </Section>
 

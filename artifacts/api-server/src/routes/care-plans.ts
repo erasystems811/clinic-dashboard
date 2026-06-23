@@ -55,6 +55,64 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
+  // Inline auto-end: end any active plans whose treatment duration has passed.
+  // The daily scheduler does this overnight, but running it here too means the
+  // UI always reflects reality the moment someone opens the patient record —
+  // no waiting until the next scheduler tick.
+  const activePlans = (data ?? []).filter((p: Record<string, unknown>) => p.status === "active");
+  if (activePlans.length > 0) {
+    const { data: patientRow } = await supabase
+      .from("patients")
+      .select("treatment_end_date, first_name, last_name, stage")
+      .eq("id", patientId)
+      .maybeSingle();
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const endDate = patientRow?.treatment_end_date as string | null;
+
+    if (endDate && endDate < todayStr) {
+      const now = new Date().toISOString();
+      const patientName = patientRow ? `${patientRow.first_name} ${patientRow.last_name}` : "Unknown";
+
+      // End all active plans for this patient (fire-and-forget — don't block response)
+      Promise.all(
+        activePlans.map((p: Record<string, unknown>) =>
+          supabase.from("care_plans")
+            .update({ status: "ended", ended_at: now, updated_at: now })
+            .eq("id", p.id as number)
+        )
+      ).then(async () => {
+        // Transition patient to Post Treatment if not already there
+        if (patientRow?.stage !== "Post Treatment") {
+          const hospitalIntId = await resolveHospitalIntId(hospital.code);
+          await supabase.from("patients").update({
+            stage: "Post Treatment",
+            post_treatment_started_at: now,
+            treatment_plan: null,
+            treatment_type: null,
+            medication_timing: null,
+            updated_at: now,
+          }).eq("id", patientId);
+
+          await supabase.from("activity").insert({
+            type: "stage_changed",
+            description: `${patientName} moved to Post Treatment (treatment duration complete)`,
+            patient_id: patientId,
+            patient_name: patientName,
+            hospital_id: hospitalIntId,
+            metadata: "Post Treatment",
+          });
+        }
+      }).catch(() => {});
+
+      // Return the data with the plans marked as ended so the UI updates immediately
+      const updatedData = (data ?? []).map((p: Record<string, unknown>) =>
+        p.status === "active" ? { ...p, status: "ended", ended_at: now } : p
+      );
+      return void res.json(camelizeArr(updatedData));
+    }
+  }
+
   // Lazy migration: old patients have treatment_plan on the patients row but no
   // care_plans rows yet. Create one now so the new UI works transparently.
   const nonEndedPlans = (data ?? []).filter((p: Record<string, unknown>) => p.status !== "ended");

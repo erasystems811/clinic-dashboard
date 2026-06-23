@@ -22,7 +22,7 @@ import {
   ArrowLeft, Phone, Mail, Calendar, Stethoscope,
   ClipboardList, PhoneCall, MessageSquare, Bot, Activity,
   Clock, CheckCircle2, AlertTriangle, Flag, Trash2, Pencil, X, Save, Loader2,
-  CheckCircle, Plus,
+  CheckCircle, Plus, ChevronDown,
 } from "lucide-react";
 
 function fmt(iso: string | null | undefined) {
@@ -578,85 +578,108 @@ export default function PatientHistory() {
         <Section icon={ClipboardList} title="Care Plans" count={carePlans.length}>
           {carePlans.length === 0 ? (
             <div className="py-10 text-center text-muted-foreground text-sm">No care plans on record.</div>
-          ) : (
-            <div className="divide-y divide-border">
-              {carePlans.map((plan, idx) => {
-                const planId = plan.id as number;
-                const createdAt = plan.createdAt as string | null;
-                const summary = plan.summary as string | null;
-                const department = plan.department as string | null;
-                const isEnded = plan.status === "ended";
-                const isLatest = idx === 0 && !isEnded;
-                return (
-                  <div key={planId} className={`px-5 py-4 space-y-2 ${isEnded ? "opacity-60" : ""}`}>
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs text-muted-foreground">{fmt(createdAt)}</span>
-                        {department && (
-                          <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted text-muted-foreground flex items-center gap-1">
-                            <Stethoscope className="w-3 h-3" />
-                            {department}
-                          </span>
-                        )}
-                        {isEnded ? (
-                          <span className="text-xs px-2 py-0.5 rounded-full border bg-muted text-muted-foreground border-border font-medium">
-                            Ended
-                          </span>
-                        ) : isLatest && (
-                          <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 font-medium">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      {isAdmin && !isEnded && confirmEndPlanId !== planId && (
-                        <Button
-                          size="sm" variant="outline"
-                          className="shrink-0 text-xs text-amber-400 border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
-                          onClick={() => setConfirmEndPlanId(planId)}
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                          End Treatment Plan
-                        </Button>
+          ) : (() => {
+            const activePlans = [...carePlans].filter(p => p.status !== "ended").reverse();
+            const endedPlans  = [...carePlans].filter(p => p.status === "ended").reverse();
+
+            const renderPlan = (plan: Record<string, unknown>, isActive: boolean) => {
+              const planId     = plan.id as number;
+              const createdAt  = plan.createdAt as string | null;
+              const summary    = plan.summary as string | null;
+              const department = plan.department as string | null;
+              return (
+                <div key={planId} className="px-5 py-4 space-y-2">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-muted-foreground">{fmt(createdAt)}</span>
+                      {department && (
+                        <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted text-muted-foreground flex items-center gap-1">
+                          <Stethoscope className="w-3 h-3" />
+                          {department}
+                        </span>
+                      )}
+                      {isActive ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 font-medium">
+                          Active
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded-full border bg-muted text-muted-foreground border-border font-medium">
+                          Ended
+                        </span>
                       )}
                     </div>
-                    <div className="bg-muted/30 border border-border rounded-lg px-4 py-3">
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{summary}</p>
-                    </div>
-                    {isAdmin && !isEnded && confirmEndPlanId === planId && (
-                      <div className="p-3 border border-border rounded-lg space-y-3">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">End treatment plan — choose an action</p>
-                        <div className="grid grid-cols-1 gap-2">
-                          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
-                            <p className="text-xs font-semibold text-amber-300">Move to Post Treatment</p>
-                            <p className="text-xs text-muted-foreground">End the plan and move the patient to the Post Treatment stage. Automated check-in emails will be sent.</p>
-                            <Button
-                              type="button" size="sm"
-                              className="w-full text-xs bg-amber-600 hover:bg-amber-600/90 text-white border-0"
-                              onClick={() => handleEndPlanEarly(planId, false)}
-                              disabled={endingPlanId === planId}
-                            >
-                              {endingPlanId === planId ? <Loader2 className="w-3 h-3 animate-spin" /> : "End & Move to Post Treatment"}
-                            </Button>
-                          </div>
-                          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
-                            <p className="text-xs font-semibold text-destructive">Cancel Treatment Plan</p>
-                            <p className="text-xs text-muted-foreground">Cancel the plan without moving the patient to Post Treatment. Use this if the patient was added by mistake.</p>
-                            <Button
-                              type="button" size="sm"
-                              className="w-full text-xs bg-destructive hover:bg-destructive/90 text-white border-0"
-                              onClick={() => handleEndPlanEarly(planId, true)}
-                              disabled={endingPlanId === planId}
-                            >
-                              {endingPlanId === planId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancel Plan (No Post Treatment)"}
-                            </Button>
-                          </div>
-                        </div>
-                        <Button type="button" variant="outline" size="sm" className="w-full text-xs" onClick={() => setConfirmEndPlanId(null)}>Go Back</Button>
-                      </div>
+                    {isAdmin && isActive && confirmEndPlanId !== planId && (
+                      <Button
+                        size="sm" variant="outline"
+                        className="shrink-0 text-xs text-amber-400 border-amber-500/40 hover:bg-amber-500/10 hover:text-amber-300"
+                        onClick={() => setConfirmEndPlanId(planId)}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                        End Treatment Plan
+                      </Button>
                     )}
                   </div>
-                );
-              })}
+                  <div className="bg-muted/30 border border-border rounded-lg px-4 py-3">
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{summary}</p>
+                  </div>
+                  {isAdmin && isActive && confirmEndPlanId === planId && (
+                    <div className="p-3 border border-border rounded-lg space-y-3">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">End treatment plan — choose an action</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                          <p className="text-xs font-semibold text-amber-300">Move to Post Treatment</p>
+                          <p className="text-xs text-muted-foreground">End the plan and move the patient to the Post Treatment stage. Automated check-in emails will be sent.</p>
+                          <Button
+                            type="button" size="sm"
+                            className="w-full text-xs bg-amber-600 hover:bg-amber-600/90 text-white border-0"
+                            onClick={() => handleEndPlanEarly(planId, false)}
+                            disabled={endingPlanId === planId}
+                          >
+                            {endingPlanId === planId ? <Loader2 className="w-3 h-3 animate-spin" /> : "End & Move to Post Treatment"}
+                          </Button>
+                        </div>
+                        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                          <p className="text-xs font-semibold text-destructive">Cancel Treatment Plan</p>
+                          <p className="text-xs text-muted-foreground">Cancel the plan without moving the patient to Post Treatment. Use this if the patient was added by mistake.</p>
+                          <Button
+                            type="button" size="sm"
+                            className="w-full text-xs bg-destructive hover:bg-destructive/90 text-white border-0"
+                            onClick={() => handleEndPlanEarly(planId, true)}
+                            disabled={endingPlanId === planId}
+                          >
+                            {endingPlanId === planId ? <Loader2 className="w-3 h-3 animate-spin" /> : "Cancel Plan (No Post Treatment)"}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button type="button" variant="outline" size="sm" className="w-full text-xs" onClick={() => setConfirmEndPlanId(null)}>Go Back</Button>
+                    </div>
+                  )}
+                </div>
+              );
+            };
+
+            return (
+              <div className="divide-y divide-border">
+                {activePlans.length === 0 && endedPlans.length > 0 && (
+                  <div className="px-5 py-3 text-sm text-muted-foreground">No active treatment plans.</div>
+                )}
+                {activePlans.map(plan => renderPlan(plan, true))}
+                {endedPlans.length > 0 && (
+                  <details className="group">
+                    <summary className="flex items-center gap-2 cursor-pointer select-none list-none px-5 py-3 hover:bg-muted/30 transition">
+                      <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-open:rotate-180 transition-transform" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Past Plans ({endedPlans.length})
+                      </span>
+                    </summary>
+                    <div className="divide-y divide-border opacity-60">
+                      {endedPlans.map(plan => renderPlan(plan, false))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            );
+          })()
             </div>
           )}
         </Section>

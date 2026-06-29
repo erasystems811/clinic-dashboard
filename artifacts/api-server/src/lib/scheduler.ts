@@ -508,10 +508,9 @@ async function runPostTreatmentTransitions() {
 // ── Next-Day Feedback Emails — runs daily at 12pm, covers all previous day's patients ──
 async function runFeedbackEmails() {
   try {
-    // Cover patients seen yesterday so late-evening visits are never missed
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const targetDate = yesterday.toISOString().split("T")[0];
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const weekStart = weekAgo.toISOString();
 
     const { data: hospitals } = await supabase
       .from("hospital_modules")
@@ -526,24 +525,34 @@ async function runFeedbackEmails() {
         .maybeSingle();
       if (!hospital || !hospital.feedback_slug) continue;
 
-      // Build the hospital's permanent general feedback link
       const feedbackUrl = `${APP_BASE_URL}/feedback/h/${hospital.feedback_slug}`;
 
-      // Query activity log — queue rows are deleted after patients are seen,
-      // so by noon they're gone. The activity table is the permanent audit log.
-      // Covers: dequeued (outpatient pass-through), care_plan_added, treatment_plan_logged.
+      // All distinct patients who visited this hospital in the past 7 days
       const { data: seenActivity } = await supabase
         .from("activity")
         .select("patient_id")
         .in("type", ["dequeued", "care_plan_added", "treatment_plan_logged"])
         .eq("hospital_id", hm.hospital_id)
-        .gte("created_at", `${targetDate}T00:00:00Z`)
-        .lte("created_at", `${targetDate}T23:59:59Z`)
+        .gte("created_at", weekStart)
         .not("patient_id", "is", null);
 
       const patientIds = [...new Set((seenActivity ?? []).map((a: Record<string, unknown>) => a.patient_id as number))];
+      if (!patientIds.length) continue;
+
+      // Bulk dedup: skip anyone who already got a feedback email this week
+      const { data: recentSends } = await supabase
+        .from("automation_log")
+        .select("patient_id")
+        .eq("hospital_id", hm.hospital_id)
+        .eq("automation_type", "feedback_email")
+        .eq("status", "sent")
+        .gte("created_at", weekStart)
+        .in("patient_id", patientIds);
+      const alreadyEmailed = new Set((recentSends ?? []).map(r => r.patient_id as number));
 
       for (const patientId of patientIds) {
+        if (alreadyEmailed.has(patientId)) continue;
+
         const { data: patient } = await supabase
           .from("patients")
           .select("id, first_name, last_name, email")
@@ -552,18 +561,6 @@ async function runFeedbackEmails() {
           .maybeSingle();
 
         if (!patient || !patient.email) continue;
-
-        const { data: alreadySent } = await supabase
-          .from("automation_log")
-          .select("id")
-          .eq("hospital_id", hm.hospital_id)
-          .eq("patient_id", patientId)
-          .eq("automation_type", "feedback_email")
-          .eq("status", "sent")
-          .gte("created_at", `${targetDate}T00:00:00Z`)
-          .maybeSingle();
-
-        if (alreadySent) continue;
 
         const patientName = `${patient.first_name} ${patient.last_name}`;
         await sendFeedbackEmail(hm.hospital_id as number, patientId, patientName, patient.email, feedbackUrl);
@@ -1107,8 +1104,8 @@ export function startScheduler() {
     await runPostCareEmails();
   }, TZ);
 
-  // Daily at 12:00 PM WAT: feedback emails (covers previous day's patients)
-  cron.schedule("0 12 * * *", async () => {
+  // Every Monday at 12:00 PM WAT: feedback emails (covers all patients who visited the past 7 days)
+  cron.schedule("0 12 * * 1", async () => {
     await runFeedbackEmails();
   }, TZ);
 
@@ -1322,13 +1319,10 @@ async function runCarePlanRemindersHourly() {
             const daysSinceFirst = firstMedDate
               ? Math.floor((now.getTime() - firstMedDate.getTime()) / (1000 * 60 * 60 * 24))
               : 0;
-            const inWeeklyMode = !!firstMedDate && daysSinceFirst >= 5;
-
-            if (inWeeklyMode) {
-              // Weekly summary mode — fire once per week on the same day of week as the first reminder
-              const summaryDayOfWeek = firstMedDate!.getDay();
+            if (firstMedDate && daysSinceFirst >= 5) {
+              // After day 5: weekly summary on the same day of week as the first reminder
+              const summaryDayOfWeek = firstMedDate.getDay();
               if (now.getDay() === summaryDayOfWeek) {
-                // Fire at the earliest medication time on this day
                 const sortedSlots = [...medsBySlotTime.values()].sort((a, b) => a.time.localeCompare(b.time));
                 const firstSlot = sortedSlots[0];
                 if (firstSlot) {
@@ -1345,8 +1339,25 @@ async function runCarePlanRemindersHourly() {
                   }
                 }
               }
+            } else if (firstMedDate && daysSinceFirst >= 1) {
+              // Days 2–5: one daily summary at the earliest medication time
+              const sortedSlots = [...medsBySlotTime.values()].sort((a, b) => a.time.localeCompare(b.time));
+              const firstSlot = sortedSlots[0];
+              if (firstSlot) {
+                const [hh, mm] = firstSlot.time.split(":").map(Number);
+                const fireAt = watToUTC(hh, mm);
+                if (Math.abs(fireAt.getTime() - now.getTime()) <= WINDOW_MS) {
+                  const dailyKey = `med_daily_summary_${plan.id}_${today}`;
+                  if (!(await checkSentLog(h.id, dailyKey))) {
+                    const allMedNames = newMeds.map(m => m.name || "medication");
+                    await sendWeeklyMedicationSummaryEmail(h.id, patient.id as number, patientName, patient.email as string, allMedNames, dept);
+                    await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: dailyKey, status: "sent", channel: "email", message_preview: `Daily medication summary → ${patient.email as string}`, created_at: new Date().toISOString() });
+                    log(`Daily medication summary → patient ${patient.id} (day ${daysSinceFirst + 1})`);
+                  }
+                }
+              }
             } else {
-              // Daily mode — first 5 days
+              // Day 1: per-slot reminders (up to 3×)
               for (const { slot, time, names } of medsBySlotTime.values()) {
                 const [hh, mm] = time.split(":").map(Number);
                 const fireAt = watToUTC(hh, mm);
@@ -1454,11 +1465,9 @@ async function runCarePlanRemindersHourly() {
             const genoutDaysSinceFirst = firstGenoutDate
               ? Math.floor((now.getTime() - firstGenoutDate.getTime()) / (1000 * 60 * 60 * 24))
               : 0;
-            const genoutWeeklyMode = !!firstGenoutDate && genoutDaysSinceFirst >= 5;
-
-            if (genoutWeeklyMode) {
-              // Weekly summary mode — fire once per week on same day of week as first reminder
-              const summaryDay = firstGenoutDate!.getDay();
+            if (firstGenoutDate && genoutDaysSinceFirst >= 5) {
+              // After day 5: weekly summary on the same day of week as the first reminder
+              const summaryDay = firstGenoutDate.getDay();
               if (now.getDay() === summaryDay) {
                 const firstSlot = medTiming[0];
                 const firstTime = firstSlot ? medTimingTimes[firstSlot] : null;
@@ -1475,8 +1484,24 @@ async function runCarePlanRemindersHourly() {
                   }
                 }
               }
+            } else if (firstGenoutDate && genoutDaysSinceFirst >= 1) {
+              // Days 2–5: one daily summary at the first medication time
+              const firstSlot = medTiming[0];
+              const firstTime = firstSlot ? medTimingTimes[firstSlot] : null;
+              if (firstTime) {
+                const [hh, mm] = firstTime.split(":").map(Number);
+                const visitAt = watToUTC(hh, mm);
+                if (Math.abs(visitAt.getTime() - now.getTime()) <= WINDOW_MS) {
+                  const dailyKey = `genout_med_daily_summary_${plan.id}_${today}`;
+                  if (!(await checkSentLog(h.id, dailyKey))) {
+                    await sendWeeklyMedicationSummaryEmail(h.id, patient.id as number, patientName, patient.email as string, ["your prescribed medications"], dept);
+                    await supabase.from("automation_log").insert({ hospital_id: h.id, patient_id: patient.id as number, automation_type: dailyKey, status: "sent", channel: "email", message_preview: `Daily GenOut med summary → ${patient.email as string}`, created_at: new Date().toISOString() });
+                    log(`Daily GenOut med summary → patient ${patient.id} (day ${genoutDaysSinceFirst + 1})`);
+                  }
+                }
+              }
             } else {
-              // Daily mode — first 5 days, fire AT the exact time (0h lead)
+              // Day 1: per-slot reminders (up to 3×), fire AT the exact time
               for (const slot of medTiming) {
                 const timeStr = medTimingTimes[slot];
                 if (!timeStr) continue;

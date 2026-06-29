@@ -1604,8 +1604,6 @@ async function runCarePlanRemindersHourly() {
   }
 }
 
-// ── Care Visit Reminders — (kept for reference, superseded by runCarePlanRemindersHourly) ──
-
 interface VisitEntry { date: string; time?: string; }
 
 // today must be the WAT calendar date (YYYY-MM-DD) — pass nowWAT.toISOString().slice(0,10).
@@ -1629,65 +1627,6 @@ function extractVisitEntries(dept: string, templateData: Record<string, unknown>
     }
   }
   return entries;
-}
-
-async function runCareVisitReminders() {
-  try {
-    // Fire at 7pm: remind patients about tomorrow's appointment
-    const WAT_MS = 60 * 60 * 1000;
-    const nowWATRef = new Date(Date.now() + WAT_MS);
-    const todayWAT = nowWATRef.toISOString().slice(0, 10);
-    const tomorrowRef = new Date(Date.now() + WAT_MS + 24 * 60 * 60 * 1000);
-    const tomorrowDate = tomorrowRef.toISOString().slice(0, 10);
-
-    // care_plans.hospital_id stores hospital_code UUID (post-migration), not the integer id
-    const { data: hospitals } = await supabase.from("hospitals").select("id, username, hospital_code, active");
-    if (!hospitals?.length) return;
-
-    for (const h of hospitals) {
-      const { data: plans } = await supabase
-        .from("care_plans")
-        .select("id, patient_id, department, summary, template_data")
-        .eq("hospital_id", h.hospital_code)
-        .eq("status", "active");
-
-      if (!plans?.length) continue;
-
-      for (const plan of plans) {
-        const dept = plan.department as string;
-        const templateData = (plan.template_data ?? {}) as Record<string, unknown>;
-
-        // General Outpatient fires daily (handled separately via daily automation logic)
-        if (dept === "General Outpatient") continue;
-
-        const entries = extractVisitEntries(dept, templateData, todayWAT);
-        const match = entries.find(e => e.date === tomorrowDate);
-        if (!match) continue;
-
-        const { data: patient } = await supabase
-          .from("patients")
-          .select("id, first_name, last_name, email")
-          .eq("id", plan.patient_id)
-          .eq("hospital_id", h.hospital_code)
-          .maybeSingle();
-
-        if (!patient?.email) continue;
-
-        const alreadySent = await checkSentLog(h.id, `care_visit_${plan.id}_${tomorrowDate}`);
-        if (alreadySent) continue;
-
-        const patientName = `${patient.first_name} ${patient.last_name}`;
-        await sendCareVisitReminderEmail(
-          h.id, patient.id as number, patientName, patient.email as string,
-          dept, plan.summary as string, tomorrowDate, plan.id as number, match.time,
-        );
-        log(`Care visit reminder → patient ${patient.id} (${patientName}) dept=${dept} date=${tomorrowDate} time=${match.time ?? "n/a"}`);
-      }
-    }
-  } catch (err) {
-    Sentry.captureException(err);
-    log(`Care visit reminders error: ${err}`);
-  }
 }
 
 // ── Return Visit Reminders — runs every 15 minutes ───────────────────────────

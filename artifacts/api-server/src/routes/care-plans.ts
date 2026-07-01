@@ -55,6 +55,14 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
 
   if (error) { res.status(500).json({ error: error.message }); return; }
 
+  // Dedup: if multiple open drafts exist (from concurrent creation races), keep the oldest and delete the rest
+  const openDrafts = (data ?? []).filter((p: Record<string, unknown>) => p.status === "open");
+  if (openDrafts.length > 1) {
+    const dupeIds = openDrafts.slice(1).map((p: Record<string, unknown>) => p.id as number);
+    await supabase.from("care_plans").delete().in("id", dupeIds).catch(() => {});
+    (data as Record<string, unknown>[]).splice(0, data!.length, ...(data ?? []).filter((p: Record<string, unknown>) => !dupeIds.includes(p.id as number)));
+  }
+
   // Inline auto-end: end any active plans whose treatment duration has passed.
   // The daily scheduler does this overnight, but running it here too means the
   // UI always reflects reality the moment someone opens the patient record.
@@ -191,6 +199,21 @@ router.get("/patients/:id/care-plans", async (req, res): Promise<void> => {
       }).select().single();
 
       if (!mErr && migrated) {
+        // Race-condition cleanup: if concurrent requests both inserted, remove extras
+        // (keep the oldest row by created_at, delete any newer duplicates)
+        const { data: allRows } = await supabase
+          .from("care_plans")
+          .select("id, created_at")
+          .eq("patient_id", patientId)
+          .eq("hospital_id", hospital.code)
+          .order("created_at", { ascending: true });
+        if (allRows && allRows.length > 1) {
+          const keepId = (allRows[0] as { id: number }).id;
+          const dupeIds = allRows.slice(1).map((r: Record<string, unknown>) => r.id as number);
+          await supabase.from("care_plans").delete().in("id", dupeIds);
+          const kept = allRows[0] as Record<string, unknown>;
+          return void res.json(camelizeArr([{ ...migrated, id: keepId, ...kept }]));
+        }
         return void res.json(camelizeArr([migrated]));
       }
     }
@@ -214,6 +237,21 @@ router.post("/patients/:id/care-plans", async (req, res): Promise<void> => {
 
   const { data: patient } = await supabase.from("patients").select("*").eq("id", patientId).eq("hospital_id", hospital.code).single();
   if (!patient) { res.status(404).json({ error: "Patient not found" }); return; }
+
+  // Prevent duplicate open drafts: if one already exists, return it instead of creating another
+  const { data: existingDraft } = await supabase
+    .from("care_plans")
+    .select("*")
+    .eq("patient_id", patientId)
+    .eq("hospital_id", hospital.code)
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingDraft) {
+    res.status(409).json({ error: "An open draft already exists for this patient.", existingPlanId: existingDraft.id, existingPlan: camelize(existingDraft) });
+    return;
+  }
 
   const now = new Date();
   const body = parsed.data ?? {};

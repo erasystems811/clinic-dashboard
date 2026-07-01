@@ -242,10 +242,18 @@ export default function NurseStation() {
         headers: { "Content-Type": "application/json", ...authHeader() },
         body: JSON.stringify({}),
       });
+      const json = await res.json() as CarePlan & { existingPlan?: CarePlan };
+      if (res.status === 409 && json.existingPlan) {
+        // An open draft already exists — navigate to it instead of creating a duplicate
+        resetForm();
+        setEditingPlan(json.existingPlan);
+        setPlanMode("fill");
+        toast({ title: "Draft already open", description: "Continuing your existing draft treatment plan." });
+        return;
+      }
       if (!res.ok) throw new Error("Failed");
-      const plan = await res.json() as CarePlan;
       resetForm();
-      setEditingPlan(plan);
+      setEditingPlan(json);
       setPlanMode("fill");
       queryClient.invalidateQueries({ queryKey: getListPatientsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getListQueueQueryKey() });
@@ -695,8 +703,13 @@ export default function NurseStation() {
                                     headers: { "Content-Type": "application/json", ...authHeader() },
                                     body: JSON.stringify({ summary: plan.summary }),
                                   });
-                                  if (!res.ok) throw new Error("Failed");
-                                  const newPlan = await res.json() as CarePlan;
+                                  const json = await res.json() as CarePlan & { existingPlan?: CarePlan };
+                                  const newPlan = (res.status === 409 && json.existingPlan) ? json.existingPlan : json;
+                                  if (res.status === 409) {
+                                    toast({ title: "Draft already open", description: "An existing draft has been loaded. You can overwrite its content." });
+                                  } else if (!res.ok) {
+                                    throw new Error("Failed");
+                                  }
                                   // Pre-populate form with the old plan's content
                                   const td = plan.templateData ?? {};
                                   setMedications((td.medications as MedicationRow[] | undefined) ?? []);

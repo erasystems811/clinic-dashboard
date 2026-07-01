@@ -8,20 +8,20 @@ const AI_VARIED_MULT = 10;
 const MED_SLOTS = 3;
 const BENEFICIARY_RATE = 0.70;
 const EMAIL_RATE = 0.85;
-const MARKUP = 1 / 0.30;
+const MARKUP = 1 / 0.50;
 const VARIED_RATE = 0.20;
 const CARE_PLAN_RATE = 0.70;
 const GP_DURATION = 10;
 const DEPT_DURATION = 30;
 const NOSHOW_RATE = 0.30;
 const CARE_PLAN_MULTIPLIER = 3;
-const PRICE_FLOOR = 150000;
+const PRICE_FLOOR = 80000;
 
 const FLOOR_PRICES = {
-  core: 90000,
-  queue: 37000,
-  appointments: 8000,
-  newsletter: 15000,
+  core: 48000,
+  queue: 19734,
+  appointments: 4266,
+  newsletter: 8000,
 };
 
 function calcActivePlans(dp: number, gp: number) {
@@ -161,8 +161,8 @@ export default function PricingPage() {
             <div key={key} style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, color: "#aaa", marginBottom: 5 }}>{label}</div>
               <input
-                type="text" inputMode="numeric" pattern="[0-9]*" placeholder={placeholder} value={inputs[key as keyof Inputs]}
-                onChange={(e) => handleInput(key, e.target.value.replace(/\D/g, ""))}
+                type="number" placeholder={placeholder} value={inputs[key as keyof Inputs]}
+                onChange={(e) => handleInput(key, e.target.value)}
                 style={{ width: "100%", padding: "11px 14px", background: "#1a1a1a", border: inputs[key as keyof Inputs] ? "1.5px solid #C0392B" : "1.5px solid #333", borderRadius: 6, color: "#fff", fontSize: 15, outline: "none", boxSizing: "border-box", transition: "border-color 0.2s" }}
               />
             </div>

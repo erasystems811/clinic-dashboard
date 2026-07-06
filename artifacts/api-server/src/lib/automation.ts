@@ -875,9 +875,9 @@ export async function sendBirthdayEmail(
       ? `About ${hCtx.hospitalName}: ${hCtx.clinicDescription}. Let this shape the personality and voice of the email — a cardiology clinic writes differently from a dental practice or a general hospital.`
       : "";
     const body = await generateClaudeMessage(
-      `You are writing a birthday email on behalf of ${hCtx.hospitalName} to a patient. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. ${clinicContext} Write something genuinely warm, memorable, and a little creative — this is someone's birthday and you want them to smile when they read it and remember that ${hCtx.hospitalName} truly cares about them. Every hospital's email should have its own distinct personality shaped by its tone and type of clinic. STRICT RULES: (1) Never reference age, milestones, getting older, or how many years have passed. (2) Never reference religion, God, prayers, or any spiritual practice. (3) Never reference tribe, ethnicity, culture, or traditions. (4) Never assume gender — use gender-neutral language throughout, never say he/she/his/her. (5) Do NOT highlight or invent personal traits about the person — the hospital does not know them personally. (6) Never say you are happy or glad the patient is a patient. STRUCTURE — exactly 3 to 4 paragraphs: (1) A warm, enthusiastic birthday opening that makes ${firstName} feel genuinely celebrated and special to the ${hCtx.hospitalName} team — express that they matter and that the whole team is thinking of them today. (2) A heartfelt paragraph about how ${hCtx.hospitalName} is committed to always being there for them, always giving their best, and how the biggest wish for ${firstName} today is truly good health — write this with genuine warmth, not like a sales pitch. (3) One lighthearted, slightly funny health-related birthday tip — keep it playful and gentle, something creative and fun that fits the personality of ${hCtx.hospitalName} — make it feel like a joke from a caring friend, not a lecture. (4) A warm, genuine closing that feels personal and sends them off with a smile. End with a sign-off from the ${hCtx.hospitalName} Team. Do not add contact lines or "please do not reply".`,
-      `Write a warm, creative, memorable birthday email for ${firstName} from ${hCtx.hospitalName}. 3-4 paragraphs. Celebrate them, express genuine care, wish them good health, include one light funny health tip that matches this clinic's personality. Make it feel real, human, and unique to ${hCtx.hospitalName}.`,
-      420,
+      `You are writing a birthday email on behalf of ${hCtx.hospitalName} to a patient. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. ${clinicContext} Write something genuinely warm, memorable, and a little creative — this is someone's birthday and you want them to smile when they read it and remember that ${hCtx.hospitalName} truly cares about them. Every hospital's email should have its own distinct personality shaped by its tone and type of clinic. STRICT RULES: (1) Never reference age, milestones, getting older, or how many years have passed. (2) Never reference religion, God, prayers, or any spiritual practice. (3) Never reference tribe, ethnicity, culture, or traditions. (4) Never assume gender — use gender-neutral language throughout, never say he/she/his/her. (5) Do NOT highlight or invent personal traits about the person — the hospital does not know them personally. (6) Never say you are happy or glad the patient is a patient. STRUCTURE — keep the whole email short: exactly 3 short paragraphs, no paragraph longer than two sentences. (1) A warm, enthusiastic birthday opening that makes ${firstName} feel genuinely celebrated by the ${hCtx.hospitalName} team today. (2) Just ONE short sentence that ${hCtx.hospitalName} truly cares about them and that the biggest wish for ${firstName} is good health — brief and warm, never a sales pitch. (3) One lighthearted, gentle, funny health-related birthday tip that fits the personality of ${hCtx.hospitalName} — like a joke from a caring friend, not a lecture — then close warmly with a sign-off from the ${hCtx.hospitalName} Team. Do not add contact lines or "please do not reply".`,
+      `Write a warm, memorable but SHORT birthday email for ${firstName} from ${hCtx.hospitalName}. Exactly 3 short paragraphs, concise. Celebrate them briefly, one short line of genuine care and a good-health wish, then one light funny health tip that matches this clinic's personality. Make it feel real and human.`,
+      260,
     );
 
     const subject = `Happy Birthday from ${hCtx.hospitalName} 🎂`;
@@ -895,6 +895,57 @@ export async function sendBirthdayEmail(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[sendBirthdayEmail] failed:", msg, { hospitalId, patientId, patientEmail });
+    await updateAutomationLog(logId, "failed", msg);
+    Sentry.captureException(err, { extra: { ...ctx } });
+  }
+}
+
+// ── Anniversary Email — Templated — Fires once per year on patient's anniversary ─────
+// Optional: only patients who provided an anniversary date get this. Kept short.
+
+export async function sendAnniversaryEmail(
+  hospitalId: number,
+  patientId: number,
+  patientName: string,
+  patientEmail: string,
+): Promise<void> {
+  const hCtx = await getHospitalContext(hospitalId);
+  const ctx: AutomationContext = {
+    hospitalId, patientId, patientName,
+    automationType: "anniversary_email",
+    channel: "email",
+  };
+  if (await skipIfSuspended(hCtx, ctx)) return;
+  const logId = await logAutomation(ctx, "queued");
+  try {
+    const firstName = patientName.split(" ")[0];
+    const tone = buildToneDescription(hCtx.tone);
+    const lang = hCtx.language ?? "English";
+
+    const clinicContext = hCtx.clinicDescription
+      ? `About ${hCtx.hospitalName}: ${hCtx.clinicDescription}. Let this gently shape the voice.`
+      : "";
+    const body = await generateClaudeMessage(
+      `You are writing a SHORT anniversary email on behalf of ${hCtx.hospitalName} to a patient. Tone: ${tone}. IMPORTANT: Write the entire email in ${lang}. ${clinicContext} STRICT RULES: (1) Do NOT assume what kind of anniversary it is — never mention a wedding, marriage, spouse, or partner; just warmly say "your anniversary" or "your special day". (2) Never reference religion, God, prayers, tribe, ethnicity, culture, or traditions. (3) Never assume gender — use gender-neutral language, never he/she/his/her. (4) Do not invent personal traits about the person. (5) Never say you are happy or glad the patient is a patient. STRUCTURE — keep it very short: exactly 2 short paragraphs, no paragraph longer than two sentences. (1) A warm anniversary greeting that makes ${firstName} feel thought of by the ${hCtx.hospitalName} team on their special day. (2) One short, genuine line wishing them continued good health and letting them know ${hCtx.hospitalName} is always there for them — then a warm sign-off from the ${hCtx.hospitalName} Team. Do not add contact lines or "please do not reply".`,
+      `Write a short, warm anniversary email for ${firstName} from ${hCtx.hospitalName}. Exactly 2 short paragraphs. Wish them a happy anniversary and continued good health. Keep it concise, human, and gender-neutral — do not assume it is a wedding anniversary.`,
+      160,
+    );
+
+    const subject = `Happy Anniversary from ${hCtx.hospitalName} 🎉`;
+    const html = wrapHtml(`<p>${body.replace(/\n/g, "</p><p>")}</p>`, hCtx.hospitalName);
+    await sendEmail({
+      to: patientEmail,
+      from: hCtx.fromAddress,
+      subject,
+      html,
+      text: body,
+    });
+
+    await updateAutomationLog(logId, "sent", `Anniversary email → ${patientEmail}`);
+    try { await pushEraNotification(patientId, hospitalId, "anniversary", "Happy Anniversary! 🎉", `${hCtx.hospitalName} sent you an anniversary message.`, { hospitalName: hCtx.hospitalName }); } catch { /* non-fatal */ }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[sendAnniversaryEmail] failed:", msg, { hospitalId, patientId, patientEmail });
     await updateAutomationLog(logId, "failed", msg);
     Sentry.captureException(err, { extra: { ...ctx } });
   }

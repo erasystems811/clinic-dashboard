@@ -7,6 +7,7 @@ export const patientsTable = pgTable("patients", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   dateOfBirth: text("date_of_birth"),
+  anniversary: text("anniversary"),
   hospitalId: text("hospital_id"),
   email: text("email").notNull(),
   phone: text("phone").notNull(),

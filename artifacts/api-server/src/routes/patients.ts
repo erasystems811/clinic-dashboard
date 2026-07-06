@@ -32,6 +32,7 @@ const CreatePatientBody = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   dateOfBirth: z.string().optional(),
+  anniversary: z.string().optional(),
   hospitalId: z.string().optional(),
   email: z.string().email(),
   phone: z.string().min(1),
@@ -50,6 +51,7 @@ const UpdatePatientBody = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   dateOfBirth: z.string().optional(),
+  anniversary: z.string().optional(),
   hospitalId: z.string().optional(),
   email: z.string().optional(),
   phone: z.string().optional(),
@@ -464,7 +466,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
   const isInfoEdit = !parsed.data.stage && (
     parsed.data.firstName || parsed.data.lastName ||
     parsed.data.phone || parsed.data.email || parsed.data.whatsappNumber ||
-    parsed.data.dateOfBirth || parsed.data.age || parsed.data.gender ||
+    parsed.data.dateOfBirth || parsed.data.anniversary || parsed.data.age || parsed.data.gender ||
     parsed.data.department || parsed.data.diagnosis || parsed.data.patientId || parsed.data.notes
   );
 
@@ -478,6 +480,7 @@ router.patch("/patients/:id", async (req, res): Promise<void> => {
     if (parsed.data.whatsappNumber && data.whatsapp_number !== before.whatsapp_number) changes.push("WhatsApp");
     if (parsed.data.gender && data.gender !== before.gender) changes.push("gender");
     if (parsed.data.dateOfBirth && data.date_of_birth !== before.date_of_birth) changes.push("date of birth");
+    if (parsed.data.anniversary && data.anniversary !== before.anniversary) changes.push("anniversary");
     if (parsed.data.age && data.age !== before.age) changes.push("age");
     if (parsed.data.department && data.department !== before.department) changes.push("department");
     if (parsed.data.diagnosis && data.diagnosis !== before.diagnosis) changes.push("diagnosis");

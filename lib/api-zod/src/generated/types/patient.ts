@@ -13,6 +13,8 @@ export interface Patient {
   /** @nullable */
   dateOfBirth?: string | null;
   /** @nullable */
+  anniversary?: string | null;
+  /** @nullable */
   hospitalId?: string | null;
   email: string;
   phone: string;

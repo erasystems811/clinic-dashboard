@@ -16,6 +16,8 @@ export interface Patient {
   /** @nullable */
   dateOfBirth?: string | null;
   /** @nullable */
+  anniversary?: string | null;
+  /** @nullable */
   hospitalId?: string | null;
   email: string;
   phone: string;
@@ -59,6 +61,7 @@ export interface PatientInput {
   firstName: string;
   lastName: string;
   dateOfBirth?: string;
+  anniversary?: string;
   hospitalId?: string;
   email: string;
   phone: string;
@@ -76,6 +79,7 @@ export interface PatientUpdate {
   firstName?: string;
   lastName?: string;
   dateOfBirth?: string;
+  anniversary?: string;
   hospitalId?: string;
   email?: string;
   phone?: string;

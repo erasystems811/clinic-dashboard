@@ -587,6 +587,8 @@ components:
           type: string
         dateOfBirth:
           type: ["string", "null"]
+        anniversary:
+          type: ["string", "null"]
         hospitalId:
           type: ["string", "null"]
         email:
@@ -640,6 +642,8 @@ components:
           type: string
         dateOfBirth:
           type: string
+        anniversary:
+          type: string
         hospitalId:
           type: string
         email:
@@ -671,6 +675,8 @@ components:
         lastName:
           type: string
         dateOfBirth:
+          type: string
+        anniversary:
           type: string
         hospitalId:
           type: string

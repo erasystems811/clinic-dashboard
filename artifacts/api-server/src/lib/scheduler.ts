@@ -12,6 +12,7 @@ import {
   sendInCareAIReminder,
   sendStoredCarePlanReminder,
   sendBirthdayEmail,
+  sendAnniversaryEmail,
   sendCareVisitReminderEmail,
   sendCarePlanEmail,
   sendQueueLongWaitApology,
@@ -736,6 +737,50 @@ async function runBirthdayEmails() {
   }
 }
 
+// ── Anniversary Emails — runs daily at 7 AM — only patients with an anniversary set ──
+async function runAnniversaryEmails() {
+  try {
+    const now = new Date();
+    const todayMMDD = now.toISOString().slice(5, 10); // "MM-DD"
+    const yearStart = `${now.getFullYear()}-01-01`;
+
+    const { data: hospitals } = await supabase.from("hospitals").select("id, hospital_code, active");
+    for (const h of hospitals ?? []) {
+      // Filter by today's MM-DD directly in the DB — only patients who provided an anniversary match
+      const { data: patients } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name, email")
+        .eq("hospital_id", h.hospital_code)
+        .not("email", "is", null)
+        .like("anniversary", `____-${todayMMDD}`);
+
+      if (!patients?.length) continue;
+
+      // Batch dedup — one query for all anniversary patients this year instead of one per patient
+      const patientIds = patients.map(p => p.id as number);
+      const { data: alreadySentRows } = await supabase
+        .from("automation_log")
+        .select("patient_id")
+        .eq("hospital_id", h.id)
+        .eq("automation_type", "anniversary_email")
+        .eq("status", "sent")
+        .gte("created_at", yearStart)
+        .in("patient_id", patientIds);
+      const alreadySentIds = new Set((alreadySentRows ?? []).map(r => r.patient_id as number));
+
+      for (const p of patients) {
+        if (alreadySentIds.has(p.id as number)) continue;
+        const patientName = `${p.first_name} ${p.last_name}`;
+        await sendAnniversaryEmail(h.id, p.id as number, patientName, p.email as string);
+        log(`Anniversary email → patient ${p.id}`);
+      }
+    }
+  } catch (err) {
+    Sentry.captureException(err);
+    log(`Anniversary emails error: ${err}`);
+  }
+}
+
 // ── Subscription Expiration Auto-Suspend ──────────────────────────────────────
 async function checkSubscriptionExpirations() {
   try {
@@ -1097,6 +1142,7 @@ export function startScheduler() {
     await runPostTreatmentTransitions();
     await runDormantDetection();
     await runBirthdayEmails();
+    await runAnniversaryEmails();
   }, TZ);
 
   // Daily at 6:00 PM WAT: post-care wellness emails

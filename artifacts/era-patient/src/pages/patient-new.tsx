@@ -28,6 +28,7 @@ export default function NewPatient() {
     firstName: "",
     lastName: "",
     dateOfBirth: "",
+    anniversary: "",
     email: "",
     phone: "",
     whatsappNumber: "",
@@ -67,6 +68,7 @@ export default function NewPatient() {
           firstName: form.firstName,
           lastName: form.lastName,
           dateOfBirth: form.dateOfBirth,
+          anniversary: form.anniversary || undefined,
           email: form.email,
           phone: form.phone,
           whatsappNumber: form.whatsappNumber || undefined,
@@ -174,6 +176,16 @@ export default function NewPatient() {
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">
+                    Anniversary <span className="text-muted-foreground font-normal">(optional)</span>
+                  </label>
+                  <Input type="date" value={form.anniversary} onChange={field("anniversary")} />
+                  <p className="text-xs text-muted-foreground">If provided, the patient gets a short anniversary message each year.</p>
                 </div>
               </div>
 

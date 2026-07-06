@@ -10,6 +10,7 @@ export interface PatientInput {
   firstName: string;
   lastName: string;
   dateOfBirth?: string;
+  anniversary?: string;
   hospitalId?: string;
   email: string;
   phone: string;

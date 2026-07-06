@@ -182,10 +182,10 @@ export default function NewPatient() {
               <div className="grid md:grid-cols-2 gap-5">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">
-                    Anniversary <span className="text-muted-foreground font-normal">(optional)</span>
+                    Wedding Anniversary <span className="text-muted-foreground font-normal">(optional)</span>
                   </label>
                   <Input type="date" value={form.anniversary} onChange={field("anniversary")} />
-                  <p className="text-xs text-muted-foreground">If provided, the patient gets a short anniversary message each year.</p>
+                  <p className="text-xs text-muted-foreground">If provided, the patient gets a short marriage-anniversary message each year.</p>
                 </div>
               </div>
 
